@@ -1,0 +1,24 @@
+[
+  {
+    "RuleID": "generic-api-key",
+    "StartLine": 5,
+    "File": "tooling/desktop/e2e_lab/guest/browser-extension/manifest.json",
+    "Commit": "",
+    "Fingerprint": "tooling/desktop/e2e_lab/guest/browser-extension/manifest.json:generic-api-key:5",
+    "Secret": "REDACTED",
+    "SniptaleScope": "both",
+    "SniptaleEnabled": true,
+    "SniptaleRationale": "Public Chrome extension manifest key used to derive the deterministic E2E extension ID."
+  },
+  {
+    "RuleID": "generic-api-key",
+    "StartLine": 5,
+    "File": "scripts/e2e_lab/guest/browser-extension/manifest.json",
+    "Commit": "5ccd1bce0e0b7d7f4ff9ce4bd511040bcd98b31a",
+    "Fingerprint": "5ccd1bce0e0b7d7f4ff9ce4bd511040bcd98b31a:scripts/e2e_lab/guest/browser-extension/manifest.json:generic-api-key:5",
+    "Secret": "REDACTED",
+    "SniptaleScope": "history",
+    "SniptaleEnabled": false,
+    "SniptaleRationale": "Disabled after the public-history reset; retained as proof of the former SHA-specific exception for the historical path of the same public Chrome extension manifest key."
+  }
+]

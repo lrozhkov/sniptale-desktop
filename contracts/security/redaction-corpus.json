@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "samples": [
+    {
+      "name": "raw Native Messaging payload",
+      "value": "{\"type\":\"extension.recording.start\",\"token\":\"secret-token\",\"url\":\"https://example.invalid/private\"}"
+    },
+    {
+      "name": "base64 media chunk",
+      "value": "data:video/mp4;base64,AAAA_SECRET_MEDIA_BYTES"
+    },
+    {
+      "name": "typed text and clipboard",
+      "value": "typed text: password123 clipboard: copied-secret"
+    },
+    {
+      "name": "headers and cookies",
+      "value": "Authorization: Bearer secret Cookie: session=secret"
+    },
+    {
+      "name": "full local path",
+      "value": "C:\\Users\\Alice\\Private\\capture.mp4"
+    },
+    {
+      "name": "extension origin and id",
+      "value": "chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/ extensionId=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "name": "generated media ids",
+      "value": "{\"recordingId\":\"recording-secret-9\",\"operationId\":\"capture-secret-9\",\"message\":\"recording-secret-9 screenshot-secret-9 capture-secret-9\"}"
+    }
+  ],
+  "requiredOutputs": [
+    "log",
+    "doctor-json",
+    "collect-diagnostics",
+    "operation-failure",
+    "support-bundle"
+  ]
+}

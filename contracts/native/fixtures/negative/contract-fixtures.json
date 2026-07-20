@@ -1,0 +1,353 @@
+{
+  "NativeProtocolConstants": {
+    "protocolVersion": 2
+  },
+  "NativePlatform": {
+    "kind": "windows",
+    "version": "11",
+    "arch": "x86"
+  },
+  "NativeAutostartState": {
+    "supported": true,
+    "enabled": true,
+    "method": "scheduled-task"
+  },
+  "NativeInstallState": {
+    "platform": {
+      "kind": "windows",
+      "version": "11",
+      "arch": "x64"
+    }
+  },
+  "ExtensionHelloMessage": {
+    "type": "extension.hello",
+    "protocolVersion": 2,
+    "settingsSchemaVersion": 1,
+    "extensionVersion": "0.1.0",
+    "extensionId": "extension-1",
+    "minAppVersion": "0.1.0",
+    "supportedProtocolVersions": [2],
+    "supportedSettingsSchemaVersions": [1]
+  },
+  "AppHelloMessage": {
+    "type": "app.hello",
+    "protocolVersion": 2,
+    "settingsSchemaVersion": 1,
+    "minExtensionVersion": "0.1.0",
+    "supportedProtocolVersions": [2],
+    "supportedSettingsSchemaVersions": [1],
+    "appInstanceId": "app-instance-1",
+    "platform": {
+      "kind": "windows",
+      "version": "11",
+      "arch": "x64"
+    },
+    "install": {},
+    "capabilities": {}
+  },
+  "NativeAppCapabilities": {
+    "capture": {
+      "screenshotModes": ["screen"],
+      "videoModes": ["screen"],
+      "supportsFreezeRegionSelection": true
+    },
+    "codecs": {
+      "containers": ["mp4"],
+      "video": ["h264"],
+      "audio": ["aac"],
+      "hardwareEncoderAvailable": true,
+      "unavailableReasons": []
+    },
+    "audio": {
+      "microphoneDevices": [],
+      "supportsMicrophone": true,
+      "supportsSystemAudio": true,
+      "supportsMixedAudio": true,
+      "unavailableReasons": []
+    }
+  },
+  "NativeCapabilityUnavailableReason": "raw-win32-error",
+  "ExtensionControllerAcquireMessage": {
+    "type": "extension.controller.acquire",
+    "protocolVersion": 2,
+    "connectionId": "connection-1",
+    "browserFamily": "chrome",
+    "profileKey": "profile-1",
+    "documentId": "document-1",
+    "requestedAtEpochMs": 1782770000000,
+    "reason": "initial-connect"
+  },
+  "AppControllerLeaseMessage": {
+    "type": "app.controller.lease",
+    "protocolVersion": 2,
+    "controllerLeaseId": "lease-1",
+    "controller": {},
+    "expiresAtEpochMs": 1782770060000,
+    "status": "granted"
+  },
+  "ExtensionSettingsSyncMessage": {
+    "type": "extension.settings.sync",
+    "protocolVersion": 1,
+    "revision": "settings-revision-1",
+    "schemaVersion": 1,
+    "generatedAtEpochMs": 1782770000000,
+    "settings": {
+      "screenshots": {},
+      "video": {},
+      "trayActions": {
+        "actions": [],
+        "revision": "tray-revision-1"
+      }
+    }
+  },
+  "AppSettingsAcceptedMessage": {
+    "type": "app.settings.accepted",
+    "protocolVersion": 1,
+    "controllerLeaseId": "../lease",
+    "revision": "settings-revision-1",
+    "schemaVersion": 1,
+    "acceptedAtEpochMs": 1782770000001,
+    "effectiveSettings": {},
+    "warnings": []
+  },
+  "ExtensionPingMessage": {
+    "type": "extension.ping",
+    "protocolVersion": 2,
+    "nonce": "nonce-1",
+    "sentAtEpochMs": 1782770000002
+  },
+  "AppPongMessage": {
+    "type": "app.pong",
+    "protocolVersion": 2,
+    "nonce": "nonce-1",
+    "sentAtEpochMs": 1782770000003,
+    "appStatus": {}
+  },
+  "NativeTrayActionRegistry": {
+    "actions": [
+      {
+        "enabled": true,
+        "id": "../open-settings",
+        "kind": "open-settings",
+        "label": "Open settings"
+      }
+    ],
+    "revision": "tray-revision-1"
+  },
+  "AppTrayActionRequestedMessage": {
+    "type": "app.tray.actionRequested",
+    "protocolVersion": 1,
+    "controllerLeaseId": "lease-1",
+    "actionId": "../capture-screen",
+    "requestedAtEpochMs": 1782770000004,
+    "invocationId": "invocation-1"
+  },
+  "ExtensionTrayActionResultMessage": {
+    "type": "extension.tray.actionResult",
+    "protocolVersion": 1,
+    "controllerLeaseId": "lease-1",
+    "invocationId": "../invocation-1",
+    "accepted": true
+  },
+  "AppOpenSettingsRequestedMessage": {
+    "type": "app.openSettings.requested",
+    "protocolVersion": 1,
+    "controllerLeaseId": "lease-1",
+    "section": "registry-editor",
+    "requestedAtEpochMs": 1782770000005,
+    "invocationId": "invocation-2"
+  },
+  "ExtensionScreenshotCaptureCommandMessage": {
+    "type": "extension.screenshot.capture",
+    "protocolVersion": 1,
+    "controllerLeaseId": "lease-1",
+    "commandId": "../command-shot-1",
+    "mode": "screen",
+    "settingsRevision": "settings-revision-1",
+    "openEditor": true,
+    "requestedAtEpochMs": 1782770000006
+  },
+  "ExtensionRecordingStartCommandMessage": {
+    "type": "extension.recording.start",
+    "protocolVersion": 1,
+    "controllerLeaseId": "lease-1",
+    "commandId": "command-record-1",
+    "source": {
+      "kind": "screen"
+    },
+    "settingsRevision": "settings-revision-1",
+    "requestedQuality": {
+      "preset": "high"
+    },
+    "openEditor": true
+  },
+  "ExtensionRecordingControlCommandMessage": {
+    "type": "extension.recording.control",
+    "protocolVersion": 1,
+    "controllerLeaseId": "lease-1",
+    "commandId": "command-record-2",
+    "recordingId": "../recording-1",
+    "control": "stop",
+    "requestedAtEpochMs": 1782770000008
+  },
+  "AppCommandAcceptedMessage": {
+    "type": "app.command.accepted",
+    "protocolVersion": 1,
+    "controllerLeaseId": "lease-1",
+    "commandId": "command-shot-1",
+    "operation": "install",
+    "acceptedAtEpochMs": 1782770000009
+  },
+  "AppScreenshotStartMessage": {
+    "type": "app.screenshot.start",
+    "protocolVersion": 1,
+    "controllerLeaseId": "lease-1",
+    "captureId": "capture-1",
+    "mode": "screen",
+    "filename": "C:\\secret.png",
+    "mimeType": "image/png",
+    "totalBytes": 11,
+    "width": 1920,
+    "height": 1080,
+    "chunkCount": 1,
+    "sha256": "hash",
+    "openEditor": true,
+    "capturedAtEpochMs": 1782770000010
+  },
+  "AppScreenshotChunkMessage": {
+    "type": "app.screenshot.chunk",
+    "protocolVersion": 1,
+    "controllerLeaseId": "lease-1",
+    "captureId": "capture-1",
+    "chunkIndex": 0,
+    "chunkByteOffset": 0,
+    "chunkRawBytes": 524289,
+    "chunkSha256": "hash",
+    "base64": "aGVsbG8="
+  },
+  "AppScreenshotCommitMessage": {
+    "type": "app.screenshot.commit",
+    "protocolVersion": 1,
+    "controllerLeaseId": "lease-1",
+    "captureId": "../capture-1"
+  },
+  "ExtensionScreenshotChunkRequestMessage": {
+    "type": "extension.screenshot.chunkRequest",
+    "protocolVersion": 1,
+    "controllerLeaseId": "lease-1",
+    "captureId": "../capture-1",
+    "chunkIndex": 0
+  },
+  "ExtensionScreenshotAckMessage": {
+    "type": "extension.screenshot.ack",
+    "protocolVersion": 1,
+    "captureId": "capture-1",
+    "assetId": "asset-1"
+  },
+  "ExtensionScreenshotRejectMessage": {
+    "type": "extension.screenshot.reject",
+    "protocolVersion": 1,
+    "controllerLeaseId": "lease-1",
+    "captureId": "capture-1",
+    "reason": "retry-later"
+  },
+  "AppRecordingStartedMessage": {
+    "type": "app.recording.started",
+    "protocolVersion": 1,
+    "controllerLeaseId": "lease-1",
+    "recordingId": "recording-1",
+    "source": {},
+    "timebase": {
+      "id": "../timebase-1",
+      "startedAtEpochMs": 1782770000011,
+      "startedAtMonotonicNs": "123456789",
+      "units": "milliseconds"
+    },
+    "requestedSettingsRevision": "settings-revision-1",
+    "requestedQuality": {},
+    "effectiveQuality": {},
+    "startedAtEpochMs": 1782770000011
+  },
+  "AppRecordingProgressMessage": {
+    "type": "app.recording.progress",
+    "protocolVersion": 1,
+    "controllerLeaseId": "lease-1",
+    "recordingId": "recording-1",
+    "durationMs": 1000,
+    "bytesWritten": 4096,
+    "status": "done"
+  },
+  "AppRecordingStoppedMessage": {
+    "type": "app.recording.stopped",
+    "protocolVersion": 1,
+    "controllerLeaseId": "lease-1",
+    "recordingId": "recording-1",
+    "durationMs": 2000,
+    "filename": "con.mp4",
+    "mimeType": "video/mp4",
+    "totalBytes": 4096,
+    "width": 1920,
+    "height": 1080,
+    "fps": 30,
+    "chunkCount": 1,
+    "sha256": "hash",
+    "telemetry": null,
+    "openEditor": true
+  },
+  "ExtensionRecordingChunkRequestMessage": {
+    "type": "extension.recording.chunkRequest",
+    "protocolVersion": 1,
+    "controllerLeaseId": "lease-1",
+    "recordingId": "../recording-1",
+    "chunkIndex": 0
+  },
+  "AppRecordingChunkMessage": {
+    "type": "app.recording.chunk",
+    "protocolVersion": 1,
+    "controllerLeaseId": "lease-1",
+    "recordingId": "recording-1",
+    "chunkIndex": 0,
+    "chunkByteOffset": 0,
+    "chunkRawBytes": 524289,
+    "chunkSha256": "hash",
+    "base64": "aGVsbG8="
+  },
+  "ExtensionRecordingAckMessage": {
+    "type": "extension.recording.ack",
+    "protocolVersion": 1,
+    "controllerLeaseId": "lease-1",
+    "recordingId": "../recording-1"
+  },
+  "ExtensionRecordingRejectMessage": {
+    "type": "extension.recording.reject",
+    "protocolVersion": 1,
+    "controllerLeaseId": "lease-1",
+    "recordingId": "recording-1",
+    "reason": "retry-later"
+  },
+  "NativeRecordingTimebase": {
+    "id": "../timebase-1",
+    "startedAtEpochMs": 1782770000011,
+    "startedAtMonotonicNs": "123456789",
+    "units": "ticks"
+  },
+  "NativeRecordingTelemetrySnapshot": {
+    "viewport": null,
+    "cursorTrack": null,
+    "actionEvents": "not-an-array",
+    "signals": []
+  },
+  "AppOperationFailedMessage": {
+    "type": "app.operation.failed",
+    "protocolVersion": 1,
+    "controllerLeaseId": "lease-1",
+    "operation": "screenshot",
+    "operationId": "../capture-1",
+    "phase": "capture",
+    "error": {
+      "code": "protected-content",
+      "recoverable": true
+    },
+    "occurredAtEpochMs": 1782770000012
+  }
+}

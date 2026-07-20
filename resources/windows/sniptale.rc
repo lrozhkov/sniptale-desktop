@@ -1,0 +1,9 @@
+#define IDI_SNIPTALE_MAIN 101
+#define IDI_SNIPTALE_RECORDING 102
+#define IDI_SNIPTALE_PAUSED 103
+#define RT_MANIFEST 24
+
+IDI_SNIPTALE_MAIN ICON "icons/sniptale.ico"
+IDI_SNIPTALE_RECORDING ICON "icons/sniptale-recording.ico"
+IDI_SNIPTALE_PAUSED ICON "icons/sniptale-paused.ico"
+1 RT_MANIFEST "sniptale-native-agent.manifest"

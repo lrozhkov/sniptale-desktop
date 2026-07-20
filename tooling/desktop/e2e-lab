@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -euo pipefail
+export PYTHONDONTWRITEBYTECODE=1
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+
+# `usermod -aG kvm` does not change the supplementary groups of an existing
+# WSL login. Re-enter just this command through the already-authorized kvm
+# group so the lab works immediately without requiring a WSL restart.
+if [[ "${SNIPTALE_E2E_KVM_GROUP:-}" != 1 ]] && command -v sg >/dev/null 2>&1; then
+  kvm_gid="$(getent group kvm 2>/dev/null | cut -d: -f3)"
+  current_groups=" $(id -G) "
+  configured_groups=" $(id -G "$(id -un)") "
+  if [[ -n "$kvm_gid" && "$configured_groups" == *" $kvm_gid "* && "$current_groups" != *" $kvm_gid "* ]]; then
+    printf -v command '%q ' env SNIPTALE_E2E_KVM_GROUP=1 "$ROOT/tooling/desktop/e2e-lab" "$@"
+    exec sg kvm -c "$command"
+  fi
+fi
+
+exec python3 "$ROOT/tooling/desktop/e2e_lab/main.py" "$@"

@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Wix
+  xmlns="http://wixtoolset.org/schemas/v4/wxs"
+  xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+  <Package
+    Name="Sniptale Desktop"
+    Manufacturer="Sniptale"
+    Version="$(var.ProductVersion)"
+    UpgradeCode="{BC80D869-3328-47B1-BC08-CC5E0FA05961}"
+    Scope="perUser"
+    Compressed="yes">
+    <MajorUpgrade
+      AllowSameVersionUpgrades="yes"
+      DowngradeErrorMessage="A newer version of Sniptale Desktop is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+    <Icon Id="SniptaleAppIcon" SourceFile="$(var.AppIcon)" />
+    <Property Id="ARPPRODUCTICON" Value="SniptaleAppIcon" />
+    <Property Id="SNIPTALE_START_WITH_WINDOWS" Value="1" />
+    <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
+    <UIRef Id="WixUI_ErrorProgressText" />
+
+    <UI>
+      <Dialog Id="SniptaleStartupOptionsDlg" Width="370" Height="270" Title="Sniptale Desktop">
+        <Control
+          Id="StartWithWindowsCheckBox"
+          Type="CheckBox"
+          X="20"
+          Y="120"
+          Width="330"
+          Height="18"
+          Property="SNIPTALE_START_WITH_WINDOWS"
+          CheckBoxValue="1"
+          Text="Start Sniptale with Windows" />
+      </Dialog>
+    </UI>
+
+    <StandardDirectory Id="LocalAppDataFolder">
+      <Directory Id="SniptaleFolder" Name="Sniptale">
+        <Directory Id="INSTALLFOLDER" Name="NativeAgent">
+          <Component Id="NativeAgentExecutable" Guid="{03183BD5-775C-4EB4-981F-EFB47CCBE72C}">
+            <File Id="NativeAgentExe" Source="$(var.NativeAgentExe)" Name="sniptale-native-agent.exe" KeyPath="yes" />
+          </Component>
+
+          <Component Id="NativeHostManifestFile" Guid="{8595CD6F-6457-4543-8C45-90F8AD696405}">
+            <File Id="NativeHostManifest" Source="$(var.NativeHostManifest)" Name="native-host.json" KeyPath="yes" />
+          </Component>
+
+          <Component Id="ProjectLicenseFile" Guid="{C8C2911C-844C-4A1F-8A47-57C9EE9B7C48}">
+            <File Id="ProjectLicense" Source="$(var.ProjectLicense)" Name="LICENSE.txt" KeyPath="yes" />
+          </Component>
+
+          <Component Id="ProjectNoticeFile" Guid="{D65E7844-4811-4133-8948-E8BCEF60B7F0}">
+            <File Id="ProjectNotice" Source="$(var.ProjectNotice)" Name="NOTICE.txt" KeyPath="yes" />
+          </Component>
+
+          <Component Id="ThirdPartyNoticesMarkdownFile" Guid="{AD1936C4-9944-43AC-A6F0-17726ED05B19}">
+            <File Id="ThirdPartyNotices" Source="$(var.ThirdPartyNotices)" Name="THIRD_PARTY_NOTICES.md" KeyPath="yes" />
+          </Component>
+
+          <Component Id="ThirdPartyDependenciesFile" Guid="{C8367801-AE20-42A7-B4CC-A68F74D662E1}">
+            <File Id="ThirdPartyDependencies" Source="$(var.ThirdPartyDependencies)" Name="THIRD_PARTY_DEPENDENCIES.json" KeyPath="yes" />
+          </Component>
+
+          <Component
+            Id="AutostartRegistration"
+            Guid="{25DE16B5-3992-4D10-A465-8649BAF30582}"
+            Condition="SNIPTALE_START_WITH_WINDOWS = &quot;1&quot;">
+            <RegistryValue
+              Root="HKCU"
+              Key="Software\Microsoft\Windows\CurrentVersion\Run"
+              Name="SniptaleNativeAgent"
+              Type="string"
+              Value="&quot;[INSTALLFOLDER]sniptale-native-agent.exe&quot;"
+              KeyPath="yes" />
+          </Component>
+
+          <Component Id="ChromeNativeHostRegistration" Guid="{4524E8EA-998C-4B26-A0D6-0070423736D7}">
+            <RegistryValue
+              Root="HKCU"
+              Key="Software\Google\Chrome\NativeMessagingHosts\$(var.NativeHostName)"
+              Type="string"
+              Value="[INSTALLFOLDER]native-host.json"
+              KeyPath="yes" />
+          </Component>
+
+          <Component Id="EdgeNativeHostRegistration" Guid="{221B8686-241A-4EB9-8E4D-85549F3679B9}">
+            <RegistryValue
+              Root="HKCU"
+              Key="Software\Microsoft\Edge\NativeMessagingHosts\$(var.NativeHostName)"
+              Type="string"
+              Value="[INSTALLFOLDER]native-host.json"
+              KeyPath="yes" />
+          </Component>
+
+          <Component Id="ChromiumNativeHostRegistration" Guid="{F2641735-F503-4072-BBC5-C8B57ABAC13E}">
+            <RegistryValue
+              Root="HKCU"
+              Key="Software\Chromium\NativeMessagingHosts\$(var.NativeHostName)"
+              Type="string"
+              Value="[INSTALLFOLDER]native-host.json"
+              KeyPath="yes" />
+          </Component>
+        </Directory>
+      </Directory>
+    </StandardDirectory>
+
+    <CustomAction
+      Id="RemoveAuthorizationStateOnTrueUninstall"
+      Directory="INSTALLFOLDER"
+      ExeCommand="&quot;[%ComSpec]&quot; /d /c &quot;del /f /q pipe-secret.json dev-local-browser-trust.json trusted-connections.json 2&gt;nul &amp; if exist pipe-secret.json exit /b 1 &amp; if exist dev-local-browser-trust.json exit /b 1 &amp; if exist trusted-connections.json exit /b 1 &amp; exit /b 0&quot;"
+      Execute="deferred"
+      Impersonate="yes"
+      Return="check" />
+    <InstallExecuteSequence>
+      <Custom
+        Action="RemoveAuthorizationStateOnTrueUninstall"
+        Before="RemoveFiles"
+        Condition="REMOVE=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
+    </InstallExecuteSequence>
+
+    <Feature Id="MainFeature" Title="Sniptale Desktop" Level="1">
+      <ComponentRef Id="NativeAgentExecutable" />
+      <ComponentRef Id="NativeHostManifestFile" />
+      <ComponentRef Id="ProjectLicenseFile" />
+      <ComponentRef Id="ProjectNoticeFile" />
+      <ComponentRef Id="ThirdPartyNoticesMarkdownFile" />
+      <ComponentRef Id="ThirdPartyDependenciesFile" />
+      <ComponentRef Id="AutostartRegistration" />
+      <ComponentRef Id="ChromeNativeHostRegistration" />
+      <ComponentRef Id="EdgeNativeHostRegistration" />
+      <ComponentRef Id="ChromiumNativeHostRegistration" />
+    </Feature>
+  </Package>
+</Wix>

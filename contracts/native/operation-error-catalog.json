@@ -1,0 +1,256 @@
+{
+  "schemaVersion": 1,
+  "publicCodes": [
+    "malformed-message",
+    "unsupported-version",
+    "incompatible-settings",
+    "stale-controller-lease",
+    "duplicate-command",
+    "unsupported-capability",
+    "quota-exceeded",
+    "hash-mismatch",
+    "duplicate-or-replay",
+    "oversized-payload",
+    "storage-failed",
+    "invalid-selection",
+    "user-cancelled",
+    "unknown",
+    "os-too-old",
+    "encoder-missing",
+    "device-busy",
+    "permission-denied",
+    "policy-denied",
+    "unsupported-browser",
+    "unsupported-profile",
+    "unsupported-platform",
+    "unsupported-display-server",
+    "platform-permission-required",
+    "notarization-invalid",
+    "protected-content",
+    "app-upgrade-required",
+    "extension-upgrade-required",
+    "incompatible-protocol",
+    "repair-required",
+    "disk-pressure",
+    "native-message-too-large",
+    "capture-source-lost",
+    "audio-source-lost",
+    "encoder-failed",
+    "native-finalization-failed",
+    "command-dispatch-failed",
+    "install-identity-drift",
+    "pipe-secret-unavailable",
+    "pipe-secret-corrupt",
+    "pipe-connect-timeout",
+    "pipe-busy",
+    "resident-startup-failed",
+    "auth-rejected",
+    "protected-media-failure",
+    "chunk-out-of-bounds",
+    "transfer-expired",
+    "serialization-contract-failed",
+    "logger-startup-failed",
+    "queue-backpressure",
+    "hotkey-runtime-failed",
+    "tray-runtime-failed",
+    "recording-runtime-failed",
+    "screenshot-capture-failed"
+  ],
+  "operationFailures": {
+    "malformed-message": {
+      "publicCode": "malformed-message",
+      "defaultPhase": "parse",
+      "recoverable": true
+    },
+    "handshake-incompatible-protocol": {
+      "publicCode": "incompatible-protocol",
+      "defaultPhase": "version-negotiation",
+      "recoverable": false
+    },
+    "handshake-incompatible-settings": {
+      "publicCode": "incompatible-settings",
+      "defaultPhase": "version-negotiation",
+      "recoverable": false
+    },
+    "app-upgrade-required": {
+      "publicCode": "app-upgrade-required",
+      "defaultPhase": "version-negotiation",
+      "recoverable": true
+    },
+    "extension-upgrade-required": {
+      "publicCode": "extension-upgrade-required",
+      "defaultPhase": "version-negotiation",
+      "recoverable": true
+    },
+    "stale-controller-lease": {
+      "publicCode": "stale-controller-lease",
+      "defaultPhase": "lease-validation",
+      "recoverable": true
+    },
+    "command-settings-revision-mismatch": {
+      "publicCode": "incompatible-settings",
+      "defaultPhase": "settings-revision",
+      "recoverable": true
+    },
+    "settings-state-unavailable": {
+      "publicCode": "storage-failed",
+      "defaultPhase": "state-lock",
+      "recoverable": true
+    },
+    "settings-schema-version-incompatible": {
+      "publicCode": "incompatible-settings",
+      "defaultPhase": "schema-version",
+      "recoverable": true
+    },
+    "settings-snapshot-invalid": {
+      "publicCode": "incompatible-settings",
+      "defaultPhase": "snapshot",
+      "recoverable": true
+    },
+    "tray-actions-invalid": {
+      "publicCode": "incompatible-settings",
+      "defaultPhase": "tray-actions",
+      "recoverable": true
+    },
+    "hotkey-bindings-invalid": {
+      "publicCode": "incompatible-settings",
+      "defaultPhase": "hotkeys",
+      "recoverable": true
+    },
+    "hotkey-runtime-failed": {
+      "publicCode": "hotkey-runtime-failed",
+      "defaultPhase": "hotkeys-runtime",
+      "recoverable": true
+    },
+    "tray-runtime-failed": {
+      "publicCode": "tray-runtime-failed",
+      "defaultPhase": "tray-runtime",
+      "recoverable": true
+    },
+    "unsupported-capability": {
+      "publicCode": "unsupported-capability",
+      "defaultPhase": "capability",
+      "recoverable": false
+    },
+    "disk-pressure": {
+      "publicCode": "disk-pressure",
+      "defaultPhase": "recording",
+      "recoverable": true
+    },
+    "screenshot-selection-cancelled": {
+      "publicCode": "user-cancelled",
+      "defaultPhase": "screenshot",
+      "recoverable": true
+    },
+    "screenshot-invalid-selection": {
+      "publicCode": "invalid-selection",
+      "defaultPhase": "screenshot",
+      "recoverable": true
+    },
+    "screenshot-capture-failed": {
+      "publicCode": "screenshot-capture-failed",
+      "defaultPhase": "screenshot",
+      "recoverable": true
+    },
+    "recording-runtime-failed": {
+      "publicCode": "recording-runtime-failed",
+      "defaultPhase": "recording",
+      "recoverable": true
+    },
+    "command-dispatch-failed": {
+      "publicCode": "command-dispatch-failed",
+      "defaultPhase": "command",
+      "recoverable": true
+    },
+    "storage-unavailable": {
+      "publicCode": "storage-failed",
+      "defaultPhase": "transfer-state",
+      "recoverable": true
+    },
+    "transfer-not-pending": {
+      "publicCode": "duplicate-or-replay",
+      "defaultPhase": "transfer-state",
+      "recoverable": true
+    },
+    "transfer-channel-unsupported": {
+      "publicCode": "unsupported-capability",
+      "defaultPhase": "transfer-channel",
+      "recoverable": true
+    },
+    "recording-recovery-unavailable": {
+      "publicCode": "storage-failed",
+      "defaultPhase": "startup-recovery",
+      "recoverable": true
+    },
+    "install-identity-drift": {
+      "publicCode": "install-identity-drift",
+      "defaultPhase": "install-identity",
+      "recoverable": true
+    },
+    "pipe-secret-unavailable": {
+      "publicCode": "pipe-secret-unavailable",
+      "defaultPhase": "pipe-auth",
+      "recoverable": true
+    },
+    "pipe-secret-corrupt": {
+      "publicCode": "pipe-secret-corrupt",
+      "defaultPhase": "pipe-auth",
+      "recoverable": true
+    },
+    "pipe-connect-timeout": {
+      "publicCode": "pipe-connect-timeout",
+      "defaultPhase": "pipe-connect",
+      "recoverable": true
+    },
+    "pipe-busy": {
+      "publicCode": "pipe-busy",
+      "defaultPhase": "pipe-connect",
+      "recoverable": true
+    },
+    "resident-startup-failed": {
+      "publicCode": "resident-startup-failed",
+      "defaultPhase": "resident-startup",
+      "recoverable": true
+    },
+    "auth-rejected": {
+      "publicCode": "auth-rejected",
+      "defaultPhase": "pipe-auth",
+      "recoverable": true
+    },
+    "protected-media-failure": {
+      "publicCode": "protected-content",
+      "defaultPhase": "capture",
+      "recoverable": true
+    },
+    "chunk-out-of-bounds": {
+      "publicCode": "chunk-out-of-bounds",
+      "defaultPhase": "chunk-index",
+      "recoverable": true
+    },
+    "transfer-expired": {
+      "publicCode": "transfer-expired",
+      "defaultPhase": "transfer-state",
+      "recoverable": true
+    },
+    "encoder-unavailable": {
+      "publicCode": "encoder-missing",
+      "defaultPhase": "encoder",
+      "recoverable": false
+    },
+    "serialization-contract-failure": {
+      "publicCode": "serialization-contract-failed",
+      "defaultPhase": "serialization",
+      "recoverable": true
+    },
+    "logger-startup-failed": {
+      "publicCode": "logger-startup-failed",
+      "defaultPhase": "logger-startup",
+      "recoverable": true
+    },
+    "queue-backpressure": {
+      "publicCode": "queue-backpressure",
+      "defaultPhase": "queue",
+      "recoverable": true
+    }
+  }
+}

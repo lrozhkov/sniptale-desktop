@@ -1,0 +1,10 @@
+{
+  "name": "com.sniptale.beta.native_host",
+  "description": "Sniptale Native Host Beta",
+  "path": "{{SNIPTALE_NATIVE_AGENT_EXE}}",
+  "type": "stdio",
+  "sniptale_native_host_manifest_version": "0.1.0",
+  "allowed_origins": [
+    "{{SNIPTALE_BETA_EXTENSION_ORIGIN}}"
+  ]
+}

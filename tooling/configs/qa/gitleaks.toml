@@ -1,0 +1,15 @@
+title = "Sniptale Desktop Gitleaks audit policy"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Generated, dependency, build, and local evidence trees are not source-owned secret surfaces"
+paths = [
+  '''^\.tmp/''',
+  '''^\.artifacts/''',
+  '''^target/''',
+  '''^LICENSES/third-party/''',
+  '''^THIRD_PARTY_DEPENDENCIES\.json$''',
+  '''^THIRD_PARTY_NOTICES\.md$''',
+]

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Desktop E2E Lab"
+  short_description: "Run isolated Windows and Linux desktop E2E"
+  default_prompt: "Use $desktop-e2e-lab to build and test a desktop artifact in a clean isolated VM and collect evidence."

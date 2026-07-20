@@ -1,0 +1,49 @@
+{
+  "lanes": {
+    "linux-wayland": {
+      "os": "linux",
+      "display_server": "wayland",
+      "vcpus": 4,
+      "memory_mib": 6144,
+      "disk_gib": 64,
+      "ssh_port": 22421,
+      "vnc_display": 41
+    },
+    "linux-x11": {
+      "os": "linux",
+      "display_server": "x11",
+      "vcpus": 4,
+      "memory_mib": 6144,
+      "disk_gib": 64,
+      "ssh_port": 22422,
+      "vnc_display": 42
+    },
+    "windows-11": {
+      "os": "windows",
+      "display_server": "win32",
+      "vcpus": 4,
+      "memory_mib": 8192,
+      "disk_gib": 96,
+      "ssh_port": 22423,
+      "vnc_display": 43
+    }
+  },
+  "timeouts_seconds": {
+    "boot": 600,
+    "test": 3600,
+    "shutdown": 90,
+    "provision": 10800
+  },
+  "limits": {
+    "min_free_gib": 40,
+    "min_available_memory_mib": 8192,
+    "max_runs": 20,
+    "max_run_age_days": 14,
+    "max_log_mib": 64,
+    "max_screenshot_mib": 128,
+    "max_recording_mib": 512,
+    "max_cache_gib": 8,
+    "max_temporary_gib": 4,
+    "max_persistent_gib": 32
+  }
+}

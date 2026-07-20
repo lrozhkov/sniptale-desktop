@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "requiredCases": [
+    "positive-fixtures",
+    "negative-fixtures",
+    "malformed-json",
+    "unsupported-protocol-version",
+    "unsupported-settings-version",
+    "oversized-extension-to-host-json",
+    "oversized-host-to-extension-json",
+    "stale-or-missing-controller-lease",
+    "duplicate-or-replay-command",
+    "duplicate-or-replay-transfer",
+    "replayed-chunk-request",
+    "out-of-bounds-chunk-index",
+    "malformed-identifiers",
+    "malformed-filenames",
+    "settings-accepted",
+    "operation-failure",
+    "operation-error-catalog"
+  ],
+  "coverageMarkers": {
+    "positive-fixtures": "src/protocol/tests/contract/fixtures.rs::positive_wire_contract_fixtures_parse",
+    "negative-fixtures": "src/protocol/tests/contract/fixtures.rs::negative_wire_contract_fixtures_are_rejected",
+    "malformed-json": "src/protocol/tests/contract/fixtures.rs::malformed_json_is_rejected",
+    "unsupported-protocol-version": "src/protocol/tests/contract/fixtures.rs::unsupported_protocol_version_is_rejected",
+    "unsupported-settings-version": "src/app/responses/settings_sync/tests/mod.rs::settings_sync_rejects_unsupported_schema_version_without_commit",
+    "oversized-extension-to-host-json": "src/protocol/tests/contract/fixtures.rs::oversized_message_is_rejected_before_json_parse",
+    "oversized-host-to-extension-json": "src/protocol/tests/contract/media_limits.rs::chunk_json_size_cap_is_rejected",
+    "stale-or-missing-controller-lease": "src/app/tests/command_flow.rs::native_host_rejects_command_after_controller_lease_expiry",
+    "duplicate-or-replay-command": "src/app/tests/command_flow.rs::native_host_replays_previous_command_result_for_duplicate_id",
+    "duplicate-or-replay-transfer": "src/app/tests/command_flow.rs::native_host_rejects_unknown_screenshot_ack_with_typed_failure",
+    "replayed-chunk-request": "src/app/tests/command_flow.rs::native_host_rejects_replayed_recording_chunk_request_with_typed_failure",
+    "out-of-bounds-chunk-index": "src/capture/tests/transfer_service.rs::screenshot_transfer_message_rejects_out_of_bounds_chunk",
+    "malformed-identifiers": "src/protocol/tests/contract/validation.rs::invalid_identifier_is_rejected",
+    "malformed-filenames": "src/protocol/tests/contract/media_limits.rs::invalid_filename_is_rejected",
+    "settings-accepted": "src/protocol/tests/contract/validation.rs::settings_accepted_effective_settings_requires_settings_shape",
+    "operation-failure": "src/app/tests/command_flow.rs::native_host_reports_command_dispatch_failure",
+    "operation-error-catalog": "src/protocol/tests/contract/metadata.rs::operation_error_catalog_matches_protocol_taxonomy"
+  },
+  "activationRule": "Once src/protocol/parse.rs contains parser implementation, every Contract ID in contract-index.json must have positive and negative entries in contract-fixtures.json bundles."
+}

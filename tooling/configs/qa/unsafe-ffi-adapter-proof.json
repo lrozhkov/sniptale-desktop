@@ -1,0 +1,496 @@
+{
+  "$comment": "Machine-owned unsafe Windows adapter review catalog. Validated by tooling/qa/rules/verify_security.py.",
+  "formatVersion": 1,
+  "adapters": [
+    {
+      "path": "src/audio/windows_devices.rs",
+      "owner": "audio",
+      "boundary": "WASAPI/MMDevice endpoint discovery and COM apartment ownership",
+      "invariants": ["COM is initialized on the calling thread before MMDevice calls", "CoTaskMem endpoint strings stay adapter-local and are freed exactly once"],
+      "safeWrapper": "Audio owner receives typed endpoint facts, not raw COM interfaces or pointers.",
+      "raiiWrapper": "ComApartment and CoTaskMemString",
+      "shutdownCancelProof": ["SAFETY comments above each unsafe call", "Windows audio manual QA covers endpoint enumeration"],
+      "reviews": ["security", "architecture"]
+    },
+    {
+      "path": "src/audio/windows_pcm_capture.rs",
+      "owner": "audio",
+      "boundary": "WASAPI shared-mode PCM capture stream and capture-buffer release",
+      "invariants": ["The active capture packet is released exactly once", "IAudioClient is stopped by the stream owner on drop"],
+      "safeWrapper": "Recording/audio callers receive owned PCM buffers and typed errors.",
+      "raiiWrapper": "WindowsWasapiPcmSource and CapturePacketGuard",
+      "shutdownCancelProof": ["Drop stops the audio client and releases capture buffers", "Windows manual QA covers microphone, system audio, and endpoint changes"],
+      "reviews": ["security", "architecture"]
+    },
+    {
+      "path": "src/capture/overlay/windows_region.rs",
+      "owner": "capture",
+      "boundary": "Win32 topmost layered region-selection overlay HWND and message loop",
+      "invariants": ["The HWND owns only a non-owning pointer into adapter-owned boxed state for the modal selection loop", "Mouse capture and overlay window are released on success, cancel, failure, and drop"],
+      "safeWrapper": "Capture owner receives a validated region selection or typed cancellation.",
+      "raiiWrapper": "WindowsRegionOverlay",
+      "shutdownCancelProof": ["Drop destroys the overlay window", "Windows manual QA covers region cancel, high contrast, topology changes, and shutdown"],
+      "reviews": ["security", "architecture"]
+    },
+    {
+      "path": "src/capture/overlay/windows_region/creation.rs",
+      "owner": "capture",
+      "boundary": "Win32 overlay class registration and fallible HWND construction",
+      "invariants": ["Callback state is allocated at a stable heap address before WM_NCCREATE can run", "RAII ownership is established before any fallible post-creation call"],
+      "safeWrapper": "Capture overlay service receives an owning WindowsRegionOverlay or typed capture-unavailable failure.",
+      "raiiWrapper": "WindowsRegionOverlay",
+      "shutdownCancelProof": ["CreateWindowExW failure completes synchronous teardown while boxed state is live", "Windows desktop E2E region capture exercises construction and callback dispatch"],
+      "reviews": ["security", "architecture"]
+    },
+    {
+      "path": "src/capture/overlay/windows_region/lifetime.rs",
+      "owner": "capture",
+      "boundary": "Win32 region overlay HWND destruction and borrowed GWLP_USERDATA lifetime closure",
+      "invariants": ["GWLP_USERDATA is cleared before synchronous final window messages", "The HWND is destroyed at most once and cannot outlive an uncleared state borrow"],
+      "safeWrapper": "Capture overlay service receives typed close success or capture-unavailable failure.",
+      "raiiWrapper": "WindowsRegionOverlay Drop and explicit close",
+      "shutdownCancelProof": ["Explicit close runs before OverlayWindowState is consumed", "Windows desktop E2E region capture repeats exercise HWND construction and teardown"],
+      "reviews": ["security", "architecture"]
+    },
+    {
+      "path": "src/capture/png/windows_wic.rs",
+      "owner": "capture",
+      "boundary": "WIC COM PNG encoder for validated BGRA screenshot frames",
+      "invariants": ["COM is initialized before WIC factory creation", "Only validated BGRA frame dimensions, stride, and pixel buffers reach WIC"],
+      "safeWrapper": "Capture owner passes validated frames and receives typed WIC errors.",
+      "raiiWrapper": "ComApartment and WIC COM interface wrappers",
+      "shutdownCancelProof": ["ComApartment balances CoInitializeEx with CoUninitialize", "src/capture/tests.rs covers screenshot transfer records and capture state"],
+      "reviews": ["security", "architecture"]
+    },
+    {
+      "path": "src/capture/wgc/windows/apartment.rs",
+      "owner": "capture",
+      "boundary": "WinRT apartment initialization for WGC worker threads",
+      "invariants": ["RoInitialize succeeds before WinRT capture objects are created", "The thread-local apartment owner outlives every WGC session created on that worker thread", "RoUninitialize runs once on the initializing worker thread during thread-local teardown"],
+      "safeWrapper": "WGC callers receive a session-scoped WinrtApartment proof token while apartment lifetime remains thread-owned.",
+      "raiiWrapper": "Thread-local WinrtApartmentOwner with WinrtApartment proof tokens",
+      "shutdownCancelProof": ["WinrtApartmentOwner Drop balances RoInitialize after session owners have been released", "Windows desktop E2E clean-overlay capture proof covers repeated WGC startup and worker teardown"],
+      "reviews": ["security", "architecture"]
+    },
+    {
+      "path": "src/capture/wgc/windows/readback.rs",
+      "owner": "capture",
+      "boundary": "D3D11/WinRT frame acquisition and CPU readback",
+      "invariants": ["Mapped texture memory is copied before unmap and never crosses owner boundaries", "Frame dimensions and row pitch are validated before allocation/copy"],
+      "safeWrapper": "Capture owner receives owned BGRA frames and typed device/readback errors.",
+      "raiiWrapper": "COM/WinRT interface wrappers and scoped map/unmap handling",
+      "shutdownCancelProof": ["Unmap runs after each successful map", "Windows smoke/manual capture QA covers WGC capture and device-loss scenarios"],
+      "reviews": ["security", "architecture"]
+    },
+    {
+      "path": "src/capture/wgc/windows/source.rs",
+      "owner": "capture",
+      "boundary": "Win32 monitor/window source snapshot and WGC item creation",
+      "invariants": ["HWND/HMONITOR values are resolved to typed source snapshots inside capture", "Raw handles do not leave the WGC source adapter"],
+      "safeWrapper": "Capture owner receives typed WGC source descriptors.",
+      "raiiWrapper": "Windows/WinRT interface wrappers owned by the adapter",
+      "shutdownCancelProof": ["SAFETY comments document source handle lifetime", "Windows manual QA covers monitors, windows, protected windows, and topology changes"],
+      "reviews": ["security", "architecture"]
+    },
+    {
+      "path": "src/capture/wgc/windows/source/desktop.rs",
+      "owner": "capture",
+      "boundary": "Win32 desktop monitor/window query callbacks for WGC source snapshots",
+      "invariants": ["EnumDisplayMonitors callback receives only the adapter-owned Vec pointer", "Window and monitor rectangles are copied into typed structs before leaving the adapter"],
+      "safeWrapper": "Capture owner receives NativeMonitor and NativeWindow facts only.",
+      "raiiWrapper": "Callback state remains scoped to the desktop query call",
+      "shutdownCancelProof": ["Callback state lifetime is documented by SAFETY comments", "Windows manual QA covers mixed DPI and negative monitor coordinates"],
+      "reviews": ["security", "architecture"]
+    },
+    {
+      "path": "src/diagnostics/log/windows_exception.rs",
+      "owner": "diagnostics",
+      "boundary": "Windows top-level unhandled exception filter for final redacted crash logging",
+      "invariants": ["Callback logs only redacted exception category data", "Previous exception filter is preserved and invoked after local handling"],
+      "safeWrapper": "Diagnostics owner exposes install-time filter setup without raw callback state.",
+      "raiiWrapper": "Process-owned exception filter registration",
+      "shutdownCancelProof": ["src/diagnostics/tests/crash.rs", "src/diagnostics/tests/redaction.rs"],
+      "reviews": ["security", "architecture"]
+    },
+    {
+      "path": "src/diagnostics/windows/runtime_access.rs",
+      "owner": "diagnostics",
+      "boundary": "Windows DACL probe for runtime data directory broad read/write access",
+      "invariants": ["LocalAlloc security descriptors and SIDs are freed once", "Only category-level ACL findings leave diagnostics"],
+      "safeWrapper": "Diagnostics owner receives broad-access categories, not full ACL blobs.",
+      "raiiWrapper": "DirectoryDacl and LocalSid",
+      "shutdownCancelProof": ["src/diagnostics/tests/runtime_access.rs", "src/diagnostics/tests/health.rs"],
+      "reviews": ["security", "architecture"]
+    },
+    {
+      "path": "src/hotkeys/windows_hotkey.rs",
+      "owner": "hotkeys",
+      "boundary": "RegisterHotKey/UnregisterHotKey registration owner",
+      "invariants": ["Hotkey ids are allocated by the owner and unregistered exactly once", "Message queue polling drains only WM_HOTKEY for the current thread"],
+      "safeWrapper": "Hotkeys owner receives typed hotkey events and registration errors.",
+      "raiiWrapper": "WindowsHotkeyRegistration",
+      "shutdownCancelProof": ["Drop unregisters the hotkey", "src/app/resident/hotkeys/tests/mod.rs covers owner dispatch behavior"],
+      "reviews": ["security", "architecture"]
+    },
+    {
+      "path": "src/install/windows/acl.rs",
+      "owner": "install",
+      "boundary": "Windows DACL probe for install-directory broad-write access",
+      "invariants": ["Security descriptors and SIDs are LocalFree-owned RAII values", "Only broad-write categories leave install health"],
+      "safeWrapper": "Install owner receives typed ACL findings for repair-required mapping.",
+      "raiiWrapper": "DirectoryDacl and LocalSid",
+      "shutdownCancelProof": ["src/install/tests/acl.rs", "src/install/tests/trust.rs"],
+      "reviews": ["security", "architecture"]
+    },
+    {
+      "path": "src/install/windows/dpapi.rs",
+      "owner": "install",
+      "boundary": "DPAPI current-user unwrap-only adapter for pipe-secret protection",
+      "invariants": ["DPAPI output blobs are LocalFree-owned and wiped when secret-bearing", "Unprotected pipe-secret bytes stay inside install pipe-secret parsing/provisioning", "No protect API is exposed by the install DPAPI adapter"],
+      "safeWrapper": "Install owner receives unwrapped pipe-secret bytes with typed errors after record protection gating.",
+      "raiiWrapper": "LocalBlob",
+      "shutdownCancelProof": ["src/install/tests/pipe_secret.rs", "Drop wipes secret blobs before LocalFree"],
+      "reviews": ["security", "architecture"]
+    },
+    {
+      "path": "src/install/windows/registry.rs",
+      "owner": "install",
+      "boundary": "Win32 registry string-value reader for install registration facts",
+      "invariants": ["Registry handles are closed once", "Registry strings are parsed by install-owned validators before trust decisions"],
+      "safeWrapper": "Install owner receives typed registration facts and read errors.",
+      "raiiWrapper": "RegistryKey",
+      "shutdownCancelProof": ["src/install/tests/registration_facts.rs", "src/install/tests/repair.rs"],
+      "reviews": ["security", "architecture"]
+    },
+    {
+      "path": "src/install/windows/signature.rs",
+      "owner": "install",
+      "boundary": "WinTrust Authenticode verification for install health",
+      "invariants": ["WINTRUST provider state is closed after verification", "Signature state maps to typed install health without exposing raw paths"],
+      "safeWrapper": "Install owner receives signed/unsigned/invalid signature state.",
+      "raiiWrapper": "WinTrust provider state close action",
+      "shutdownCancelProof": ["src/install/tests/trust.rs", "Windows smoke validates installed executable provenance"],
+      "reviews": ["security", "architecture"]
+    },
+    {
+      "path": "src/install/windows/user.rs",
+      "owner": "install",
+      "boundary": "Current-process token SID query owner",
+      "invariants": ["Token handles and SID strings are closed/freed once", "Only the current-user SID string leaves the adapter"],
+      "safeWrapper": "Install owner receives a typed current-user SID result.",
+      "raiiWrapper": "TokenHandle and LocalString",
+      "shutdownCancelProof": ["src/install/tests/pipe_secret.rs", "Drop closes token handles and frees SID strings"],
+      "reviews": ["security", "architecture"]
+    },
+    {
+      "path": "src/ipc/pipe/windows_entropy.rs",
+      "owner": "ipc",
+      "boundary": "BCrypt system RNG for authenticated pipe challenge nonces",
+      "invariants": ["Caller-provided buffer is initialized only by BCryptGenRandom", "Entropy bytes stay in IPC auth material"],
+      "safeWrapper": "IPC owner receives filled nonce byte arrays or typed OS RNG errors.",
+      "raiiWrapper": "No persistent handle; call-scoped system RNG",
+      "shutdownCancelProof": ["src/ipc/tests/pipe_auth.rs", "src/ipc/tests/controller_lease_auth.rs"],
+      "reviews": ["security", "architecture"]
+    },
+    {
+      "path": "src/ipc/pipe/windows_pipe.rs",
+      "owner": "ipc",
+      "boundary": "Current-user named-pipe handle owner and split pipe handles",
+      "invariants": ["Pipe HANDLE ownership is transferred only into RAII readers/writers", "Raw HANDLE values do not cross IPC owner boundaries"],
+      "safeWrapper": "IPC owner receives reader/writer/shutdown traits and typed pipe errors.",
+      "raiiWrapper": "WindowsPipe, WindowsPipeReader, WindowsPipeWriter, and WindowsPipeShutdown",
+      "shutdownCancelProof": ["src/ipc/tests/bridge.rs", "src/ipc/tests/pipe_handshake.rs"],
+      "reviews": ["security", "architecture"]
+    },
+    {
+      "path": "src/ipc/pipe/windows_pipe_handles.rs",
+      "owner": "ipc",
+      "boundary": "Duplicated thread/pipe HANDLE owner for cancellable blocking pipe reads",
+      "invariants": ["Pseudo-handles are duplicated before sharing with the canceller", "Duplicated handles are closed exactly once"],
+      "safeWrapper": "IPC pipe reader receives a safe cancellation handle without raw thread handles.",
+      "raiiWrapper": "BlockingReadCancel, BlockingReadGuard, and WindowsHandle",
+      "shutdownCancelProof": ["CancelSynchronousIo is issued by WindowsPipeShutdown", "src/ipc/tests/bridge.rs covers shutdown-forwarding behavior"],
+      "reviews": ["security", "architecture"]
+    },
+    {
+      "path": "src/ipc/pipe/windows_pipe_overlapped.rs",
+      "owner": "ipc",
+      "boundary": "Overlapped named-pipe connect/read/write completion and cancellation",
+      "invariants": ["OVERLAPPED storage and event handles remain alive until OS completion/cancellation is drained", "CancelIoEx is paired with GetOverlappedResult before stack state is dropped"],
+      "safeWrapper": "IPC pipe owner receives synchronous read/write/connect results with typed IO errors.",
+      "raiiWrapper": "OverlappedEvent and scoped OVERLAPPED operations",
+      "shutdownCancelProof": ["src/ipc/tests/pipe_handshake.rs", "src/ipc/tests/bridge.rs"],
+      "reviews": ["security", "architecture"]
+    },
+    {
+      "path": "src/ipc/pipe/windows_pipe_peer.rs",
+      "owner": "ipc",
+      "boundary": "Connected named-pipe peer PID/session/image and parent-process identity probe",
+      "invariants": ["Process and snapshot handles are closed once", "Peer executable facts are copied into typed identity structs before resident consent evaluation"],
+      "safeWrapper": "IPC/resident owner receives ConnectedPipePeerIdentity, not raw process handles.",
+      "raiiWrapper": "WindowsHandle",
+      "shutdownCancelProof": ["src/ipc/tests/pipe_auth.rs", "src/app/resident/pipe_peer.rs owner tests plus manual Chrome/Edge connectNative acceptance validate consent provenance"],
+      "reviews": ["security", "architecture"]
+    },
+    {
+      "path": "src/ipc/pipe/windows_pipe_security.rs",
+      "owner": "ipc",
+      "boundary": "Current-user named-pipe security descriptor owner for resident bridge ACLs",
+      "invariants": ["SDDL is built by IPC and converted to a LocalAlloc descriptor", "SECURITY_ATTRIBUTES references adapter-owned descriptor memory only while creating the pipe"],
+      "safeWrapper": "IPC owner receives SECURITY_ATTRIBUTES through a scoped adapter value.",
+      "raiiWrapper": "WindowsPipeSecurityAttributes",
+      "shutdownCancelProof": ["src/ipc/tests/pipe_security.rs", "Windows smoke validates provisioned pipe auth"],
+      "reviews": ["security", "architecture"]
+    },
+    {
+      "path": "src/recording/encoder/windows_sink_writer/media_types.rs",
+      "owner": "recording",
+      "boundary": "Media Foundation MP4/H.264/AAC media-type setup owner",
+      "invariants": ["Stream indexes come from the owned sink writer", "Only validated codec/audio/video settings reach IMFMediaType"],
+      "safeWrapper": "Recording encoder owner receives typed stream indexes and setup errors.",
+      "raiiWrapper": "COM interface wrappers scoped to sink-writer setup",
+      "shutdownCancelProof": ["src/recording/tests.rs", "Windows manual recording QA covers encode/finalize"],
+      "reviews": ["security", "architecture"]
+    },
+    {
+      "path": "src/recording/encoder/windows_sink_writer/mod.rs",
+      "owner": "recording",
+      "boundary": "Media Foundation MP4 Sink Writer lifecycle/finalize owner",
+      "invariants": ["Sink writer is finalized at most once by its owner", "Output path is validated and NUL-terminated before MFCreateSinkWriterFromURL", "Default WriteSample throttling is disabled only while the recording worker provides clock-paced video and bounds audio to the published video timeline"],
+      "safeWrapper": "Recording runtime receives a typed encoder session and finalize result.",
+      "raiiWrapper": "WindowsSinkWriter",
+      "shutdownCancelProof": ["src/recording/runtime/worker/tests.rs covers bounded audio/video interleaving", "src/recording/tests.rs covers terminal/finalize state", "Windows desktop E2E recording cases cover stop responsiveness and MP4 finalization"],
+      "reviews": ["security", "architecture"]
+    },
+    {
+      "path": "src/recording/encoder/windows_sink_writer/sample_buffers.rs",
+      "owner": "recording",
+      "boundary": "Media Foundation video/audio sample buffer copy owner",
+      "invariants": ["Locked IMFMediaBuffer pointers are copied before unlock", "Sample timestamps, durations, and byte lengths are validated by the caller before buffer writes"],
+      "safeWrapper": "Recording encoder owner passes owned byte slices and receives COM-owned samples.",
+      "raiiWrapper": "LockedMediaBuffer",
+      "shutdownCancelProof": ["Drop unlocks locked media buffers", "src/recording/tests.rs covers recording lifecycle and failure cleanup"],
+      "reviews": ["security", "architecture"]
+    },
+    {
+      "path": "src/recording/host_runtime/disk.rs",
+      "owner": "recording",
+      "boundary": "Win32 volume free-space probe for recording disk-pressure guard",
+      "invariants": ["Directory path is encoded as a NUL-terminated UTF-16 value for the call", "Only free-space numbers leave the adapter"],
+      "safeWrapper": "Recording runtime receives typed disk capacity facts or typed probe errors.",
+      "raiiWrapper": "Call-scoped Win32 probe without retained handles",
+      "shutdownCancelProof": ["src/recording/tests.rs covers disk-pressure/state behavior", "Windows manual recording QA covers disk pressure where practical"],
+      "reviews": ["security", "architecture"]
+    },
+    {
+      "path": "src/recording/host_runtime/media_foundation.rs",
+      "owner": "recording",
+      "boundary": "Media Foundation startup/shutdown and H.264 encoder capability probe",
+      "invariants": ["MFStartup is balanced by MFShutdown", "MFT activation arrays are freed after COM interfaces are copied/wrapped"],
+      "safeWrapper": "Recording runtime receives typed encoder capability facts.",
+      "raiiWrapper": "MediaFoundationRuntime and activation-array cleanup",
+      "shutdownCancelProof": ["Drop calls MFShutdown", "Windows manual recording QA covers encoder capability and finalization"],
+      "reviews": ["security", "architecture"]
+    },
+    {
+      "path": "src/telemetry/windows/keyboard_hook.rs",
+      "owner": "telemetry",
+      "boundary": "Win32 low-level keyboard hook for recording-only sanitized telemetry events",
+      "invariants": ["Hook callbacks copy only sanitized key facts and never typed text", "HHOOK is unhooked exactly once by the owner"],
+      "safeWrapper": "Telemetry owner receives sanitized key signal events.",
+      "raiiWrapper": "WindowsKeyboardTelemetryHook",
+      "shutdownCancelProof": ["src/telemetry/tests/hook_policy.rs covers deterministic hook planning and release ordering", "src/telemetry/tests/redaction_output_surface.rs covers no typed text, clipboard, or URL output", "Drop unhooks the low-level keyboard hook"],
+      "reviews": ["security", "architecture"]
+    },
+    {
+      "path": "src/telemetry/windows/mouse_hook.rs",
+      "owner": "telemetry",
+      "boundary": "Win32 low-level mouse hook for recording-only sanitized cursor/click telemetry events",
+      "invariants": ["Hook callbacks copy only cursor/click facts", "HHOOK is unhooked exactly once by the owner"],
+      "safeWrapper": "Telemetry owner receives sanitized mouse events.",
+      "raiiWrapper": "WindowsMouseTelemetryHook",
+      "shutdownCancelProof": ["src/telemetry/tests/hook_policy.rs covers deterministic hook planning and release ordering", "src/telemetry/tests/redaction_output_surface.rs covers no typed text, clipboard, or URL output", "Drop unhooks the low-level mouse hook"],
+      "reviews": ["security", "architecture"]
+    },
+    {
+      "path": "src/tray/icon/windows.rs",
+      "owner": "tray",
+      "boundary": "Win32 Shell_NotifyIconW tray icon owner",
+      "invariants": ["NOTIFYICONDATAW is fully initialized before Shell_NotifyIconW", "Tray icon removal is owned by the adapter"],
+      "safeWrapper": "Tray owner receives typed icon update/remove results.",
+      "raiiWrapper": "WindowsTrayIcon",
+      "shutdownCancelProof": ["Drop removes the tray icon", "src/app/resident/tray/tests/mod.rs covers tray owner behavior"],
+      "reviews": ["security", "architecture"]
+    },
+    {
+      "path": "src/tray/menu/windows.rs",
+      "owner": "tray",
+      "boundary": "Win32 HMENU popup menu owner for tray context menus",
+      "invariants": ["HMENU is created and destroyed by one adapter value", "Menu item labels are NUL-terminated and scoped to AppendMenuW calls"],
+      "safeWrapper": "Tray owner receives typed menu command ids.",
+      "raiiWrapper": "WindowsTrayMenu",
+      "shutdownCancelProof": ["Drop destroys the menu", "src/tray/tests/menu.rs covers tray command mapping"],
+      "reviews": ["security", "architecture"]
+    },
+    {
+      "path": "src/tray/consent/windows.rs",
+      "owner": "tray",
+      "boundary": "Win32 TaskDialogIndirect consent prompt with an owned approval deadline",
+      "invariants": ["Prompt content is built from redacted labels only", "Callback state remains stack-owned for the synchronous dialog lifetime", "The timer clicks the deny button at the deadline so approval cannot arrive late"],
+      "safeWrapper": "Resident consent owner receives typed allow, deny, timeout, or UI-unavailable results.",
+      "raiiWrapper": "TaskDialogIndirect owns its synchronous modal window and callback lifetime",
+      "shutdownCancelProof": ["Timer callback closes the dialog with deny at timeout", "src/app/resident/pipe_peer/consent_tests.rs covers timeout and deny persistence behavior"],
+      "reviews": ["security", "architecture"]
+    },
+    {
+      "path": "src/tray/runtime/windows.rs",
+      "owner": "tray",
+      "boundary": "Win32 hidden tray message-window owner and popup command source",
+      "invariants": ["Window procedure stores only adapter-scoped state pointers", "Hidden HWND is destroyed once and raw window handles stay inside tray"],
+      "safeWrapper": "Tray owner receives typed runtime events and command ids.",
+      "raiiWrapper": "WindowsMessageWindow",
+      "shutdownCancelProof": ["Drop destroys the hidden message window", "Windows smoke/manual tray QA covers startup and quit"],
+      "reviews": ["security", "architecture"]
+    },
+    {
+      "path": "src/tray/runtime/windows/message_window.rs",
+      "owner": "tray",
+      "boundary": "Win32 hidden callback HWND registration and tray callback window procedure",
+      "invariants": ["The callback procedure stores only an adapter-local lParam value in thread-local storage", "The hidden HWND never crosses the tray adapter boundary and is destroyed exactly once"],
+      "safeWrapper": "The tray runtime drains typed popup callbacks before rendering a menu command.",
+      "raiiWrapper": "WindowsMessageWindow",
+      "shutdownCancelProof": ["Drop destroys the hidden message window", "src/tray/runtime/source.rs covers version-4 callback classification"],
+      "reviews": ["security", "architecture"]
+    },
+    {
+      "path": "src/tray/runtime/windows/open_folder.rs",
+      "owner": "tray",
+      "boundary": "Win32 ShellExecuteW adapter for opening a Manual destination in Explorer",
+      "invariants": ["ShellExecuteW receives only a revalidated, non-reparse typed Manual destination", "NUL-terminated UTF-16 buffers remain live for the synchronous call", "The adapter supplies no shell arguments and does not log the path"],
+      "safeWrapper": "Tray owner receives a typed success or failure result for opening the Manual destination.",
+      "raiiWrapper": "ShellExecuteW is synchronous and retains no Rust handle or buffer",
+      "shutdownCancelProof": ["src/app/resident/tray/dispatch.rs covers destination revalidation and failed opens", "Windows smoke/manual tray QA covers Explorer invocation"],
+      "reviews": ["security", "architecture"]
+    },
+    {
+      "path": "src/tray/runtime/windows/popup.rs",
+      "owner": "tray",
+      "boundary": "Win32 TrackPopupMenu command selection for the hidden tray HWND",
+      "invariants": ["HMENU and HWND are owned by the tray adapter", "POINT is stack-local for synchronous calls", "No menu handle or raw command state crosses the adapter boundary"],
+      "safeWrapper": "Tray owner receives an optional typed command id.",
+      "raiiWrapper": "WindowsTrayMenu and WindowsMessageWindow own the native handles.",
+      "shutdownCancelProof": ["Popup cancellation returns no command", "tray menu tests cover command mapping"],
+      "reviews": ["security", "architecture"]
+    },
+    {
+      "path": "src/tray/settings_window/windows.rs",
+      "owner": "tray",
+      "boundary": "Win32 modeless settings-window HWND owner",
+      "invariants": ["The HWND remains adapter-local and is destroyed exactly once", "The callback resolves only a thread-local weak adapter reference and uses non-panicking mutable borrow", "WM_CLOSE emits a semantic close request and never changes resident lifetime or settings authority directly"],
+      "safeWrapper": "Tray owner receives typed show results and passes a semantic settings view and event sink.",
+      "raiiWrapper": "WindowsSettingsWindow",
+      "shutdownCancelProof": ["Drop destroys the settings HWND", "src/tray/settings_window/model/tests.rs covers dirty close, discard, and keep-editing state"],
+      "reviews": ["security", "architecture"]
+    },
+    {
+      "path": "src/tray/settings_window/windows/messages.rs",
+      "owner": "tray",
+      "boundary": "Win32 settings callback message translation",
+      "invariants": ["Message lParam pointers are narrowed only for the documented synchronous message lifetime", "Raw key messages are reduced to CaptureKey values and never logged", "Callbacks emit typed settings events instead of mutating persistence or runtime owners"],
+      "safeWrapper": "SettingsNativeWindow handles typed size, paint, input, and command operations.",
+      "raiiWrapper": "The parent WindowsSettingsWindow owns the callback HWND and thread-local registration.",
+      "shutdownCancelProof": ["WM_CLOSE maps to the model close flow", "src/tray/settings_window/hotkey_capture.rs covers clear, cancel, and supported key narrowing"],
+      "reviews": ["security", "architecture"]
+    },
+    {
+      "path": "src/tray/settings_window/windows/geometry.rs",
+      "owner": "tray",
+      "boundary": "Win32 per-monitor DPI, work-area, and resize geometry",
+      "invariants": ["Suggested DPI rectangles are copied synchronously during WM_DPICHANGED", "MINMAXINFO is mutated only during its documented callback lifetime", "All pixel and DIP conversions are bounded before reaching window layout"],
+      "safeWrapper": "The presentation receives a bounded SettingsLayout in DIP coordinates.",
+      "raiiWrapper": "Geometry calls retain no pointers or native handles.",
+      "shutdownCancelProof": ["src/tray/settings_window/layout.rs covers nominal, minimum, scroll, and footer invariants", "Windows-target type checking covers all Win32 signatures"],
+      "reviews": ["security", "architecture"]
+    },
+    {
+      "path": "src/tray/settings_window/windows/theme.rs",
+      "owner": "tray",
+      "boundary": "Win32 system appearance, high-contrast, registry, and title-bar projection",
+      "invariants": ["The registry read is bounded to one DWORD and never leaves the appearance adapter", "High contrast always overrides application palette choices", "DWM and theme failures degrade to the safe current palette without changing stored preferences"],
+      "safeWrapper": "The renderer receives only EffectiveTheme and ThemePalette values.",
+      "raiiWrapper": "RegistryKey closes the HKEY exactly once.",
+      "shutdownCancelProof": ["src/tray/settings_window/palette.rs covers light, dark, and high-contrast palettes", "RegistryKey Drop closes successful opens"],
+      "reviews": ["security", "architecture"]
+    },
+    {
+      "path": "src/tray/settings_window/windows/folder_picker.rs",
+      "owner": "tray",
+      "boundary": "COM IFileOpenDialog adapter for selecting a Manual destination",
+      "invariants": ["The dialog is created after COM apartment initialization", "The owner HWND remains valid through the synchronous Show call", "Shell-allocated UTF-16 path memory is released exactly once and is not logged"],
+      "safeWrapper": "Settings presentation receives only typed selected path, cancellation, or typed error.",
+      "raiiWrapper": "ComApartment balances CoInitializeEx and CoUninitialize; COM interfaces are RAII-owned by windows-rs.",
+      "shutdownCancelProof": ["Cancellation returns no path and does not mutate the draft", "Windows settings smoke/manual QA covers dialog focus and cancellation"],
+      "reviews": ["security", "architecture"]
+    },
+    {
+      "path": "src/tray/settings_window/windows/controls.rs",
+      "owner": "tray",
+      "boundary": "Win32 adaptive settings child-control tree and visibility state",
+      "invariants": ["All child HWNDs belong to the settings window adapter", "Only the active section and viewport-intersecting controls are visible", "No raw HWND leaves tray presentation"],
+      "safeWrapper": "The model receives only semantic settings-window events.",
+      "raiiWrapper": "The parent settings HWND owns and destroys its child controls; ControlBackgroundBrush deletes the checkbox-surface HBRUSH.",
+      "shutdownCancelProof": ["Parent window Drop destroys children and ControlBackgroundBrush Drop releases its GDI brush", "src/tray/settings_window/model/tests.rs covers staged Apply, dirty close, and discard behavior"],
+      "reviews": ["security", "architecture"]
+    },
+    {
+      "path": "src/tray/settings_window/windows/controls/native.rs",
+      "owner": "tray",
+      "boundary": "Win32 child HWND, font, checkbox-surface, scroll, focus, and visual-theme operations",
+      "invariants": ["UTF-16 buffers remain live for synchronous child-window calls", "Combo and scroll indexes are narrowed from bounded presentation values", "The checkbox background brush is returned only during synchronous WM_CTLCOLORBTN handling", "Control handles remain children of the adapter-owned parent HWND"],
+      "safeWrapper": "Control-tree code uses typed helpers for text, choices, checkbox state/color, visibility, focus, and bounds.",
+      "raiiWrapper": "NativeFonts deletes created HFONT objects; the parent HWND owns child lifetime.",
+      "shutdownCancelProof": ["NativeFonts Drop releases fonts", "Windows-target type checking covers child-control signatures"],
+      "reviews": ["security", "architecture"]
+    },
+    {
+      "path": "src/tray/settings_window/windows/controls/tooltip.rs",
+      "owner": "tray",
+      "boundary": "Win32 tooltip HWND and text-pointer lifetime for an ellipsized Manual destination",
+      "invariants": ["Tooltip text is held in a stable boxed UTF-16 allocation for the entire native reference lifetime", "The tooltip is attached only to the adapter-owned destination label", "The destination path is displayed locally and never logged or emitted as an event"],
+      "safeWrapper": "NativeTooltip exposes typed create and update operations to the settings presentation.",
+      "raiiWrapper": "NativeTooltip destroys its tooltip HWND exactly once; boxed text releases after native teardown.",
+      "shutdownCancelProof": ["NativeTooltip Drop destroys the HWND before its text allocation is released", "Windows-target type checking covers TTTOOLINFOW and tooltip message signatures"],
+      "reviews": ["security", "architecture"]
+    },
+    {
+      "path": "src/tray/settings_window/windows/render.rs",
+      "owner": "tray",
+      "boundary": "Direct2D and DirectWrite settings surface renderer",
+      "invariants": ["COM interfaces and brushes remain UI-thread local", "Render geometry is derived only from bounded SettingsLayout values", "A failed draw or resize recreates the render target once before surfacing failure", "The renderer receives no device identifiers, persisted profile, or logging capability"],
+      "safeWrapper": "SettingsRenderer paints cards, shell chrome, and brand text from ThemePalette and semantic section state.",
+      "raiiWrapper": "windows-rs COM wrappers release Direct2D/DirectWrite interfaces and brushes.",
+      "shutdownCancelProof": ["Dropping or replacing SettingsRenderer releases COM render resources", "src/tray/settings_window/render_recovery.rs covers one-shot target recreation and persistent failure", "src/tray/settings_window/layout.rs covers render geometry bounds"],
+      "reviews": ["security", "architecture"]
+    },
+    {
+      "path": "src/tray/settings_window/windows/render/control.rs",
+      "owner": "tray",
+      "boundary": "GDI owner-draw chrome for accessible native button and combo HWNDs",
+      "invariants": ["The DRAWITEMSTRUCT pointer is borrowed only for the synchronous WM_DRAWITEM call", "Combo text is copied only from bounded CBS_HASSTRINGS items", "Translucent palette tokens are flattened before GDI rendering", "Owner drawing preserves native HWND focus, keyboard behavior, and UIA surfaces; checkboxes retain BS_AUTOCHECKBOX semantics outside this adapter"],
+      "safeWrapper": "draw_control receives one borrowed DRAWITEMSTRUCT, semantic ButtonVisual state, and ThemePalette.",
+      "raiiWrapper": "GdiObject releases every created brush or pen; the HDC is borrowed from Windows.",
+      "shutdownCancelProof": ["GdiObject Drop releases selected drawing resources after restoration", "Windows manual QA verifies focus chrome and keyboard navigation"],
+      "reviews": ["security", "architecture"]
+    },
+    {
+      "path": "src/transfer/windows_dpapi.rs",
+      "owner": "transfer",
+      "boundary": "DPAPI current-user wrapping for per-media protected temp media keys",
+      "invariants": ["DPAPI secret output is wiped before LocalFree", "Unwrapped media-key bytes stay in transfer-owned encryption lifecycle", "Media-key purpose and protection metadata are validated by transfer-owned protected media code"],
+      "safeWrapper": "Transfer owner receives protected media-key blobs or key bytes with typed DPAPI errors.",
+      "raiiWrapper": "LocalBlob",
+      "shutdownCancelProof": ["Drop wipes secret blobs before LocalFree", "src/transfer/tests/protected_key.rs covers protected media-key validation", "src/transfer/tests/lifecycle.rs covers transfer cleanup and ack/reject behavior"],
+      "reviews": ["security", "architecture"]
+    }
+  ]
+}

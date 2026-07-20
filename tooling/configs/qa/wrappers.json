@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "wrappers": [
+    {"id": "qa:audit", "entrypoint": "tooling/qa/wrappers/audit.sh", "blocking": true},
+    {"id": "qa:build", "entrypoint": "tooling/qa/wrappers/build.sh", "blocking": true},
+    {"id": "qa:checkpoint", "entrypoint": "tooling/qa/wrappers/checkpoint.sh", "blocking": true},
+    {"id": "qa:closeout", "entrypoint": "tooling/qa/wrappers/closeout.sh", "blocking": true},
+    {"id": "qa:contract", "entrypoint": "tooling/qa/wrappers/contract.sh", "blocking": false},
+    {"id": "qa:coverage", "entrypoint": "tooling/qa/wrappers/coverage.sh", "blocking": true},
+    {"id": "qa:desktop-e2e-lab", "entrypoint": "tooling/qa/wrappers/desktop-e2e-lab.sh", "blocking": true},
+    {"id": "qa:install-hooks", "entrypoint": "tooling/qa/wrappers/install-hooks.sh", "blocking": false},
+    {"id": "qa:licenses", "entrypoint": "tooling/qa/wrappers/licenses.sh", "blocking": true},
+    {"id": "qa:package-windows", "entrypoint": "tooling/qa/wrappers/package-windows.sh", "blocking": true},
+    {"id": "qa:preflight", "entrypoint": "tooling/qa/wrappers/preflight.sh", "blocking": false},
+    {"id": "qa:prune-target", "entrypoint": "tooling/qa/wrappers/prune-target.sh", "blocking": false},
+    {"id": "qa:release", "entrypoint": "tooling/qa/wrappers/release.sh", "blocking": true},
+    {"id": "qa:release-harness", "entrypoint": "tooling/qa/wrappers/release-harness.sh", "blocking": true},
+    {"id": "qa:security", "entrypoint": "tooling/qa/wrappers/security.sh", "blocking": false},
+    {"id": "qa:supply-chain", "entrypoint": "tooling/qa/wrappers/supply-chain.sh", "blocking": true},
+    {"id": "qa:windows-smoke", "entrypoint": "tooling/qa/wrappers/windows-smoke.sh", "blocking": true},
+    {"id": "qa:windows-smoke-from-wsl", "entrypoint": "tooling/qa/wrappers/windows-smoke-from-wsl.sh", "blocking": true}
+  ]
+}

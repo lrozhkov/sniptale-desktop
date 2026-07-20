@@ -1,0 +1,8 @@
+{
+  "manifest_version": 3,
+  "name": "Sniptale Native E2E Probe",
+  "version": "0.1.0",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAtwqgXWI+RhvF69yFxrQ9hGlLgJG3tmrHMMpkyJ0FKSNV7ADG1nuPSkPoLIsAho+JM2kV9cPGfr6O5JZ643cYbKlQl6FptyQEIL8CVGZugUYQPSTpBPDRrs/YOo2iVsnQJnFWasWOVNTrVdEH6UoGZD4OG0aWri3wMsDncBz565d62EKs2Izvqy1TfpIalLTbA58RyWJqGDYCRoviXGxtTS9C6krG/rFyRduhQ/yYZ/l0kF7pdHKyJmBD6rbJbM3+g1svcpbBOrc8aMXTWz84jfDFm0r1ca3rtd+M4iE+eYWvJQZLNqLcQunLLpJARo+uO/Ge22avjVuvA99RbRs1VQIDAQAB",
+  "permissions": ["nativeMessaging"],
+  "host_permissions": ["http://127.0.0.1/*"]
+}

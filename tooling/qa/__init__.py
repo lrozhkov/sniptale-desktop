@@ -1,0 +1,1 @@
+"""Sniptale QA harness."""

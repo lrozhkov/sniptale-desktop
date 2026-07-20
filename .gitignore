@@ -1,0 +1,10 @@
+target/
+.tmp/
+.artifacts/
+*.pdb
+*.ilk
+*.log
+*.tmp
+*.bak
+__pycache__/
+*.py[cod]

@@ -1,0 +1,64 @@
+{
+  "$comment": "Template input for tooling/release/windows/verify-windows-release-evidence.py.",
+  "formatVersion": 1,
+  "releaseCandidate": {
+    "nativeVersion": "",
+    "extensionVersion": "",
+    "channel": "stable",
+    "windowsBuild": "",
+    "browserBuilds": {
+      "chrome": "",
+      "edge": ""
+    },
+    "installerEvidence": {
+      "msiFileName": "",
+      "releaseEvidenceFileName": "release-evidence.json",
+      "sha256SumsFileName": "SHA256SUMS",
+      "sbomFileName": "sbom.spdx.json",
+      "provenanceFileName": "provenance.json"
+    }
+  },
+  "performanceBaseline": {
+    "coldStartMs": null,
+    "screenshotCaptureMs": null,
+    "recordingFiveMinute": {
+      "durationMs": 300000,
+      "droppedFrames": null,
+      "dropRatePct": null,
+      "queuePressureMax": null,
+      "encodeFinalizeMs": null,
+      "tempMediaBytes": null,
+      "cleanupVerified": false
+    },
+    "reconnectDuringRecording": {
+      "completed": false,
+      "finalizedMediaRecovered": false,
+      "stopFinalizeMs": null
+    }
+  },
+  "accessibilityBaseline": {
+    "trayKeyboardOnly": false,
+    "trayUiaNamesAndRoles": false,
+    "overlayKeyboardCancel": false,
+    "overlayFocusReturn": false,
+    "overlayHighContrastUsable": false,
+    "accessibilityInsightsRunId": ""
+  },
+  "windowsHardeningReview": {
+    "wdacAppControlGuidanceReviewed": false,
+    "appLockerSecondaryGuidanceReviewed": false,
+    "cfgProcessMitigationGuidanceReviewed": false,
+    "bitLockerDefenseInDepthAcknowledged": false,
+    "noProductRuntimePolicyAdded": false
+  },
+  "evidenceFiles": {
+    "wprTraceFileName": "",
+    "accessibilityReportFileName": "",
+    "manualQaNotesFileName": ""
+  },
+  "review": {
+    "tester": "",
+    "completedAtUtc": "",
+    "approvedForProductionCandidate": false
+  }
+}

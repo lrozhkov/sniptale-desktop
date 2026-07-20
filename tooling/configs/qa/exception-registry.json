@@ -1,0 +1,97 @@
+{
+  "$comment": "Reviewed exact-scope exceptions. Temporary debt is intentionally empty and count-only allowances are forbidden.",
+  "schemaVersion": 1,
+  "exceptions": [
+    {
+      "id": "boundary.unsafe-windows-adapters",
+      "ruleId": "security.unsafe-adapter",
+      "classification": "architectural-boundary",
+      "owner": "platform-owners",
+      "exactScope": {
+        "catalog": "tooling/configs/qa/unsafe-ffi-adapter-proof.json",
+        "array": "adapters",
+        "field": "path"
+      },
+      "rationale": "Raw Windows calls are confined to reviewed owner-local adapters with explicit RAII and shutdown proof.",
+      "risk": "An unreviewed adapter could leak handles, privileged state, or sensitive data across an owner boundary.",
+      "proofReferences": [
+        "docs/engineering/unsafe-ffi-policy.md",
+        "tooling/configs/qa/unsafe-ffi-adapter-proof.json"
+      ]
+    },
+    {
+      "id": "boundary.canonical-role-facades",
+      "ruleId": "architecture.compatibility-facade",
+      "classification": "architectural-boundary",
+      "owner": "architecture-boundaries",
+      "exactScope": {
+        "exactPaths": [
+          "src/app/bridge.rs",
+          "src/app/resident/control.rs",
+          "src/ipc/pipe/mod.rs",
+          "src/protocol/control.rs",
+          "src/protocol/media/mod.rs",
+          "src/recording/temp_media/mod.rs",
+          "src/telemetry/windows/mod.rs",
+          "src/tray/consent/mod.rs",
+          "src/tray/icon/mod.rs",
+          "src/tray/menu/mod.rs",
+          "src/tray/runtime/mod.rs",
+          "src/tray/settings_window.rs"
+        ]
+      },
+      "rationale": "These files are canonical sub-owner facades and remain logic-free under the facade guardrail.",
+      "risk": "A broad facade can hide business logic or aggregate unrelated owner surfaces.",
+      "proofReferences": [
+        "docs/architecture/module-ownership.md",
+        "docs/engineering/implementation-rules.md"
+      ]
+    },
+    {
+      "id": "boundary.bounded-control-waits",
+      "ruleId": "architecture.hot-path-sleep",
+      "classification": "architectural-boundary",
+      "owner": "runtime-lifecycle",
+      "exactScope": {
+        "pathTerms": {
+          "src/app/bridge/session/duplex/authenticated.rs": ["SESSION_MODE_EPOCH_POLL_INTERVAL"],
+          "src/app/bridge/windows_runtime.rs": ["PIPE_CONNECT_RETRY_DELAY"],
+          "src/app/resident/pipe_broker/duplex.rs": ["SESSION_BROKER_IDLE_POLL_INTERVAL"],
+          "src/app/resident/pipe_windows.rs": ["PIPE_ACCEPT_POLL_INTERVAL"],
+          "src/capture/wgc/windows/readback.rs": ["FRAME_WAIT_INTERVAL"],
+          "src/recording/runtime/windows_runtime/worker_loop.rs": ["RECORDING_IDLE_POLL_INTERVAL"],
+          "src/ipc/bridge/duplex.rs": ["BROWSER_EOF_RESPONSE_GRACE"],
+          "src/ipc/bridge/polling.rs": ["AGENT_RESPONSE_POLL_INTERVAL"]
+        }
+      },
+      "rationale": "These waits are named, bounded polling intervals owned by cancellable runtime loops.",
+      "risk": "Unbounded or anonymous sleeps can hide deadlocks, latency, and missing shutdown ownership.",
+      "proofReferences": [
+        "docs/engineering/implementation-rules.md",
+        "docs/engineering/testing-policy.md"
+      ]
+    },
+    {
+      "id": "boundary.recording-quality-policy-adapter",
+      "ruleId": "architecture.owner-import",
+      "classification": "architectural-boundary",
+      "owner": "recording-settings-contract",
+      "exactScope": {
+        "exactEdges": [
+          {
+            "path": "src/recording/quality.rs",
+            "owner": "recording",
+            "imports": "settings"
+          }
+        ]
+      },
+      "rationale": "The thin recording adapter delegates effective quality calculation to settings-owned policy.",
+      "risk": "Additional recording-to-settings imports would create duplicate settings authority.",
+      "proofReferences": [
+        "docs/architecture/module-ownership.md",
+        "docs/architecture/adr/0003-transfer-lifecycle-ownership.md"
+      ]
+    }
+  ],
+  "technicalDebt": []
+}
