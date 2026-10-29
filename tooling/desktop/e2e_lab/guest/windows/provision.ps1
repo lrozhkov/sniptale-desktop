@@ -13,6 +13,7 @@ trap {
 }
 Remove-Item -LiteralPath (Join-Path $labRoot "provision-failed") -Force -ErrorAction SilentlyContinue
 Set-ProvisionStage "desktop"
+Set-LocalUser -Name lab -PasswordNeverExpires $true
 powercfg /change monitor-timeout-ac 0
 powercfg /change standby-timeout-ac 0
 powercfg /change hibernate-timeout-ac 0

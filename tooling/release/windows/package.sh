@@ -656,7 +656,7 @@ ensure_wix_ui_extension
 qa_step "build windows-msvc release executable" \
   env -u SNIPTALE_DEV_LOCAL_BROWSER_TRUST \
     SNIPTALE_INSTALL_CHANNEL="$channel" SNIPTALE_ALLOWED_EXTENSION_ORIGIN="$extension_origin" SNIPTALE_WINDOWS_RESOURCES=require \
-    cargo build --release --target x86_64-pc-windows-msvc --bin sniptale-native-agent --all-features
+    cargo build --locked --release --target x86_64-pc-windows-msvc --bin sniptale-native-agent --all-features
 native_agent_exe="target/x86_64-pc-windows-msvc/release/sniptale-native-agent.exe"
 
 if [[ ! -s "$native_agent_exe" ]]; then
@@ -721,6 +721,8 @@ if [[ "$signing_mode" == "production" ]]; then
   qa_step "verify windows msi signature" verify_authenticode_artifact "$msi_path" "$out_dir/signature-msi.json"
 fi
 
+cp "$native_agent_exe" "$out_dir/sniptale-native-agent.exe"
+native_agent_exe="$out_dir/sniptale-native-agent.exe"
 write_release_evidence
 
 qa_fail_if_any "windows package summary"

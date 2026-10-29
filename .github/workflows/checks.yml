@@ -1,0 +1,61 @@
+{
+  "name": "Canonical checks",
+  "on": {
+    "pull_request": {},
+    "workflow_dispatch": {},
+    "workflow_call": {}
+  },
+  "permissions": {
+    "contents": "read"
+  },
+  "jobs": {
+    "qa": {
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 90,
+      "steps": [
+        {
+          "uses": "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "with": {
+            "fetch-depth": 0,
+            "persist-credentials": false
+          }
+        },
+        {
+          "uses": "actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065",
+          "with": {
+            "python-version": "3.12.10"
+          }
+        },
+        {
+          "name": "Install pinned Rust",
+          "run": "rustup toolchain install 1.96.0 --profile minimal --component rustfmt,clippy,llvm-tools-preview --target x86_64-pc-windows-msvc"
+        },
+        {
+          "uses": "actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830",
+          "with": {
+            "path": "~/.cargo/registry\n~/.cargo/git\n~/.cargo/bin/cargo-audit\n~/.cargo/bin/cargo-deny\n~/.cargo/bin/cargo-about\n~/.cargo/bin/cargo-nextest\n~/.cargo/bin/cargo-llvm-cov\n.tmp/qa-tools",
+            "key": "release-tools-ubuntu24-${{ hashFiles('tooling/configs/qa/tool-versions.json', 'Cargo.lock') }}"
+          }
+        },
+        {
+          "name": "Install release tools",
+          "run": "tooling/qa/installers/install-release-tools.sh"
+        },
+        {
+          "name": "Canonical release proof",
+          "run": "tooling/qa/wrappers/alpha-proof.sh"
+        },
+        {
+          "uses": "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+          "with": {
+            "name": "qa-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}",
+            "path": ".tmp/release/alpha-proof",
+            "include-hidden-files": true,
+            "if-no-files-found": "error",
+            "retention-days": 14
+          }
+        }
+      ]
+    }
+  }
+}

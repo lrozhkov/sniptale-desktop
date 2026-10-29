@@ -132,27 +132,33 @@ exit {checkpoint_exit}
         module.validate_retired_smoke_queue(errors)
         self.assertEqual(errors, [])
 
-    def test_hosted_qa_policy_rejects_github_actions_workflows(self) -> None:
+    def test_hosted_qa_policy_rejects_unknown_workflow_and_permission_drift(self) -> None:
         path = ROOT / "tooling/qa/rules/verify_tooling.py"
-        spec = importlib.util.spec_from_file_location("verify_tooling_hosted_qa_test", path)
-        assert spec is not None and spec.loader is not None
+        spec = importlib.util.spec_from_file_location("hosted_policy_negative", path)
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            workflow = root / ".github/workflows/ci.yml"
-            workflow.parent.mkdir(parents=True)
-            workflow.write_text("name: hosted QA\n", encoding="utf-8")
-            errors: list[str] = []
-            with mock.patch.object(module, "ROOT", root):
-                module.validate_hosted_qa_policy(errors)
-            self.assertEqual(
-                errors,
-                [
-                    "hosted GitHub Actions workflows are disabled; run canonical QA locally: "
-                    ".github/workflows/ci.yml"
-                ],
-            )
+        import shutil
+        for mutation in ("unknown", "permissions", "action", "trigger", "rebuild"):
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                shutil.copytree(ROOT / ".github", root / ".github")
+                workflow = root / ".github/workflows/alpha-publish.yml"
+                value = json.loads(workflow.read_text())
+                if mutation == "unknown":
+                    (workflow.parent / "unknown.yml").write_text("{}")
+                elif mutation == "permissions":
+                    value["permissions"] = {"contents": "write"}
+                elif mutation == "action":
+                    value["jobs"]["publish"]["steps"][0]["uses"] = "actions/checkout@main"
+                elif mutation == "trigger":
+                    value["on"] = {"pull_request_target": {}}
+                else:
+                    value["jobs"]["publish"]["steps"][-1]["run"] = "cargo build"
+                workflow.write_text(json.dumps(value))
+                errors = []
+                with mock.patch.object(module, "ROOT", root):
+                    module.validate_hosted_qa_policy(errors)
+                self.assertTrue(errors, mutation)
 
     def test_temporary_debt_schema_requires_expiry_and_removal_condition(self) -> None:
         path = ROOT / "tooling/qa/rules/verify_tooling.py"

@@ -215,6 +215,11 @@ class LaneRunner:
         lane = self.config.lanes[lane_name]
         if lane.os == "linux":
             return self._test_linux(lane_name, artifact, run_dir)
+        if (artifact.parent / "provenance.json").is_file():
+            if requested_cases is not None:
+                raise LabError("alpha release acceptance cannot select or skip cases")
+            from release_acceptance import test_release
+            return test_release(self, lane_name, artifact, run_dir)
         return self._test_windows(lane_name, artifact, run_dir, requested_cases)
 
     def _test_linux(self, lane_name: str, artifact: Path, run_dir: Path) -> GuestResult:

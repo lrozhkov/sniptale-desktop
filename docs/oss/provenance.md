@@ -16,4 +16,4 @@ The release SPDX SBOM and raw cargo-about JSON are ignored evidence. They are re
 
 ## Publication scope
 
-This repository contains the Windows desktop/native-host component only. QA and release proof run locally; repository policy rejects GitHub Actions workflows. The local release procedure does not create remotes, push, tag, upload, publish packages, submit stores, or enable hosted security reporting. External code contributions are disabled by `CONTRIBUTING.md` and machine policy.
+This repository contains the Windows desktop/native-host component only. QA and release proof use the same repository commands locally and in allowlisted GitHub Actions workflows. The local proof wrappers do not publish. The trusted alpha publication workflow admits an existing package and Windows acceptance, verifies draft asset hashes, and publishes a GitHub prerelease. [Release procedure](release.md) owns that operation. External code contributions are disabled by `CONTRIBUTING.md` and machine policy.
