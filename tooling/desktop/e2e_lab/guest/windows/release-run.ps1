@@ -152,16 +152,25 @@ Add-Test "clean-install" {
 Add-Test "first-run" {
   Start-Agent
   Tray @("Mode","Manual")
-  Start-Sleep -Seconds 2
+  Screenshot "manual-folder-opened"
+  $picker = Window "Select Folder"
+  [AlphaUi]::SetForegroundWindow([IntPtr]$picker.Current.NativeWindowHandle) | Out-Null
+  $picker.SetFocus()
   [Windows.Forms.SendKeys]::SendWait("%d")
   [Windows.Forms.SendKeys]::SendWait($exports)
   [Windows.Forms.SendKeys]::SendWait("{ENTER}")
   Start-Sleep -Seconds 1
-  [Windows.Forms.SendKeys]::SendWait("%s")
+  Screenshot "manual-folder-entered"
+  Button $picker "Select Folder"
   $settings=Window "Sniptale $([char]0x2014) Manual settings"
   Screenshot "first-run-settings"
-  Button $settings "Save changes"
-  $profile=Wait-For { if (Test-Path "$directory/local-profile.json") { Get-Content "$directory/local-profile.json" -Raw | ConvertFrom-Json } }
+  Button $settings "Save and switch to Manual"
+  $profile=Wait-For {
+    if (Test-Path "$directory/local-profile.json") {
+      $value = Get-Content "$directory/local-profile.json" -Raw | ConvertFrom-Json
+      if ($value.operatingMode -eq "manual" -and $value.manualProfile.destination.path -eq $exports) { $value }
+    }
+  }
   if ($profile.operatingMode -ne "manual" -or $profile.manualProfile.destination.path -ne $exports) { throw "first-run UI did not persist Manual destination" }
   [Windows.Forms.SendKeys]::SendWait("{ESC}")
 }

@@ -1,13 +1,9 @@
 //! Persistent recording frame polling and typed WGC diagnostics.
 
-use windows::core::HRESULT;
-
 use super::{
-    CaptureSession, D3dDevice, ReadbackFrame, readback_texture, texture_from_surface,
-    wait_for_recording_frame_retry,
+    CaptureSession, D3dDevice, ReadbackFrame, is_empty_frame_poll_hresult, readback_texture,
+    texture_from_surface, wait_for_recording_frame_retry,
 };
-
-const NO_FRAME_HRESULT: HRESULT = HRESULT(0x8000_4003_u32 as i32);
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(in crate::capture::wgc::windows) enum RecordingFrameReadError {
@@ -28,8 +24,8 @@ impl CaptureSession {
                 self.poll_recovery.observe_success();
                 frame
             }
-            // A documented null poll is projected as E_POINTER; the session remains live.
-            Err(error) if error.code() == NO_FRAME_HRESULT => {
+            // A nullable empty pool is a normal pending state in the Rust WinRT projection.
+            Err(error) if is_empty_frame_poll_hresult(error.code().0) => {
                 self.poll_recovery.observe_success();
                 return Ok(None);
             }

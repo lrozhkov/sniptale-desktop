@@ -2,6 +2,12 @@
 
 pub(super) const FRAME_POLL_FAILURE_LIMIT: usize = 40;
 
+// windows-core 0.62 projects a successful nullable WinRT interface as Error::empty (code 0).
+// Preserve the older E_POINTER empty-pool representation without hiding actual device failures.
+pub(super) const fn is_empty_frame_poll_hresult(code: i32) -> bool {
+    code == 0 || code == 0x8000_4003_u32.cast_signed()
+}
+
 #[derive(Debug, Default)]
 pub(super) struct FramePollRecovery {
     consecutive_failures: usize,
@@ -98,5 +104,27 @@ mod tests {
 
         recovery.observe_success();
         assert!(!recovery.observe_failure());
+    }
+
+    #[test]
+    fn empty_frame_projection_does_not_consume_device_failure_recovery_budget() {
+        let mut recovery = FramePollRecovery::default();
+        for code in [0, 0x8000_4003_u32.cast_signed()] {
+            for _ in 0..FRAME_POLL_FAILURE_LIMIT * 2 {
+                assert!(is_empty_frame_poll_hresult(code));
+                recovery.observe_success();
+            }
+        }
+        for code in [
+            0x8000_4005_u32.cast_signed(),
+            0x8007_0005_u32.cast_signed(),
+            0x887a_0005_u32.cast_signed(),
+        ] {
+            assert!(!is_empty_frame_poll_hresult(code));
+        }
+        for _ in 1..FRAME_POLL_FAILURE_LIMIT {
+            assert!(!recovery.observe_failure());
+        }
+        assert!(recovery.observe_failure());
     }
 }
