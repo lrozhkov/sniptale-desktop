@@ -122,12 +122,15 @@ class AlphaArtifactTests(unittest.TestCase):
                 for tool, version in versions["cargoSubcommands"].items():
                     if tool != "cargo-about":
                         target = binaries / tool
-                        target.write_text(f"#!/usr/bin/env bash\necho '{tool} {version}'\n")
+                        guard = '[[ "${1:-}" == llvm-cov && "${2:-}" == --version ]] || exit 2\n' if tool == "cargo-llvm-cov" else ""
+                        target.write_text(f"#!/usr/bin/env bash\n{guard}echo '{tool} {version}'\n")
                         target.chmod(0o700)
                 cargo = binaries / "cargo"
                 cargo.write_text('''#!/usr/bin/env python3
-import os, pathlib, sys
+import os, pathlib, subprocess, sys
 args = sys.argv[1:]
+if args[0] != 'install':
+    sys.exit(subprocess.run([str(pathlib.Path(os.environ['FAKE_BIN']) / ('cargo-' + args[0])), *args]).returncode)
 if '--features' in args and args[args.index('--features')+1] == 'cli' and os.environ['FAKE_MISSING'] != '1':
     target = pathlib.Path(os.environ['FAKE_BIN']) / 'cargo-about'
     target.write_text('#!/usr/bin/env bash\\necho "cargo-about 0.9.1"\\n')
