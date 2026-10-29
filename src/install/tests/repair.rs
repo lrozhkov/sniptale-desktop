@@ -1,7 +1,7 @@
 use super::super::registration::{
     AutostartRegistrationFact, RegistrationRepairInputs, assess_registration_repair,
     current_repair_registration_report, repair_registration_report,
-    repair_registration_report_for_inputs, signature_policy_for_dev_trust,
+    repair_registration_report_for_inputs, startup_signature_policy,
 };
 use super::super::registry::{
     InstallChannel, ManifestError, NativeHostManifest, expected_host_name,
@@ -24,7 +24,7 @@ fn valid_signature() -> BinarySignatureReport {
 #[test]
 fn unsigned_signature_relaxation_requires_dev_channel_and_exact_dev_trust() {
     assert_eq!(
-        signature_policy_for_dev_trust(InstallChannel::Dev, true),
+        startup_signature_policy(InstallChannel::Dev, true, false),
         SignaturePolicy::BestEffortDev
     );
     for (channel, trusted) in [
@@ -33,10 +33,62 @@ fn unsigned_signature_relaxation_requires_dev_channel_and_exact_dev_trust() {
         (InstallChannel::Dev, false),
     ] {
         assert_eq!(
-            signature_policy_for_dev_trust(channel, trusted),
+            startup_signature_policy(channel, trusted, false),
             SignaturePolicy::Required
         );
     }
+}
+
+#[test]
+fn unsigned_alpha_startup_accepts_only_missing_dev_signature_and_preserves_host_trust() {
+    let alpha_policy = startup_signature_policy(InstallChannel::Dev, false, true);
+    for (status, accepted) in [
+        (SignatureStatus::Missing, true),
+        (SignatureStatus::Valid, true),
+        (SignatureStatus::Invalid, false),
+        (SignatureStatus::Unknown, false),
+    ] {
+        let report = BinarySignatureReport {
+            status,
+            signer_subject: None,
+        };
+        assert_eq!(evaluate_signature(&report, alpha_policy).is_ok(), accepted);
+    }
+    for channel in [InstallChannel::Stable, InstallChannel::Beta] {
+        assert_eq!(
+            startup_signature_policy(channel, false, true),
+            SignaturePolicy::Required
+        );
+    }
+    assert_eq!(
+        startup_signature_policy(InstallChannel::Dev, false, false),
+        SignaturePolicy::Required
+    );
+    let identity = crate::install::identity::InstallRuntimeIdentity::for_channel_and_origins(
+        InstallChannel::Dev,
+        [EXPECTED_ORIGIN],
+    );
+    let mut manifest = registration_manifest();
+    manifest.host_name = expected_host_name(InstallChannel::Dev).to_owned();
+    manifest.channel = InstallChannel::Dev;
+    assert!(
+        crate::install::registration_facts::trusted_registered_host_candidate(
+            &manifest,
+            EXPECTED_PATH,
+            identity,
+            SignatureStatus::Valid,
+            false,
+        )
+    );
+    assert!(
+        !crate::install::registration_facts::trusted_registered_host_candidate(
+            &manifest,
+            EXPECTED_PATH,
+            identity,
+            SignatureStatus::Missing,
+            false,
+        )
+    );
 }
 
 const EXPECTED_ORIGIN: &str = "chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/";

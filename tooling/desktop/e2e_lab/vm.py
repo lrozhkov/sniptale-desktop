@@ -280,7 +280,7 @@ class VmManager:
         command = [
             self._qemu(), "-name", f"sniptale-lab-{lane.name},process=sniptale-{lane.name}",
             "-machine", "q35", "-accel", acceleration if acceleration == "kvm" else "tcg,thread=multi", "-cpu", "host" if acceleration == "kvm" else "max",
-            "-smp", str(lane.vcpus), "-m", str(lane.memory_mib), "-no-reboot", "-monitor", "none",
+            "-smp", str(lane.vcpus), "-m", str(lane.memory_mib), "-monitor", "none",
             "-drive", f"if=none,id=system,file={overlay},format=qcow2,cache=none,discard=unmap",
             "-device", "virtio-blk-pci,drive=system,addr=0x2",
             "-netdev", f"user,id=net0,restrict={'off' if allow_guest_network else 'on'},hostfwd=tcp:127.0.0.1:{lane.ssh_port}-:22",
@@ -289,6 +289,10 @@ class VmManager:
             "-display", "none", "-vnc", f"127.0.0.1:{lane.vnc_display}",
             "-qmp", f"unix:{qmp},server=on,wait=off", "-serial", f"file:{runtime / 'serial.log'}",
         ]
+        # Windows console preparation reboots once inside this disposable overlay.
+        # Boot/test deadlines still bound the run; Linux keeps its existing reboot policy.
+        if lane.os != "windows":
+            command.append("-no-reboot")
         if lane.os == "windows":
             command[command.index("virtio-blk-pci,drive=system,addr=0x2")] = "nvme,drive=system,serial=sniptalelab,addr=0x2"
             command[command.index("virtio-net-pci,netdev=net0,mac=52:54:00:12:34:56,addr=0x1")] = "e1000e,netdev=net0,mac=52:54:00:12:34:56,addr=0x1"

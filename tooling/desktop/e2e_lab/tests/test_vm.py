@@ -144,6 +144,7 @@ class VmTests(unittest.TestCase):
         with mock.patch.object(self.manager, "_qemu", return_value="qemu-system-x86_64"):
             command = self.manager._command(lane, Path("/lab/overlay.qcow2"), Path("/lab/qmp.sock"), Path("/lab"))
         joined = " ".join(command)
+        self.assertIn("-no-reboot", command)
         self.assertIn(f"hostfwd=tcp:127.0.0.1:{lane.ssh_port}-:22", joined)
         self.assertIn(f"127.0.0.1:{lane.vnc_display}", joined)
         self.assertNotIn("0.0.0.0", joined)
@@ -204,6 +205,7 @@ class VmTests(unittest.TestCase):
         self.assertEqual((runtime / "OVMF_VARS.fd").stat().st_mode & 0o777, 0o600)
         self.assertEqual((golden / "OVMF_VARS.fd").stat().st_mode & 0o777, 0o444)
         self.assertIn("e1000e,netdev=net0,mac=52:54:00:12:34:56,addr=0x1", " ".join(command))
+        self.assertNotIn("-no-reboot", command)
         joined = " ".join(command)
         self.assertIn("driver=wav,id=audio0,path=", joined)
         self.assertIn("system-audio-output.wav", joined)

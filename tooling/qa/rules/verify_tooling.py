@@ -345,19 +345,71 @@ def validate_zero_baselines(errors: list[str]) -> None:
 
 
 def validate_hosted_qa_policy(errors: list[str]) -> None:
+    # JSON is a YAML subset. Parsing the committed workflows as JSON avoids an extra QA dependency.
     workflow_root = ROOT / ".github/workflows"
-    if not workflow_root.is_dir():
+    expected = {"checks.yml", "alpha.yml", "alpha-publish.yml"}
+    found = {path.name for path in workflow_root.glob("*") if path.is_file()}
+    if found != expected:
+        errors.append("hosted workflow allowlist mismatch")
         return
-    hosted_workflows = sorted(
-        path.relative_to(ROOT).as_posix()
-        for path in workflow_root.rglob("*")
-        if path.is_file()
-    )
-    if hosted_workflows:
-        errors.append(
-            "hosted GitHub Actions workflows are disabled; run canonical QA locally: "
-            + ", ".join(hosted_workflows)
-        )
+    pinned = {
+        "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+        "actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830",
+        "actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830",
+        "actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065",
+        "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+        "actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093",
+    }
+    commands = {
+        "rustup toolchain install 1.96.0 --profile minimal --component rustfmt,clippy,llvm-tools-preview --target x86_64-pc-windows-msvc",
+        "tooling/qa/installers/install-release-tools.sh",
+        "tooling/qa/wrappers/alpha-proof.sh",
+        "& tooling/release/windows/alpha-package.ps1 -QaProof .tmp/release/alpha-proof -Tag $env:ALPHA_TAG",
+        "python3 tooling/release/windows/alpha_publish.py",
+    }
+    try:
+        for name in sorted(found):
+            workflow = load_object(workflow_root / name)
+            triggers = set(workflow["on"])
+            wanted = {"pull_request", "workflow_dispatch", "workflow_call"} if name == "checks.yml" else {"workflow_dispatch"}
+            if triggers != wanted or workflow.get("permissions") != ({"contents": "read", "actions": "read"} if name == "alpha.yml" else {"contents": "read"}):
+                errors.append("hosted trigger or default permission drift: " + name)
+            for job_name, job in workflow["jobs"].items():
+                publisher = name == "alpha-publish.yml" and job_name == "publish"
+                if "uses" in job and job["uses"] != "./.github/workflows/checks.yml":
+                    errors.append("unapproved reusable workflow")
+                if "permissions" in job and (not publisher or job["permissions"] != {"contents": "write", "actions": "read"}):
+                    errors.append("hosted job permission drift")
+                if publisher and job.get("permissions") != {"contents": "write", "actions": "read"}:
+                    errors.append("publication permissions missing")
+                if (publisher or job_name == "package") and job.get("if") != "github.ref == 'refs/heads/main'":
+                    errors.append("release jobs require reviewed main")
+                for step in job.get("steps", []):
+                    if "uses" in step and step["uses"] not in pinned:
+                        errors.append("hosted Action must use approved immutable SHA")
+                    if step.get("uses", "").startswith("actions/checkout@") and step.get("with") != {"fetch-depth": 0, "persist-credentials": False}:
+                        errors.append("checkout must use full current source without persisted credentials")
+                    if "run" in step and (step["run"] not in commands or "${{" in step["run"]):
+                        errors.append("unapproved hosted command")
+                    if publisher and "run" in step and step["run"] != "python3 tooling/release/windows/alpha_publish.py":
+                        errors.append("publication must not rebuild")
+                    action = step.get("uses", "")
+                    options = step.get("with", {})
+                    if action.startswith("actions/upload-artifact@"):
+                        kind = "alpha" if name == "alpha.yml" else "qa"
+                        path = ".tmp/release/alpha" if kind == "alpha" else ".tmp/release/alpha-proof"
+                        if (publisher or options.get("path") != path or options.get("if-no-files-found") != "error"
+                                or options.get("name") != kind + "-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}"):
+                            errors.append("artifact output path or identity drift")
+                    if action.startswith("actions/download-artifact@") and (name != "alpha.yml" or options != {
+                        "name": "qa-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}",
+                        "path": ".tmp/release/alpha-proof",
+                    }):
+                        errors.append("QA handoff path or identity drift")
+            if name == "alpha.yml" and workflow["jobs"]["package"].get("needs") != "qa":
+                errors.append("alpha package must require canonical QA")
+    except (ValueError, KeyError, TypeError) as exc:
+        errors.append("malformed hosted workflow policy: " + type(exc).__name__)
 
 
 def validate_git_attributes(errors: list[str]) -> None:

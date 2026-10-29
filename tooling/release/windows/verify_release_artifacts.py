@@ -273,7 +273,7 @@ def check_package_wrapper(errors: list[str]) -> None:
     required_terms = [
         "tooling/qa/wrappers/checkpoint.sh",
         "qa_assert_state checkpoint",
-        "cargo build --release --target x86_64-pc-windows-msvc",
+        "cargo build --locked --release --target x86_64-pc-windows-msvc",
         "sniptale-native-agent.exe",
         "installer/native-host/stable.json.template",
         "installer/native-host/beta.json.template",

@@ -10,6 +10,16 @@ cd "$ROOT"
 require_command cargo
 qa_init "qa:windows-smoke" blocking
 
+if [[ "${1:-}" == "--alpha-artifact" ]]; then
+  if [[ $# != 2 ]]; then
+    printf 'Usage: tooling/qa/wrappers/windows-smoke.sh --alpha-artifact <bundle-msi>\n' >&2
+    exit 2
+  fi
+  qa_step "exact alpha MSI in isolated Windows" tooling/desktop/e2e-lab test windows-11 --artifact "$2"
+  qa_fail_if_any "alpha Windows smoke"
+  exit 0
+fi
+
 ALLOWED_ORIGIN="${SNIPTALE_WINDOWS_SMOKE_EXTENSION_ORIGIN:-chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/}"
 WRONG_ORIGIN="${SNIPTALE_WINDOWS_SMOKE_WRONG_ORIGIN:-chrome-extension://bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/}"
 EXE="$ROOT/target/debug/sniptale-native-agent.exe"

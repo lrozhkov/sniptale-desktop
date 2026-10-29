@@ -12,13 +12,14 @@ Canonical executable tooling lives under `tooling/**`. Generated logs, state, re
 - `licenses.sh --check` validates root legal policy and the tracked dependency notice bundle; `licenses.sh --write` is the explicit regeneration path after reviewed dependency changes.
 - `supply-chain.sh` runs cargo advisory, source, ban, license-expression, and dependency-license collection checks.
 - `closeout.sh -m "message"` runs scoped proof, the dev build, stages the verified tree, and commits. `--no-commit` is diagnostic only.
+- `alpha-proof.sh` runs the release harness and canonical release gate, then exports commit-bound QA evidence for the Windows packaging job.
 - `release.sh` always runs checkpoint, coverage, supply-chain/license proof, SPDX SBOM generation, a final checkpoint, and the release build.
 - `package-windows.sh` builds the Windows EXE/MSI and always binds manifests, legal payload, provenance, and hashes. Stable production also binds signatures, SBOM, supply-chain reports, and manual evidence.
 - `windows-smoke.sh`, `windows-smoke-from-wsl.sh`, and `desktop-e2e-lab.sh` own Windows compile/runtime, installed-package, and isolated guest evidence.
 
 The registry at `tooling/configs/qa/wrappers.json` is the machine owner of canonical wrapper entrypoints and blocking mode. Wrapper source is the owner of exact steps; documentation does not duplicate them.
 
-All canonical QA runs locally. The repository intentionally carries no `.github/workflows/**` files, and `verify_tooling.py` rejects hosted GitHub Actions workflows so heavy checkpoint, coverage, Windows, audit, and release work cannot be moved onto GitHub runners accidentally.
+Canonical QA runs locally and through the allowlisted GitHub Actions workflows. `verify_tooling.py` restricts triggers, commands, source checkout, permissions, pinned Actions, and the QA-to-package dependency. Hosted publication is restricted to reviewed `main` and consumes an existing tested package; it never builds. [Release procedure](../oss/release.md) owns alpha preparation and publication.
 
 ## Evidence
 

@@ -1,0 +1,79 @@
+{
+  "name": "Publish verified alpha",
+  "on": {
+    "workflow_dispatch": {
+      "inputs": {
+        "run_id": {
+          "description": "Successful alpha build run ID",
+          "required": true,
+          "type": "string"
+        },
+        "artifact_id": {
+          "description": "Immutable candidate artifact ID",
+          "required": true,
+          "type": "string"
+        },
+        "commit": {
+          "description": "Full reviewed main commit SHA",
+          "required": true,
+          "type": "string"
+        },
+        "tag": {
+          "description": "Alpha release tag",
+          "required": true,
+          "type": "string"
+        },
+        "acceptance": {
+          "description": "Base64 bounded Windows acceptance JSON",
+          "required": true,
+          "type": "string"
+        }
+      }
+    }
+  },
+  "permissions": {
+    "contents": "read"
+  },
+  "concurrency": {
+    "group": "alpha-publication",
+    "cancel-in-progress": false
+  },
+  "jobs": {
+    "publish": {
+      "if": "github.ref == 'refs/heads/main'",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 15,
+      "permissions": {
+        "contents": "write",
+        "actions": "read"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "with": {
+            "fetch-depth": 0,
+            "persist-credentials": false
+          }
+        },
+        {
+          "uses": "actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065",
+          "with": {
+            "python-version": "3.12.10"
+          }
+        },
+        {
+          "name": "Admit and publish exact tested bytes",
+          "env": {
+            "GH_TOKEN": "${{ github.token }}",
+            "ALPHA_RUN_ID": "${{ inputs.run_id }}",
+            "ALPHA_ARTIFACT_ID": "${{ inputs.artifact_id }}",
+            "ALPHA_COMMIT": "${{ inputs.commit }}",
+            "ALPHA_TAG": "${{ inputs.tag }}",
+            "ALPHA_ACCEPTANCE": "${{ inputs.acceptance }}"
+          },
+          "run": "python3 tooling/release/windows/alpha_publish.py"
+        }
+      ]
+    }
+  }
+}

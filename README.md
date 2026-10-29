@@ -153,7 +153,7 @@ Read the [threat model](docs/security/threat-model.md), [data-handling rules](do
 
 The repository uses formatting, linting, owner-boundary checks, negative parser and state-machine proof, coverage policy, dependency and license checks, Windows-target compilation, installed-runtime smoke tests, isolated desktop E2E, secret scanning, and release-evidence validation. These controls reduce risk; they do not replace real-user testing, performance profiling, accessibility review, adversarial testing, or independent security assessment.
 
-All repository QA and release gates run locally. GitHub Actions workflows are intentionally absent, and a local tooling guard rejects adding hosted workflows so heavyweight checks cannot consume GitHub runner resources accidentally.
+Repository QA and release gates run locally and through allowlisted GitHub Actions workflows. The same packaging entrypoint produces a Windows alpha installer in both environments. Publication consumes the exact package admitted by isolated Windows acceptance; see the [release procedure](docs/oss/release.md).
 
 ## License and contributions
 

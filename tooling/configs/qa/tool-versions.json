@@ -17,7 +17,11 @@
     }
   },
   "rust": {
-    "channel": "stable",
+    "channel": "1.96.0",
     "minimumObserved": "1.96.0"
+  },
+  "windows": {
+    "wix": "4.0.6",
+    "sdk": "10.0.26100.0"
   }
 }

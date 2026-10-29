@@ -41,6 +41,11 @@ $install = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Compo
 if (-not $install) { throw "MSVC Build Tools not found" }
 $vsdev = Join-Path $install "Common7\Tools\VsDevCmd.bat"
 $cargoProfile = if ($Profile -eq "release") { "--release" } else { "" }
+$pinnedRust = (Get-Content (Join-Path $work "tooling/configs/qa/tool-versions.json") -Raw | ConvertFrom-Json).rust.channel
+$installedRust = & rustup run stable rustc --version 2>$null
+if ($LASTEXITCODE -eq 0 -and $installedRust -match "^rustc $([regex]::Escape($pinnedRust)) ") {
+  $env:RUSTUP_TOOLCHAIN = "stable"
+}
 $env:SNIPTALE_INSTALL_CHANNEL = "dev"
 $env:SNIPTALE_ALLOWED_EXTENSION_ORIGIN = "chrome-extension://elhndangpenapadjimfoodlaenpcndpo/"
 $env:SNIPTALE_NATIVE_HOST_NAME = "com.sniptale.dev.native_host"

@@ -149,6 +149,7 @@ def execute_run(
     run_mode = (
         "focused-rerun" if retry_of is not None
         else "focused-test" if requested_cases is not None
+        else "alpha-release-acceptance" if supplied_artifact is not None and (supplied_artifact.parent / "provenance.json").is_file()
         else "full-acceptance"
     )
     emit_progress(
