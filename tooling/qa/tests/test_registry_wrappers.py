@@ -160,6 +160,27 @@ exit {checkpoint_exit}
                     module.validate_hosted_qa_policy(errors)
                 self.assertTrue(errors, mutation)
 
+    def test_windows_compilation_cache_rejects_unsafe_reuse(self) -> None:
+        path = ROOT / "tooling/qa/rules/verify_tooling.py"
+        spec = importlib.util.spec_from_file_location("cache_policy_negative", path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        import shutil
+        for mutation in ("key", "restore-keys", "path"):
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                shutil.copytree(ROOT / ".github", root / ".github")
+                workflow = root / ".github/workflows/alpha.yml"
+                value = json.loads(workflow.read_text())
+                cache = next(step for step in value["jobs"]["package"]["steps"]
+                             if step.get("name") == "Cache compiled Windows dependencies")
+                cache["with"][mutation] = "unscoped"
+                workflow.write_text(json.dumps(value))
+                errors = []
+                with mock.patch.object(module, "ROOT", root):
+                    module.validate_hosted_qa_policy(errors)
+                self.assertIn("compiled dependency cache scope or identity drift", errors)
+
     def test_temporary_debt_schema_requires_expiry_and_removal_condition(self) -> None:
         path = ROOT / "tooling/qa/rules/verify_tooling.py"
         spec = importlib.util.spec_from_file_location("verify_tooling_debt_test", path)

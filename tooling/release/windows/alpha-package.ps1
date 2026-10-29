@@ -69,8 +69,14 @@ $env:SNIPTALE_WINDOWS_RESOURCES = "require"
 $env:CARGO_INCREMENTAL = "0"
 Remove-Item Env:CARGO_ENCODED_RUSTFLAGS -ErrorAction SilentlyContinue
 $env:RUSTFLAGS = "-C target-feature=+crt-static"
-& cargo build --locked --release --target x86_64-pc-windows-msvc --bin sniptale-native-agent --all-features
+# Recompile project code and build scripts from this checkout; retain only dependency work.
+& cargo clean --package sniptale-native-agent
+if ($LASTEXITCODE -ne 0) { throw "project artifact invalidation failed" }
+$compileWatch = [Diagnostics.Stopwatch]::StartNew()
+& cargo build --locked --release --target x86_64-pc-windows-msvc --bin sniptale-native-agent --all-features --timings
 if ($LASTEXITCODE -ne 0) { throw "Windows release compilation failed" }
+$compileWatch.Stop()
+Write-Output "Windows release compilation elapsed seconds: $($compileWatch.Elapsed.TotalSeconds)"
 $exe = Join-Path $out "sniptale-native-agent.exe"
 Copy-Item target/x86_64-pc-windows-msvc/release/sniptale-native-agent.exe $exe
 & python tooling/release/windows/verify_windows_pe_resources.py $exe

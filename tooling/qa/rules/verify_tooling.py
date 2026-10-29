@@ -365,6 +365,7 @@ def validate_hosted_qa_policy(errors: list[str]) -> None:
         "tooling/qa/installers/install-release-tools.sh",
         "tooling/qa/wrappers/alpha-proof.sh",
         "& tooling/release/windows/alpha-package.ps1 -QaProof .tmp/release/alpha-proof -Tag $env:ALPHA_TAG",
+        'if (-not $env:ImageVersion) { throw "runner image identity missing" }; "version=$env:ImageVersion" >> $env:GITHUB_OUTPUT',
         "python3 tooling/release/windows/alpha_publish.py",
     }
     try:
@@ -395,6 +396,10 @@ def validate_hosted_qa_policy(errors: list[str]) -> None:
                         errors.append("publication must not rebuild")
                     action = step.get("uses", "")
                     options = step.get("with", {})
+                    if name == "alpha.yml" and action.startswith("actions/cache"):
+                        expected_key = "windows-msvc-static-v1-${{ steps.build-image.outputs.version }}-${{ hashFiles('Cargo.lock', 'Cargo.toml', 'build.rs', 'rust-toolchain.toml', '.cargo/**', 'resources/**', 'tooling/configs/qa/tool-versions.json', 'tooling/release/windows/alpha-package.ps1') }}"
+                        if name != "alpha.yml" or job_name != "package" or options != {"path": "target", "key": expected_key}:
+                            errors.append("compiled dependency cache scope or identity drift")
                     if action.startswith("actions/upload-artifact@"):
                         kind = "alpha" if name == "alpha.yml" else "qa"
                         path = ".tmp/release/alpha" if kind == "alpha" else ".tmp/release/alpha-proof"
