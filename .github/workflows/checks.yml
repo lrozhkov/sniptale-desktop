@@ -35,11 +35,21 @@
           "with": {
             "path": "~/.cargo/registry\n~/.cargo/git\n~/.cargo/bin/cargo-audit\n~/.cargo/bin/cargo-deny\n~/.cargo/bin/cargo-about\n~/.cargo/bin/cargo-nextest\n~/.cargo/bin/cargo-llvm-cov\n.tmp/qa-tools",
             "key": "release-tools-ubuntu24-${{ hashFiles('tooling/configs/qa/tool-versions.json', 'Cargo.lock') }}"
-          }
+          },
+          "id": "release-tools"
         },
         {
           "name": "Install release tools",
           "run": "tooling/qa/installers/install-release-tools.sh"
+        },
+        {
+          "name": "Save prepared tools before QA",
+          "if": "steps.release-tools.outputs.cache-hit != 'true'",
+          "uses": "actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830",
+          "with": {
+            "path": "~/.cargo/registry\n~/.cargo/git\n~/.cargo/bin/cargo-audit\n~/.cargo/bin/cargo-deny\n~/.cargo/bin/cargo-about\n~/.cargo/bin/cargo-nextest\n~/.cargo/bin/cargo-llvm-cov\n.tmp/qa-tools",
+            "key": "release-tools-ubuntu24-${{ hashFiles('tooling/configs/qa/tool-versions.json', 'Cargo.lock') }}"
+          }
         },
         {
           "name": "Canonical release proof",

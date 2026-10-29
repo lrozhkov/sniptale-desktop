@@ -133,6 +133,8 @@ Add-Test "clean-install" {
   if ((Get-FileHash $installed -Algorithm SHA256).Hash.ToLowerInvariant() -ne $ExpectedExeSha256) { throw "installed EXE hash mismatch" }
   if ((Get-FileHash "$directory/native-host.json" -Algorithm SHA256).Hash.ToLowerInvariant() -ne $ExpectedManifestSha256) { throw "installed manifest hash mismatch" }
   if ((Get-AuthenticodeSignature $installed).Status -ne "NotSigned") { throw "alpha signature policy mismatch" }
+  $repair = & $installed --repair-registration | ConvertFrom-Json
+  if (@($repair.issues | Where-Object { $_.category -eq "binary-signature" }).Count -ne 0) { throw "alpha startup still blocks unsigned Manual operations" }
   $version = & $installed --version-json | ConvertFrom-Json
   if (-not $version.platformKind) { throw "installed version JSON unavailable" }
   $autostart = (Get-ItemProperty "HKCU:/Software/Microsoft/Windows/CurrentVersion/Run").SniptaleNativeAgent
@@ -172,6 +174,10 @@ Add-Test "recording" {
   $mp4=Wait-For { Get-ChildItem $exports -Filter *.mp4 | Select-Object -First 1 } 60
   $bytes=[IO.File]::ReadAllBytes($mp4.FullName)
   if ($bytes.Length -lt 4096 -or [Text.Encoding]::ASCII.GetString($bytes,4,4) -ne "ftyp" -or [Text.Encoding]::ASCII.GetString($bytes) -notmatch 'moov') { throw "MP4 did not finalize" }
+  $metadata = & ffprobe.exe -v error -show_streams -show_format -of json $mp4.FullName | ConvertFrom-Json
+  if ($LASTEXITCODE -ne 0 -or [double]$metadata.format.duration -lt 5 -or @($metadata.streams | Where-Object { $_.codec_type -eq "video" -and $_.width -ge 100 -and $_.height -ge 100 }).Count -eq 0) { throw "recorded MP4 has no valid video stream" }
+  & ffmpeg.exe -nostdin -v error -i $mp4.FullName -map 0:v:0 -f null - 2>&1 | Out-Null
+  if ($LASTEXITCODE -ne 0) { throw "recorded MP4 cannot be decoded" }
   Copy-Item $mp4.FullName "$outputPath/recordings/product.mp4"
 }
 Add-Test "restart" {

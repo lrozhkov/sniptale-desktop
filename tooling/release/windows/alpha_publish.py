@@ -119,7 +119,7 @@ def main() -> None:
 
 Install `{msi_name}`. In the tray menu choose Mode > Manual, select a local output folder, and save changes. Capture and recording controls are in the tray menu. This is an unsigned development-channel build; Windows can display an unknown-publisher warning. Trusted browser-extension integration is unsupported in this alpha. No development trust bypass is shipped.
 
-Tested on the Windows 11 laboratory image identified in windows-acceptance.json; Windows 10 compatibility is not certified. Development/beta/stable packages currently share the install location: this package replaces an existing Sniptale Desktop installation and is not a side-by-side install. Future releases must advance the numeric MSI version before distribution.
+Tested on the Windows 11 laboratory image identified in windows-acceptance.json; Windows 10 compatibility is not certified. Development/beta/stable packages currently share the install location: uninstall any existing Sniptale Desktop package before this alpha. Side-by-side installation is unsupported. Future releases must advance the numeric MSI version before distribution.
 
 The ZIP contains the exact EXE/MSI, manifest, licenses, SBOM, supply-chain reports, source/run provenance and SHA256SUMS. Verify SHA256SUMS after extracting it. Source: {commit}. Actions run: https://github.com/{REPO}/actions/runs/{run_id} (attempt {run['run_attempt']}).
 """, encoding="utf-8")

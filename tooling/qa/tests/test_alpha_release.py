@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -98,6 +100,44 @@ class AlphaArtifactTests(unittest.TestCase):
         command = request.call_args.args[0]
         self.assertEqual(command[-4:], ["--method", "POST", "--input", "-"])
         self.assertEqual(json.loads(request.call_args.kwargs["input"])["sha"], self.commit)
+
+    def test_cold_bootstrap_installs_cli_and_rejects_missing_executable(self):
+        versions = json.loads((ROOT / "tooling/configs/qa/tool-versions.json").read_text())
+        for missing in (False, True):
+            with self.subTest(missing=missing), tempfile.TemporaryDirectory() as name:
+                root = Path(name)
+                installers = root / "tooling/qa/installers"
+                runtime = root / "tooling/qa/runtime"
+                configs = root / "tooling/configs/qa"
+                binaries = root / "bin"
+                for directory in (installers, runtime, configs, binaries):
+                    directory.mkdir(parents=True)
+                shutil.copyfile(ROOT / "tooling/qa/installers/install-release-tools.sh", installers / "install-release-tools.sh")
+                (runtime / "lib.sh").write_text("ensure_rust_env() { :; }\n")
+                (configs / "tool-versions.json").write_text(json.dumps(versions))
+                for executable, body in {"rustup": "exit 0", "gitleaks-installer": "exit 0"}.items():
+                    target = installers / "install-gitleaks.sh" if executable == "gitleaks-installer" else binaries / executable
+                    target.write_text("#!/usr/bin/env bash\n" + body + "\n")
+                    target.chmod(0o700)
+                for tool, version in versions["cargoSubcommands"].items():
+                    if tool != "cargo-about":
+                        target = binaries / tool
+                        target.write_text(f"#!/usr/bin/env bash\necho '{tool} {version}'\n")
+                        target.chmod(0o700)
+                cargo = binaries / "cargo"
+                cargo.write_text('''#!/usr/bin/env python3
+import os, pathlib, sys
+args = sys.argv[1:]
+if '--features' in args and args[args.index('--features')+1] == 'cli' and os.environ['FAKE_MISSING'] != '1':
+    target = pathlib.Path(os.environ['FAKE_BIN']) / 'cargo-about'
+    target.write_text('#!/usr/bin/env bash\\necho "cargo-about 0.9.1"\\n')
+    target.chmod(0o700)
+''')
+                cargo.chmod(0o700)
+                environment = {**os.environ, "PATH": str(binaries) + os.pathsep + "/usr/bin:/bin",
+                               "FAKE_BIN": str(binaries), "FAKE_MISSING": "1" if missing else "0"}
+                result = subprocess.run(["bash", str(installers / "install-release-tools.sh")], env=environment, capture_output=True, text=True)
+                self.assertEqual(result.returncode, 1 if missing else 0, result.stderr)
 
 
 if __name__ == "__main__":

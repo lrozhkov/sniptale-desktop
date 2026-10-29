@@ -83,9 +83,10 @@ pub(crate) fn current_repair_registration_report() -> RepairRegistrationReport {
 
 #[cfg(windows)]
 fn current_signature_policy(channel: InstallChannel) -> SignaturePolicy {
-    signature_policy_for_dev_trust(
+    startup_signature_policy(
         channel,
         super::dev_local_trust::dev_local_browser_trust_enabled(),
+        option_env!("SNIPTALE_RELEASE_FLAVOR").is_some_and(|flavor| flavor == "alpha"),
     )
 }
 
@@ -95,11 +96,12 @@ const fn current_signature_policy(_channel: InstallChannel) -> SignaturePolicy {
 }
 
 #[cfg(any(windows, test))]
-pub(super) const fn signature_policy_for_dev_trust(
+pub(super) const fn startup_signature_policy(
     channel: InstallChannel,
     dev_local_trust: bool,
+    unsigned_alpha: bool,
 ) -> SignaturePolicy {
-    if matches!(channel, InstallChannel::Dev) && dev_local_trust {
+    if matches!(channel, InstallChannel::Dev) && (dev_local_trust || unsigned_alpha) {
         SignaturePolicy::BestEffortDev
     } else {
         SignaturePolicy::Required

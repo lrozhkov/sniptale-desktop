@@ -7,6 +7,12 @@ $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot "../../.."))
 Set-Location -LiteralPath $root
+foreach ($source in Get-ChildItem tooling -Recurse -File -Filter *.ps1) {
+  $tokens = $null
+  $parseErrors = $null
+  [System.Management.Automation.Language.Parser]::ParseFile($source.FullName, [ref]$tokens, [ref]$parseErrors) | Out-Null
+  if ($parseErrors) { throw "PowerShell source parse verification failed" }
+}
 $commit = (& git rev-parse HEAD).Trim()
 if ($LASTEXITCODE -ne 0) { throw "Git source identity unavailable" }
 & python tooling/release/windows/alpha_artifacts.py verify-proof $QaProof --commit $commit
@@ -57,6 +63,7 @@ if ($wixVersion -ne $versions.windows.wix) { throw "WiX version mismatch" }
 if ($LASTEXITCODE -ne 0) { throw "WiX UI extension installation failed" }
 Remove-Item Env:SNIPTALE_DEV_LOCAL_BROWSER_TRUST -ErrorAction SilentlyContinue
 $env:SNIPTALE_INSTALL_CHANNEL = "dev"
+$env:SNIPTALE_RELEASE_FLAVOR = "alpha"
 $env:SNIPTALE_ALLOWED_EXTENSION_ORIGIN = "chrome-extension://pcegkgbagkiagakmfjchgfgheepkllda/"
 $env:SNIPTALE_WINDOWS_RESOURCES = "require"
 $env:CARGO_INCREMENTAL = "0"
