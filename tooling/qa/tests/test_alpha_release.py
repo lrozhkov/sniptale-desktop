@@ -92,6 +92,13 @@ class AlphaArtifactTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 artifacts.version_tag(value)
 
+    def test_tag_creation_explicitly_uses_post_with_structured_body(self):
+        with mock.patch.object(publish.subprocess, "check_output", return_value="{}") as request:
+            publish.api("git/refs", {"ref": "refs/tags/v0.1.0-alpha.1", "sha": self.commit})
+        command = request.call_args.args[0]
+        self.assertEqual(command[-4:], ["--method", "POST", "--input", "-"])
+        self.assertEqual(json.loads(request.call_args.kwargs["input"])["sha"], self.commit)
+
 
 if __name__ == "__main__":
     unittest.main()

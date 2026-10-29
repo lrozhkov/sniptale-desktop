@@ -18,7 +18,7 @@ RELEASE_CASES = {"network-isolation", "clean-install", "first-run", "capture", "
 def gh(*args: str, body: dict | None = None) -> str:
     command = ["gh", *args]
     if body is not None:
-        command.extend(("--input", "-"))
+        command.extend(("--method", "POST", "--input", "-"))
     return subprocess.check_output(command, input=json.dumps(body) if body is not None else None, text=True).strip()
 
 
