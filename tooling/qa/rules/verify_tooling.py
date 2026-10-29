@@ -415,6 +415,16 @@ def validate_hosted_qa_policy(errors: list[str]) -> None:
                 errors.append("alpha package must require canonical QA")
     except (ValueError, KeyError, TypeError) as exc:
         errors.append("malformed hosted workflow policy: " + type(exc).__name__)
+    package_script = ROOT / "tooling/release/windows/alpha-package.ps1"
+    if package_script.is_file():
+        source = package_script.read_text(encoding="utf-8")
+        clean = "& cargo clean --locked --package sniptale-native-agent --release --target x86_64-pc-windows-msvc --target-dir target"
+        build = "& cargo build --locked --release --target x86_64-pc-windows-msvc --bin sniptale-native-agent --all-features --timings --target-dir target"
+        if clean not in source or build not in source or source.index(clean) > source.index(build):
+            errors.append("alpha compilation must invalidate current package in the exact release target")
+    else:
+        errors.append("alpha packaging source missing")
+
 
 
 def validate_git_attributes(errors: list[str]) -> None:

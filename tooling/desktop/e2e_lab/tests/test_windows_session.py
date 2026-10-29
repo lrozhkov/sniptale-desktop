@@ -26,6 +26,9 @@ class WindowsSessionTests(unittest.TestCase):
         self.assertIn("$boot -gt 639000000000000000", probe)
         self.assertIn("Get-Process explorer", probe)
         self.assertEqual(ssh.command.call_count, 5)
+        for call in ssh.command.call_args_list:
+            command = base64.b64decode(call.args[0][-1]).decode("utf-16-le")
+            self.assertIn("$ProgressPreference='SilentlyContinue'", command)
 
     def test_invalid_boot_identity_cannot_schedule_restart(self):
         for boot in ("", "0", "1;exit", "1" * 20, "1\n2", "１２３"):
