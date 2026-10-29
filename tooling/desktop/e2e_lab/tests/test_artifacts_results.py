@@ -603,6 +603,12 @@ class ArtifactResultTests(unittest.TestCase):
             "result": "pass",
         }
         validate_receipt(receipt)
+        receipt["run_mode"] = "alpha-release-acceptance"
+        validate_receipt(receipt)
+        receipt["run_mode"] = "invented-mode"
+        with self.assertRaisesRegex(IntegrityError, "run mode"):
+            validate_receipt(receipt)
+        receipt["run_mode"] = "alpha-release-acceptance"
         del receipt["source"]
         with self.assertRaisesRegex(IntegrityError, "missing fields"):
             validate_receipt(receipt)

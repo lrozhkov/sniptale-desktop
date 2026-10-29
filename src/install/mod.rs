@@ -37,6 +37,8 @@ pub(crate) use health::{
 };
 pub(crate) use identity::expected_install_identity;
 #[cfg(windows)]
+pub(crate) use pipe_secret_store::initialize_current_user_pipe_secret;
+#[cfg(windows)]
 pub(crate) use pipe_secret_store::load_current_user_pipe_secret;
 #[cfg(windows)]
 pub(crate) use registration::{
