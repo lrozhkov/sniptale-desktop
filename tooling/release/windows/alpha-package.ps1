@@ -70,10 +70,10 @@ $env:CARGO_INCREMENTAL = "0"
 Remove-Item Env:CARGO_ENCODED_RUSTFLAGS -ErrorAction SilentlyContinue
 $env:RUSTFLAGS = "-C target-feature=+crt-static"
 # Recompile project code and build scripts from this checkout; retain only dependency work.
-& cargo clean --package sniptale-native-agent
+& cargo clean --locked --package sniptale-native-agent --release --target x86_64-pc-windows-msvc --target-dir target
 if ($LASTEXITCODE -ne 0) { throw "project artifact invalidation failed" }
 $compileWatch = [Diagnostics.Stopwatch]::StartNew()
-& cargo build --locked --release --target x86_64-pc-windows-msvc --bin sniptale-native-agent --all-features --timings
+& cargo build --locked --release --target x86_64-pc-windows-msvc --bin sniptale-native-agent --all-features --timings --target-dir target
 if ($LASTEXITCODE -ne 0) { throw "Windows release compilation failed" }
 $compileWatch.Stop()
 Write-Output "Windows release compilation elapsed seconds: $($compileWatch.Elapsed.TotalSeconds)"

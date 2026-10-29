@@ -181,6 +181,36 @@ exit {checkpoint_exit}
                     module.validate_hosted_qa_policy(errors)
                 self.assertIn("compiled dependency cache scope or identity drift", errors)
 
+    def test_alpha_cache_requires_release_target_invalidation_before_build(self) -> None:
+        path = ROOT / "tooling/qa/rules/verify_tooling.py"
+        spec = importlib.util.spec_from_file_location("cache_invalidation_negative", path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        import shutil
+        for mutation in ("profile", "target", "directory", "order"):
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                shutil.copytree(ROOT / ".github", root / ".github")
+                script = root / "tooling/release/windows/alpha-package.ps1"
+                script.parent.mkdir(parents=True)
+                source = (ROOT / script.relative_to(root)).read_text()
+                lines = source.splitlines()
+                clean = next(i for i, line in enumerate(lines) if line.startswith("& cargo clean "))
+                build = next(i for i, line in enumerate(lines) if line.startswith("& cargo build "))
+                if mutation == "profile":
+                    lines[clean] = lines[clean].replace(" --release", "")
+                elif mutation == "target":
+                    lines[clean] = lines[clean].replace(" --target x86_64-pc-windows-msvc", "")
+                elif mutation == "directory":
+                    lines[build] = lines[build].replace(" --target-dir target", "")
+                else:
+                    lines[clean], lines[build] = lines[build], lines[clean]
+                script.write_text("\n".join(lines) + "\n")
+                errors = []
+                with mock.patch.object(module, "ROOT", root):
+                    module.validate_hosted_qa_policy(errors)
+                self.assertIn("alpha compilation must invalidate current package in the exact release target", errors)
+
     def test_temporary_debt_schema_requires_expiry_and_removal_condition(self) -> None:
         path = ROOT / "tooling/qa/rules/verify_tooling.py"
         spec = importlib.util.spec_from_file_location("verify_tooling_debt_test", path)
