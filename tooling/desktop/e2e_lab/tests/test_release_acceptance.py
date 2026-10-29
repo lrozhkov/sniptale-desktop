@@ -25,6 +25,28 @@ class ReleaseAcceptanceTests(unittest.TestCase):
                     test_release(runner, "windows-11", artifact, directory)
                 runner.vms.start.assert_not_called()
 
+    def test_failed_capture_backend_stops_acceptance_before_guest_commands(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            artifact = root / "SniptaleNativeAgent-dev-0.1.0.msi"
+            artifact.write_bytes(b"msi")
+            (root / "provenance.json").write_text('{"tag":"v0.1.0-alpha.1","productVersion":"0.1.0"}')
+            runner = SimpleNamespace(
+                paths=SimpleNamespace(root=root), consumed_artifacts=[], vms=mock.Mock(),
+                _assert_windows_audio_backend=mock.Mock(side_effect=LabError("capture backend unavailable")),
+                _collect_qemu_log=mock.Mock(), _finish_vm=mock.Mock(),
+            )
+            runner.vms.reset.return_value = False
+            with mock.patch("release_acceptance.subprocess.check_output", return_value="a" * 40), mock.patch(
+                "release_acceptance.subprocess.run", return_value=SimpleNamespace(returncode=0)
+            ), mock.patch("release_acceptance.GuestSsh") as ssh:
+                with self.assertRaisesRegex(LabError, "capture backend unavailable"):
+                    test_release(runner, "windows-11", artifact, root)
+            runner.vms.start.assert_called_once_with("windows-11", windows_audio_capture=True, host_reserve_mib=1024)
+            runner._assert_windows_audio_backend.assert_called_once_with("windows-11", require_capture=True)
+            ssh.assert_not_called()
+            runner._finish_vm.assert_called_once_with("windows-11", "test", False)
+
     def test_release_guest_contract_has_all_cases_and_no_development_trust(self):
         script = (Path(__file__).resolve().parents[1] / "guest/windows/release-run.ps1").read_text()
         for name in CASES:

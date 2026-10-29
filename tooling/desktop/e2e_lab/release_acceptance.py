@@ -40,7 +40,8 @@ def test_release(runner, lane_name: str, artifact: Path, run_dir: Path):
     pre_forced = runner.vms.reset(lane_name)
     error = None
     try:
-        runner.vms.start(lane_name, host_reserve_mib=1024)
+        runner.vms.start(lane_name, windows_audio_capture=True, host_reserve_mib=1024)
+        runner._assert_windows_audio_backend(lane_name, require_capture=True)
         ssh = GuestSsh(runner.paths, runner.config.lanes[lane_name].ssh_port, "lab")
         ssh.wait(runner.config.timeouts.boot, probe=["cmd.exe", "/d", "/c", "exit", "0"])
         prepare_console(ssh, runner.config.timeouts.boot)
@@ -56,6 +57,7 @@ def test_release(runner, lane_name: str, artifact: Path, run_dir: Path):
             ssh.command(command, timeout=1260, log=run_dir / "logs" / f"{lane_name}.log", stream=True)
         except LabError as exc:
             error = exc
+        runner._assert_windows_audio_backend(lane_name, require_capture=True)
         runner._enforce_remote_evidence_limit(ssh, windows=True)
         ssh.download("e2e-out/", output, recursive=True, timeout=600,
                      max_bytes=runner._evidence_transfer_maximum(), max_files=2048)

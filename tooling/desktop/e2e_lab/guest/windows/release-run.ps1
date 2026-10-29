@@ -29,6 +29,7 @@ public static class AlphaUi {
   [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
   [DllImport("user32.dll")] public static extern void mouse_event(uint f,uint x,uint y,uint d,UIntPtr e);
   [DllImport("user32.dll")] public static extern int GetMenuItemCount(IntPtr m);
+  [DllImport("user32.dll")] public static extern uint GetMenuState(IntPtr m,uint i,uint f);
   [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetMenuString(IntPtr m,uint i,StringBuilder s,int c,uint f);
   [DllImport("user32.dll")] public static extern bool GetMenuItemRect(IntPtr w,IntPtr m,uint i,out Rect r);
   [DllImport("user32.dll")] public static extern bool EnumWindows(EnumCallback c,IntPtr p);
@@ -90,6 +91,7 @@ function Tray([string[]] $Labels) {
         if (-not [AlphaUi]::GetMenuItemRect([IntPtr]::Zero,$menu,$i,[ref]$rect)) { throw "menu geometry unavailable" }
         [AlphaUi]::SetCursorPos([int](($rect.Left+$rect.Right)/2),[int](($rect.Top+$rect.Bottom)/2)) | Out-Null
         Start-Sleep -Milliseconds 700
+        if ($label -eq $Labels[-1] -and ([AlphaUi]::GetMenuState($menu,$i,0x400) -band 3) -ne 0) { Screenshot "disabled-menu"; throw "menu action disabled" }
         if ($label -eq $Labels[-1]) { [AlphaUi]::mouse_event(2,0,0,0,[UIntPtr]::Zero); [AlphaUi]::mouse_event(4,0,0,0,[UIntPtr]::Zero) }
         $found=$true; break
       }
@@ -182,17 +184,45 @@ Add-Test "capture" {
   Copy-Item $png.FullName "$outputPath/screenshots/product.png"
 }
 Add-Test "recording" {
-  Tray @("Video","Start current screen")
-  Start-Sleep -Seconds 12
-  Tray @("Video","Stop")
-  $mp4=Wait-For { Get-ChildItem $exports -Filter *.mp4 | Select-Object -First 1 } 60
-  $bytes=[IO.File]::ReadAllBytes($mp4.FullName)
-  if ($bytes.Length -lt 4096 -or [Text.Encoding]::ASCII.GetString($bytes,4,4) -ne "ftyp" -or [Text.Encoding]::ASCII.GetString($bytes) -notmatch 'moov') { throw "MP4 did not finalize" }
-  $metadata = & ffprobe.exe -v error -show_streams -show_format -of json $mp4.FullName | ConvertFrom-Json
-  if ($LASTEXITCODE -ne 0 -or [double]$metadata.format.duration -lt 5 -or @($metadata.streams | Where-Object { $_.codec_type -eq "video" -and $_.width -ge 100 -and $_.height -ge 100 }).Count -eq 0) { throw "recorded MP4 has no valid video stream" }
-  & ffmpeg.exe -nostdin -v error -i $mp4.FullName -map 0:v:0 -f null - 2>&1 | Out-Null
-  if ($LASTEXITCODE -ne 0) { throw "recorded MP4 cannot be decoded" }
-  Copy-Item $mp4.FullName "$outputPath/recordings/product.mp4"
+  # Mixed is the real first-run default. The lab supplies synthetic microphone PCM; keep a
+  # synthetic render source alive through finalization so both WASAPI inputs have real packets.
+  $tone = Join-Path $env:TEMP "sniptale-alpha-tone.wav"
+  $decoded = Join-Path $env:TEMP "sniptale-alpha-decoded.pcm"
+  & ffmpeg.exe -nostdin -v error -f lavfi -i "sine=frequency=880:sample_rate=48000:duration=90" -ac 2 -c:a pcm_s16le -y $tone
+  if ($LASTEXITCODE -ne 0) { throw "synthetic audio fixture generation failed" }
+  $player = [Media.SoundPlayer]::new($tone)
+  try {
+    $player.Load()
+    $player.Play()
+    Start-Sleep -Seconds 2
+    Tray @("Video","Start current screen")
+    Start-Sleep -Seconds 12
+    Screenshot "recording-active"
+    Tray @("Video","Stop")
+    $mp4=Wait-For { Get-ChildItem $exports -Filter *.mp4 | Select-Object -First 1 } 60
+    $bytes=[IO.File]::ReadAllBytes($mp4.FullName)
+    if ($bytes.Length -lt 4096 -or [Text.Encoding]::ASCII.GetString($bytes,4,4) -ne "ftyp" -or [Text.Encoding]::ASCII.GetString($bytes) -notmatch 'moov') { throw "MP4 did not finalize" }
+    $metadata = & ffprobe.exe -v error -show_streams -show_format -of json $mp4.FullName | ConvertFrom-Json
+    if ($LASTEXITCODE -ne 0 -or [double]$metadata.format.duration -lt 5 -or @($metadata.streams | Where-Object { $_.codec_type -eq "video" -and $_.width -ge 100 -and $_.height -ge 100 }).Count -eq 0) { throw "recorded MP4 has no valid video stream" }
+    if (@($metadata.streams | Where-Object { $_.codec_type -eq "audio" -and [double]$_.duration -ge 5 }).Count -eq 0) { throw "recorded MP4 has no valid audio stream" }
+    & ffmpeg.exe -nostdin -v error -i $mp4.FullName -map 0:v:0 -f null - 2>&1 | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "recorded MP4 cannot be decoded" }
+    & ffmpeg.exe -nostdin -v error -i $mp4.FullName -map 0:a:0 -t 5 -f s16le -y $decoded
+    if ($LASTEXITCODE -ne 0 -or (Get-Item $decoded).Length -lt 96000) { throw "recorded audio cannot be decoded" }
+    $stream = [IO.File]::OpenRead($decoded)
+    try {
+      $sample = [byte[]]::new(262144)
+      $count = $stream.Read($sample,0,$sample.Length)
+      $nonZero = 0
+      for ($index=0; $index -lt $count; $index++) { if ($sample[$index] -ne 0) { $nonZero++ } }
+      if ($nonZero -lt 64) { throw "recorded mixed audio is silent" }
+    } finally { $stream.Dispose() }
+    Copy-Item $mp4.FullName "$outputPath/recordings/product.mp4"
+  } finally {
+    $player.Stop()
+    $player.Dispose()
+    Remove-Item $tone,$decoded -ErrorAction SilentlyContinue
+  }
 }
 Add-Test "restart" {
   $before=(Get-FileHash "$directory/local-profile.json" -Algorithm SHA256).Hash
