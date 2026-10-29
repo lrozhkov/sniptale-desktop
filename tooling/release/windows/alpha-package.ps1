@@ -45,7 +45,7 @@ $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.e
 $vs = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
 if (-not $vs) { throw "install Visual Studio Build Tools with C++ and Windows SDK" }
 $devcmd = Join-Path $vs "Common7/Tools/VsDevCmd.bat"
-$environment = & cmd.exe /d /s /c "`"`"$devcmd`" -arch=amd64 -host_arch=amd64 -winsdk=$($versions.windows.sdk) && set`""
+$environment = & cmd.exe /d /c "call `"$devcmd`" -arch=amd64 -host_arch=amd64 -winsdk=$($versions.windows.sdk) && set"
 if ($LASTEXITCODE -ne 0) { throw "MSVC environment activation failed" }
 foreach ($line in $environment) {
   if ($line -match '^([^=]+)=(.*)$') { [Environment]::SetEnvironmentVariable($Matches[1], $Matches[2], "Process") }
