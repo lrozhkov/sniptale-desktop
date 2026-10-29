@@ -4,7 +4,9 @@
 mod recording;
 
 use super::super::super::screenshot::{ScreenshotCaptureError, validate_raw_frame_bounds};
-use super::super::recording_owner::{FRAME_POLL_FAILURE_LIMIT, FramePollRecovery};
+use super::super::recording_owner::{
+    FRAME_POLL_FAILURE_LIMIT, FramePollRecovery, is_empty_frame_poll_hresult,
+};
 pub(super) use recording::RecordingFrameReadError;
 use std::{ptr, thread, time::Duration};
 use windows::{

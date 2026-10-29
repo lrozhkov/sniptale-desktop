@@ -15,6 +15,7 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "tooling/release/windows"))
 import alpha_artifacts as artifacts
 import alpha_publish as publish
+import alpha_acceptance as acceptance
 
 
 class AlphaArtifactTests(unittest.TestCase):
@@ -93,6 +94,25 @@ class AlphaArtifactTests(unittest.TestCase):
         for value in ("v1.0.0", "../v0.1.0-alpha.1", "v0.1.0-alpha.0", "v0.1.0-alpha.1;id"):
             with self.assertRaises(ValueError):
                 artifacts.version_tag(value)
+
+    def test_diagnostic_dirty_duplicate_or_forced_receipt_cannot_admit_release(self):
+        import copy
+        import hashlib
+        receipt = {"result": "pass", "run_mode": "alpha-release-acceptance", "commit_sha": self.commit,
+                   "dirty_state_sha256": hashlib.sha256(b"").hexdigest(), "lanes": ["windows-11"],
+                   "teardown": {"windows-11": {"post_forced": False}},
+                   "test_matrix": [{"lane": "windows-11", "tests": [{"name": name, "status": "pass"} for name in sorted(publish.RELEASE_CASES)]}]}
+        acceptance.verified_tests(receipt, self.commit)
+        for mutation in ("dirty", "mode", "duplicate", "forced", "missing", "lane"):
+            value = copy.deepcopy(receipt)
+            if mutation == "dirty": value["dirty_state_sha256"] = "f" * 64
+            elif mutation == "mode": value["run_mode"] = "focused-test"
+            elif mutation == "duplicate": value["test_matrix"][0]["tests"].append(value["test_matrix"][0]["tests"][0])
+            elif mutation == "forced": value["teardown"]["windows-11"]["post_forced"] = True
+            elif mutation == "missing": value["test_matrix"][0]["tests"].pop()
+            else: value["lanes"] = ["linux-x11"]
+            with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                acceptance.verified_tests(value, self.commit)
 
     def test_tag_creation_explicitly_uses_post_with_structured_body(self):
         with mock.patch.object(publish.subprocess, "check_output", return_value="{}") as request:

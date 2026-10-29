@@ -67,12 +67,16 @@ $env:SNIPTALE_RELEASE_FLAVOR = "alpha"
 $env:SNIPTALE_ALLOWED_EXTENSION_ORIGIN = "chrome-extension://pcegkgbagkiagakmfjchgfgheepkllda/"
 $env:SNIPTALE_WINDOWS_RESOURCES = "require"
 $env:CARGO_INCREMENTAL = "0"
+Remove-Item Env:CARGO_ENCODED_RUSTFLAGS -ErrorAction SilentlyContinue
+$env:RUSTFLAGS = "-C target-feature=+crt-static"
 & cargo build --locked --release --target x86_64-pc-windows-msvc --bin sniptale-native-agent --all-features
 if ($LASTEXITCODE -ne 0) { throw "Windows release compilation failed" }
 $exe = Join-Path $out "sniptale-native-agent.exe"
 Copy-Item target/x86_64-pc-windows-msvc/release/sniptale-native-agent.exe $exe
 & python tooling/release/windows/verify_windows_pe_resources.py $exe
 if ($LASTEXITCODE -ne 0) { throw "Windows resource verification failed" }
+& python tooling/release/windows/verify_windows_dependencies.py $exe
+if ($LASTEXITCODE -ne 0) { throw "standalone Windows dependency verification failed" }
 $manifest = (Get-Content installer/native-host/dev.json.template -Raw).
   Replace("{{SNIPTALE_NATIVE_AGENT_EXE}}", "sniptale-native-agent.exe").
   Replace("{{SNIPTALE_DEV_EXTENSION_ORIGIN}}", $env:SNIPTALE_ALLOWED_EXTENSION_ORIGIN)
@@ -95,6 +99,7 @@ Remove-Item (Join-Path $out "*.wixpdb") -ErrorAction SilentlyContinue
 if ($LASTEXITCODE -ne 0) { throw "MSI identity rejected" }
 $facts = [ordered]@{
   rustc = (& rustc --version); cargo = (& cargo --version); wix = $wixVersion
+  rustflags = $env:RUSTFLAGS
   windowsSdk = $env:WindowsSDKVersion; msvc = $env:VCToolsVersion
   dotnet = (& dotnet --version); python = (& python --version)
   runnerImage = $env:ImageVersion; osBuild = [Environment]::OSVersion.Version.ToString()

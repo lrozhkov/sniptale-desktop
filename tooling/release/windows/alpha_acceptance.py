@@ -3,12 +3,29 @@ from __future__ import annotations
 
 import argparse
 import base64
+import hashlib
 import json
 import subprocess
 from pathlib import Path
 
-from alpha_artifacts import ROOT, digest, read_json, verify_bundle, write_json
+from alpha_artifacts import ROOT, assert_source, digest, read_json, verify_bundle, write_json
 from alpha_publish import RELEASE_CASES, admit, api
+
+
+def verified_tests(receipt: dict, commit: str) -> dict:
+    matrix = receipt.get("test_matrix", [])
+    if (receipt.get("result") != "pass" or receipt.get("run_mode") != "alpha-release-acceptance"
+            or receipt.get("commit_sha") != commit
+            or receipt.get("dirty_state_sha256") != hashlib.sha256(b"").hexdigest()
+            or receipt.get("lanes") != ["windows-11"] or len(matrix) != 1
+            or matrix[0].get("lane") != "windows-11"
+            or any(any(values.values()) for values in receipt["teardown"].values())):
+        raise ValueError("VM receipt is not complete clean alpha acceptance")
+    cases = matrix[0]["tests"]
+    tests = {item["name"]: item["status"] for item in cases}
+    if len(cases) != len(RELEASE_CASES) or tests != {name: "pass" for name in RELEASE_CASES}:
+        raise ValueError("VM receipt case inventory is incomplete or duplicated")
+    return tests
 
 
 def export(bundle: Path, run_directory: Path, artifact_id: int, output: Path) -> None:
@@ -20,12 +37,9 @@ def export(bundle: Path, run_directory: Path, artifact_id: int, output: Path) ->
     receipt = read_json(run_directory / "receipt.json")
     provenance = read_json(bundle / "provenance.json")
     commit, tag = provenance["commit"], provenance["tag"]
+    assert_source(commit)
     verify_bundle(bundle, commit, tag)
-    tests = {item["name"]: item["status"] for lane in receipt["test_matrix"] for item in lane["tests"]}
-    if (receipt.get("result") != "pass" or receipt.get("run_mode") != "alpha-release-acceptance"
-            or receipt.get("commit_sha") != commit or tests != {name: "pass" for name in RELEASE_CASES}
-            or any(any(values.values()) for values in receipt["teardown"].values())):
-        raise ValueError("VM receipt is not complete clean alpha acceptance")
+    tests = verified_tests(receipt, commit)
     recorded = {item["name"]: item["sha256"] for item in receipt["artifacts"]}
     for path in bundle.rglob("*"):
         if path.is_file() and recorded.get(path.name) != digest(path):

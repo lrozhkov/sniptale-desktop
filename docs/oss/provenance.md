@@ -14,6 +14,8 @@ Source, documentation, Windows resources, installer definitions, and repository 
 
 The release SPDX SBOM and raw cargo-about JSON are ignored evidence. They are regenerated from the reviewed lockfile and do not replace Git policy.
 
+The alpha also links the MSVC CRT supplied by the build toolchain. Its compiler version and static-link flags are recorded in `build-environment.json`; this compiler runtime is outside the Cargo notice/SBOM graph and remains subject to [Microsoft's toolchain redistribution terms](https://learn.microsoft.com/en-us/visualstudio/releases/2022/redistribution). The [threat model](../security/threat-model.md) owns its update trade-off.
+
 ## Publication scope
 
 This repository contains the Windows desktop/native-host component only. QA and release proof use the same repository commands locally and in allowlisted GitHub Actions workflows. The local proof wrappers do not publish. The trusted alpha publication workflow admits an existing package and Windows acceptance, verifies draft asset hashes, and publishes a GitHub prerelease. [Release procedure](release.md) owns that operation. External code contributions are disabled by `CONTRIBUTING.md` and machine policy.
