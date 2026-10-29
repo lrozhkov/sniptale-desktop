@@ -28,3 +28,4 @@ Protected assets are captured pixels, video/audio, telemetry signals, Manual pro
 - Recording telemetry uses privileged low-level hooks. It is opt-in, session-frozen, disabled in Manual v1, and sanitized to counts/labels; hook presence remains observable to the operating system and other privileged software.
 - Diagnostics favor categories over identifiers and raw context. This limits forensic detail by design.
 - No automatic updater is owned by this repository. Release provenance and installer repair do not provide update delivery or rollback orchestration.
+- The alpha statically links the MSVC runtime to avoid a separate runtime installation. Runtime security fixes require rebuilding and distributing the application. PE import admission limits direct imports to Windows system libraries; the tested Windows image remains the platform compatibility evidence.
