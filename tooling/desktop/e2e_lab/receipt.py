@@ -94,7 +94,7 @@ def validate_receipt(value: dict[str, Any]) -> None:
     if not isinstance(value["artifacts"], list) or not isinstance(value["snapshots"], dict):
         raise IntegrityError("receipt artifacts or snapshot identities are invalid")
     run_mode = value.get("run_mode", "full-acceptance")
-    if run_mode not in {"full-acceptance", "focused-rerun", "focused-test"}:
+    if run_mode not in {"full-acceptance", "focused-rerun", "focused-test", "alpha-release-acceptance"}:
         raise IntegrityError("receipt run mode is invalid")
     requested = value.get("requested_cases", [])
     if (

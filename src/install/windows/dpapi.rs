@@ -6,7 +6,9 @@ use std::{ptr, slice};
 
 use windows::Win32::{
     Foundation::{HLOCAL, LocalFree},
-    Security::Cryptography::{CRYPT_INTEGER_BLOB, CRYPTPROTECT_UI_FORBIDDEN, CryptUnprotectData},
+    Security::Cryptography::{
+        CRYPT_INTEGER_BLOB, CRYPTPROTECT_UI_FORBIDDEN, CryptProtectData, CryptUnprotectData,
+    },
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -14,7 +16,30 @@ pub(crate) enum DpapiSecretError {
     EmptyInput,
     InputTooLarge,
     UnprotectFailed,
+    ProtectFailed,
     InvalidOutput,
+}
+
+pub(crate) fn protect_current_user_pipe_secret(secret: &[u8]) -> Result<Vec<u8>, DpapiSecretError> {
+    let input = input_blob(secret)?;
+    let mut output = CRYPT_INTEGER_BLOB::default();
+    // SAFETY: input borrows the live secret; output is initialized by DPAPI, remains adapter-local,
+    // and is owned by LocalBlob until its matching LocalFree. No UI or machine scope is requested.
+    unsafe {
+        CryptProtectData(
+            &input,
+            windows::core::w!("Sniptale pipe secret"),
+            None,
+            None,
+            None,
+            CRYPTPROTECT_UI_FORBIDDEN,
+            &mut output,
+        )
+    }
+    .map_err(|_| DpapiSecretError::ProtectFailed)?;
+    // SAFETY: the successful DPAPI call allocated output; LocalBlob frees it on every return path.
+    let protected = unsafe { LocalBlob::new(output, false)? };
+    protected.to_vec()
 }
 
 pub(crate) fn unprotect_current_user_secret(protected: &[u8]) -> Result<Vec<u8>, DpapiSecretError> {

@@ -145,9 +145,9 @@
     {
       "path": "src/install/windows/dpapi.rs",
       "owner": "install",
-      "boundary": "DPAPI current-user unwrap-only adapter for pipe-secret protection",
-      "invariants": ["DPAPI output blobs are LocalFree-owned and wiped when secret-bearing", "Unprotected pipe-secret bytes stay inside install pipe-secret parsing/provisioning", "No protect API is exposed by the install DPAPI adapter"],
-      "safeWrapper": "Install owner receives unwrapped pipe-secret bytes with typed errors after record protection gating.",
+      "boundary": "DPAPI current-user pipe-secret provisioning and unwrapping adapter",
+      "invariants": ["DPAPI output blobs are LocalFree-owned and wiped when secret-bearing", "Unprotected pipe-secret bytes stay inside install pipe-secret parsing/provisioning", "The protect entrypoint is limited to current-user pipe-secret provisioning"],
+      "safeWrapper": "Install owner wraps a newly generated pipe-secret and receives unwrapped bytes with typed errors after record protection gating.",
       "raiiWrapper": "LocalBlob",
       "shutdownCancelProof": ["src/install/tests/pipe_secret.rs", "Drop wipes secret blobs before LocalFree"],
       "reviews": ["security", "architecture"]

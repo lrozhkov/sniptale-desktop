@@ -1,5 +1,9 @@
 //! Persisted per-install pipe secret file parser.
 
+mod provision;
+#[cfg(windows)]
+pub(crate) use provision::initialize_current_user_pipe_secret;
+
 use std::{
     error::Error,
     fmt,
@@ -18,6 +22,7 @@ use super::windows::{
 };
 
 const PIPE_SECRET_FILE_RELATIVE_PATH: &[&str] = &["Sniptale", "NativeAgent", "pipe-secret.json"];
+const MAX_PIPE_SECRET_FILE_BYTES: usize = 16 * 1024;
 
 #[derive(Clone, Eq, PartialEq)]
 pub(crate) struct ProtectedPipeSecret {
@@ -43,6 +48,7 @@ impl fmt::Debug for ProtectedPipeSecret {
 
 #[derive(Debug)]
 pub(crate) enum PipeSecretFileError {
+    Oversized,
     Json(serde_json::Error),
     UnknownProtection,
     InvalidHex,
@@ -52,6 +58,7 @@ pub(crate) enum PipeSecretFileError {
 impl fmt::Display for PipeSecretFileError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Oversized => formatter.write_str("pipe secret file exceeds its size limit"),
             Self::Json(error) => write!(formatter, "pipe secret JSON rejected: {error}"),
             Self::UnknownProtection => formatter.write_str("pipe secret protection is unknown"),
             Self::InvalidHex => formatter.write_str("pipe secret hex is invalid"),
@@ -64,7 +71,7 @@ impl Error for PipeSecretFileError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
             Self::Json(error) => Some(error),
-            Self::UnknownProtection | Self::InvalidHex | Self::Record(_) => None,
+            Self::Oversized | Self::UnknownProtection | Self::InvalidHex | Self::Record(_) => None,
         }
     }
 }
@@ -136,6 +143,9 @@ pub(crate) fn parse_pipe_secret_file(
     expected_install_id: &str,
     expected_user_sid: &str,
 ) -> Result<ProtectedPipeSecret, PipeSecretFileError> {
+    if payload.len() > MAX_PIPE_SECRET_FILE_BYTES {
+        return Err(PipeSecretFileError::Oversized);
+    }
     let dto: PipeSecretFileDto =
         serde_json::from_slice(payload).map_err(PipeSecretFileError::Json)?;
     let protection = parse_protection(&dto.protection)?;
@@ -174,7 +184,13 @@ pub(crate) fn load_current_user_pipe_secret(
     let local_app_data =
         std::env::var_os("LOCALAPPDATA").ok_or(PipeSecretLoadError::MissingLocalAppData)?;
     let path = pipe_secret_file_path(Path::new(&local_app_data));
-    let payload = std::fs::read(path).map_err(PipeSecretLoadError::Io)?;
+    use std::io::Read;
+    let mut payload = Vec::new();
+    std::fs::File::open(path)
+        .map_err(PipeSecretLoadError::Io)?
+        .take((MAX_PIPE_SECRET_FILE_BYTES + 1) as u64)
+        .read_to_end(&mut payload)
+        .map_err(PipeSecretLoadError::Io)?;
     let protected = parse_pipe_secret_file(&payload, expected_install_id, &current_user_sid)
         .map_err(PipeSecretLoadError::File)?;
     if !pipe_secret_load_protection_supported(protected.protection) {

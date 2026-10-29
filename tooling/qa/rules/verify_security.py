@@ -160,7 +160,10 @@ AUD11_DPAPI_COMMON_REQUIRED_TERMS = {
 AUD11_DPAPI_OWNER_REQUIRED_TERMS = {
     "src/install/windows/dpapi.rs": {
         "CryptUnprotectData": "install DPAPI adapter must unwrap pipe secrets",
-        "unprotect_current_user_secret": "install DPAPI adapter must expose only pipe-secret unwrap",
+        "unprotect_current_user_secret": "install DPAPI adapter must expose pipe-secret unwrap",
+        "protect_current_user_pipe_secret": "install DPAPI adapter must expose scoped pipe-secret provisioning",
+        "CryptProtectData": "install DPAPI adapter must wrap first-run pipe secrets",
+        "Sniptale pipe secret": "install DPAPI adapter must keep pipe-secret purpose string",
         "DpapiSecretError": "install DPAPI adapter must expose typed install-owned errors",
     },
     "src/transfer/windows_dpapi.rs": {
@@ -174,7 +177,6 @@ AUD11_DPAPI_OWNER_REQUIRED_TERMS = {
 }
 AUD11_DPAPI_OWNER_FORBIDDEN_TERMS = {
     "src/install/windows/dpapi.rs": {
-        "CryptProtectData": "install DPAPI adapter must stay unwrap-only",
         "fn protect_current_user_secret": "install DPAPI adapter must not expose a general protect API",
     },
     "src/transfer/windows_dpapi.rs": {
@@ -183,9 +185,9 @@ AUD11_DPAPI_OWNER_FORBIDDEN_TERMS = {
 }
 AUD11_DPAPI_PROOF_REQUIRED_TERMS = {
     "src/install/windows/dpapi.rs": [
-        "unwrap-only",
+        "provisioning",
         "pipe-secret",
-        "No protect API",
+        "protect entrypoint is limited",
         "LocalBlob",
     ],
     "src/transfer/windows_dpapi.rs": [
@@ -921,9 +923,10 @@ def run_self_tests() -> int:
             root / "src/install/windows/dpapi.rs",
             """
             use std::ptr;
-            use windows::Win32::{Foundation::LocalFree, Security::Cryptography::{CRYPT_INTEGER_BLOB, CryptUnprotectData}};
+            use windows::Win32::{Foundation::LocalFree, Security::Cryptography::{CRYPT_INTEGER_BLOB, CryptProtectData, CryptUnprotectData}};
             enum DpapiSecretError { EmptyInput, InputTooLarge, InvalidOutput }
             struct LocalBlob;
+            pub(crate) fn protect_current_user_pipe_secret() { let _ = CryptProtectData; let _ = "Sniptale pipe secret"; }
             pub(crate) fn unprotect_current_user_secret(input: &[u8]) -> Result<Vec<u8>, DpapiSecretError> {
                 if input.is_empty() { return Err(DpapiSecretError::EmptyInput); }
                 let _ = u32::try_from(input.len()).map_err(|_| DpapiSecretError::InputTooLarge)?;
@@ -973,7 +976,7 @@ def run_self_tests() -> int:
             """,
         )
         dpapi_install_errors = dpapi_owner_invariant_errors(root)
-        assert_contains(dpapi_install_errors, "install DPAPI adapter must stay unwrap-only")
+        assert_contains(dpapi_install_errors, "install DPAPI adapter must not expose a general protect API")
         write_selftest_file(
             root / "src/transfer/windows_dpapi.rs",
             """
@@ -1010,8 +1013,8 @@ def run_self_tests() -> int:
                 {
                   "path": "src/install/windows/dpapi.rs",
                   "owner": "install",
-                  "boundary": "DPAPI current-user unwrap-only adapter for pipe-secret protection",
-                  "invariants": ["No protect API is exposed by the install DPAPI adapter"],
+                  "boundary": "DPAPI current-user pipe-secret provisioning and unwrapping adapter",
+                  "invariants": ["The protect entrypoint is limited to current-user pipe-secret provisioning"],
                   "safeWrapper": "Install owner receives unwrapped pipe-secret bytes.",
                   "raiiWrapper": "LocalBlob",
                   "shutdownCancelProof": ["Drop wipes secret blobs before LocalFree"],

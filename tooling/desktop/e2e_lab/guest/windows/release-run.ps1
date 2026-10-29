@@ -117,6 +117,11 @@ function Stop-Agent {
   Get-Process sniptale-native-agent -ErrorAction SilentlyContinue | Stop-Process -Force
   Start-Sleep -Seconds 2
 }
+function Start-Agent {
+  $process = Start-Process $installed -PassThru
+  Start-Sleep -Seconds 2
+  if ($process.HasExited) { throw "resident exited before tray startup" }
+}
 function Msi([string] $Operation) {
   $process=Start-Process msiexec.exe -ArgumentList @($Operation,"`"$Msi`"","/qn","/norestart","/l*v","`"$outputPath/logs/msi-$($Operation.Trim('/')).log`"") -Wait -PassThru
   if ($process.ExitCode -notin @(0,1641,3010)) { throw "MSI operation failed" }
@@ -145,7 +150,7 @@ Add-Test "clean-install" {
   if (Test-Path "$directory/dev-local-browser-trust.json") { throw "unexpected trust marker" }
 }
 Add-Test "first-run" {
-  Start-Process $installed | Out-Null
+  Start-Agent
   Tray @("Mode","Manual")
   Start-Sleep -Seconds 2
   [Windows.Forms.SendKeys]::SendWait("%d")
@@ -183,7 +188,7 @@ Add-Test "recording" {
 Add-Test "restart" {
   $before=(Get-FileHash "$directory/local-profile.json" -Algorithm SHA256).Hash
   Stop-Agent
-  Start-Process $installed | Out-Null
+  Start-Agent
   Tray @("Settings$([char]0x2026)")
   $null=Window "Sniptale $([char]0x2014) Manual settings"
   if ((Get-FileHash "$directory/local-profile.json" -Algorithm SHA256).Hash -ne $before) { throw "restart changed user settings" }
@@ -204,6 +209,14 @@ Add-Test "uninstall" {
     if (Test-Path "HKCU:/Software/$browser/NativeMessagingHosts/com.sniptale.dev.native_host") { throw "registration remains" }
   }
   foreach ($asset in $published) { if ((Get-FileHash (Join-Path $exports $asset.name) -Algorithm SHA256).Hash -ne $asset.hash) { throw "published asset changed" } }
+}
+$agentLogs = Join-Path $directory "logs"
+Get-ChildItem $agentLogs -File -ErrorAction SilentlyContinue | ForEach-Object {
+  Copy-Item $_.FullName "$outputPath/logs/agent-$($_.Name)" -Force
+}
+Get-ChildItem "$outputPath/logs" -File | Where-Object { $_.Extension -ne ".jsonl" } | ForEach-Object {
+  $text = Get-Content $_.FullName -Raw
+  [IO.File]::WriteAllText($_.FullName, $text, [Text.UTF8Encoding]::new($false))
 }
 $value=[ordered]@{ schema_version=1; lane="windows-11"; tests=@($tests); environment=@{ build=[Environment]::OSVersion.Version.ToString(); devLocalTrust=$false }; artifacts=@() }
 [IO.File]::WriteAllText("$outputPath/result.json",($value | ConvertTo-Json -Depth 8),[Text.UTF8Encoding]::new($false))

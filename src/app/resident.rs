@@ -215,6 +215,8 @@ pub(crate) fn run_resident_agent_with_log(
 #[cfg(all(windows, not(test)))]
 fn acquire_resident_agent_singleton() -> Result<crate::ipc::WindowsPipe, AgentRunError> {
     let identity = crate::install::expected_install_identity();
+    crate::install::initialize_current_user_pipe_secret(identity.install_id)
+        .map_err(|_| AgentRunError::ResidentSingletonUnavailable)?;
     let secret = crate::install::load_current_user_pipe_secret(identity.install_id)
         .map_err(|_| AgentRunError::ResidentSingletonUnavailable)?;
     crate::ipc::create_resident_agent_singleton_guard(&secret.install_id, &secret.current_user_sid)
