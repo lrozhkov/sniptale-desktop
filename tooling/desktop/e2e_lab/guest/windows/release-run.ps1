@@ -306,6 +306,7 @@ Get-ChildItem "$outputPath/logs" -File | Where-Object { $_.Extension -ne ".jsonl
   $text = Get-Content $_.FullName -Raw
   [IO.File]::WriteAllText($_.FullName, $text, [Text.UTF8Encoding]::new($false))
 }
-$value=[ordered]@{ schema_version=1; lane="windows-11"; tests=@($tests); environment=@{ build=[Environment]::OSVersion.Version.ToString(); devLocalTrust=$false }; artifacts=@() }
+$artifactNames=@(Get-ChildItem -LiteralPath $outputPath -Recurse -File | Where-Object { $_.Name -ne "result.json" } | ForEach-Object { $_.Name })
+$value=[ordered]@{ schema_version=1; lane="windows-11"; tests=@($tests); environment=@{ build=[Environment]::OSVersion.Version.ToString(); devLocalTrust=$false }; artifacts=$artifactNames }
 [IO.File]::WriteAllText("$outputPath/result.json",($value | ConvertTo-Json -Depth 8),[Text.UTF8Encoding]::new($false))
 if (@($tests | Where-Object { $_.status -ne "pass" }).Count -gt 0) { exit 1 }
