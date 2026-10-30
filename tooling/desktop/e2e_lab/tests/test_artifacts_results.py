@@ -82,6 +82,16 @@ class ArtifactResultTests(unittest.TestCase):
             {"logs", "screenshots"},
         )
 
+    def test_failed_full_run_can_keep_logs_without_media_but_pass_requires_both(self):
+        expected = {("windows-11", "recording", "fail", 1)}
+        for mode in ("full-acceptance", "alpha-release-acceptance"):
+            with self.subTest(mode=mode):
+                receipt = {"run_mode": mode, "result": "fail"}
+                self.assertEqual(_required_evidence_directories(receipt, expected), {"logs"})
+                receipt["result"] = "pass"
+                self.assertEqual(_required_evidence_directories(receipt, expected),
+                                 {"logs", "screenshots", "recordings"})
+
     def test_windows_case_expansion_keeps_focused_rerun_prerequisites(self) -> None:
         expanded = expand_windows_cases({"recording-system-audio"})
         self.assertEqual(
@@ -306,6 +316,23 @@ class ArtifactResultTests(unittest.TestCase):
             }
             (run / "receipt.json").write_text(json.dumps(receipt), encoding="utf-8")
             self.assertTrue(verify_run_evidence(run)["verified"])
+            # Failed runs can lack media that the failing product never produced.
+            for name in ("screenshots", "recordings"):
+                (run / name / f"{name}.txt").unlink()
+            receipt["result"] = "fail"
+            evidence_manifest_path.write_text(json.dumps(evidence_manifest(run)), encoding="utf-8")
+            receipt["evidence_manifest_sha256"] = sha256_file(evidence_manifest_path)
+            (run / "receipt.json").write_text(json.dumps(receipt), encoding="utf-8")
+            self.assertTrue(verify_run_evidence(run)["verified"])
+            receipt["result"] = "pass"
+            (run / "receipt.json").write_text(json.dumps(receipt), encoding="utf-8")
+            with self.assertRaisesRegex(IntegrityError, "no recordings evidence"):
+                verify_run_evidence(run)
+            for name in ("screenshots", "recordings"):
+                (run / name / f"{name}.txt").write_text("synthetic", encoding="utf-8")
+            evidence_manifest_path.write_text(json.dumps(evidence_manifest(run)), encoding="utf-8")
+            receipt["evidence_manifest_sha256"] = sha256_file(evidence_manifest_path)
+            (run / "receipt.json").write_text(json.dumps(receipt), encoding="utf-8")
             log_file = run / "logs/logs.txt"
             log_file.write_text("tampered", encoding="utf-8")
             with self.assertRaisesRegex(IntegrityError, "receipt-bound manifest"):

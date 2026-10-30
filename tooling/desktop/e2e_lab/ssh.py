@@ -9,6 +9,7 @@ import subprocess
 import tempfile
 import time
 from pathlib import Path
+from typing import Callable
 
 from errors import LabError, ResourceError, TimeoutExpired
 from paths import LabPaths
@@ -39,10 +40,13 @@ class GuestSsh:
             "-o", "ConnectTimeout=10", "-o", "ServerAliveInterval=15", "-o", "ServerAliveCountMax=3",
         ]
 
-    def wait(self, timeout: int, *, probe: list[str] | None = None) -> None:
+    def wait(self, timeout: int, *, probe: list[str] | None = None,
+             health_check: Callable[[], None] | None = None) -> None:
         probe_command = probe or ["true"]
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
+            if health_check is not None:
+                health_check()
             try:
                 self.command(probe_command, timeout=15)
                 return
@@ -65,12 +69,14 @@ class GuestSsh:
         timeout: int,
         log: Path | None = None,
         stream: bool = False,
+        health_check: Callable[[], None] | None = None,
     ):
         return run(
             ["ssh", *self.options(), f"{self.user}@127.0.0.1", "--", *command],
             timeout=timeout,
             log=log,
             stream=stream,
+            **({"health_check": health_check} if health_check is not None else {}),
         )
 
     def upload(self, source: Path, remote: str, *, timeout: int) -> None:

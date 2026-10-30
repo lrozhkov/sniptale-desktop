@@ -24,7 +24,12 @@ public static class AlphaUi {
   public delegate bool EnumCallback(IntPtr w, IntPtr p);
   [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern IntPtr FindWindow(string c, string n);
   [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr w, uint m, UIntPtr p, IntPtr l);
-  [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr w, uint m, IntPtr p, IntPtr l);
+  [DllImport("user32.dll", EntryPoint="SendMessageTimeoutW")] private static extern IntPtr SendMessageTimeout(IntPtr w, uint m, UIntPtr p, IntPtr l, uint flags, uint timeout, out UIntPtr result);
+  public static IntPtr MenuHandle(IntPtr popup) {
+    UIntPtr result;
+    if (SendMessageTimeout(popup,0x01e1,UIntPtr.Zero,IntPtr.Zero,0x0022,1000,out result)==IntPtr.Zero) return IntPtr.Zero;
+    return new IntPtr(unchecked((long)result.ToUInt64()));
+  }
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr w);
   [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
   [DllImport("user32.dll")] public static extern void mouse_event(uint f,uint x,uint y,uint d,UIntPtr e);
@@ -75,7 +80,8 @@ function Screenshot([string] $Name) {
 function Read-TrayMenuItems {
   $popup = [AlphaUi]::RightmostMenu()
   if ($popup -eq [IntPtr]::Zero) { return }
-  $menu = [AlphaUi]::SendMessage($popup,0x01e1,[IntPtr]::Zero,[IntPtr]::Zero)
+  $menu = [AlphaUi]::MenuHandle($popup)
+  if ($menu -eq [IntPtr]::Zero) { return }
   for ($i=0; $i -lt [AlphaUi]::GetMenuItemCount($menu); $i++) {
     $text = [Text.StringBuilder]::new(512)
     [void][AlphaUi]::GetMenuString($menu,$i,$text,512,0x400)

@@ -15,7 +15,7 @@ import urllib.parse
 import urllib.request
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Sequence
+from typing import Callable, Sequence
 
 from errors import IntegrityError, LabError, ResourceError, TimeoutExpired
 from receipt import redact_text
@@ -111,6 +111,7 @@ def run(
     log: Path | None = None,
     stream: bool = False,
     max_output_bytes: int = 64 * 1024 * 1024,
+    health_check: Callable[[], None] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     merged = os.environ.copy()
     if env:
@@ -124,11 +125,15 @@ def run(
         selector = selectors.DefaultSelector()
         selector.register(process.stdout, selectors.EVENT_READ)
         deadline = time.monotonic() + timeout
+        next_health_check = 0.0
         captured = 0
         pending = b""
         discarding_overlong = False
         try:
             while True:
+                if health_check is not None and time.monotonic() >= next_health_check:
+                    health_check()
+                    next_health_check = time.monotonic() + 5
                 for key, _mask in selector.select(timeout=0.05):
                     chunk = os.read(key.fd, 8192)
                     if not chunk:
@@ -177,8 +182,15 @@ def run(
                     process.wait()
                     raise TimeoutExpired(f"command timed out after {timeout}s: {command[0]}")
         finally:
+            if process.poll() is None:
+                os.killpg(process.pid, signal.SIGKILL)
+                process.wait()
             selector.close()
             process.stdout.close()
+            if log is not None:
+                output.seek(0)
+                log.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+                log.write_text(redact_text(output.read(max_output_bytes).decode("utf-8", "replace")), encoding="utf-8")
         if stream and pending and not discarding_overlong:
             print(
                 redact_text(pending.decode("utf-8", "replace")),
@@ -190,9 +202,6 @@ def run(
         if len(stdout.encode("utf-8")) > max_output_bytes:
             raise ResourceError(f"command output exceeded {max_output_bytes} byte limit: {command[0]}")
     completed = subprocess.CompletedProcess(list(command), process.returncode, stdout, None)
-    if log is not None:
-        log.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-        log.write_text(redact_text(completed.stdout), encoding="utf-8")
     if completed.returncode != 0:
         tail = redact_text("\n".join(completed.stdout.splitlines()[-20:]), max_length=4096)
         raise LabError(f"command failed ({completed.returncode}): {command[0]}\n{tail}")

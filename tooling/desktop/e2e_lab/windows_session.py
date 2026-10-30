@@ -3,12 +3,13 @@ from __future__ import annotations
 
 import re
 import time
+from typing import Callable
 
 from errors import LabError, TimeoutExpired
 from ssh import powershell_encoded
 
 
-def prepare_console(ssh, timeout: int) -> None:
+def prepare_console(ssh, timeout: int, *, health_check: Callable[[], None] | None = None) -> None:
     # Key-based SSH can work while console autologon is blocked by password age.
     # Observe a new boot, rather than accepting the still-live pre-reboot SSH service.
     boot = ssh.command(powershell_encoded(
@@ -31,6 +32,8 @@ def prepare_console(ssh, timeout: int) -> None:
     )
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
+        if health_check is not None:
+            health_check()
         try:
             remaining = max(1, int(deadline - time.monotonic()))
             if ssh.command(probe, timeout=min(30, remaining)).stdout.strip() == "console-ready":

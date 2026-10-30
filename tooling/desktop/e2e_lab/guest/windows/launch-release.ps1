@@ -123,6 +123,12 @@ try {
 } finally {
   Stop-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
   Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
+  # A completed runner already sealed its exact evidence inventory.
+  # Preserve the task log only when it exited before producing that result.
+  if (-not (Test-Path -LiteralPath (Join-Path $outputPath "result.json")) -and (Test-Path -LiteralPath $taskLog)) {
+    New-Item -ItemType Directory -Force -Path (Join-Path $outputPath "logs") | Out-Null
+    Copy-Item -LiteralPath $taskLog -Destination (Join-Path $outputPath "logs\interactive-task.log") -Force
+  }
   Remove-Item -LiteralPath $taskLog -Force -ErrorAction SilentlyContinue
   Remove-Item -LiteralPath $entryPath, $commandPath, $configPath -Force -ErrorAction SilentlyContinue
 }
