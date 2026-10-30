@@ -1,0 +1,5172 @@
+{
+  "schemaVersion": 1,
+  "contracts": {
+    "THIRD_PARTY_DEPENDENCIES.json": {
+      "type": "object",
+      "required": [
+        "formatVersion",
+        "generator",
+        "inputDigests",
+        "licenseFiles",
+        "packages",
+        "scope"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "formatVersion": {
+          "type": "integer"
+        },
+        "generator": {
+          "type": "object",
+          "required": [
+            "name",
+            "version"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            }
+          }
+        },
+        "scope": {
+          "type": "object",
+          "required": [
+            "allFeatures",
+            "includeBuildOnly",
+            "includeDevOnly",
+            "includeTransitive",
+            "target"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "target": {
+              "type": "string"
+            },
+            "allFeatures": {
+              "type": "boolean"
+            },
+            "includeBuildOnly": {
+              "type": "boolean"
+            },
+            "includeDevOnly": {
+              "type": "boolean"
+            },
+            "includeTransitive": {
+              "type": "boolean"
+            }
+          }
+        },
+        "inputDigests": {
+          "type": "object",
+          "required": [
+            "Cargo.lock",
+            "Cargo.toml",
+            "deny.toml",
+            "tooling/configs/qa/about.toml",
+            "tooling/configs/qa/open-source.json",
+            "tooling/configs/qa/tool-versions.json",
+            "tooling/qa/wrappers/licenses.sh",
+            "tooling/release/legal/generate_dependency_licenses.py",
+            "tooling/release/legal/third-party-notices.hbs"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "Cargo.toml": {
+              "type": "string"
+            },
+            "Cargo.lock": {
+              "type": "string"
+            },
+            "deny.toml": {
+              "type": "string"
+            },
+            "tooling/configs/qa/about.toml": {
+              "type": "string"
+            },
+            "tooling/configs/qa/open-source.json": {
+              "type": "string"
+            },
+            "tooling/configs/qa/tool-versions.json": {
+              "type": "string"
+            },
+            "tooling/release/legal/third-party-notices.hbs": {
+              "type": "string"
+            },
+            "tooling/release/legal/generate_dependency_licenses.py": {
+              "type": "string"
+            },
+            "tooling/qa/wrappers/licenses.sh": {
+              "type": "string"
+            }
+          }
+        },
+        "packages": {
+          "type": "array",
+          "items": {
+            "type": [
+              "object"
+            ]
+          }
+        },
+        "licenseFiles": {
+          "type": "array",
+          "items": {
+            "type": [
+              "object"
+            ]
+          }
+        }
+      }
+    },
+    "contracts/native/contract-index.json": {
+      "type": "object",
+      "required": [
+        "cacheSchemaVersion",
+        "contractIds",
+        "nativeMessagingLimits",
+        "protocolVersion",
+        "schemaVersion",
+        "settingsSchemaVersion"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "schemaVersion": {
+          "type": "integer"
+        },
+        "protocolVersion": {
+          "type": "integer"
+        },
+        "settingsSchemaVersion": {
+          "type": "integer"
+        },
+        "cacheSchemaVersion": {
+          "type": "integer"
+        },
+        "contractIds": {
+          "type": "array",
+          "items": {
+            "type": [
+              "string"
+            ]
+          }
+        },
+        "nativeMessagingLimits": {
+          "type": "object",
+          "required": [
+            "chunkMaxBase64Chars",
+            "chunkRawBytes",
+            "extensionToHostChromiumMaxMessageBytes",
+            "extensionToHostControlMaxMessageBytes",
+            "extensionToHostMaxMessageBytes",
+            "hostToExtensionMaxMessageBytes",
+            "recordingMaxTotalBytes",
+            "screenshotMaxTotalBytes",
+            "targetJsonUtf8Bytes"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "hostToExtensionMaxMessageBytes": {
+              "type": "integer"
+            },
+            "extensionToHostMaxMessageBytes": {
+              "type": "integer"
+            },
+            "extensionToHostControlMaxMessageBytes": {
+              "type": "integer"
+            },
+            "extensionToHostChromiumMaxMessageBytes": {
+              "type": "integer"
+            },
+            "targetJsonUtf8Bytes": {
+              "type": "integer"
+            },
+            "chunkRawBytes": {
+              "type": "integer"
+            },
+            "chunkMaxBase64Chars": {
+              "type": "integer"
+            },
+            "screenshotMaxTotalBytes": {
+              "type": "integer"
+            },
+            "recordingMaxTotalBytes": {
+              "type": "integer"
+            }
+          }
+        }
+      }
+    },
+    "contracts/native/fixture-requirements.json": {
+      "type": "object",
+      "required": [
+        "activationRule",
+        "coverageMarkers",
+        "requiredCases",
+        "schemaVersion"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "schemaVersion": {
+          "type": "integer"
+        },
+        "requiredCases": {
+          "type": "array",
+          "items": {
+            "type": [
+              "string"
+            ]
+          }
+        },
+        "coverageMarkers": {
+          "type": "object",
+          "required": [
+            "duplicate-or-replay-command",
+            "duplicate-or-replay-transfer",
+            "malformed-filenames",
+            "malformed-identifiers",
+            "malformed-json",
+            "negative-fixtures",
+            "operation-error-catalog",
+            "operation-failure",
+            "out-of-bounds-chunk-index",
+            "oversized-extension-to-host-json",
+            "oversized-host-to-extension-json",
+            "positive-fixtures",
+            "replayed-chunk-request",
+            "settings-accepted",
+            "stale-or-missing-controller-lease",
+            "unsupported-protocol-version",
+            "unsupported-settings-version"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "positive-fixtures": {
+              "type": "string"
+            },
+            "negative-fixtures": {
+              "type": "string"
+            },
+            "malformed-json": {
+              "type": "string"
+            },
+            "unsupported-protocol-version": {
+              "type": "string"
+            },
+            "unsupported-settings-version": {
+              "type": "string"
+            },
+            "oversized-extension-to-host-json": {
+              "type": "string"
+            },
+            "oversized-host-to-extension-json": {
+              "type": "string"
+            },
+            "stale-or-missing-controller-lease": {
+              "type": "string"
+            },
+            "duplicate-or-replay-command": {
+              "type": "string"
+            },
+            "duplicate-or-replay-transfer": {
+              "type": "string"
+            },
+            "replayed-chunk-request": {
+              "type": "string"
+            },
+            "out-of-bounds-chunk-index": {
+              "type": "string"
+            },
+            "malformed-identifiers": {
+              "type": "string"
+            },
+            "malformed-filenames": {
+              "type": "string"
+            },
+            "settings-accepted": {
+              "type": "string"
+            },
+            "operation-failure": {
+              "type": "string"
+            },
+            "operation-error-catalog": {
+              "type": "string"
+            }
+          }
+        },
+        "activationRule": {
+          "type": "string"
+        }
+      }
+    },
+    "contracts/native/fixtures/negative/contract-fixtures.json": {
+      "type": "object",
+      "required": [
+        "AppCommandAcceptedMessage",
+        "AppControllerLeaseMessage",
+        "AppHelloMessage",
+        "AppOpenSettingsRequestedMessage",
+        "AppOperationFailedMessage",
+        "AppPongMessage",
+        "AppRecordingChunkMessage",
+        "AppRecordingProgressMessage",
+        "AppRecordingStartedMessage",
+        "AppRecordingStoppedMessage",
+        "AppScreenshotChunkMessage",
+        "AppScreenshotCommitMessage",
+        "AppScreenshotStartMessage",
+        "AppSettingsAcceptedMessage",
+        "AppTrayActionRequestedMessage",
+        "ExtensionControllerAcquireMessage",
+        "ExtensionHelloMessage",
+        "ExtensionPingMessage",
+        "ExtensionRecordingAckMessage",
+        "ExtensionRecordingChunkRequestMessage",
+        "ExtensionRecordingControlCommandMessage",
+        "ExtensionRecordingRejectMessage",
+        "ExtensionRecordingStartCommandMessage",
+        "ExtensionScreenshotAckMessage",
+        "ExtensionScreenshotCaptureCommandMessage",
+        "ExtensionScreenshotChunkRequestMessage",
+        "ExtensionScreenshotRejectMessage",
+        "ExtensionSettingsSyncMessage",
+        "ExtensionTrayActionResultMessage",
+        "NativeAppCapabilities",
+        "NativeAutostartState",
+        "NativeCapabilityUnavailableReason",
+        "NativeInstallState",
+        "NativePlatform",
+        "NativeProtocolConstants",
+        "NativeRecordingTelemetrySnapshot",
+        "NativeRecordingTimebase",
+        "NativeTrayActionRegistry"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "NativeProtocolConstants": {
+          "type": "object",
+          "required": [
+            "protocolVersion"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "protocolVersion": {
+              "type": "integer"
+            }
+          }
+        },
+        "NativePlatform": {
+          "type": "object",
+          "required": [
+            "arch",
+            "kind",
+            "version"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            },
+            "arch": {
+              "type": "string"
+            }
+          }
+        },
+        "NativeAutostartState": {
+          "type": "object",
+          "required": [
+            "enabled",
+            "method",
+            "supported"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "supported": {
+              "type": "boolean"
+            },
+            "enabled": {
+              "type": "boolean"
+            },
+            "method": {
+              "type": "string"
+            }
+          }
+        },
+        "NativeInstallState": {
+          "type": "object",
+          "required": [
+            "platform"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "platform": {
+              "type": "object"
+            }
+          }
+        },
+        "ExtensionHelloMessage": {
+          "type": "object",
+          "required": [
+            "extensionId",
+            "extensionVersion",
+            "minAppVersion",
+            "protocolVersion",
+            "settingsSchemaVersion",
+            "supportedProtocolVersions",
+            "supportedSettingsSchemaVersions",
+            "type"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "protocolVersion": {
+              "type": "integer"
+            },
+            "settingsSchemaVersion": {
+              "type": "integer"
+            },
+            "extensionVersion": {
+              "type": "string"
+            },
+            "extensionId": {
+              "type": "string"
+            },
+            "minAppVersion": {
+              "type": "string"
+            },
+            "supportedProtocolVersions": {
+              "type": "array",
+              "items": {
+                "type": [
+                  "integer"
+                ]
+              }
+            },
+            "supportedSettingsSchemaVersions": {
+              "type": "array",
+              "items": {
+                "type": [
+                  "integer"
+                ]
+              }
+            }
+          }
+        },
+        "AppHelloMessage": {
+          "type": "object",
+          "required": [
+            "appInstanceId",
+            "capabilities",
+            "install",
+            "minExtensionVersion",
+            "platform",
+            "protocolVersion",
+            "settingsSchemaVersion",
+            "supportedProtocolVersions",
+            "supportedSettingsSchemaVersions",
+            "type"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "protocolVersion": {
+              "type": "integer"
+            },
+            "settingsSchemaVersion": {
+              "type": "integer"
+            },
+            "minExtensionVersion": {
+              "type": "string"
+            },
+            "supportedProtocolVersions": {
+              "type": "array",
+              "items": {
+                "type": [
+                  "integer"
+                ]
+              }
+            },
+            "supportedSettingsSchemaVersions": {
+              "type": "array",
+              "items": {
+                "type": [
+                  "integer"
+                ]
+              }
+            },
+            "appInstanceId": {
+              "type": "string"
+            },
+            "platform": {
+              "type": "object"
+            },
+            "install": {
+              "type": "object"
+            },
+            "capabilities": {
+              "type": "object"
+            }
+          }
+        },
+        "NativeAppCapabilities": {
+          "type": "object",
+          "required": [
+            "audio",
+            "capture",
+            "codecs"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "capture": {
+              "type": "object"
+            },
+            "codecs": {
+              "type": "object"
+            },
+            "audio": {
+              "type": "object"
+            }
+          }
+        },
+        "NativeCapabilityUnavailableReason": {
+          "type": "string"
+        },
+        "ExtensionControllerAcquireMessage": {
+          "type": "object",
+          "required": [
+            "browserFamily",
+            "connectionId",
+            "documentId",
+            "profileKey",
+            "protocolVersion",
+            "reason",
+            "requestedAtEpochMs",
+            "type"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "protocolVersion": {
+              "type": "integer"
+            },
+            "connectionId": {
+              "type": "string"
+            },
+            "browserFamily": {
+              "type": "string"
+            },
+            "profileKey": {
+              "type": "string"
+            },
+            "documentId": {
+              "type": "string"
+            },
+            "requestedAtEpochMs": {
+              "type": "integer"
+            },
+            "reason": {
+              "type": "string"
+            }
+          }
+        },
+        "AppControllerLeaseMessage": {
+          "type": "object",
+          "required": [
+            "controller",
+            "controllerLeaseId",
+            "expiresAtEpochMs",
+            "protocolVersion",
+            "status",
+            "type"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "protocolVersion": {
+              "type": "integer"
+            },
+            "controllerLeaseId": {
+              "type": "string"
+            },
+            "controller": {
+              "type": "object"
+            },
+            "expiresAtEpochMs": {
+              "type": "integer"
+            },
+            "status": {
+              "type": "string"
+            }
+          }
+        },
+        "ExtensionSettingsSyncMessage": {
+          "type": "object",
+          "required": [
+            "generatedAtEpochMs",
+            "protocolVersion",
+            "revision",
+            "schemaVersion",
+            "settings",
+            "type"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "protocolVersion": {
+              "type": "integer"
+            },
+            "revision": {
+              "type": "string"
+            },
+            "schemaVersion": {
+              "type": "integer"
+            },
+            "generatedAtEpochMs": {
+              "type": "integer"
+            },
+            "settings": {
+              "type": "object"
+            }
+          }
+        },
+        "AppSettingsAcceptedMessage": {
+          "type": "object",
+          "required": [
+            "acceptedAtEpochMs",
+            "controllerLeaseId",
+            "effectiveSettings",
+            "protocolVersion",
+            "revision",
+            "schemaVersion",
+            "type",
+            "warnings"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "protocolVersion": {
+              "type": "integer"
+            },
+            "controllerLeaseId": {
+              "type": "string"
+            },
+            "revision": {
+              "type": "string"
+            },
+            "schemaVersion": {
+              "type": "integer"
+            },
+            "acceptedAtEpochMs": {
+              "type": "integer"
+            },
+            "effectiveSettings": {
+              "type": "object"
+            },
+            "warnings": {
+              "type": "array"
+            }
+          }
+        },
+        "ExtensionPingMessage": {
+          "type": "object",
+          "required": [
+            "nonce",
+            "protocolVersion",
+            "sentAtEpochMs",
+            "type"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "protocolVersion": {
+              "type": "integer"
+            },
+            "nonce": {
+              "type": "string"
+            },
+            "sentAtEpochMs": {
+              "type": "integer"
+            }
+          }
+        },
+        "AppPongMessage": {
+          "type": "object",
+          "required": [
+            "appStatus",
+            "nonce",
+            "protocolVersion",
+            "sentAtEpochMs",
+            "type"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "protocolVersion": {
+              "type": "integer"
+            },
+            "nonce": {
+              "type": "string"
+            },
+            "sentAtEpochMs": {
+              "type": "integer"
+            },
+            "appStatus": {
+              "type": "object"
+            }
+          }
+        },
+        "NativeTrayActionRegistry": {
+          "type": "object",
+          "required": [
+            "actions",
+            "revision"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "actions": {
+              "type": "array",
+              "items": {
+                "type": [
+                  "object"
+                ]
+              }
+            },
+            "revision": {
+              "type": "string"
+            }
+          }
+        },
+        "AppTrayActionRequestedMessage": {
+          "type": "object",
+          "required": [
+            "actionId",
+            "controllerLeaseId",
+            "invocationId",
+            "protocolVersion",
+            "requestedAtEpochMs",
+            "type"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "protocolVersion": {
+              "type": "integer"
+            },
+            "controllerLeaseId": {
+              "type": "string"
+            },
+            "actionId": {
+              "type": "string"
+            },
+            "requestedAtEpochMs": {
+              "type": "integer"
+            },
+            "invocationId": {
+              "type": "string"
+            }
+          }
+        },
+        "ExtensionTrayActionResultMessage": {
+          "type": "object",
+          "required": [
+            "accepted",
+            "controllerLeaseId",
+            "invocationId",
+            "protocolVersion",
+            "type"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "protocolVersion": {
+              "type": "integer"
+            },
+            "controllerLeaseId": {
+              "type": "string"
+            },
+            "invocationId": {
+              "type": "string"
+            },
+            "accepted": {
+              "type": "boolean"
+            }
+          }
+        },
+        "AppOpenSettingsRequestedMessage": {
+          "type": "object",
+          "required": [
+            "controllerLeaseId",
+            "invocationId",
+            "protocolVersion",
+            "requestedAtEpochMs",
+            "section",
+            "type"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "protocolVersion": {
+              "type": "integer"
+            },
+            "controllerLeaseId": {
+              "type": "string"
+            },
+            "section": {
+              "type": "string"
+            },
+            "requestedAtEpochMs": {
+              "type": "integer"
+            },
+            "invocationId": {
+              "type": "string"
+            }
+          }
+        },
+        "ExtensionScreenshotCaptureCommandMessage": {
+          "type": "object",
+          "required": [
+            "commandId",
+            "controllerLeaseId",
+            "mode",
+            "openEditor",
+            "protocolVersion",
+            "requestedAtEpochMs",
+            "settingsRevision",
+            "type"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "protocolVersion": {
+              "type": "integer"
+            },
+            "controllerLeaseId": {
+              "type": "string"
+            },
+            "commandId": {
+              "type": "string"
+            },
+            "mode": {
+              "type": "string"
+            },
+            "settingsRevision": {
+              "type": "string"
+            },
+            "openEditor": {
+              "type": "boolean"
+            },
+            "requestedAtEpochMs": {
+              "type": "integer"
+            }
+          }
+        },
+        "ExtensionRecordingStartCommandMessage": {
+          "type": "object",
+          "required": [
+            "commandId",
+            "controllerLeaseId",
+            "openEditor",
+            "protocolVersion",
+            "requestedQuality",
+            "settingsRevision",
+            "source",
+            "type"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "protocolVersion": {
+              "type": "integer"
+            },
+            "controllerLeaseId": {
+              "type": "string"
+            },
+            "commandId": {
+              "type": "string"
+            },
+            "source": {
+              "type": "object"
+            },
+            "settingsRevision": {
+              "type": "string"
+            },
+            "requestedQuality": {
+              "type": "object"
+            },
+            "openEditor": {
+              "type": "boolean"
+            }
+          }
+        },
+        "ExtensionRecordingControlCommandMessage": {
+          "type": "object",
+          "required": [
+            "commandId",
+            "control",
+            "controllerLeaseId",
+            "protocolVersion",
+            "recordingId",
+            "requestedAtEpochMs",
+            "type"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "protocolVersion": {
+              "type": "integer"
+            },
+            "controllerLeaseId": {
+              "type": "string"
+            },
+            "commandId": {
+              "type": "string"
+            },
+            "recordingId": {
+              "type": "string"
+            },
+            "control": {
+              "type": "string"
+            },
+            "requestedAtEpochMs": {
+              "type": "integer"
+            }
+          }
+        },
+        "AppCommandAcceptedMessage": {
+          "type": "object",
+          "required": [
+            "acceptedAtEpochMs",
+            "commandId",
+            "controllerLeaseId",
+            "operation",
+            "protocolVersion",
+            "type"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "protocolVersion": {
+              "type": "integer"
+            },
+            "controllerLeaseId": {
+              "type": "string"
+            },
+            "commandId": {
+              "type": "string"
+            },
+            "operation": {
+              "type": "string"
+            },
+            "acceptedAtEpochMs": {
+              "type": "integer"
+            }
+          }
+        },
+        "AppScreenshotStartMessage": {
+          "type": "object",
+          "required": [
+            "captureId",
+            "capturedAtEpochMs",
+            "chunkCount",
+            "controllerLeaseId",
+            "filename",
+            "height",
+            "mimeType",
+            "mode",
+            "openEditor",
+            "protocolVersion",
+            "sha256",
+            "totalBytes",
+            "type",
+            "width"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "protocolVersion": {
+              "type": "integer"
+            },
+            "controllerLeaseId": {
+              "type": "string"
+            },
+            "captureId": {
+              "type": "string"
+            },
+            "mode": {
+              "type": "string"
+            },
+            "filename": {
+              "type": "string"
+            },
+            "mimeType": {
+              "type": "string"
+            },
+            "totalBytes": {
+              "type": "integer"
+            },
+            "width": {
+              "type": "integer"
+            },
+            "height": {
+              "type": "integer"
+            },
+            "chunkCount": {
+              "type": "integer"
+            },
+            "sha256": {
+              "type": "string"
+            },
+            "openEditor": {
+              "type": "boolean"
+            },
+            "capturedAtEpochMs": {
+              "type": "integer"
+            }
+          }
+        },
+        "AppScreenshotChunkMessage": {
+          "type": "object",
+          "required": [
+            "base64",
+            "captureId",
+            "chunkByteOffset",
+            "chunkIndex",
+            "chunkRawBytes",
+            "chunkSha256",
+            "controllerLeaseId",
+            "protocolVersion",
+            "type"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "protocolVersion": {
+              "type": "integer"
+            },
+            "controllerLeaseId": {
+              "type": "string"
+            },
+            "captureId": {
+              "type": "string"
+            },
+            "chunkIndex": {
+              "type": "integer"
+            },
+            "chunkByteOffset": {
+              "type": "integer"
+            },
+            "chunkRawBytes": {
+              "type": "integer"
+            },
+            "chunkSha256": {
+              "type": "string"
+            },
+            "base64": {
+              "type": "string"
+            }
+          }
+        },
+        "AppScreenshotCommitMessage": {
+          "type": "object",
+          "required": [
+            "captureId",
+            "controllerLeaseId",
+            "protocolVersion",
+            "type"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "protocolVersion": {
+              "type": "integer"
+            },
+            "controllerLeaseId": {
+              "type": "string"
+            },
+            "captureId": {
+              "type": "string"
+            }
+          }
+        },
+        "ExtensionScreenshotChunkRequestMessage": {
+          "type": "object",
+          "required": [
+            "captureId",
+            "chunkIndex",
+            "controllerLeaseId",
+            "protocolVersion",
+            "type"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "protocolVersion": {
+              "type": "integer"
+            },
+            "controllerLeaseId": {
+              "type": "string"
+            },
+            "captureId": {
+              "type": "string"
+            },
+            "chunkIndex": {
+              "type": "integer"
+            }
+          }
+        },
+        "ExtensionScreenshotAckMessage": {
+          "type": "object",
+          "required": [
+            "assetId",
+            "captureId",
+            "protocolVersion",
+            "type"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "protocolVersion": {
+              "type": "integer"
+            },
+            "captureId": {
+              "type": "string"
+            },
+            "assetId": {
+              "type": "string"
+            }
+          }
+        },
+        "ExtensionScreenshotRejectMessage": {
+          "type": "object",
+          "required": [
+            "captureId",
+            "controllerLeaseId",
+            "protocolVersion",
+            "reason",
+            "type"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "protocolVersion": {
+              "type": "integer"
+            },
+            "controllerLeaseId": {
+              "type": "string"
+            },
+            "captureId": {
+              "type": "string"
+            },
+            "reason": {
+              "type": "string"
+            }
+          }
+        },
+        "AppRecordingStartedMessage": {
+          "type": "object",
+          "required": [
+            "controllerLeaseId",
+            "effectiveQuality",
+            "protocolVersion",
+            "recordingId",
+            "requestedQuality",
+            "requestedSettingsRevision",
+            "source",
+            "startedAtEpochMs",
+            "timebase",
+            "type"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "protocolVersion": {
+              "type": "integer"
+            },
+            "controllerLeaseId": {
+              "type": "string"
+            },
+            "recordingId": {
+              "type": "string"
+            },
+            "source": {
+              "type": "object"
+            },
+            "timebase": {
+              "type": "object"
+            },
+            "requestedSettingsRevision": {
+              "type": "string"
+            },
+            "requestedQuality": {
+              "type": "object"
+            },
+            "effectiveQuality": {
+              "type": "object"
+            },
+            "startedAtEpochMs": {
+              "type": "integer"
+            }
+          }
+        },
+        "AppRecordingProgressMessage": {
+          "type": "object",
+          "required": [
+            "bytesWritten",
+            "controllerLeaseId",
+            "durationMs",
+            "protocolVersion",
+            "recordingId",
+            "status",
+            "type"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "protocolVersion": {
+              "type": "integer"
+            },
+            "controllerLeaseId": {
+              "type": "string"
+            },
+            "recordingId": {
+              "type": "string"
+            },
+            "durationMs": {
+              "type": "integer"
+            },
+            "bytesWritten": {
+              "type": "integer"
+            },
+            "status": {
+              "type": "string"
+            }
+          }
+        },
+        "AppRecordingStoppedMessage": {
+          "type": "object",
+          "required": [
+            "chunkCount",
+            "controllerLeaseId",
+            "durationMs",
+            "filename",
+            "fps",
+            "height",
+            "mimeType",
+            "openEditor",
+            "protocolVersion",
+            "recordingId",
+            "sha256",
+            "telemetry",
+            "totalBytes",
+            "type",
+            "width"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "protocolVersion": {
+              "type": "integer"
+            },
+            "controllerLeaseId": {
+              "type": "string"
+            },
+            "recordingId": {
+              "type": "string"
+            },
+            "durationMs": {
+              "type": "integer"
+            },
+            "filename": {
+              "type": "string"
+            },
+            "mimeType": {
+              "type": "string"
+            },
+            "totalBytes": {
+              "type": "integer"
+            },
+            "width": {
+              "type": "integer"
+            },
+            "height": {
+              "type": "integer"
+            },
+            "fps": {
+              "type": "integer"
+            },
+            "chunkCount": {
+              "type": "integer"
+            },
+            "sha256": {
+              "type": "string"
+            },
+            "telemetry": {
+              "type": "null"
+            },
+            "openEditor": {
+              "type": "boolean"
+            }
+          }
+        },
+        "ExtensionRecordingChunkRequestMessage": {
+          "type": "object",
+          "required": [
+            "chunkIndex",
+            "controllerLeaseId",
+            "protocolVersion",
+            "recordingId",
+            "type"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "protocolVersion": {
+              "type": "integer"
+            },
+            "controllerLeaseId": {
+              "type": "string"
+            },
+            "recordingId": {
+              "type": "string"
+            },
+            "chunkIndex": {
+              "type": "integer"
+            }
+          }
+        },
+        "AppRecordingChunkMessage": {
+          "type": "object",
+          "required": [
+            "base64",
+            "chunkByteOffset",
+            "chunkIndex",
+            "chunkRawBytes",
+            "chunkSha256",
+            "controllerLeaseId",
+            "protocolVersion",
+            "recordingId",
+            "type"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "protocolVersion": {
+              "type": "integer"
+            },
+            "controllerLeaseId": {
+              "type": "string"
+            },
+            "recordingId": {
+              "type": "string"
+            },
+            "chunkIndex": {
+              "type": "integer"
+            },
+            "chunkByteOffset": {
+              "type": "integer"
+            },
+            "chunkRawBytes": {
+              "type": "integer"
+            },
+            "chunkSha256": {
+              "type": "string"
+            },
+            "base64": {
+              "type": "string"
+            }
+          }
+        },
+        "ExtensionRecordingAckMessage": {
+          "type": "object",
+          "required": [
+            "controllerLeaseId",
+            "protocolVersion",
+            "recordingId",
+            "type"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "protocolVersion": {
+              "type": "integer"
+            },
+            "controllerLeaseId": {
+              "type": "string"
+            },
+            "recordingId": {
+              "type": "string"
+            }
+          }
+        },
+        "ExtensionRecordingRejectMessage": {
+          "type": "object",
+          "required": [
+            "controllerLeaseId",
+            "protocolVersion",
+            "reason",
+            "recordingId",
+            "type"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "protocolVersion": {
+              "type": "integer"
+            },
+            "controllerLeaseId": {
+              "type": "string"
+            },
+            "recordingId": {
+              "type": "string"
+            },
+            "reason": {
+              "type": "string"
+            }
+          }
+        },
+        "NativeRecordingTimebase": {
+          "type": "object",
+          "required": [
+            "id",
+            "startedAtEpochMs",
+            "startedAtMonotonicNs",
+            "units"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "startedAtEpochMs": {
+              "type": "integer"
+            },
+            "startedAtMonotonicNs": {
+              "type": "string"
+            },
+            "units": {
+              "type": "string"
+            }
+          }
+        },
+        "NativeRecordingTelemetrySnapshot": {
+          "type": "object",
+          "required": [
+            "actionEvents",
+            "cursorTrack",
+            "signals",
+            "viewport"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "viewport": {
+              "type": "null"
+            },
+            "cursorTrack": {
+              "type": "null"
+            },
+            "actionEvents": {
+              "type": "string"
+            },
+            "signals": {
+              "type": "array"
+            }
+          }
+        },
+        "AppOperationFailedMessage": {
+          "type": "object",
+          "required": [
+            "controllerLeaseId",
+            "error",
+            "occurredAtEpochMs",
+            "operation",
+            "operationId",
+            "phase",
+            "protocolVersion",
+            "type"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "protocolVersion": {
+              "type": "integer"
+            },
+            "controllerLeaseId": {
+              "type": "string"
+            },
+            "operation": {
+              "type": "string"
+            },
+            "operationId": {
+              "type": "string"
+            },
+            "phase": {
+              "type": "string"
+            },
+            "error": {
+              "type": "object"
+            },
+            "occurredAtEpochMs": {
+              "type": "integer"
+            }
+          }
+        }
+      }
+    },
+    "contracts/native/fixtures/positive/contract-fixtures.json": {
+      "type": "object",
+      "required": [
+        "AppCommandAcceptedMessage",
+        "AppControllerLeaseMessage",
+        "AppHelloMessage",
+        "AppOpenSettingsRequestedMessage",
+        "AppOperationFailedMessage",
+        "AppPongMessage",
+        "AppRecordingChunkMessage",
+        "AppRecordingProgressMessage",
+        "AppRecordingStartedMessage",
+        "AppRecordingStoppedMessage",
+        "AppScreenshotChunkMessage",
+        "AppScreenshotCommitMessage",
+        "AppScreenshotStartMessage",
+        "AppSettingsAcceptedMessage",
+        "AppTrayActionRequestedMessage",
+        "ExtensionControllerAcquireMessage",
+        "ExtensionHelloMessage",
+        "ExtensionPingMessage",
+        "ExtensionRecordingAckMessage",
+        "ExtensionRecordingChunkRequestMessage",
+        "ExtensionRecordingControlCommandMessage",
+        "ExtensionRecordingRejectMessage",
+        "ExtensionRecordingStartCommandMessage",
+        "ExtensionScreenshotAckMessage",
+        "ExtensionScreenshotCaptureCommandMessage",
+        "ExtensionScreenshotChunkRequestMessage",
+        "ExtensionScreenshotRejectMessage",
+        "ExtensionSettingsSyncMessage",
+        "ExtensionTrayActionResultMessage",
+        "NativeAppCapabilities",
+        "NativeAutostartState",
+        "NativeCapabilityUnavailableReason",
+        "NativeInstallState",
+        "NativePlatform",
+        "NativeProtocolConstants",
+        "NativeRecordingTelemetrySnapshot",
+        "NativeRecordingTimebase",
+        "NativeTrayActionRegistry"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "NativeProtocolConstants": {
+          "type": "object",
+          "required": [
+            "cacheSchemaVersion",
+            "chunkMaxBase64Chars",
+            "chunkRawBytes",
+            "extensionToHostChromiumMaxMessageBytes",
+            "extensionToHostControlMaxMessageBytes",
+            "extensionToHostMaxMessageBytes",
+            "hostToExtensionMaxMessageBytes",
+            "protocolVersion",
+            "recordingMaxTotalBytes",
+            "screenshotMaxTotalBytes",
+            "settingsSchemaVersion",
+            "targetJsonUtf8Bytes"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "protocolVersion": {
+              "type": "integer"
+            },
+            "settingsSchemaVersion": {
+              "type": "integer"
+            },
+            "cacheSchemaVersion": {
+              "type": "integer"
+            },
+            "hostToExtensionMaxMessageBytes": {
+              "type": "integer"
+            },
+            "extensionToHostMaxMessageBytes": {
+              "type": "integer"
+            },
+            "extensionToHostControlMaxMessageBytes": {
+              "type": "integer"
+            },
+            "extensionToHostChromiumMaxMessageBytes": {
+              "type": "integer"
+            },
+            "targetJsonUtf8Bytes": {
+              "type": "integer"
+            },
+            "chunkRawBytes": {
+              "type": "integer"
+            },
+            "chunkMaxBase64Chars": {
+              "type": "integer"
+            },
+            "screenshotMaxTotalBytes": {
+              "type": "integer"
+            },
+            "recordingMaxTotalBytes": {
+              "type": "integer"
+            }
+          }
+        },
+        "NativePlatform": {
+          "type": "object",
+          "required": [
+            "arch",
+            "displayServer",
+            "kind",
+            "packageKind",
+            "version"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            },
+            "arch": {
+              "type": "string"
+            },
+            "displayServer": {
+              "type": "string"
+            },
+            "packageKind": {
+              "type": "string"
+            }
+          }
+        },
+        "NativeAutostartState": {
+          "type": "object",
+          "required": [
+            "enabled",
+            "method",
+            "supported"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "supported": {
+              "type": "boolean"
+            },
+            "enabled": {
+              "type": "boolean"
+            },
+            "method": {
+              "type": "string"
+            }
+          }
+        },
+        "NativeInstallState": {
+          "type": "object",
+          "required": [
+            "appCacheSchemaVersion",
+            "appVersion",
+            "autostart",
+            "installerVersion",
+            "nativeHostManifestVersion",
+            "packageIntegrity",
+            "platform",
+            "rollbackProtected",
+            "signedBinary",
+            "updateChannel"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "platform": {
+              "type": "object"
+            },
+            "appVersion": {
+              "type": "string"
+            },
+            "appCacheSchemaVersion": {
+              "type": "integer"
+            },
+            "installerVersion": {
+              "type": "string"
+            },
+            "nativeHostManifestVersion": {
+              "type": "string"
+            },
+            "updateChannel": {
+              "type": "string"
+            },
+            "signedBinary": {
+              "type": "boolean"
+            },
+            "rollbackProtected": {
+              "type": "boolean"
+            },
+            "autostart": {
+              "type": "object"
+            },
+            "packageIntegrity": {
+              "type": "string"
+            }
+          }
+        },
+        "ExtensionHelloMessage": {
+          "type": "object",
+          "required": [
+            "extensionId",
+            "extensionVersion",
+            "minAppVersion",
+            "protocolVersion",
+            "settingsSchemaVersion",
+            "supportedProtocolVersions",
+            "supportedSettingsSchemaVersions",
+            "type"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "protocolVersion": {
+              "type": "integer"
+            },
+            "settingsSchemaVersion": {
+              "type": "integer"
+            },
+            "extensionVersion": {
+              "type": "string"
+            },
+            "extensionId": {
+              "type": "string"
+            },
+            "minAppVersion": {
+              "type": "string"
+            },
+            "supportedProtocolVersions": {
+              "type": "array",
+              "items": {
+                "type": [
+                  "integer"
+                ]
+              }
+            },
+            "supportedSettingsSchemaVersions": {
+              "type": "array",
+              "items": {
+                "type": [
+                  "integer"
+                ]
+              }
+            }
+          }
+        },
+        "AppHelloMessage": {
+          "type": "object",
+          "required": [
+            "appInstanceId",
+            "capabilities",
+            "install",
+            "minExtensionVersion",
+            "platform",
+            "protocolVersion",
+            "settingsSchemaVersion",
+            "supportedProtocolVersions",
+            "supportedSettingsSchemaVersions",
+            "type"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "protocolVersion": {
+              "type": "integer"
+            },
+            "settingsSchemaVersion": {
+              "type": "integer"
+            },
+            "minExtensionVersion": {
+              "type": "string"
+            },
+            "supportedProtocolVersions": {
+              "type": "array",
+              "items": {
+                "type": [
+                  "integer"
+                ]
+              }
+            },
+            "supportedSettingsSchemaVersions": {
+              "type": "array",
+              "items": {
+                "type": [
+                  "integer"
+                ]
+              }
+            },
+            "appInstanceId": {
+              "type": "string"
+            },
+            "platform": {
+              "type": "object"
+            },
+            "install": {
+              "type": "object"
+            },
+            "capabilities": {
+              "type": "object"
+            }
+          }
+        },
+        "NativeAppCapabilities": {
+          "type": "object",
+          "required": [
+            "audio",
+            "capture",
+            "codecs",
+            "limits"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "capture": {
+              "type": "object"
+            },
+            "codecs": {
+              "type": "object"
+            },
+            "audio": {
+              "type": "object"
+            },
+            "limits": {
+              "type": "object"
+            }
+          }
+        },
+        "NativeCapabilityUnavailableReason": {
+          "type": "string"
+        },
+        "ExtensionControllerAcquireMessage": {
+          "type": "object",
+          "required": [
+            "browserFamily",
+            "connectionId",
+            "documentId",
+            "profileKey",
+            "protocolVersion",
+            "reason",
+            "requestedAtEpochMs",
+            "type"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "protocolVersion": {
+              "type": "integer"
+            },
+            "connectionId": {
+              "type": "string"
+            },
+            "browserFamily": {
+              "type": "string"
+            },
+            "profileKey": {
+              "type": "string"
+            },
+            "documentId": {
+              "type": "string"
+            },
+            "requestedAtEpochMs": {
+              "type": "integer"
+            },
+            "reason": {
+              "type": "string"
+            }
+          }
+        },
+        "AppControllerLeaseMessage": {
+          "type": "object",
+          "required": [
+            "controller",
+            "controllerLeaseId",
+            "expiresAtEpochMs",
+            "protocolVersion",
+            "status",
+            "type"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "protocolVersion": {
+              "type": "integer"
+            },
+            "controllerLeaseId": {
+              "type": "string"
+            },
+            "controller": {
+              "type": "object"
+            },
+            "expiresAtEpochMs": {
+              "type": "integer"
+            },
+            "status": {
+              "type": "string"
+            }
+          }
+        },
+        "ExtensionSettingsSyncMessage": {
+          "type": "object",
+          "required": [
+            "controllerLeaseId",
+            "generatedAtEpochMs",
+            "protocolVersion",
+            "revision",
+            "schemaVersion",
+            "settings",
+            "type"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "protocolVersion": {
+              "type": "integer"
+            },
+            "controllerLeaseId": {
+              "type": "string"
+            },
+            "revision": {
+              "type": "string"
+            },
+            "schemaVersion": {
+              "type": "integer"
+            },
+            "generatedAtEpochMs": {
+              "type": "integer"
+            },
+            "settings": {
+              "type": "object"
+            }
+          }
+        },
+        "AppSettingsAcceptedMessage": {
+          "type": "object",
+          "required": [
+            "acceptedAtEpochMs",
+            "controllerLeaseId",
+            "effectiveSettings",
+            "protocolVersion",
+            "revision",
+            "schemaVersion",
+            "type",
+            "warnings"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "protocolVersion": {
+              "type": "integer"
+            },
+            "controllerLeaseId": {
+              "type": "string"
+            },
+            "revision": {
+              "type": "string"
+            },
+            "schemaVersion": {
+              "type": "integer"
+            },
+            "acceptedAtEpochMs": {
+              "type": "integer"
+            },
+            "effectiveSettings": {
+              "type": "object"
+            },
+            "warnings": {
+              "type": "array",
+              "items": {
+                "type": [
+                  "object"
+                ]
+              }
+            }
+          }
+        },
+        "ExtensionPingMessage": {
+          "type": "object",
+          "required": [
+            "nonce",
+            "protocolVersion",
+            "sentAtEpochMs",
+            "type"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "protocolVersion": {
+              "type": "integer"
+            },
+            "nonce": {
+              "type": "string"
+            },
+            "sentAtEpochMs": {
+              "type": "integer"
+            }
+          }
+        },
+        "AppPongMessage": {
+          "type": "object",
+          "required": [
+            "appStatus",
+            "nonce",
+            "protocolVersion",
+            "sentAtEpochMs",
+            "type"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "protocolVersion": {
+              "type": "integer"
+            },
+            "nonce": {
+              "type": "string"
+            },
+            "sentAtEpochMs": {
+              "type": "integer"
+            },
+            "appStatus": {
+              "type": "object"
+            }
+          }
+        },
+        "NativeTrayActionRegistry": {
+          "type": "object",
+          "required": [
+            "actions",
+            "revision",
+            "shortcutPriority"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "actions": {
+              "type": "array",
+              "items": {
+                "type": [
+                  "object"
+                ]
+              }
+            },
+            "revision": {
+              "type": "string"
+            },
+            "shortcutPriority": {
+              "type": "object"
+            }
+          }
+        },
+        "AppTrayActionRequestedMessage": {
+          "type": "object",
+          "required": [
+            "actionId",
+            "controllerLeaseId",
+            "invocationId",
+            "protocolVersion",
+            "requestedAtEpochMs",
+            "type"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "protocolVersion": {
+              "type": "integer"
+            },
+            "controllerLeaseId": {
+              "type": "string"
+            },
+            "actionId": {
+              "type": "string"
+            },
+            "requestedAtEpochMs": {
+              "type": "integer"
+            },
+            "invocationId": {
+              "type": "string"
+            }
+          }
+        },
+        "ExtensionTrayActionResultMessage": {
+          "type": "object",
+          "required": [
+            "accepted",
+            "controllerLeaseId",
+            "invocationId",
+            "protocolVersion",
+            "type"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "protocolVersion": {
+              "type": "integer"
+            },
+            "controllerLeaseId": {
+              "type": "string"
+            },
+            "invocationId": {
+              "type": "string"
+            },
+            "accepted": {
+              "type": "boolean"
+            }
+          }
+        },
+        "AppOpenSettingsRequestedMessage": {
+          "type": "object",
+          "required": [
+            "controllerLeaseId",
+            "invocationId",
+            "protocolVersion",
+            "requestedAtEpochMs",
+            "section",
+            "type"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "protocolVersion": {
+              "type": "integer"
+            },
+            "controllerLeaseId": {
+              "type": "string"
+            },
+            "section": {
+              "type": "string"
+            },
+            "requestedAtEpochMs": {
+              "type": "integer"
+            },
+            "invocationId": {
+              "type": "string"
+            }
+          }
+        },
+        "ExtensionScreenshotCaptureCommandMessage": {
+          "type": "object",
+          "required": [
+            "commandId",
+            "controllerLeaseId",
+            "mode",
+            "openEditor",
+            "protocolVersion",
+            "requestedAtEpochMs",
+            "settingsRevision",
+            "type"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "protocolVersion": {
+              "type": "integer"
+            },
+            "controllerLeaseId": {
+              "type": "string"
+            },
+            "commandId": {
+              "type": "string"
+            },
+            "mode": {
+              "type": "string"
+            },
+            "settingsRevision": {
+              "type": "string"
+            },
+            "openEditor": {
+              "type": "boolean"
+            },
+            "requestedAtEpochMs": {
+              "type": "integer"
+            }
+          }
+        },
+        "ExtensionRecordingStartCommandMessage": {
+          "type": "object",
+          "required": [
+            "commandId",
+            "controllerLeaseId",
+            "openEditor",
+            "protocolVersion",
+            "requestedAtEpochMs",
+            "requestedQuality",
+            "settingsRevision",
+            "source",
+            "type"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "protocolVersion": {
+              "type": "integer"
+            },
+            "controllerLeaseId": {
+              "type": "string"
+            },
+            "commandId": {
+              "type": "string"
+            },
+            "source": {
+              "type": "object"
+            },
+            "settingsRevision": {
+              "type": "string"
+            },
+            "requestedQuality": {
+              "type": "object"
+            },
+            "openEditor": {
+              "type": "boolean"
+            },
+            "requestedAtEpochMs": {
+              "type": "integer"
+            }
+          }
+        },
+        "ExtensionRecordingControlCommandMessage": {
+          "type": "object",
+          "required": [
+            "commandId",
+            "control",
+            "controllerLeaseId",
+            "protocolVersion",
+            "recordingId",
+            "requestedAtEpochMs",
+            "type"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "protocolVersion": {
+              "type": "integer"
+            },
+            "controllerLeaseId": {
+              "type": "string"
+            },
+            "commandId": {
+              "type": "string"
+            },
+            "recordingId": {
+              "type": "string"
+            },
+            "control": {
+              "type": "string"
+            },
+            "requestedAtEpochMs": {
+              "type": "integer"
+            }
+          }
+        },
+        "AppCommandAcceptedMessage": {
+          "type": "object",
+          "required": [
+            "acceptedAtEpochMs",
+            "commandId",
+            "controllerLeaseId",
+            "operation",
+            "protocolVersion",
+            "type"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "protocolVersion": {
+              "type": "integer"
+            },
+            "controllerLeaseId": {
+              "type": "string"
+            },
+            "commandId": {
+              "type": "string"
+            },
+            "operation": {
+              "type": "string"
+            },
+            "acceptedAtEpochMs": {
+              "type": "integer"
+            }
+          }
+        },
+        "AppScreenshotStartMessage": {
+          "type": "object",
+          "required": [
+            "captureId",
+            "capturedAtEpochMs",
+            "chunkCount",
+            "controllerLeaseId",
+            "filename",
+            "height",
+            "mimeType",
+            "mode",
+            "openEditor",
+            "protocolVersion",
+            "sha256",
+            "totalBytes",
+            "type",
+            "width"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "protocolVersion": {
+              "type": "integer"
+            },
+            "controllerLeaseId": {
+              "type": "string"
+            },
+            "captureId": {
+              "type": "string"
+            },
+            "mode": {
+              "type": "string"
+            },
+            "filename": {
+              "type": "string"
+            },
+            "mimeType": {
+              "type": "string"
+            },
+            "totalBytes": {
+              "type": "integer"
+            },
+            "width": {
+              "type": "integer"
+            },
+            "height": {
+              "type": "integer"
+            },
+            "chunkCount": {
+              "type": "integer"
+            },
+            "sha256": {
+              "type": "string"
+            },
+            "openEditor": {
+              "type": "boolean"
+            },
+            "capturedAtEpochMs": {
+              "type": "integer"
+            }
+          }
+        },
+        "AppScreenshotChunkMessage": {
+          "type": "object",
+          "required": [
+            "base64",
+            "captureId",
+            "chunkByteOffset",
+            "chunkIndex",
+            "chunkRawBytes",
+            "chunkSha256",
+            "controllerLeaseId",
+            "protocolVersion",
+            "type"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "protocolVersion": {
+              "type": "integer"
+            },
+            "controllerLeaseId": {
+              "type": "string"
+            },
+            "captureId": {
+              "type": "string"
+            },
+            "chunkIndex": {
+              "type": "integer"
+            },
+            "chunkByteOffset": {
+              "type": "integer"
+            },
+            "chunkRawBytes": {
+              "type": "integer"
+            },
+            "chunkSha256": {
+              "type": "string"
+            },
+            "base64": {
+              "type": "string"
+            }
+          }
+        },
+        "AppScreenshotCommitMessage": {
+          "type": "object",
+          "required": [
+            "captureId",
+            "controllerLeaseId",
+            "protocolVersion",
+            "type"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "protocolVersion": {
+              "type": "integer"
+            },
+            "controllerLeaseId": {
+              "type": "string"
+            },
+            "captureId": {
+              "type": "string"
+            }
+          }
+        },
+        "ExtensionScreenshotChunkRequestMessage": {
+          "type": "object",
+          "required": [
+            "captureId",
+            "chunkIndex",
+            "controllerLeaseId",
+            "protocolVersion",
+            "type"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "protocolVersion": {
+              "type": "integer"
+            },
+            "controllerLeaseId": {
+              "type": "string"
+            },
+            "captureId": {
+              "type": "string"
+            },
+            "chunkIndex": {
+              "type": "integer"
+            }
+          }
+        },
+        "ExtensionScreenshotAckMessage": {
+          "type": "object",
+          "required": [
+            "assetId",
+            "captureId",
+            "controllerLeaseId",
+            "protocolVersion",
+            "type"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "protocolVersion": {
+              "type": "integer"
+            },
+            "controllerLeaseId": {
+              "type": "string"
+            },
+            "captureId": {
+              "type": "string"
+            },
+            "assetId": {
+              "type": "string"
+            }
+          }
+        },
+        "ExtensionScreenshotRejectMessage": {
+          "type": "object",
+          "required": [
+            "captureId",
+            "controllerLeaseId",
+            "diagnosticRetentionRequested",
+            "protocolVersion",
+            "reason",
+            "type"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "protocolVersion": {
+              "type": "integer"
+            },
+            "controllerLeaseId": {
+              "type": "string"
+            },
+            "captureId": {
+              "type": "string"
+            },
+            "reason": {
+              "type": "string"
+            },
+            "diagnosticRetentionRequested": {
+              "type": "boolean"
+            }
+          }
+        },
+        "AppRecordingStartedMessage": {
+          "type": "object",
+          "required": [
+            "controllerLeaseId",
+            "effectiveQuality",
+            "protocolVersion",
+            "recordingId",
+            "requestedQuality",
+            "requestedSettingsRevision",
+            "source",
+            "startedAtEpochMs",
+            "timebase",
+            "type"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "protocolVersion": {
+              "type": "integer"
+            },
+            "controllerLeaseId": {
+              "type": "string"
+            },
+            "recordingId": {
+              "type": "string"
+            },
+            "source": {
+              "type": "object"
+            },
+            "timebase": {
+              "type": "object"
+            },
+            "requestedSettingsRevision": {
+              "type": "string"
+            },
+            "requestedQuality": {
+              "type": "object"
+            },
+            "effectiveQuality": {
+              "type": "object"
+            },
+            "startedAtEpochMs": {
+              "type": "integer"
+            }
+          }
+        },
+        "AppRecordingProgressMessage": {
+          "type": "object",
+          "required": [
+            "bytesWritten",
+            "controllerLeaseId",
+            "durationMs",
+            "protocolVersion",
+            "recordingId",
+            "status",
+            "type"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "protocolVersion": {
+              "type": "integer"
+            },
+            "controllerLeaseId": {
+              "type": "string"
+            },
+            "recordingId": {
+              "type": "string"
+            },
+            "durationMs": {
+              "type": "integer"
+            },
+            "bytesWritten": {
+              "type": "integer"
+            },
+            "status": {
+              "type": "string"
+            }
+          }
+        },
+        "AppRecordingStoppedMessage": {
+          "type": "object",
+          "required": [
+            "chunkCount",
+            "controllerLeaseId",
+            "durationMs",
+            "filename",
+            "fps",
+            "height",
+            "mimeType",
+            "openEditor",
+            "protocolVersion",
+            "recordingId",
+            "sha256",
+            "telemetry",
+            "totalBytes",
+            "type",
+            "width"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "protocolVersion": {
+              "type": "integer"
+            },
+            "controllerLeaseId": {
+              "type": "string"
+            },
+            "recordingId": {
+              "type": "string"
+            },
+            "durationMs": {
+              "type": "integer"
+            },
+            "filename": {
+              "type": "string"
+            },
+            "mimeType": {
+              "type": "string"
+            },
+            "totalBytes": {
+              "type": "integer"
+            },
+            "width": {
+              "type": "integer"
+            },
+            "height": {
+              "type": "integer"
+            },
+            "fps": {
+              "type": "integer"
+            },
+            "chunkCount": {
+              "type": "integer"
+            },
+            "sha256": {
+              "type": "string"
+            },
+            "telemetry": {
+              "type": "object"
+            },
+            "openEditor": {
+              "type": "boolean"
+            }
+          }
+        },
+        "ExtensionRecordingChunkRequestMessage": {
+          "type": "object",
+          "required": [
+            "chunkIndex",
+            "controllerLeaseId",
+            "protocolVersion",
+            "recordingId",
+            "type"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "protocolVersion": {
+              "type": "integer"
+            },
+            "controllerLeaseId": {
+              "type": "string"
+            },
+            "recordingId": {
+              "type": "string"
+            },
+            "chunkIndex": {
+              "type": "integer"
+            }
+          }
+        },
+        "AppRecordingChunkMessage": {
+          "type": "object",
+          "required": [
+            "base64",
+            "chunkByteOffset",
+            "chunkIndex",
+            "chunkRawBytes",
+            "chunkSha256",
+            "controllerLeaseId",
+            "protocolVersion",
+            "recordingId",
+            "type"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "protocolVersion": {
+              "type": "integer"
+            },
+            "controllerLeaseId": {
+              "type": "string"
+            },
+            "recordingId": {
+              "type": "string"
+            },
+            "chunkIndex": {
+              "type": "integer"
+            },
+            "chunkByteOffset": {
+              "type": "integer"
+            },
+            "chunkRawBytes": {
+              "type": "integer"
+            },
+            "chunkSha256": {
+              "type": "string"
+            },
+            "base64": {
+              "type": "string"
+            }
+          }
+        },
+        "ExtensionRecordingAckMessage": {
+          "type": "object",
+          "required": [
+            "controllerLeaseId",
+            "protocolVersion",
+            "recordingId",
+            "type"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "protocolVersion": {
+              "type": "integer"
+            },
+            "controllerLeaseId": {
+              "type": "string"
+            },
+            "recordingId": {
+              "type": "string"
+            }
+          }
+        },
+        "ExtensionRecordingRejectMessage": {
+          "type": "object",
+          "required": [
+            "controllerLeaseId",
+            "diagnosticRetentionRequested",
+            "protocolVersion",
+            "reason",
+            "recordingId",
+            "type"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "protocolVersion": {
+              "type": "integer"
+            },
+            "controllerLeaseId": {
+              "type": "string"
+            },
+            "recordingId": {
+              "type": "string"
+            },
+            "reason": {
+              "type": "string"
+            },
+            "diagnosticRetentionRequested": {
+              "type": "boolean"
+            }
+          }
+        },
+        "NativeRecordingTimebase": {
+          "type": "object",
+          "required": [
+            "id",
+            "startedAtEpochMs",
+            "startedAtMonotonicNs",
+            "units"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "startedAtEpochMs": {
+              "type": "integer"
+            },
+            "startedAtMonotonicNs": {
+              "type": "string"
+            },
+            "units": {
+              "type": "string"
+            }
+          }
+        },
+        "NativeRecordingTelemetrySnapshot": {
+          "type": "object",
+          "required": [
+            "actionEvents",
+            "cursorTrack",
+            "signals",
+            "viewport"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "viewport": {
+              "type": "null"
+            },
+            "cursorTrack": {
+              "type": "null"
+            },
+            "actionEvents": {
+              "type": "array",
+              "items": {
+                "type": [
+                  "object"
+                ]
+              }
+            },
+            "signals": {
+              "type": "array",
+              "items": {
+                "type": [
+                  "object"
+                ]
+              }
+            }
+          }
+        },
+        "AppOperationFailedMessage": {
+          "type": "object",
+          "required": [
+            "controllerLeaseId",
+            "error",
+            "occurredAtEpochMs",
+            "operation",
+            "operationId",
+            "phase",
+            "protocolVersion",
+            "type"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "string"
+            },
+            "protocolVersion": {
+              "type": "integer"
+            },
+            "controllerLeaseId": {
+              "type": "string"
+            },
+            "operation": {
+              "type": "string"
+            },
+            "operationId": {
+              "type": "string"
+            },
+            "phase": {
+              "type": "string"
+            },
+            "error": {
+              "type": "object"
+            },
+            "occurredAtEpochMs": {
+              "type": "integer"
+            }
+          }
+        }
+      }
+    },
+    "contracts/native/operation-error-catalog.json": {
+      "type": "object",
+      "required": [
+        "operationFailures",
+        "publicCodes",
+        "schemaVersion"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "schemaVersion": {
+          "type": "integer"
+        },
+        "publicCodes": {
+          "type": "array",
+          "items": {
+            "type": [
+              "string"
+            ]
+          }
+        },
+        "operationFailures": {
+          "type": "object",
+          "required": [
+            "app-upgrade-required",
+            "auth-rejected",
+            "chunk-out-of-bounds",
+            "command-dispatch-failed",
+            "command-settings-revision-mismatch",
+            "disk-pressure",
+            "encoder-unavailable",
+            "extension-upgrade-required",
+            "handshake-incompatible-protocol",
+            "handshake-incompatible-settings",
+            "hotkey-bindings-invalid",
+            "hotkey-runtime-failed",
+            "install-identity-drift",
+            "logger-startup-failed",
+            "malformed-message",
+            "pipe-busy",
+            "pipe-connect-timeout",
+            "pipe-secret-corrupt",
+            "pipe-secret-unavailable",
+            "protected-media-failure",
+            "queue-backpressure",
+            "recording-recovery-unavailable",
+            "recording-runtime-failed",
+            "resident-startup-failed",
+            "screenshot-capture-failed",
+            "screenshot-invalid-selection",
+            "screenshot-selection-cancelled",
+            "serialization-contract-failure",
+            "settings-schema-version-incompatible",
+            "settings-snapshot-invalid",
+            "settings-state-unavailable",
+            "stale-controller-lease",
+            "storage-unavailable",
+            "transfer-channel-unsupported",
+            "transfer-expired",
+            "transfer-not-pending",
+            "tray-actions-invalid",
+            "tray-runtime-failed",
+            "unsupported-capability"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "malformed-message": {
+              "type": "object"
+            },
+            "handshake-incompatible-protocol": {
+              "type": "object"
+            },
+            "handshake-incompatible-settings": {
+              "type": "object"
+            },
+            "app-upgrade-required": {
+              "type": "object"
+            },
+            "extension-upgrade-required": {
+              "type": "object"
+            },
+            "stale-controller-lease": {
+              "type": "object"
+            },
+            "command-settings-revision-mismatch": {
+              "type": "object"
+            },
+            "settings-state-unavailable": {
+              "type": "object"
+            },
+            "settings-schema-version-incompatible": {
+              "type": "object"
+            },
+            "settings-snapshot-invalid": {
+              "type": "object"
+            },
+            "tray-actions-invalid": {
+              "type": "object"
+            },
+            "hotkey-bindings-invalid": {
+              "type": "object"
+            },
+            "hotkey-runtime-failed": {
+              "type": "object"
+            },
+            "tray-runtime-failed": {
+              "type": "object"
+            },
+            "unsupported-capability": {
+              "type": "object"
+            },
+            "disk-pressure": {
+              "type": "object"
+            },
+            "screenshot-selection-cancelled": {
+              "type": "object"
+            },
+            "screenshot-invalid-selection": {
+              "type": "object"
+            },
+            "screenshot-capture-failed": {
+              "type": "object"
+            },
+            "recording-runtime-failed": {
+              "type": "object"
+            },
+            "command-dispatch-failed": {
+              "type": "object"
+            },
+            "storage-unavailable": {
+              "type": "object"
+            },
+            "transfer-not-pending": {
+              "type": "object"
+            },
+            "transfer-channel-unsupported": {
+              "type": "object"
+            },
+            "recording-recovery-unavailable": {
+              "type": "object"
+            },
+            "install-identity-drift": {
+              "type": "object"
+            },
+            "pipe-secret-unavailable": {
+              "type": "object"
+            },
+            "pipe-secret-corrupt": {
+              "type": "object"
+            },
+            "pipe-connect-timeout": {
+              "type": "object"
+            },
+            "pipe-busy": {
+              "type": "object"
+            },
+            "resident-startup-failed": {
+              "type": "object"
+            },
+            "auth-rejected": {
+              "type": "object"
+            },
+            "protected-media-failure": {
+              "type": "object"
+            },
+            "chunk-out-of-bounds": {
+              "type": "object"
+            },
+            "transfer-expired": {
+              "type": "object"
+            },
+            "encoder-unavailable": {
+              "type": "object"
+            },
+            "serialization-contract-failure": {
+              "type": "object"
+            },
+            "logger-startup-failed": {
+              "type": "object"
+            },
+            "queue-backpressure": {
+              "type": "object"
+            }
+          }
+        }
+      }
+    },
+    "contracts/security/redaction-corpus.json": {
+      "type": "object",
+      "required": [
+        "requiredOutputs",
+        "samples",
+        "schemaVersion"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "schemaVersion": {
+          "type": "integer"
+        },
+        "samples": {
+          "type": "array",
+          "items": {
+            "type": [
+              "object"
+            ]
+          }
+        },
+        "requiredOutputs": {
+          "type": "array",
+          "items": {
+            "type": [
+              "string"
+            ]
+          }
+        }
+      }
+    },
+    "tooling/configs/qa/docs.json": {
+      "type": "object",
+      "required": [
+        "$comment",
+        "activeDocs",
+        "forbiddenFragments",
+        "legalText",
+        "repositoryMarkdown",
+        "schemaVersion"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "$comment": {
+          "type": "string"
+        },
+        "schemaVersion": {
+          "type": "integer"
+        },
+        "activeDocs": {
+          "type": "array",
+          "items": {
+            "type": [
+              "string"
+            ]
+          }
+        },
+        "repositoryMarkdown": {
+          "type": "array",
+          "items": {
+            "type": [
+              "string"
+            ]
+          }
+        },
+        "legalText": {
+          "type": "array",
+          "items": {
+            "type": [
+              "string"
+            ]
+          }
+        },
+        "forbiddenFragments": {
+          "type": "array",
+          "items": {
+            "type": [
+              "string"
+            ]
+          }
+        }
+      }
+    },
+    "tooling/configs/qa/environment-audit.json": {
+      "type": "object",
+      "required": [
+        "coverageLimit",
+        "platformGaps",
+        "schemaVersion",
+        "tools"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "schemaVersion": {
+          "type": "integer"
+        },
+        "coverageLimit": {
+          "type": "string"
+        },
+        "tools": {
+          "type": "object",
+          "required": [
+            "Cython",
+            "PSScriptAnalyzer",
+            "actionlint",
+            "actions/cache",
+            "actions/checkout",
+            "actions/download-artifact",
+            "actions/setup-python",
+            "actions/upload-artifact",
+            "cargo-about",
+            "cargo-audit",
+            "cargo-deny",
+            "cargo-llvm-cov",
+            "cargo-nextest",
+            "eslint",
+            "eslint-plugin-promise",
+            "eslint-plugin-security",
+            "gitleaks",
+            "globals",
+            "jsonschema",
+            "node",
+            "playwright-core",
+            "pwsh",
+            "pyright",
+            "python",
+            "renovate",
+            "ruff",
+            "rust",
+            "setuptools",
+            "shellcheck",
+            "shfmt",
+            "taplo",
+            "typescript-eslint",
+            "wheel",
+            "windows-sdk",
+            "wix",
+            "yamllint",
+            "zizmor"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "python": {
+              "type": "object"
+            },
+            "node": {
+              "type": "object"
+            },
+            "rust": {
+              "type": "object"
+            },
+            "playwright-core": {
+              "type": "object"
+            },
+            "wix": {
+              "type": "object"
+            },
+            "windows-sdk": {
+              "type": "object"
+            },
+            "gitleaks": {
+              "type": "object"
+            },
+            "cargo-nextest": {
+              "type": "object"
+            },
+            "cargo-llvm-cov": {
+              "type": "object"
+            },
+            "cargo-audit": {
+              "type": "object"
+            },
+            "cargo-deny": {
+              "type": "object"
+            },
+            "cargo-about": {
+              "type": "object"
+            },
+            "actions/checkout": {
+              "type": "object"
+            },
+            "actions/cache": {
+              "type": "object"
+            },
+            "actions/setup-python": {
+              "type": "object"
+            },
+            "actions/upload-artifact": {
+              "type": "object"
+            },
+            "actions/download-artifact": {
+              "type": "object"
+            },
+            "ruff": {
+              "type": "object"
+            },
+            "yamllint": {
+              "type": "object"
+            },
+            "jsonschema": {
+              "type": "object"
+            },
+            "zizmor": {
+              "type": "object"
+            },
+            "pyright": {
+              "type": "object"
+            },
+            "eslint": {
+              "type": "object"
+            },
+            "typescript-eslint": {
+              "type": "object"
+            },
+            "eslint-plugin-promise": {
+              "type": "object"
+            },
+            "eslint-plugin-security": {
+              "type": "object"
+            },
+            "globals": {
+              "type": "object"
+            },
+            "shellcheck": {
+              "type": "object"
+            },
+            "shfmt": {
+              "type": "object"
+            },
+            "actionlint": {
+              "type": "object"
+            },
+            "taplo": {
+              "type": "object"
+            },
+            "pwsh": {
+              "type": "object"
+            },
+            "PSScriptAnalyzer": {
+              "type": "object"
+            },
+            "renovate": {
+              "type": "object"
+            },
+            "setuptools": {
+              "type": "object"
+            },
+            "wheel": {
+              "type": "object"
+            },
+            "Cython": {
+              "type": "object"
+            }
+          }
+        },
+        "platformGaps": {
+          "type": "array",
+          "items": {
+            "type": [
+              "string"
+            ]
+          }
+        }
+      }
+    },
+    "tooling/configs/qa/exception-registry.json": {
+      "type": "object",
+      "required": [
+        "$comment",
+        "exceptions",
+        "schemaVersion",
+        "technicalDebt"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "$comment": {
+          "type": "string"
+        },
+        "schemaVersion": {
+          "type": "integer"
+        },
+        "exceptions": {
+          "type": "array",
+          "items": {
+            "type": [
+              "object"
+            ]
+          }
+        },
+        "technicalDebt": {
+          "type": "array"
+        }
+      }
+    },
+    "tooling/configs/qa/gitleaks-baseline.json": {
+      "type": "array",
+      "items": {
+        "type": [
+          "object"
+        ]
+      }
+    },
+    "tooling/configs/qa/open-source.json": {
+      "type": "object",
+      "required": [
+        "$comment",
+        "dependencyLicenses",
+        "licenseSource",
+        "project",
+        "schemaVersion",
+        "trackedDigests"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "$comment": {
+          "type": "string"
+        },
+        "schemaVersion": {
+          "type": "integer"
+        },
+        "project": {
+          "type": "object",
+          "required": [
+            "cargoPackage",
+            "contributionsAccepted",
+            "copyright",
+            "license",
+            "name"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "cargoPackage": {
+              "type": "string"
+            },
+            "copyright": {
+              "type": "string"
+            },
+            "license": {
+              "type": "string"
+            },
+            "contributionsAccepted": {
+              "type": "boolean"
+            }
+          }
+        },
+        "licenseSource": {
+          "type": "object",
+          "required": [
+            "recordedEdits",
+            "templateSha256",
+            "url"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "url": {
+              "type": "string"
+            },
+            "templateSha256": {
+              "type": "string"
+            },
+            "recordedEdits": {
+              "type": "array",
+              "items": {
+                "type": [
+                  "string"
+                ]
+              }
+            }
+          }
+        },
+        "trackedDigests": {
+          "type": "object",
+          "required": [
+            "CONTRIBUTING.md",
+            "LICENSE",
+            "NOTICE"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "LICENSE": {
+              "type": "string"
+            },
+            "NOTICE": {
+              "type": "string"
+            },
+            "CONTRIBUTING.md": {
+              "type": "string"
+            }
+          }
+        },
+        "dependencyLicenses": {
+          "type": "object",
+          "required": [
+            "allFeatures",
+            "includeBuildOnly",
+            "includeDevOnly",
+            "includeTransitive",
+            "target"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "target": {
+              "type": "string"
+            },
+            "allFeatures": {
+              "type": "boolean"
+            },
+            "includeTransitive": {
+              "type": "boolean"
+            },
+            "includeBuildOnly": {
+              "type": "boolean"
+            },
+            "includeDevOnly": {
+              "type": "boolean"
+            }
+          }
+        }
+      }
+    },
+    "tooling/configs/qa/pyrightconfig.json": {
+      "type": "object",
+      "required": [
+        "extraPaths",
+        "include",
+        "pythonVersion",
+        "reportUnnecessaryTypeIgnoreComment",
+        "typeCheckingMode",
+        "venv",
+        "venvPath"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "include": {
+          "type": "array",
+          "items": {
+            "type": [
+              "string"
+            ]
+          }
+        },
+        "typeCheckingMode": {
+          "type": "string"
+        },
+        "pythonVersion": {
+          "type": "string"
+        },
+        "reportUnnecessaryTypeIgnoreComment": {
+          "type": "string"
+        },
+        "extraPaths": {
+          "type": "array",
+          "items": {
+            "type": [
+              "string"
+            ]
+          }
+        },
+        "venvPath": {
+          "type": "string"
+        },
+        "venv": {
+          "type": "string"
+        }
+      }
+    },
+    "tooling/configs/qa/script-node/package-lock.json": {
+      "type": "object",
+      "required": [
+        "lockfileVersion",
+        "name",
+        "packages",
+        "requires",
+        "version"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "lockfileVersion": {
+          "type": "integer"
+        },
+        "requires": {
+          "type": "boolean"
+        },
+        "packages": {
+          "type": "object",
+          "required": [
+            "",
+            "node_modules/@cacheable/memory",
+            "node_modules/@cacheable/utils",
+            "node_modules/@eslint-community/eslint-utils",
+            "node_modules/@eslint-community/eslint-utils/node_modules/eslint-visitor-keys",
+            "node_modules/@eslint-community/regexpp",
+            "node_modules/@eslint/config-array",
+            "node_modules/@eslint/config-helpers",
+            "node_modules/@eslint/core",
+            "node_modules/@eslint/object-schema",
+            "node_modules/@eslint/plugin-kit",
+            "node_modules/@humanfs/core",
+            "node_modules/@humanfs/node",
+            "node_modules/@humanfs/types",
+            "node_modules/@humanwhocodes/module-importer",
+            "node_modules/@humanwhocodes/retry",
+            "node_modules/@keyv/bigmap",
+            "node_modules/@keyv/serialize",
+            "node_modules/@types/esrecurse",
+            "node_modules/@types/estree",
+            "node_modules/@types/json-schema",
+            "node_modules/@typescript-eslint/eslint-plugin",
+            "node_modules/@typescript-eslint/eslint-plugin/node_modules/ignore",
+            "node_modules/@typescript-eslint/parser",
+            "node_modules/@typescript-eslint/project-service",
+            "node_modules/@typescript-eslint/scope-manager",
+            "node_modules/@typescript-eslint/tsconfig-utils",
+            "node_modules/@typescript-eslint/type-utils",
+            "node_modules/@typescript-eslint/types",
+            "node_modules/@typescript-eslint/typescript-estree",
+            "node_modules/@typescript-eslint/utils",
+            "node_modules/@typescript-eslint/visitor-keys",
+            "node_modules/acorn",
+            "node_modules/acorn-jsx",
+            "node_modules/ajv",
+            "node_modules/balanced-match",
+            "node_modules/brace-expansion",
+            "node_modules/cacheable",
+            "node_modules/cross-spawn",
+            "node_modules/debug",
+            "node_modules/deep-is",
+            "node_modules/escape-string-regexp",
+            "node_modules/eslint",
+            "node_modules/eslint-plugin-promise",
+            "node_modules/eslint-plugin-security",
+            "node_modules/eslint-scope",
+            "node_modules/eslint-visitor-keys",
+            "node_modules/espree",
+            "node_modules/esquery",
+            "node_modules/esrecurse",
+            "node_modules/estraverse",
+            "node_modules/esutils",
+            "node_modules/fast-deep-equal",
+            "node_modules/fast-json-stable-stringify",
+            "node_modules/fast-levenshtein",
+            "node_modules/fdir",
+            "node_modules/file-entry-cache",
+            "node_modules/find-up",
+            "node_modules/flat-cache",
+            "node_modules/flatted",
+            "node_modules/fsevents",
+            "node_modules/glob-parent",
+            "node_modules/globals",
+            "node_modules/hashery",
+            "node_modules/hookified",
+            "node_modules/ignore",
+            "node_modules/imurmurhash",
+            "node_modules/is-extglob",
+            "node_modules/is-glob",
+            "node_modules/isexe",
+            "node_modules/json-schema-traverse",
+            "node_modules/json-stable-stringify-without-jsonify",
+            "node_modules/keyv",
+            "node_modules/levn",
+            "node_modules/locate-path",
+            "node_modules/minimatch",
+            "node_modules/ms",
+            "node_modules/natural-compare",
+            "node_modules/optionator",
+            "node_modules/p-limit",
+            "node_modules/p-locate",
+            "node_modules/path-exists",
+            "node_modules/path-key",
+            "node_modules/picomatch",
+            "node_modules/prelude-ls",
+            "node_modules/punycode",
+            "node_modules/pyright",
+            "node_modules/qified",
+            "node_modules/qified/node_modules/hookified",
+            "node_modules/regexp-tree",
+            "node_modules/safe-regex",
+            "node_modules/semver",
+            "node_modules/shebang-command",
+            "node_modules/shebang-regex",
+            "node_modules/tinyglobby",
+            "node_modules/ts-api-utils",
+            "node_modules/type-check",
+            "node_modules/typescript",
+            "node_modules/typescript-eslint",
+            "node_modules/uri-js",
+            "node_modules/which",
+            "node_modules/word-wrap",
+            "node_modules/yocto-queue"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "": {
+              "type": "object"
+            },
+            "node_modules/@cacheable/memory": {
+              "type": "object"
+            },
+            "node_modules/@cacheable/utils": {
+              "type": "object"
+            },
+            "node_modules/@eslint-community/eslint-utils": {
+              "type": "object"
+            },
+            "node_modules/@eslint-community/eslint-utils/node_modules/eslint-visitor-keys": {
+              "type": "object"
+            },
+            "node_modules/@eslint-community/regexpp": {
+              "type": "object"
+            },
+            "node_modules/@eslint/config-array": {
+              "type": "object"
+            },
+            "node_modules/@eslint/config-helpers": {
+              "type": "object"
+            },
+            "node_modules/@eslint/core": {
+              "type": "object"
+            },
+            "node_modules/@eslint/object-schema": {
+              "type": "object"
+            },
+            "node_modules/@eslint/plugin-kit": {
+              "type": "object"
+            },
+            "node_modules/@humanfs/core": {
+              "type": "object"
+            },
+            "node_modules/@humanfs/node": {
+              "type": "object"
+            },
+            "node_modules/@humanfs/types": {
+              "type": "object"
+            },
+            "node_modules/@humanwhocodes/module-importer": {
+              "type": "object"
+            },
+            "node_modules/@humanwhocodes/retry": {
+              "type": "object"
+            },
+            "node_modules/@keyv/bigmap": {
+              "type": "object"
+            },
+            "node_modules/@keyv/serialize": {
+              "type": "object"
+            },
+            "node_modules/@types/esrecurse": {
+              "type": "object"
+            },
+            "node_modules/@types/estree": {
+              "type": "object"
+            },
+            "node_modules/@types/json-schema": {
+              "type": "object"
+            },
+            "node_modules/@typescript-eslint/eslint-plugin": {
+              "type": "object"
+            },
+            "node_modules/@typescript-eslint/eslint-plugin/node_modules/ignore": {
+              "type": "object"
+            },
+            "node_modules/@typescript-eslint/parser": {
+              "type": "object"
+            },
+            "node_modules/@typescript-eslint/project-service": {
+              "type": "object"
+            },
+            "node_modules/@typescript-eslint/scope-manager": {
+              "type": "object"
+            },
+            "node_modules/@typescript-eslint/tsconfig-utils": {
+              "type": "object"
+            },
+            "node_modules/@typescript-eslint/type-utils": {
+              "type": "object"
+            },
+            "node_modules/@typescript-eslint/types": {
+              "type": "object"
+            },
+            "node_modules/@typescript-eslint/typescript-estree": {
+              "type": "object"
+            },
+            "node_modules/@typescript-eslint/utils": {
+              "type": "object"
+            },
+            "node_modules/@typescript-eslint/visitor-keys": {
+              "type": "object"
+            },
+            "node_modules/acorn": {
+              "type": "object"
+            },
+            "node_modules/acorn-jsx": {
+              "type": "object"
+            },
+            "node_modules/ajv": {
+              "type": "object"
+            },
+            "node_modules/balanced-match": {
+              "type": "object"
+            },
+            "node_modules/brace-expansion": {
+              "type": "object"
+            },
+            "node_modules/cacheable": {
+              "type": "object"
+            },
+            "node_modules/cross-spawn": {
+              "type": "object"
+            },
+            "node_modules/debug": {
+              "type": "object"
+            },
+            "node_modules/deep-is": {
+              "type": "object"
+            },
+            "node_modules/escape-string-regexp": {
+              "type": "object"
+            },
+            "node_modules/eslint": {
+              "type": "object"
+            },
+            "node_modules/eslint-plugin-promise": {
+              "type": "object"
+            },
+            "node_modules/eslint-plugin-security": {
+              "type": "object"
+            },
+            "node_modules/eslint-scope": {
+              "type": "object"
+            },
+            "node_modules/eslint-visitor-keys": {
+              "type": "object"
+            },
+            "node_modules/espree": {
+              "type": "object"
+            },
+            "node_modules/esquery": {
+              "type": "object"
+            },
+            "node_modules/esrecurse": {
+              "type": "object"
+            },
+            "node_modules/estraverse": {
+              "type": "object"
+            },
+            "node_modules/esutils": {
+              "type": "object"
+            },
+            "node_modules/fast-deep-equal": {
+              "type": "object"
+            },
+            "node_modules/fast-json-stable-stringify": {
+              "type": "object"
+            },
+            "node_modules/fast-levenshtein": {
+              "type": "object"
+            },
+            "node_modules/fdir": {
+              "type": "object"
+            },
+            "node_modules/file-entry-cache": {
+              "type": "object"
+            },
+            "node_modules/find-up": {
+              "type": "object"
+            },
+            "node_modules/flat-cache": {
+              "type": "object"
+            },
+            "node_modules/flatted": {
+              "type": "object"
+            },
+            "node_modules/fsevents": {
+              "type": "object"
+            },
+            "node_modules/glob-parent": {
+              "type": "object"
+            },
+            "node_modules/globals": {
+              "type": "object"
+            },
+            "node_modules/hashery": {
+              "type": "object"
+            },
+            "node_modules/hookified": {
+              "type": "object"
+            },
+            "node_modules/ignore": {
+              "type": "object"
+            },
+            "node_modules/imurmurhash": {
+              "type": "object"
+            },
+            "node_modules/is-extglob": {
+              "type": "object"
+            },
+            "node_modules/is-glob": {
+              "type": "object"
+            },
+            "node_modules/isexe": {
+              "type": "object"
+            },
+            "node_modules/json-schema-traverse": {
+              "type": "object"
+            },
+            "node_modules/json-stable-stringify-without-jsonify": {
+              "type": "object"
+            },
+            "node_modules/keyv": {
+              "type": "object"
+            },
+            "node_modules/levn": {
+              "type": "object"
+            },
+            "node_modules/locate-path": {
+              "type": "object"
+            },
+            "node_modules/minimatch": {
+              "type": "object"
+            },
+            "node_modules/ms": {
+              "type": "object"
+            },
+            "node_modules/natural-compare": {
+              "type": "object"
+            },
+            "node_modules/optionator": {
+              "type": "object"
+            },
+            "node_modules/p-limit": {
+              "type": "object"
+            },
+            "node_modules/p-locate": {
+              "type": "object"
+            },
+            "node_modules/path-exists": {
+              "type": "object"
+            },
+            "node_modules/path-key": {
+              "type": "object"
+            },
+            "node_modules/picomatch": {
+              "type": "object"
+            },
+            "node_modules/prelude-ls": {
+              "type": "object"
+            },
+            "node_modules/punycode": {
+              "type": "object"
+            },
+            "node_modules/pyright": {
+              "type": "object"
+            },
+            "node_modules/qified": {
+              "type": "object"
+            },
+            "node_modules/qified/node_modules/hookified": {
+              "type": "object"
+            },
+            "node_modules/regexp-tree": {
+              "type": "object"
+            },
+            "node_modules/safe-regex": {
+              "type": "object"
+            },
+            "node_modules/semver": {
+              "type": "object"
+            },
+            "node_modules/shebang-command": {
+              "type": "object"
+            },
+            "node_modules/shebang-regex": {
+              "type": "object"
+            },
+            "node_modules/tinyglobby": {
+              "type": "object"
+            },
+            "node_modules/ts-api-utils": {
+              "type": "object"
+            },
+            "node_modules/type-check": {
+              "type": "object"
+            },
+            "node_modules/typescript": {
+              "type": "object"
+            },
+            "node_modules/typescript-eslint": {
+              "type": "object"
+            },
+            "node_modules/uri-js": {
+              "type": "object"
+            },
+            "node_modules/which": {
+              "type": "object"
+            },
+            "node_modules/word-wrap": {
+              "type": "object"
+            },
+            "node_modules/yocto-queue": {
+              "type": "object"
+            }
+          }
+        }
+      }
+    },
+    "tooling/configs/qa/script-node/package.json": {
+      "type": "object",
+      "required": [
+        "dependencies",
+        "name",
+        "private",
+        "version"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "private": {
+          "type": "boolean"
+        },
+        "version": {
+          "type": "string"
+        },
+        "dependencies": {
+          "type": "object",
+          "required": [
+            "eslint",
+            "eslint-plugin-promise",
+            "eslint-plugin-security",
+            "globals",
+            "pyright",
+            "typescript-eslint"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "pyright": {
+              "type": "string"
+            },
+            "eslint": {
+              "type": "string"
+            },
+            "typescript-eslint": {
+              "type": "string"
+            },
+            "eslint-plugin-promise": {
+              "type": "string"
+            },
+            "eslint-plugin-security": {
+              "type": "string"
+            },
+            "globals": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "tooling/configs/qa/script-node/tsconfig.json": {
+      "type": "object",
+      "required": [
+        "compilerOptions",
+        "include"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "compilerOptions": {
+          "type": "object",
+          "required": [
+            "allowJs",
+            "checkJs",
+            "module",
+            "moduleResolution",
+            "noEmit",
+            "strict",
+            "target"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "allowJs": {
+              "type": "boolean"
+            },
+            "checkJs": {
+              "type": "boolean"
+            },
+            "noEmit": {
+              "type": "boolean"
+            },
+            "target": {
+              "type": "string"
+            },
+            "module": {
+              "type": "string"
+            },
+            "moduleResolution": {
+              "type": "string"
+            },
+            "strict": {
+              "type": "boolean"
+            }
+          }
+        },
+        "include": {
+          "type": "array",
+          "items": {
+            "type": [
+              "string"
+            ]
+          }
+        }
+      }
+    },
+    "tooling/configs/qa/security-update-proofs.json": {
+      "type": "object",
+      "required": [
+        "exceptions",
+        "schemaVersion"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "schemaVersion": {
+          "type": "integer"
+        },
+        "exceptions": {
+          "type": "object",
+          "required": [
+            "cargo-nextest",
+            "python"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "python": {
+              "type": "object"
+            },
+            "cargo-nextest": {
+              "type": "object"
+            }
+          }
+        }
+      }
+    },
+    "tooling/configs/qa/tool-versions.json": {
+      "type": "object",
+      "required": [
+        "browserAutomation",
+        "cargoSubcommands",
+        "externalTools",
+        "githubActions",
+        "python",
+        "rust",
+        "schemaVersion",
+        "scriptTools",
+        "securityExceptions",
+        "updatePolicy",
+        "windows"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "schemaVersion": {
+          "type": "integer"
+        },
+        "cargoSubcommands": {
+          "type": "object",
+          "required": [
+            "cargo-about",
+            "cargo-audit",
+            "cargo-deny",
+            "cargo-llvm-cov",
+            "cargo-nextest"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "cargo-nextest": {
+              "type": "string"
+            },
+            "cargo-llvm-cov": {
+              "type": "string"
+            },
+            "cargo-audit": {
+              "type": "string"
+            },
+            "cargo-deny": {
+              "type": "string"
+            },
+            "cargo-about": {
+              "type": "string"
+            }
+          }
+        },
+        "externalTools": {
+          "type": "object",
+          "required": [
+            "gitleaks"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "gitleaks": {
+              "type": "object"
+            }
+          }
+        },
+        "rust": {
+          "type": "object",
+          "required": [
+            "channel"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "channel": {
+              "type": "string"
+            }
+          }
+        },
+        "windows": {
+          "type": "object",
+          "required": [
+            "sdk",
+            "sdkPackage",
+            "wix"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "wix": {
+              "type": "string"
+            },
+            "sdk": {
+              "type": "string"
+            },
+            "sdkPackage": {
+              "type": "string"
+            }
+          }
+        },
+        "updatePolicy": {
+          "type": "object",
+          "required": [
+            "minimumReleaseAgeDays"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "minimumReleaseAgeDays": {
+              "type": "integer"
+            }
+          }
+        },
+        "python": {
+          "type": "object",
+          "required": [
+            "version",
+            "windowsEmbeddableSha256"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "version": {
+              "type": "string"
+            },
+            "windowsEmbeddableSha256": {
+              "type": "string"
+            }
+          }
+        },
+        "githubActions": {
+          "type": "object",
+          "required": [
+            "actions/cache",
+            "actions/checkout",
+            "actions/download-artifact",
+            "actions/setup-python",
+            "actions/upload-artifact"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "actions/checkout": {
+              "type": "string"
+            },
+            "actions/cache": {
+              "type": "string"
+            },
+            "actions/setup-python": {
+              "type": "string"
+            },
+            "actions/upload-artifact": {
+              "type": "string"
+            },
+            "actions/download-artifact": {
+              "type": "string"
+            }
+          }
+        },
+        "securityExceptions": {
+          "type": "object",
+          "required": [
+            "cargo-nextest",
+            "python"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "python": {
+              "type": "object"
+            },
+            "cargo-nextest": {
+              "type": "object"
+            }
+          }
+        },
+        "browserAutomation": {
+          "type": "object",
+          "required": [
+            "node",
+            "playwrightCore"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "node": {
+              "type": "string"
+            },
+            "playwrightCore": {
+              "type": "string"
+            }
+          }
+        },
+        "scriptTools": {
+          "type": "object",
+          "required": [
+            "Cython",
+            "PSScriptAnalyzer",
+            "actionlint",
+            "eslint",
+            "eslint-plugin-promise",
+            "eslint-plugin-security",
+            "globals",
+            "jsonschema",
+            "pwsh",
+            "pyright",
+            "renovate",
+            "ruff",
+            "setuptools",
+            "shellcheck",
+            "shfmt",
+            "taplo",
+            "typescript-eslint",
+            "wheel",
+            "yamllint",
+            "zizmor"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "ruff": {
+              "type": "object"
+            },
+            "yamllint": {
+              "type": "object"
+            },
+            "jsonschema": {
+              "type": "object"
+            },
+            "zizmor": {
+              "type": "object"
+            },
+            "pyright": {
+              "type": "object"
+            },
+            "eslint": {
+              "type": "object"
+            },
+            "typescript-eslint": {
+              "type": "object"
+            },
+            "eslint-plugin-promise": {
+              "type": "object"
+            },
+            "eslint-plugin-security": {
+              "type": "object"
+            },
+            "globals": {
+              "type": "object"
+            },
+            "shellcheck": {
+              "type": "object"
+            },
+            "shfmt": {
+              "type": "object"
+            },
+            "actionlint": {
+              "type": "object"
+            },
+            "taplo": {
+              "type": "object"
+            },
+            "pwsh": {
+              "type": "object"
+            },
+            "PSScriptAnalyzer": {
+              "type": "object"
+            },
+            "renovate": {
+              "type": "object"
+            },
+            "setuptools": {
+              "type": "object"
+            },
+            "wheel": {
+              "type": "object"
+            },
+            "Cython": {
+              "type": "object"
+            }
+          }
+        }
+      }
+    },
+    "tooling/configs/qa/toolchain-lock.json": {
+      "type": "object",
+      "required": [
+        "actions",
+        "browserAutomation",
+        "cargo",
+        "nuget",
+        "policy",
+        "python",
+        "rust",
+        "schema_version",
+        "scriptTools",
+        "tools"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "type": "integer"
+        },
+        "browserAutomation": {
+          "type": "object",
+          "required": [
+            "node",
+            "playwrightCore"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "node": {
+              "type": "object"
+            },
+            "playwrightCore": {
+              "type": "object"
+            }
+          }
+        },
+        "cargo": {
+          "type": "array",
+          "items": {
+            "type": [
+              "object"
+            ]
+          }
+        },
+        "actions": {
+          "type": "object",
+          "required": [
+            "actions/cache",
+            "actions/checkout",
+            "actions/download-artifact",
+            "actions/setup-python",
+            "actions/upload-artifact"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "actions/checkout": {
+              "type": "object"
+            },
+            "actions/cache": {
+              "type": "object"
+            },
+            "actions/setup-python": {
+              "type": "object"
+            },
+            "actions/upload-artifact": {
+              "type": "object"
+            },
+            "actions/download-artifact": {
+              "type": "object"
+            }
+          }
+        },
+        "python": {
+          "type": "object",
+          "required": [
+            "publishedAt",
+            "source",
+            "version",
+            "windows"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "version": {
+              "type": "string"
+            },
+            "publishedAt": {
+              "type": "string"
+            },
+            "source": {
+              "type": "string"
+            },
+            "windows": {
+              "type": "object"
+            }
+          }
+        },
+        "rust": {
+          "type": "object",
+          "required": [
+            "components",
+            "manifest_sha256",
+            "publishedAt",
+            "rust_version",
+            "schema_version",
+            "source",
+            "target"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "schema_version": {
+              "type": "integer"
+            },
+            "rust_version": {
+              "type": "string"
+            },
+            "target": {
+              "type": "string"
+            },
+            "manifest_sha256": {
+              "type": "string"
+            },
+            "components": {
+              "type": "array",
+              "items": {
+                "type": [
+                  "object"
+                ]
+              }
+            },
+            "publishedAt": {
+              "type": "string"
+            },
+            "source": {
+              "type": "string"
+            }
+          }
+        },
+        "nuget": {
+          "type": "object",
+          "required": [
+            "microsoft.windows.sdk.cpp",
+            "microsoft.windows.sdk.cpp.x64",
+            "wix",
+            "wixtoolset.ui.wixext"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "wix": {
+              "type": "object"
+            },
+            "wixtoolset.ui.wixext": {
+              "type": "object"
+            },
+            "microsoft.windows.sdk.cpp": {
+              "type": "object"
+            },
+            "microsoft.windows.sdk.cpp.x64": {
+              "type": "object"
+            }
+          }
+        },
+        "tools": {
+          "type": "object",
+          "required": [
+            "cargo-about",
+            "cargo-audit",
+            "cargo-deny",
+            "cargo-llvm-cov",
+            "cargo-nextest",
+            "gitleaks"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "cargo-nextest": {
+              "type": "object"
+            },
+            "cargo-llvm-cov": {
+              "type": "object"
+            },
+            "cargo-audit": {
+              "type": "object"
+            },
+            "cargo-deny": {
+              "type": "object"
+            },
+            "cargo-about": {
+              "type": "object"
+            },
+            "gitleaks": {
+              "type": "object"
+            }
+          }
+        },
+        "policy": {
+          "type": "object",
+          "required": [
+            "minimumReleaseAgeDays"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "minimumReleaseAgeDays": {
+              "type": "integer"
+            }
+          }
+        },
+        "scriptTools": {
+          "type": "object",
+          "required": [
+            "Cython",
+            "PSScriptAnalyzer",
+            "actionlint",
+            "eslint",
+            "eslint-plugin-promise",
+            "eslint-plugin-security",
+            "globals",
+            "jsonschema",
+            "pwsh",
+            "pyright",
+            "renovate",
+            "ruff",
+            "setuptools",
+            "shellcheck",
+            "shfmt",
+            "taplo",
+            "typescript-eslint",
+            "wheel",
+            "yamllint",
+            "zizmor"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "ruff": {
+              "type": "object"
+            },
+            "yamllint": {
+              "type": "object"
+            },
+            "jsonschema": {
+              "type": "object"
+            },
+            "zizmor": {
+              "type": "object"
+            },
+            "pyright": {
+              "type": "object"
+            },
+            "eslint": {
+              "type": "object"
+            },
+            "typescript-eslint": {
+              "type": "object"
+            },
+            "eslint-plugin-promise": {
+              "type": "object"
+            },
+            "eslint-plugin-security": {
+              "type": "object"
+            },
+            "globals": {
+              "type": "object"
+            },
+            "shellcheck": {
+              "type": "object"
+            },
+            "shfmt": {
+              "type": "object"
+            },
+            "actionlint": {
+              "type": "object"
+            },
+            "taplo": {
+              "type": "object"
+            },
+            "pwsh": {
+              "type": "object"
+            },
+            "PSScriptAnalyzer": {
+              "type": "object"
+            },
+            "renovate": {
+              "type": "object"
+            },
+            "setuptools": {
+              "type": "object"
+            },
+            "wheel": {
+              "type": "object"
+            },
+            "Cython": {
+              "type": "object"
+            }
+          }
+        }
+      }
+    },
+    "tooling/configs/qa/unsafe-ffi-adapter-proof.json": {
+      "type": "object",
+      "required": [
+        "$comment",
+        "adapters",
+        "formatVersion"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "$comment": {
+          "type": "string"
+        },
+        "formatVersion": {
+          "type": "integer"
+        },
+        "adapters": {
+          "type": "array",
+          "items": {
+            "type": [
+              "object"
+            ]
+          }
+        }
+      }
+    },
+    "tooling/configs/qa/wrappers.json": {
+      "type": "object",
+      "required": [
+        "schemaVersion",
+        "wrappers"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "schemaVersion": {
+          "type": "integer"
+        },
+        "wrappers": {
+          "type": "array",
+          "items": {
+            "type": [
+              "object"
+            ]
+          }
+        }
+      }
+    },
+    "tooling/desktop/e2e_lab/guest/browser-extension/manifest.json": {
+      "type": "object",
+      "required": [
+        "host_permissions",
+        "key",
+        "manifest_version",
+        "name",
+        "permissions",
+        "version"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "manifest_version": {
+          "type": "integer"
+        },
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "key": {
+          "type": "string"
+        },
+        "permissions": {
+          "type": "array",
+          "items": {
+            "type": [
+              "string"
+            ]
+          }
+        },
+        "host_permissions": {
+          "type": "array",
+          "items": {
+            "type": [
+              "string"
+            ]
+          }
+        }
+      }
+    },
+    "tooling/desktop/e2e_lab/lab-config.json": {
+      "type": "object",
+      "required": [
+        "lanes",
+        "limits",
+        "timeouts_seconds"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "lanes": {
+          "type": "object",
+          "required": [
+            "linux-wayland",
+            "linux-x11",
+            "windows-11"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "linux-wayland": {
+              "type": "object"
+            },
+            "linux-x11": {
+              "type": "object"
+            },
+            "windows-11": {
+              "type": "object"
+            }
+          }
+        },
+        "timeouts_seconds": {
+          "type": "object",
+          "required": [
+            "boot",
+            "provision",
+            "shutdown",
+            "test"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "boot": {
+              "type": "integer"
+            },
+            "test": {
+              "type": "integer"
+            },
+            "shutdown": {
+              "type": "integer"
+            },
+            "provision": {
+              "type": "integer"
+            }
+          }
+        },
+        "limits": {
+          "type": "object",
+          "required": [
+            "max_cache_gib",
+            "max_log_mib",
+            "max_persistent_gib",
+            "max_recording_mib",
+            "max_run_age_days",
+            "max_runs",
+            "max_screenshot_mib",
+            "max_temporary_gib",
+            "min_available_memory_mib",
+            "min_free_gib"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "min_free_gib": {
+              "type": "integer"
+            },
+            "min_available_memory_mib": {
+              "type": "integer"
+            },
+            "max_runs": {
+              "type": "integer"
+            },
+            "max_run_age_days": {
+              "type": "integer"
+            },
+            "max_log_mib": {
+              "type": "integer"
+            },
+            "max_screenshot_mib": {
+              "type": "integer"
+            },
+            "max_recording_mib": {
+              "type": "integer"
+            },
+            "max_cache_gib": {
+              "type": "integer"
+            },
+            "max_temporary_gib": {
+              "type": "integer"
+            },
+            "max_persistent_gib": {
+              "type": "integer"
+            }
+          }
+        }
+      }
+    },
+    "tooling/release/windows/windows-release-evidence-template.json": {
+      "type": "object",
+      "required": [
+        "$comment",
+        "accessibilityBaseline",
+        "evidenceFiles",
+        "formatVersion",
+        "performanceBaseline",
+        "releaseCandidate",
+        "review",
+        "windowsHardeningReview"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "$comment": {
+          "type": "string"
+        },
+        "formatVersion": {
+          "type": "integer"
+        },
+        "releaseCandidate": {
+          "type": "object",
+          "required": [
+            "browserBuilds",
+            "channel",
+            "extensionVersion",
+            "installerEvidence",
+            "nativeVersion",
+            "windowsBuild"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "nativeVersion": {
+              "type": "string"
+            },
+            "extensionVersion": {
+              "type": "string"
+            },
+            "channel": {
+              "type": "string"
+            },
+            "windowsBuild": {
+              "type": "string"
+            },
+            "browserBuilds": {
+              "type": "object"
+            },
+            "installerEvidence": {
+              "type": "object"
+            }
+          }
+        },
+        "performanceBaseline": {
+          "type": "object",
+          "required": [
+            "coldStartMs",
+            "reconnectDuringRecording",
+            "recordingFiveMinute",
+            "screenshotCaptureMs"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "coldStartMs": {
+              "type": "null"
+            },
+            "screenshotCaptureMs": {
+              "type": "null"
+            },
+            "recordingFiveMinute": {
+              "type": "object"
+            },
+            "reconnectDuringRecording": {
+              "type": "object"
+            }
+          }
+        },
+        "accessibilityBaseline": {
+          "type": "object",
+          "required": [
+            "accessibilityInsightsRunId",
+            "overlayFocusReturn",
+            "overlayHighContrastUsable",
+            "overlayKeyboardCancel",
+            "trayKeyboardOnly",
+            "trayUiaNamesAndRoles"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "trayKeyboardOnly": {
+              "type": "boolean"
+            },
+            "trayUiaNamesAndRoles": {
+              "type": "boolean"
+            },
+            "overlayKeyboardCancel": {
+              "type": "boolean"
+            },
+            "overlayFocusReturn": {
+              "type": "boolean"
+            },
+            "overlayHighContrastUsable": {
+              "type": "boolean"
+            },
+            "accessibilityInsightsRunId": {
+              "type": "string"
+            }
+          }
+        },
+        "windowsHardeningReview": {
+          "type": "object",
+          "required": [
+            "appLockerSecondaryGuidanceReviewed",
+            "bitLockerDefenseInDepthAcknowledged",
+            "cfgProcessMitigationGuidanceReviewed",
+            "noProductRuntimePolicyAdded",
+            "wdacAppControlGuidanceReviewed"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "wdacAppControlGuidanceReviewed": {
+              "type": "boolean"
+            },
+            "appLockerSecondaryGuidanceReviewed": {
+              "type": "boolean"
+            },
+            "cfgProcessMitigationGuidanceReviewed": {
+              "type": "boolean"
+            },
+            "bitLockerDefenseInDepthAcknowledged": {
+              "type": "boolean"
+            },
+            "noProductRuntimePolicyAdded": {
+              "type": "boolean"
+            }
+          }
+        },
+        "evidenceFiles": {
+          "type": "object",
+          "required": [
+            "accessibilityReportFileName",
+            "manualQaNotesFileName",
+            "wprTraceFileName"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "wprTraceFileName": {
+              "type": "string"
+            },
+            "accessibilityReportFileName": {
+              "type": "string"
+            },
+            "manualQaNotesFileName": {
+              "type": "string"
+            }
+          }
+        },
+        "review": {
+          "type": "object",
+          "required": [
+            "approvedForProductionCandidate",
+            "completedAtUtc",
+            "tester"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "tester": {
+              "type": "string"
+            },
+            "completedAtUtc": {
+              "type": "string"
+            },
+            "approvedForProductionCandidate": {
+              "type": "boolean"
+            }
+          }
+        }
+      }
+    },
+    "tooling/configs/qa/json-contracts.json": {
+      "type": "object",
+      "required": [
+        "schemaVersion",
+        "contracts"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "contracts": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object"
+          }
+        }
+      }
+    }
+  }
+}

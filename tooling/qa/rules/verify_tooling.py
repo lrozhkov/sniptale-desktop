@@ -363,6 +363,7 @@ def validate_hosted_qa_policy(errors: list[str]) -> None:
         "python3 tooling/qa/runtime/toolchain.py --install-rust",
         "tooling/qa/installers/install-release-tools.sh",
         "tooling/qa/wrappers/alpha-proof.sh",
+        "tooling/qa/wrappers/environment-audit.sh",
         "python3 -m tooling.qa.runtime.compilation_cache",
         'test -n "$ImageVersion" && echo "version=$ImageVersion" >> "$GITHUB_OUTPUT"',
         "& tooling/release/windows/alpha-package.ps1 -QaProof .tmp/release/alpha-proof -Tag $env:ALPHA_TAG",
@@ -421,6 +422,12 @@ def validate_hosted_qa_policy(errors: list[str]) -> None:
             if name == "alpha.yml" and workflow["jobs"]["package"].get("needs") != "qa":
                 errors.append("alpha package must require canonical QA")
             if name == "checks.yml":
+                fast = workflow["jobs"].get("fast", {})
+                if workflow["jobs"]["qa"].get("needs") != "fast":
+                    errors.append("compilation must wait for fast environment and script checks")
+                audits = [step for step in fast.get("steps", []) if step.get("run") == "tooling/qa/wrappers/environment-audit.sh"]
+                if len(audits) != 1 or any(step.get("continue-on-error") or "if" in step for step in audits):
+                    errors.append("fast tool environment audit must be unconditional and blocking")
                 steps = workflow["jobs"]["qa"]["steps"]
                 cache = [i for i, step in enumerate(steps) if step.get("name") == "Cache compiled Linux dependencies"]
                 images = [i for i, step in enumerate(steps) if step.get("id") == "build-image"

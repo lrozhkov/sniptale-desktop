@@ -13,6 +13,7 @@ Windows CI and guest builds use `tooling/release/windows/toolchain.ps1` to verif
 ## Wrapper routing
 
 - `preflight.sh` reports repository/toolchain context and runs read-only architecture checks.
+- `environment-audit.sh` checks exact cataloged build and QA tool versions against fresh OSV, upstream CPython release commits, and NVD results, and verifies advisory-bound release-age exceptions. It does not build the application or start a VM. Unsupported coverage and platform inputs appear explicitly in its report; empty advisory results are not a claim of complete bundled-dependency coverage.
 - `audit.sh` runs pinned Gitleaks against the current tree and complete Git history. A shallow checkout, unavailable or wrong tool version, finding, malformed baseline, or incomplete report fails the audit.
 - `release-harness.sh` validates tooling topology, registries, docs policy, hosted-workflow policy, Python tests, shell syntax, desktop-lab controller tests, and guardrail self-tests. Tooling, hosted-workflow policy, docs-policy, or repo-skill changes require fresh harness state.
 - `checkpoint.sh` is the in-progress product gate: format, docs/legal policy, static guardrails, Windows-target compilation, clippy, owner tests, and QA runtime tests.

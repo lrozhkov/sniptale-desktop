@@ -136,7 +136,7 @@ class AlphaArtifactTests(unittest.TestCase):
                 (runtime / "lib.sh").write_text("ensure_rust_env() { :; }\n")
                 (configs / "tool-versions.json").write_text(json.dumps(versions))
                 shutil.copyfile(ROOT / "tooling/configs/qa/toolchain-lock.json", configs / "toolchain-lock.json")
-                for module in ("toolchain.py", "browser_toolchain.py"):
+                for module in ("toolchain.py", "browser_toolchain.py", "script_toolchain.py", "advisories.py"):
                     shutil.copyfile(ROOT / "tooling/qa/runtime" / module, runtime / module)
                 shutil.copyfile(ROOT / "rust-toolchain.toml", root / "rust-toolchain.toml")
                 shutil.copyfile(ROOT / "Cargo.lock", root / "Cargo.lock")

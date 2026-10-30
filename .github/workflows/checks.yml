@@ -9,6 +9,32 @@
     "contents": "read"
   },
   "jobs": {
+    "fast": {
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 15,
+      "env": {
+        "GH_TOKEN": "${{ github.token }}"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "with": {
+            "fetch-depth": 0,
+            "persist-credentials": false
+          }
+        },
+        {
+          "uses": "actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0",
+          "with": {
+            "python-version": "3.15.2"
+          }
+        },
+        {
+          "name": "Audit build and QA tool advisories",
+          "run": "tooling/qa/wrappers/environment-audit.sh"
+        }
+      ]
+    },
     "qa": {
       "runs-on": "ubuntu-24.04",
       "timeout-minutes": 90,
@@ -86,7 +112,8 @@
             "retention-days": 14
           }
         }
-      ]
+      ],
+      "needs": "fast"
     }
   }
 }

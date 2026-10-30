@@ -1,0 +1,15 @@
+{
+  "include": [
+    "../../../tooling"
+  ],
+  "typeCheckingMode": "standard",
+  "pythonVersion": "3.12",
+  "reportUnnecessaryTypeIgnoreComment": "error",
+  "extraPaths": [
+    "../../../tooling/desktop/e2e_lab",
+    "../../../tooling/qa/rules",
+    "../../.."
+  ],
+  "venvPath": "../../../.tmp/qa-tools/script-tools",
+  "venv": "python"
+}

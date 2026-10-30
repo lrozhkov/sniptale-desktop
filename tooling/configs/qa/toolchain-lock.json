@@ -1,5 +1,25 @@
 {
   "schema_version": 1,
+  "browserAutomation": {
+    "node": {
+      "version": "24.22.1",
+      "url": "https://nodejs.org/dist/v24.22.1/win-x64/node.exe",
+      "sha256": "d702daa815eabbff763c7d3808e235cf031cf2ca70211b56847bc72f51e240e5",
+      "publishedAt": "2026-10-20T23:59:59Z",
+      "source": "https://nodejs.org/dist/index.json",
+      "linuxX64": {
+        "url": "https://nodejs.org/dist/v24.22.1/node-v24.22.1-linux-x64.tar.xz",
+        "sha256": "6c172a9ab6718f7b801fb5a7bd486af2ee5e32758086a04b84fcce2aa77095e6"
+      }
+    },
+    "playwrightCore": {
+      "version": "1.64.1",
+      "url": "https://registry.npmjs.org/playwright-core/-/playwright-core-1.64.1.tgz",
+      "sha256": "3af03703c967c95037454f2283f709d53ce804a4776d4219d319f5bbcc2a0185",
+      "publishedAt": "2026-10-14T11:51:33Z",
+      "source": "https://github.com/microsoft/playwright/releases/tag/v1.64.1"
+    }
+  },
   "cargo": [
     {
       "name": "aead",
@@ -970,9 +990,9 @@
   },
   "tools": {
     "cargo-nextest": {
-      "version": "0.9.149",
-      "publishedAt": "2026-10-20T23:55:15Z",
-      "source": "https://github.com/nextest-rs/nextest/releases/tag/cargo-nextest-0.9.149"
+      "version": "0.9.150",
+      "publishedAt": "2026-10-26T18:31:35Z",
+      "source": "https://github.com/nextest-rs/nextest/releases/tag/cargo-nextest-0.9.150"
     },
     "cargo-llvm-cov": {
       "version": "0.9.1",
@@ -1003,20 +1023,176 @@
   "policy": {
     "minimumReleaseAgeDays": 7
   },
-  "browserAutomation": {
-    "node": {
-      "version": "24.22.1",
-      "url": "https://nodejs.org/dist/v24.22.1/win-x64/node.exe",
-      "sha256": "d702daa815eabbff763c7d3808e235cf031cf2ca70211b56847bc72f51e240e5",
-      "publishedAt": "2026-10-20T23:59:59Z",
-      "source": "https://nodejs.org/dist/index.json"
+  "scriptTools": {
+    "ruff": {
+      "version": "0.17.2",
+      "manager": "pypi",
+      "package": "ruff",
+      "source": "https://pypi.org/pypi/ruff/0.17.2/json",
+      "publishedAt": "2026-10-22T18:37:14.956985Z"
     },
-    "playwrightCore": {
-      "version": "1.64.1",
-      "url": "https://registry.npmjs.org/playwright-core/-/playwright-core-1.64.1.tgz",
-      "sha256": "3af03703c967c95037454f2283f709d53ce804a4776d4219d319f5bbcc2a0185",
-      "publishedAt": "2026-10-14T11:51:33Z",
-      "source": "https://github.com/microsoft/playwright/releases/tag/v1.64.1"
+    "yamllint": {
+      "version": "1.38.0",
+      "manager": "pypi",
+      "package": "yamllint",
+      "source": "https://pypi.org/pypi/yamllint/1.38.0/json",
+      "publishedAt": "2026-01-13T07:47:51.343950Z"
+    },
+    "jsonschema": {
+      "version": "4.26.0",
+      "manager": "pypi",
+      "package": "jsonschema",
+      "source": "https://pypi.org/pypi/jsonschema/4.26.0/json",
+      "publishedAt": "2026-01-07T13:41:05.306692Z"
+    },
+    "zizmor": {
+      "version": "1.31.1",
+      "manager": "pypi",
+      "package": "zizmor",
+      "source": "https://pypi.org/pypi/zizmor/1.31.1/json",
+      "publishedAt": "2026-10-15T23:12:56.864104Z"
+    },
+    "pyright": {
+      "version": "1.1.414",
+      "manager": "npm",
+      "package": "pyright",
+      "source": "https://registry.npmjs.org/pyright/1.1.414",
+      "publishedAt": "2026-09-09T20:42:01.701Z"
+    },
+    "eslint": {
+      "version": "10.13.0",
+      "manager": "npm",
+      "package": "eslint",
+      "source": "https://registry.npmjs.org/eslint/10.13.0",
+      "publishedAt": "2026-10-16T14:24:10.765Z"
+    },
+    "typescript-eslint": {
+      "version": "8.72.0",
+      "manager": "npm",
+      "package": "typescript-eslint",
+      "source": "https://registry.npmjs.org/typescript-eslint/8.72.0",
+      "publishedAt": "2026-10-19T17:08:09.147Z"
+    },
+    "eslint-plugin-promise": {
+      "version": "7.3.0",
+      "manager": "npm",
+      "package": "eslint-plugin-promise",
+      "source": "https://registry.npmjs.org/eslint-plugin-promise/7.3.0",
+      "publishedAt": "2026-04-27T05:06:55.629Z"
+    },
+    "eslint-plugin-security": {
+      "version": "4.2.0",
+      "manager": "npm",
+      "package": "eslint-plugin-security",
+      "source": "https://registry.npmjs.org/eslint-plugin-security/4.2.0",
+      "publishedAt": "2026-10-01T06:51:12.579Z"
+    },
+    "globals": {
+      "version": "17.13.0",
+      "manager": "npm",
+      "package": "globals",
+      "source": "https://registry.npmjs.org/globals/17.13.0",
+      "publishedAt": "2026-10-01T03:57:11.938Z"
+    },
+    "shellcheck": {
+      "version": "0.11.0",
+      "manager": "github",
+      "repository": "koalaman/shellcheck",
+      "tag": "v0.11.0",
+      "linuxX64": {
+        "url": "https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.linux.x86_64.tar.xz",
+        "sha256": "8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198"
+      },
+      "publishedAt": "2025-08-04T00:27:19Z",
+      "source": "https://github.com/koalaman/shellcheck/releases/tag/v0.11.0"
+    },
+    "shfmt": {
+      "version": "3.14.1",
+      "manager": "github",
+      "repository": "mvdan/sh",
+      "tag": "v3.14.1",
+      "linuxX64": {
+        "url": "https://github.com/mvdan/sh/releases/download/v3.14.1/shfmt_v3.14.1_linux_amd64",
+        "sha256": "76e77641faa025814b77f153b29796b8e6fa2fca03e0c76a691608b86c7ea7bf"
+      },
+      "publishedAt": "2026-09-06T15:02:21Z",
+      "source": "https://github.com/mvdan/sh/releases/tag/v3.14.1"
+    },
+    "actionlint": {
+      "version": "1.7.12",
+      "manager": "github",
+      "repository": "rhysd/actionlint",
+      "tag": "v1.7.12",
+      "linuxX64": {
+        "url": "https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz",
+        "sha256": "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8"
+      },
+      "publishedAt": "2026-03-30T17:49:21Z",
+      "source": "https://github.com/rhysd/actionlint/releases/tag/v1.7.12"
+    },
+    "taplo": {
+      "version": "0.10.0",
+      "manager": "github",
+      "repository": "tamasfe/taplo",
+      "tag": "0.10.0",
+      "linuxX64": {
+        "url": "https://github.com/tamasfe/taplo/releases/download/0.10.0/taplo-linux-x86_64.gz",
+        "sha256": "8fe196b894ccf9072f98d4e1013a180306e17d244830b03986ee5e8eabeb6156"
+      },
+      "publishedAt": "2025-05-23T04:06:45Z",
+      "source": "https://github.com/tamasfe/taplo/releases/tag/0.10.0"
+    },
+    "pwsh": {
+      "version": "7.6.8",
+      "manager": "github",
+      "repository": "PowerShell/PowerShell",
+      "tag": "v7.6.8",
+      "linuxX64": {
+        "url": "https://github.com/PowerShell/PowerShell/releases/download/v7.6.8/powershell-7.6.8-linux-x64.tar.gz",
+        "sha256": "59112e38ad83350e4f6dc0195953c66b5926792f300ca2e7691b8242e7a16e7f"
+      },
+      "publishedAt": "2026-10-22T17:06:53Z",
+      "source": "https://github.com/PowerShell/PowerShell/releases/tag/v7.6.8"
+    },
+    "PSScriptAnalyzer": {
+      "version": "1.25.0",
+      "manager": "github",
+      "repository": "PowerShell/PSScriptAnalyzer",
+      "tag": "1.25.0",
+      "linuxX64": {
+        "url": "https://github.com/PowerShell/PSScriptAnalyzer/releases/download/1.25.0/PSScriptAnalyzer.1.25.0.nupkg",
+        "sha256": "14e634c828eb98efb9f40b2918ba90f139ed5eccdf663a2a747736d996995d60"
+      },
+      "publishedAt": "2026-03-20T19:39:32Z",
+      "source": "https://github.com/PowerShell/PSScriptAnalyzer/releases/tag/1.25.0"
+    },
+    "renovate": {
+      "version": "44.181.0",
+      "manager": "npm",
+      "package": "renovate",
+      "publishedAt": "2026-10-23T14:21:05Z",
+      "source": "https://github.com/renovatebot/renovate/releases/tag/44.181.0"
+    },
+    "setuptools": {
+      "version": "84.2.1",
+      "manager": "pypi",
+      "package": "setuptools",
+      "source": "https://pypi.org/pypi/setuptools/84.2.1/json",
+      "publishedAt": "2026-10-20T19:01:35.678013Z"
+    },
+    "wheel": {
+      "version": "0.48.0",
+      "manager": "pypi",
+      "package": "wheel",
+      "source": "https://pypi.org/pypi/wheel/0.48.0/json",
+      "publishedAt": "2026-08-11T22:02:26.100721Z"
+    },
+    "Cython": {
+      "version": "3.3.0",
+      "manager": "pypi",
+      "package": "Cython",
+      "source": "https://pypi.org/pypi/Cython/3.3.0/json",
+      "publishedAt": "2026-08-22T05:16:36.741632Z"
     }
   }
 }

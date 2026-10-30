@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "cargoSubcommands": {
-    "cargo-nextest": "0.9.149",
+    "cargo-nextest": "0.9.150",
     "cargo-llvm-cov": "0.9.1",
     "cargo-audit": "0.22.2",
     "cargo-deny": "0.20.2",
@@ -43,10 +43,147 @@
       "advisory": "https://www.cve.org/CVERecord?id=CVE-2026-115557",
       "reason": "Python security release distrusts compromised eMudhra CA keys and fixes tarfile link replacement (CVE-2026-114583). Official confirmation: https://blog.python.org/2026/10/python-3152-31410-31318-31216-31118/",
       "fixedVersion": "3.15.2"
+    },
+    "cargo-nextest": {
+      "advisory": "https://rustsec.org/advisories/RUSTSEC-2026-0412.html",
+      "reason": "Fixes arbitrary code execution through unvalidated Cargo arguments in portable rerun recordings; upstream patched range is >=0.9.150.",
+      "fixedVersion": "0.9.150"
     }
   },
   "browserAutomation": {
     "node": "24.22.1",
     "playwrightCore": "1.64.1"
+  },
+  "scriptTools": {
+    "ruff": {
+      "version": "0.17.2",
+      "manager": "pypi",
+      "package": "ruff"
+    },
+    "yamllint": {
+      "version": "1.38.0",
+      "manager": "pypi",
+      "package": "yamllint"
+    },
+    "jsonschema": {
+      "version": "4.26.0",
+      "manager": "pypi",
+      "package": "jsonschema"
+    },
+    "zizmor": {
+      "version": "1.31.1",
+      "manager": "pypi",
+      "package": "zizmor"
+    },
+    "pyright": {
+      "version": "1.1.414",
+      "manager": "npm",
+      "package": "pyright"
+    },
+    "eslint": {
+      "version": "10.13.0",
+      "manager": "npm",
+      "package": "eslint"
+    },
+    "typescript-eslint": {
+      "version": "8.72.0",
+      "manager": "npm",
+      "package": "typescript-eslint"
+    },
+    "eslint-plugin-promise": {
+      "version": "7.3.0",
+      "manager": "npm",
+      "package": "eslint-plugin-promise"
+    },
+    "eslint-plugin-security": {
+      "version": "4.2.0",
+      "manager": "npm",
+      "package": "eslint-plugin-security"
+    },
+    "globals": {
+      "version": "17.13.0",
+      "manager": "npm",
+      "package": "globals"
+    },
+    "shellcheck": {
+      "version": "0.11.0",
+      "manager": "github",
+      "repository": "koalaman/shellcheck",
+      "tag": "v0.11.0",
+      "linuxX64": {
+        "url": "https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.linux.x86_64.tar.xz",
+        "sha256": "8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198"
+      }
+    },
+    "shfmt": {
+      "version": "3.14.1",
+      "manager": "github",
+      "repository": "mvdan/sh",
+      "tag": "v3.14.1",
+      "linuxX64": {
+        "url": "https://github.com/mvdan/sh/releases/download/v3.14.1/shfmt_v3.14.1_linux_amd64",
+        "sha256": "76e77641faa025814b77f153b29796b8e6fa2fca03e0c76a691608b86c7ea7bf"
+      }
+    },
+    "actionlint": {
+      "version": "1.7.12",
+      "manager": "github",
+      "repository": "rhysd/actionlint",
+      "tag": "v1.7.12",
+      "linuxX64": {
+        "url": "https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz",
+        "sha256": "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8"
+      }
+    },
+    "taplo": {
+      "version": "0.10.0",
+      "manager": "github",
+      "repository": "tamasfe/taplo",
+      "tag": "0.10.0",
+      "linuxX64": {
+        "url": "https://github.com/tamasfe/taplo/releases/download/0.10.0/taplo-linux-x86_64.gz",
+        "sha256": "8fe196b894ccf9072f98d4e1013a180306e17d244830b03986ee5e8eabeb6156"
+      }
+    },
+    "pwsh": {
+      "version": "7.6.8",
+      "manager": "github",
+      "repository": "PowerShell/PowerShell",
+      "tag": "v7.6.8",
+      "linuxX64": {
+        "url": "https://github.com/PowerShell/PowerShell/releases/download/v7.6.8/powershell-7.6.8-linux-x64.tar.gz",
+        "sha256": "59112e38ad83350e4f6dc0195953c66b5926792f300ca2e7691b8242e7a16e7f"
+      }
+    },
+    "PSScriptAnalyzer": {
+      "version": "1.25.0",
+      "manager": "github",
+      "repository": "PowerShell/PSScriptAnalyzer",
+      "tag": "1.25.0",
+      "linuxX64": {
+        "url": "https://github.com/PowerShell/PSScriptAnalyzer/releases/download/1.25.0/PSScriptAnalyzer.1.25.0.nupkg",
+        "sha256": "14e634c828eb98efb9f40b2918ba90f139ed5eccdf663a2a747736d996995d60"
+      }
+    },
+    "renovate": {
+      "version": "44.181.0",
+      "manager": "npm",
+      "package": "renovate"
+    },
+    "setuptools": {
+      "version": "84.2.1",
+      "manager": "pypi",
+      "package": "setuptools"
+    },
+    "wheel": {
+      "version": "0.48.0",
+      "manager": "pypi",
+      "package": "wheel"
+    },
+    "Cython": {
+      "version": "3.3.0",
+      "manager": "pypi",
+      "package": "Cython"
+    }
   }
 }

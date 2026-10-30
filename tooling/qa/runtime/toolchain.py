@@ -6,6 +6,7 @@ import concurrent.futures
 import hashlib
 import io
 import json
+import os
 import re
 import subprocess
 import sys
@@ -68,9 +69,14 @@ def check_age(publication, policy, exception=None, *, now=None):
 
 def fetch(url, maximum=2 * 1024 * 1024):
     parsed = urllib.parse.urlparse(url)
-    if parsed.scheme != "https" or parsed.hostname not in {"static.rust-lang.org", "api.nuget.org", "api.github.com", "www.python.org", "crates.io", "nodejs.org", "registry.npmjs.org"}:
+    if parsed.scheme != "https" or parsed.hostname not in {"static.rust-lang.org", "api.nuget.org", "api.github.com", "www.python.org", "crates.io", "nodejs.org", "registry.npmjs.org", "pypi.org"}:
         raise ToolchainError("unapproved toolchain metadata source")
-    request = urllib.request.Request(url, headers={"User-Agent": "SniptaleToolchain/1"})
+    headers = {"User-Agent": "SniptaleToolchain/1"}
+    from tooling.qa.runtime.advisories import github_token
+    token = github_token() if parsed.hostname == "api.github.com" else None
+    if token:
+        headers["Authorization"] = "Bearer " + token
+    request = urllib.request.Request(url, headers=headers)
     with urllib.request.urlopen(request, timeout=60) as response:
         if urllib.parse.urlparse(response.geturl()).hostname != parsed.hostname:
             raise ToolchainError("toolchain metadata redirected to another host")
@@ -234,11 +240,11 @@ def resolve(root=ROOT):
     python = {"version": python_version, "publishedAt": releases[0]["release_date"], "source": python_source,
               "windows": {"url": python_url, "sha256": python_hash}}
     check_age(python["publishedAt"], policy, versions.get("securityExceptions", {}).get("python"))
-    from tooling.qa.runtime import browser_toolchain
+    from tooling.qa.runtime import browser_toolchain, script_toolchain
     browser = browser_toolchain.resolve(versions, fetch, github_release, check_age)
     return {"schema_version": 1, "browserAutomation": browser, "cargo": resolve_cargo(root, versions), "actions": actions, "python": python, "rust": {"schema_version": 1, "rust_version": rust, "target": target,
             "manifest_sha256": expected, "components": components, **rust_release}, "nuget": packages,
-            "tools": tools, "policy": policy}
+            "tools": tools, "policy": policy, "scriptTools": script_toolchain.resolve(versions, fetch, github_release, check_age)}
 
 
 def check(root=ROOT):
@@ -251,12 +257,14 @@ def check(root=ROOT):
         raise ToolchainError("generated rust-toolchain.toml is stale; run toolchain.sh --sync")
     from tooling.qa.runtime import browser_toolchain
     browser_toolchain.check(versions, lock.get("browserAutomation"), check_age)
+    from tooling.qa.runtime import script_toolchain
+    script_toolchain.check(versions, lock.get("scriptTools", {}), check_age)
     expected_tools = set(versions["cargoSubcommands"]) | {"gitleaks"}
     if set(lock["tools"]) != expected_tools or set(lock["nuget"]) != {"wix", "wixtoolset.ui.wixext", "microsoft.windows.sdk.cpp", "microsoft.windows.sdk.cpp.x64"} or set(lock["actions"]) != set(versions["githubActions"]):
         raise ToolchainError("toolchain release inventory incomplete")
     packages = cargo_packages(root)
     package_exceptions = {"crate:" + item["name"] + "@" + item["version"] for item in packages}
-    if set(versions.get("securityExceptions", {})) - (expected_tools | {"rust", "wix", "windows-sdk", "python"} | package_exceptions):
+    if set(versions.get("securityExceptions", {})) - (expected_tools | set(versions.get("scriptTools", {})) | {"rust", "wix", "windows-sdk", "python"} | package_exceptions):
         raise ToolchainError("unknown security exception target")
     for repo, item in lock["actions"].items():
         if item["version"] != versions["githubActions"][repo] or re.fullmatch(r"[0-9a-f]{40}", item["commit"]) is None:

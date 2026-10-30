@@ -17,7 +17,7 @@
     "deny.toml": "fba10564522b1ec2ce2b1366bc029ce5fe2457915dd60133837933f0753dee96",
     "tooling/configs/qa/about.toml": "ca45cd75707e67b57d80a59e56fbd321d2ec1d2ab47dd6fd9a2172da0ac37630",
     "tooling/configs/qa/open-source.json": "3a59830bf25aa6a4782182e9804a070f056d1f4303c651d285f2272c37177b3c",
-    "tooling/configs/qa/tool-versions.json": "363ffd9cec7822ff3cce540453f54e0f1d037c1f511c09304621b14f6626c726",
+    "tooling/configs/qa/tool-versions.json": "1af41bb83d8b377dd38dc8964931ef8be625f84f733c0d0b7f91abf65777dddc",
     "tooling/release/legal/third-party-notices.hbs": "af5cc2d62af0bed9791b51e96394002221ade4d52d81cb68819a1836002100f1",
     "tooling/release/legal/generate_dependency_licenses.py": "bdf00d30fbd034543537524c7f1247fcbabdb1f4a0494237216e3d9868649fe8",
     "tooling/qa/wrappers/licenses.sh": "6be3cb8629ce5e6530cd5ea527eb4ccd5f19ecae5451f03b21249323a08c631b"

@@ -28,6 +28,8 @@ def resolve(versions, fetch, release, age):
     sums = fetch(f'https://nodejs.org/dist/v{node}/SHASUMS256.txt').decode()
     matches = re.findall(r'^([0-9a-f]{64})\s+win-x64/node.exe$', sums, re.M)
     if len(matches) != 1: raise ValueError('official Windows Node checksum missing')
+    linux_matches = re.findall(r'^([0-9a-f]{64})\s+node-v' + re.escape(node) + r'-linux-x64\.tar\.xz$', sums, re.M)
+    if len(linux_matches) != 1: raise ValueError('official Linux Node checksum missing')
     playwright = selected['playwrightCore']
     metadata = json.loads(fetch(f'https://registry.npmjs.org/playwright-core/{playwright}'))
     if metadata.get('name') != 'playwright-core' or metadata.get('version') != playwright or metadata.get('dependencies') or metadata['dist']['tarball'] != targets['playwrightCore']:
@@ -37,7 +39,8 @@ def resolve(versions, fetch, release, age):
     if metadata['dist']['integrity'] != integrity: raise ValueError('Playwright registry integrity mismatch')
     published = release('microsoft/playwright', 'v' + playwright)
     result = {'node': {'version': node, 'url': targets['node'], 'sha256': matches[0], 'publishedAt': node_date,
-                       'source': 'https://nodejs.org/dist/index.json'},
+                       'source': 'https://nodejs.org/dist/index.json',
+                       'linuxX64': {'url': f'https://nodejs.org/dist/v{node}/node-v{node}-linux-x64.tar.xz', 'sha256': linux_matches[0]}},
               'playwrightCore': {'version': playwright, 'url': targets['playwrightCore'], 'sha256': hashlib.sha256(body).hexdigest(), **published}}
     check(versions, result, age)
     return result
