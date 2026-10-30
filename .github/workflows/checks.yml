@@ -52,8 +52,29 @@
           }
         },
         {
+          "name": "Identify Linux build image",
+          "id": "build-image",
+          "run": "test -n \"$ImageVersion\" && echo \"version=$ImageVersion\" >> \"$GITHUB_OUTPUT\""
+        },
+        {
+          "name": "Cache compiled Linux dependencies",
+          "uses": "actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830",
+          "with": {
+            "path": "target",
+            "key": "linux-ubuntu24-cargo-v1-${{ runner.arch }}-${{ steps.build-image.outputs.version }}-${{ hashFiles('Cargo.lock', 'Cargo.toml', 'build.rs', 'rust-toolchain.toml', '.cargo/**', 'resources/**', 'tooling/configs/qa/tool-versions.json', 'tooling/qa/runtime/compilation_cache.py', 'tooling/qa/runtime/lib.sh', 'tooling/qa/wrappers/coverage.sh', '.github/workflows/checks.yml') }}"
+          }
+        },
+        {
+          "name": "Invalidate cached application outputs",
+          "run": "python3 -m tooling.qa.runtime.compilation_cache"
+        },
+        {
           "name": "Canonical release proof",
           "run": "tooling/qa/wrappers/alpha-proof.sh"
+        },
+        {
+          "name": "Trim application outputs from dependency cache",
+          "run": "python3 -m tooling.qa.runtime.compilation_cache"
         },
         {
           "uses": "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",

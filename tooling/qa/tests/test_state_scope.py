@@ -39,6 +39,20 @@ class ScopeTests(unittest.TestCase):
 
 
 class StateTests(unittest.TestCase):
+    def test_checkpoint_rejects_input_changes_before_writing_success(self) -> None:
+        source = {"revision": "a" * 40, "targetFiles": ["src/main.rs"], "fingerprint": "1" * 64}
+        with (
+            mock.patch.object(state, "read_json", return_value={"repository": source}),
+            mock.patch.object(state, "current_targets", return_value=["src/main.rs"]),
+            mock.patch.object(state, "revision", return_value="a" * 40),
+            mock.patch.object(state, "fingerprint", return_value="1" * 64),
+        ):
+            state.assert_run_inputs(Path("fixture.json"))
+            for field, value in (("revision", "b" * 40), ("current_targets", []), ("fingerprint", "2" * 64)):
+                with self.subTest(field=field), mock.patch.object(state, field, return_value=value):
+                    with self.assertRaisesRegex(RuntimeError, "changed during proof"):
+                        state.assert_run_inputs(Path("fixture.json"))
+
     def test_accepts_exact_state_and_rejects_fingerprint_drift(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

@@ -60,3 +60,11 @@ def assert_state(root: Path, name: str) -> None:
 def require_harness_if_needed(root: Path) -> None:
     if harness_targets():
         assert_state(root, "release-harness")
+
+
+def assert_run_inputs(record_path: Path) -> None:
+    source = read_json(record_path).get("repository", {})
+    targets = current_targets()
+    expected = {"revision": revision(), "targetFiles": targets, "fingerprint": fingerprint(targets)}
+    if not isinstance(source, dict) or any(source.get(key) != value for key, value in expected.items()):
+        raise RuntimeError("tracked worktree changed during proof; rerun checkpoint")

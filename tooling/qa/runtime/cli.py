@@ -7,7 +7,7 @@ from pathlib import Path
 
 from .repository import ROOT, fingerprint
 from .run import begin_shell_step, finish, finish_shell_step, run_step, start
-from .state import assert_state, require_harness_if_needed, write_state
+from .state import assert_run_inputs, assert_state, require_harness_if_needed, write_state
 
 
 def _quote(value: str) -> str:
@@ -132,6 +132,10 @@ def main() -> int:
 
     harness_parser = sub.add_parser("require-harness")
     harness_parser.set_defaults(handler=lambda _args: (require_harness_if_needed(ROOT), 0)[1])
+
+    inputs_parser = sub.add_parser("assert-inputs")
+    inputs_parser.add_argument("--record", required=True)
+    inputs_parser.set_defaults(handler=lambda args: (assert_run_inputs(Path(args.record)), 0)[1])
 
     fingerprint_parser = sub.add_parser("fingerprint")
     fingerprint_parser.set_defaults(handler=lambda _args: (print(fingerprint()), 0)[1])
