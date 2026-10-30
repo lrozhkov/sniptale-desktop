@@ -156,6 +156,12 @@ class ReleaseAcceptanceTests(unittest.TestCase):
         self.assertIn('    Assert-RecordedAvTimeline $metadata.streams', script)
         self.assertIn('Test-RecordedAvTimelinePolicy\n\nAdd-Test "network-isolation"', script)
         self.assertIn('@(50.97,30.19)', script)
+        self.assertIn('IsWindowVisible(w) && GetWindowRect(w,out r)', script)
+        self.assertIn('$entry = Wait-TrayMenuItem $label', script)
+        self.assertIn('if ($ProbeOnly) { Close-TrayMenus; return (-not $disabled) }', script)
+        self.assertIn('Test-TrayMenuPolicy\nTest-RecordedAvTimelinePolicy', script)
+        self.assertNotIn('Start-Sleep -Milliseconds 800', script)
+        self.assertNotIn('Start-Sleep -Milliseconds 700', script)
 
 
 if __name__ == "__main__":
