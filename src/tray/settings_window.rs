@@ -4,6 +4,9 @@
 #[path = "settings_window/control_chrome.rs"]
 pub(crate) mod control_chrome;
 #[cfg(any(windows, test))]
+#[path = "settings_window/dialog_commands.rs"]
+mod dialog_commands;
+#[cfg(any(windows, test))]
 #[path = "settings_window/hotkey_capture.rs"]
 pub(crate) mod hotkey_capture;
 #[cfg(any(windows, test))]

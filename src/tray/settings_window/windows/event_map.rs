@@ -8,14 +8,14 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
 };
 
 pub(super) fn button(id: usize) -> Option<SettingsWindowEvent> {
+    if let Some(event) = super::super::dialog_commands::button(id) {
+        return Some(event);
+    }
     match id {
-        BROWSE_DESTINATION_ID => Some(SettingsWindowEvent::BrowseDestination),
         EXTENSION_MODE_ID => Some(SettingsWindowEvent::UseExtensionManaged),
         SCREENSHOT_CURSOR_ID => Some(SettingsWindowEvent::ToggleScreenshotCursor),
         VIDEO_CURSOR_ID => Some(SettingsWindowEvent::ToggleVideoCursor),
         REFRESH_MICROPHONES_ID => Some(SettingsWindowEvent::RefreshMicrophones),
-        APPLY_ID => Some(SettingsWindowEvent::Apply),
-        CANCEL_ID => Some(SettingsWindowEvent::RequestClose),
         CONFIRM_DISCARD_ID => Some(SettingsWindowEvent::ConfirmDiscard),
         KEEP_EDITING_ID => Some(SettingsWindowEvent::KeepEditing),
         NAV_FIRST_ID..=33 => SettingsWindowSection::ALL

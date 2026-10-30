@@ -110,14 +110,25 @@ function Window([string] $Name) {
       [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty,$Name))
   }
 }
-function Click([Windows.Automation.AutomationElement] $Element) {
-  $r = $Element.Current.BoundingRectangle
-  [AlphaUi]::SetCursorPos([int]($r.X+$r.Width/2),[int]($r.Y+$r.Height/2)) | Out-Null
-  [AlphaUi]::mouse_event(2,0,0,0,[UIntPtr]::Zero); [AlphaUi]::mouse_event(4,0,0,0,[UIntPtr]::Zero)
-}
 function Button($Parent,[string] $Name) {
-  $element=$Parent.FindFirst([Windows.Automation.TreeScope]::Descendants,[Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty,$Name))
-  if (-not $element) { throw "settings button unavailable" }; Click $element
+  $element=Wait-For {
+    $candidate=$Parent.FindFirst([Windows.Automation.TreeScope]::Descendants,[Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty,$Name))
+    if ($candidate -and $candidate.Current.IsEnabled) { $candidate }
+  }
+  $invoke=[Windows.Automation.InvokePattern]$element.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern)
+  $invoke.Invoke()
+}
+function Folder-Selected($Picker,[string] $Leaf) {
+  $edits=$Picker.FindAll([Windows.Automation.TreeScope]::Descendants,[Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty,[Windows.Automation.ControlType]::Edit))
+  foreach ($edit in $edits) {
+    $pattern=$null
+    if ($edit.TryGetCurrentPattern([Windows.Automation.ValuePattern]::Pattern,[ref]$pattern) -and ([Windows.Automation.ValuePattern]$pattern).Current.Value -eq $Leaf) { return $true }
+  }
+  return $false
+}
+function Window-Hidden($Element) {
+  try { return $Element.Current.IsOffscreen }
+  catch [Windows.Automation.ElementNotAvailableException] { return $true }
 }
 function Stop-Agent {
   Get-Process sniptale-native-agent -ErrorAction SilentlyContinue | Stop-Process -Force
@@ -192,7 +203,7 @@ Add-Test "first-run" {
   [Windows.Forms.SendKeys]::SendWait("%d")
   [Windows.Forms.SendKeys]::SendWait($exports)
   [Windows.Forms.SendKeys]::SendWait("{ENTER}")
-  Start-Sleep -Seconds 1
+  Wait-For { Folder-Selected $picker ([IO.Path]::GetFileName($exports)) } | Out-Null
   Screenshot "manual-folder-entered"
   Button $picker "Select Folder"
   $settings=Window "Sniptale $([char]0x2014) Manual settings"
@@ -205,7 +216,7 @@ Add-Test "first-run" {
     }
   }
   if ($profile.operatingMode -ne "manual" -or $profile.manualProfile.destination.path -ne $exports) { throw "first-run UI did not persist Manual destination" }
-  [Windows.Forms.SendKeys]::SendWait("{ESC}")
+  Wait-For { Window-Hidden $settings } | Out-Null
 }
 Add-Test "capture" {
   Tray @("Screenshot","Current screen")
@@ -263,9 +274,13 @@ Add-Test "restart" {
   Stop-Agent
   Start-Agent
   Tray @("Settings$([char]0x2026)")
-  $null=Window "Sniptale $([char]0x2014) Manual settings"
-  if ((Get-FileHash "$directory/local-profile.json" -Algorithm SHA256).Hash -ne $before) { throw "restart changed user settings" }
+  $restartedSettings=Window "Sniptale $([char]0x2014) Manual settings"
   Screenshot "restarted-settings"
+  [AlphaUi]::SetForegroundWindow([IntPtr]$restartedSettings.Current.NativeWindowHandle) | Out-Null
+  $restartedSettings.SetFocus()
+  [Windows.Forms.SendKeys]::SendWait("{ESC}")
+  Wait-For { Window-Hidden $restartedSettings } | Out-Null
+  if ((Get-FileHash "$directory/local-profile.json" -Algorithm SHA256).Hash -ne $before) { throw "restart or Escape changed user settings" }
   if (Test-Path "$directory/dev-local-browser-trust.json") { throw "unexpected dev trust after restart" }
 }
 Add-Test "uninstall" {
