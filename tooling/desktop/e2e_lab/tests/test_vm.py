@@ -129,7 +129,7 @@ class VmTests(unittest.TestCase):
         )
         client = mock.MagicMock()
         client.__enter__.return_value = client
-        client.recv.side_effect = [b'{"QMP":{}}', b'{"return":{}}', b'{"return":{}}']
+        client.recv.side_effect = [b'{"QMP":{}}\r\n', b'{"return":{}}\r\n', b'{"return":{}}\r\n']
         with mock.patch.object(Path, "exists", return_value=True), \
              mock.patch("vm.socket.socket", return_value=client):
             self.manager.qmp(

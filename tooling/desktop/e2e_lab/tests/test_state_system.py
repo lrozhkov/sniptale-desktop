@@ -13,7 +13,7 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from errors import IntegrityError, ResourceError, TimeoutExpired
+from errors import IntegrityError, LabError, ResourceError, TimeoutExpired
 from state import LabLock, read_json, write_json
 from system import require_sha256, run, validate_resources, wait_for_resources
 from config import Limits
@@ -30,6 +30,15 @@ class StateSystemTests(unittest.TestCase):
             with mock.patch.object(ssh, "command") as command:
                 ssh.wait(1, probe=probe)
             command.assert_called_once_with(probe, timeout=15)
+
+    def test_ssh_wait_propagates_vm_failure_without_transport_probe_or_sleep(self):
+        ssh = GuestSsh(LabPaths.discover(Path("/tmp/synthetic-lab")), 22423, "lab")
+        health = mock.Mock(side_effect=LabError("guest VM is not running"))
+        with mock.patch.object(ssh, "command") as command, mock.patch("ssh.time.sleep") as sleep:
+            with self.assertRaisesRegex(LabError, "VM is not running"):
+                ssh.wait(360, health_check=health)
+        command.assert_not_called()
+        sleep.assert_not_called()
 
     def test_powershell_commands_are_utf16_encoded(self) -> None:
         import base64
@@ -81,6 +90,33 @@ class StateSystemTests(unittest.TestCase):
                 with LabLock(root / "controller.lock", "test"):
                     self.fail("symlink lock unexpectedly acquired")
             self.assertEqual(outside.read_text(encoding="utf-8"), "preserve")
+
+    def test_health_failure_reaps_started_command_and_keeps_log(self):
+        with tempfile.TemporaryDirectory() as directory:
+            log = Path(directory) / "command.log"
+            started = []
+            real_popen = subprocess.Popen
+            def launch(*args, **kwargs):
+                process = real_popen(*args, **kwargs)
+                started.append(process)
+                return process
+            health = mock.Mock(side_effect=LabError("guest VM is not running"))
+            with mock.patch("system.subprocess.Popen", side_effect=launch):
+                with self.assertRaisesRegex(LabError, "VM is not running"):
+                    run([sys.executable, "-c", "import time; time.sleep(30)"],
+                        timeout=60, log=log, health_check=health)
+            self.assertIsNotNone(started[0].poll())
+            self.assertTrue(log.exists())
+
+    def test_timeout_preserves_bounded_redacted_partial_log(self):
+        with tempfile.TemporaryDirectory() as directory:
+            log = Path(directory) / "command.log"
+            with self.assertRaises(TimeoutExpired):
+                run([sys.executable, "-u", "-c",
+                     "import time; print('phase-started token=super-secret-token'); time.sleep(30)"],
+                    timeout=1, log=log)
+            self.assertIn("phase-started", log.read_text())
+            self.assertNotIn("super-secret-token", log.read_text())
 
     def test_timeout_is_typed(self) -> None:
         with self.assertRaises(TimeoutExpired):

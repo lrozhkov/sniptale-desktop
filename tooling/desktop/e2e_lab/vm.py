@@ -16,6 +16,7 @@ from pathlib import Path
 from config import Lane, LabConfig
 from errors import IntegrityError, LabError
 from paths import LabPaths
+from qmp import QmpReader
 from state import process_matches, read_json, write_json
 from system import run, sha256_file, terminate_process, wait_for_resources
 
@@ -387,7 +388,7 @@ class VmManager:
         vars_path.chmod(0o600)
         command.extend(["-drive", f"if=pflash,format=raw,readonly=on,file={code}", "-drive", f"if=pflash,format=raw,file={vars_path}"])
 
-    def qmp(self, vm: RunningVm, execute: str, arguments: dict[str, object] | None = None) -> None:
+    def qmp(self, vm: RunningVm, execute: str, arguments: dict[str, object] | None = None):
         deadline = time.monotonic() + 10
         while not vm.qmp_socket.exists() and time.monotonic() < deadline:
             time.sleep(0.1)
@@ -397,29 +398,28 @@ class VmManager:
             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
                 client.settimeout(10)
                 client.connect(str(vm.qmp_socket))
-                if not client.recv(65536):
-                    raise LabError("QMP closed before its greeting")
+                reader = QmpReader(client)
+                if not isinstance(reader.message().get("QMP"), dict):
+                    raise LabError("QMP greeting is invalid")
                 client.sendall(b'{"execute":"qmp_capabilities"}\r\n')
-                if not client.recv(65536):
-                    raise LabError("QMP closed during capability negotiation")
+                reader.reply()
                 request: dict[str, object] = {"execute": execute}
                 if arguments is not None:
                     request["arguments"] = arguments
                 client.sendall(json.dumps(request).encode() + b"\r\n")
-                response = client.recv(65536)
-                if not response:
-                    raise LabError(f"QMP closed while executing {execute}")
-                try:
-                    messages = [json.loads(line) for line in response.splitlines() if line.strip()]
-                except json.JSONDecodeError as exc:
-                    raise LabError(f"QMP returned an invalid response for {execute}") from exc
-                error = next((message["error"] for message in messages if isinstance(message, dict) and "error" in message), None)
-                if error is not None:
-                    raise LabError(f"QMP rejected {execute}")
-                if not any(isinstance(message, dict) and "return" in message for message in messages):
-                    raise LabError(f"QMP did not acknowledge {execute}")
+                return reader.reply()
         except OSError as exc:
             raise LabError("QMP transport failed") from exc
+
+    def assert_running(self, lane_name: str) -> None:
+        vm = self.current(lane_name, clean_stale=False)
+        if vm is None:
+            raise LabError("guest VM process is unavailable")
+        status = self.qmp(vm, "query-status")
+        if not isinstance(status, dict) or type(status.get("running")) is not bool:
+            raise LabError("QMP VM status is invalid")
+        if status.get("running") is not True or status.get("status") != "running":
+            raise LabError("guest VM is not running; inspect the collected QEMU log")
 
     def stop(self, lane_name: str) -> bool:
         try:

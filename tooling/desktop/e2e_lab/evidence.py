@@ -90,10 +90,10 @@ def _required_evidence_directories(
     if not any(not name.startswith("build-") for _lane, name, _status, _duration in expected):
         return set()
     required = {"logs"}
-    if receipt.get("run_mode", "full-acceptance") in {"full-acceptance", "alpha-release-acceptance"}:
-        return required | {"screenshots", "recordings"}
     if receipt.get("result") != "pass":
         return required
+    if receipt.get("run_mode", "full-acceptance") in {"full-acceptance", "alpha-release-acceptance"}:
+        return required | {"screenshots", "recordings"}
     requested = set(receipt.get("requested_cases", []))
     if requested & {"tray", "settings", "native-messaging", "capture"}:
         required.add("screenshots")

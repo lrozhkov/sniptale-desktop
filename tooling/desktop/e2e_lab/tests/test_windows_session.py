@@ -30,6 +30,17 @@ class WindowsSessionTests(unittest.TestCase):
             command = base64.b64decode(call.args[0][-1]).decode("utf-16-le")
             self.assertIn("$ProgressPreference='SilentlyContinue'", command)
 
+    def test_vm_halt_is_not_retried_as_transient_ssh_failure(self):
+        ssh = mock.Mock()
+        ssh.command.side_effect = [SimpleNamespace(stdout="639000000000000000"), SimpleNamespace(stdout="")]
+        health = mock.Mock(side_effect=LabError("guest VM is not running"))
+        with mock.patch("windows_session.time.sleep") as sleep:
+            with self.assertRaisesRegex(LabError, "VM is not running"):
+                prepare_console(ssh, 360, health_check=health)
+        self.assertEqual(ssh.command.call_count, 2)
+        health.assert_called_once()
+        sleep.assert_not_called()
+
     def test_invalid_boot_identity_cannot_schedule_restart(self):
         for boot in ("", "0", "1;exit", "1" * 20, "1\n2", "１２３"):
             with self.subTest(boot=boot):

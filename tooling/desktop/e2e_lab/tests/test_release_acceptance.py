@@ -147,6 +147,13 @@ class ReleaseAcceptanceTests(unittest.TestCase):
             ssh.assert_not_called()
             runner._finish_vm.assert_called_once_with("windows-11", "test", False)
 
+    def test_interrupted_launcher_retains_log_without_extending_sealed_inventory(self):
+        script = (Path(__file__).resolve().parents[1] / "guest/windows/launch-release.ps1").read_text()
+        cleanup = script.rsplit("} finally {", 1)[1]
+        self.assertIn('if (-not (Test-Path -LiteralPath (Join-Path $outputPath "result.json")) -and (Test-Path -LiteralPath $taskLog))', cleanup)
+        self.assertLess(cleanup.index("Copy-Item -LiteralPath $taskLog"),
+                        cleanup.index("Remove-Item -LiteralPath $taskLog"))
+
     def test_release_guest_contract_has_all_cases_and_no_development_trust(self):
         script = (Path(__file__).resolve().parents[1] / "guest/windows/release-run.ps1").read_text()
         for name in CASES:

@@ -44,8 +44,10 @@ def test_release(runner, lane_name: str, artifact: Path, run_dir: Path):
         runner.vms.start(lane_name, windows_audio_capture=True, host_reserve_mib=1024)
         runner._assert_windows_audio_backend(lane_name, require_capture=True)
         ssh = GuestSsh(runner.paths, runner.config.lanes[lane_name].ssh_port, "lab")
-        ssh.wait(runner.config.timeouts.boot, probe=["cmd.exe", "/d", "/c", "exit", "0"])
-        prepare_console(ssh, runner.config.timeouts.boot)
+        health_check = lambda: runner.vms.assert_running(lane_name)
+        ssh.wait(runner.config.timeouts.boot, probe=["cmd.exe", "/d", "/c", "exit", "0"],
+                 health_check=health_check)
+        prepare_console(ssh, runner.config.timeouts.boot, health_check=health_check)
         ssh.upload(artifact, artifact.name, timeout=600)
         for name in ("release-run.ps1", "launch-release.ps1"):
             ssh.upload(runner.paths.root / "tooling/desktop/e2e_lab/guest/windows" / name, name, timeout=120)
@@ -55,9 +57,11 @@ def test_release(runner, lane_name: str, artifact: Path, run_dir: Path):
                    "-ExpectedManifestSha256", sha256_file(bundle / "native-host.json"),
                    "-ProductVersion", provenance["productVersion"], "-TimeoutSeconds", "1200"]
         try:
-            ssh.command(command, timeout=1260, log=run_dir / "logs" / f"{lane_name}.log", stream=True)
+            ssh.command(command, timeout=1260, log=run_dir / "logs" / f"{lane_name}.log", stream=True,
+                        health_check=health_check)
         except LabError as exc:
             error = exc
+        health_check()
         runner._assert_windows_audio_backend(lane_name, require_capture=True)
         runner._enforce_remote_evidence_limit(ssh, windows=True)
         ssh.download("e2e-out/", output, recursive=True, timeout=600,

@@ -175,6 +175,7 @@ class LaneRunner:
             ssh.wait(
                 self.config.timeouts.boot,
                 probe=["cmd.exe", "/d", "/c", "exit", "0"],
+                health_check=lambda: self.vms.assert_running(lane_name),
             )
             self._assert_windows_audio_backend(lane_name)
             ssh.upload(source.archive, "source.tar.gz", timeout=600)
@@ -234,7 +235,7 @@ class LaneRunner:
                 host_reserve_mib=1024,
             )
             ssh = GuestSsh(self.paths, self.config.lanes[lane_name].ssh_port, "lab")
-            ssh.wait(self.config.timeouts.boot)
+            ssh.wait(self.config.timeouts.boot, health_check=lambda: self.vms.assert_running(lane_name))
             lockdown = self.paths.root / "tooling/desktop/e2e_lab/guest/linux-network-lockdown.sh"
             ssh.upload(lockdown, "linux-network-lockdown.sh", timeout=120)
             ssh.command(["sudo", "bash", "linux-network-lockdown.sh"], timeout=120)
@@ -317,6 +318,7 @@ class LaneRunner:
             ssh.wait(
                 self.config.timeouts.boot,
                 probe=["cmd.exe", "/d", "/c", "exit", "0"],
+                health_check=lambda: self.vms.assert_running(lane_name),
             )
             self._assert_windows_audio_backend(
                 lane_name,
