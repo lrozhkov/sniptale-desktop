@@ -14,6 +14,16 @@ pub(in crate::capture::wgc::windows) enum RecordingFrameReadError {
     Readback,
 }
 
+use crate::capture::wgc::recording_owner::{CaptureFrameLease, ReleaseCaptureFrame};
+use windows::Graphics::Capture::Direct3D11CaptureFrame;
+
+impl ReleaseCaptureFrame for Direct3D11CaptureFrame {
+    fn release_capture_frame(&self) {
+        // Return the frame-pool slot after CPU readback, including every error path.
+        let _ = self.Close();
+    }
+}
+
 impl CaptureSession {
     pub(in crate::capture::wgc::windows) fn try_next_recording_frame(
         &mut self,
@@ -39,6 +49,8 @@ impl CaptureSession {
                 return Err(RecordingFrameReadError::Poll(error.code().0));
             }
         };
+        let lease = CaptureFrameLease::new(frame);
+        let frame = lease.frame();
         let system_relative_time_100ns = frame
             .SystemRelativeTime()
             .map_err(|error| RecordingFrameReadError::Timestamp(error.code().0))?

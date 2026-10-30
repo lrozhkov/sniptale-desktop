@@ -76,10 +76,10 @@
       "path": "src/capture/wgc/windows/readback.rs",
       "owner": "capture",
       "boundary": "D3D11/WinRT frame acquisition and CPU readback",
-      "invariants": ["Mapped texture memory is copied before unmap and never crosses owner boundaries", "Frame dimensions and row pitch are validated before allocation/copy"],
+      "invariants": ["Mapped texture memory is copied before unmap and never crosses owner boundaries", "Frame dimensions and row pitch are validated before allocation/copy", "CaptureSession retains its GraphicsCaptureItem until the session and pool are closed", "Every acquired frame returns its pool slot on successful readback and error paths"],
       "safeWrapper": "Capture owner receives owned BGRA frames and typed device/readback errors.",
-      "raiiWrapper": "COM/WinRT interface wrappers and scoped map/unmap handling",
-      "shutdownCancelProof": ["Unmap runs after each successful map", "Windows smoke/manual capture QA covers WGC capture and device-loss scenarios"],
+      "raiiWrapper": "COM/WinRT interface wrappers, CaptureFrameLease, retained capture item, and scoped map/unmap handling",
+      "shutdownCancelProof": ["Unmap runs after each successful map", "Owner-local CaptureFrameLease tests prove close-before-release on success and readback failure", "Windows smoke/manual capture QA covers first-frame readiness and persistent recording"],
       "reviews": ["security", "architecture"]
     },
     {

@@ -24,6 +24,29 @@ impl FramePollRecovery {
     }
 }
 
+pub(super) trait ReleaseCaptureFrame {
+    fn release_capture_frame(&self);
+}
+
+#[derive(Debug)]
+pub(super) struct CaptureFrameLease<F: ReleaseCaptureFrame>(F);
+
+impl<F: ReleaseCaptureFrame> CaptureFrameLease<F> {
+    pub(super) const fn new(frame: F) -> Self {
+        Self(frame)
+    }
+
+    pub(super) const fn frame(&self) -> &F {
+        &self.0
+    }
+}
+
+impl<F: ReleaseCaptureFrame> Drop for CaptureFrameLease<F> {
+    fn drop(&mut self) {
+        self.0.release_capture_frame();
+    }
+}
+
 #[derive(Debug)]
 pub(super) struct RecordingCaptureOwners<S, D, A> {
     sessions: Option<S>,
@@ -72,6 +95,39 @@ mod tests {
     impl Drop for DropProbe {
         fn drop(&mut self) {
             self.events.borrow_mut().push(self.name);
+        }
+    }
+
+    #[derive(Debug)]
+    struct FrameProbe(Rc<RefCell<Vec<&'static str>>>);
+
+    impl ReleaseCaptureFrame for FrameProbe {
+        fn release_capture_frame(&self) {
+            self.0.borrow_mut().push("frame-close");
+        }
+    }
+
+    impl Drop for FrameProbe {
+        fn drop(&mut self) {
+            self.0.borrow_mut().push("frame-release");
+        }
+    }
+
+    fn read_leased_frame(events: &Rc<RefCell<Vec<&'static str>>>, fail: bool) -> Result<(), ()> {
+        let lease = CaptureFrameLease::new(FrameProbe(Rc::clone(events)));
+        assert!(lease.frame().0.borrow().is_empty());
+        if fail {
+            return Err(());
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn acquired_frame_is_closed_once_before_release_on_success_and_readback_failure() {
+        for fail in [false, true] {
+            let events = Rc::new(RefCell::new(Vec::new()));
+            assert_eq!(read_leased_frame(&events, fail).is_err(), fail);
+            assert_eq!(events.borrow().as_slice(), ["frame-close", "frame-release"]);
         }
     }
 
