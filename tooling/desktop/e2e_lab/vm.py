@@ -307,7 +307,10 @@ class VmManager:
             elif windows_audio_capture:
                 command.extend([
                     "-audiodev",
-                    "driver=alsa,id=audio0,in.dev=sniptale_e2e_mic,out.dev=sniptale_e2e_speaker",
+                    # The synthetic ALSA file/null devices are always ready. Poll-driven voices
+                    # otherwise run ahead of time and return repeated microphone positions.
+                    "driver=alsa,id=audio0,in.dev=sniptale_e2e_mic,out.dev=sniptale_e2e_speaker,"
+                    "in.try-poll=off,out.try-poll=off,timer-period=10000",
                     "-device", "ich9-intel-hda",
                     "-device", "hda-duplex,audiodev=audio0",
                 ])

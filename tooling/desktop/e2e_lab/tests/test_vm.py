@@ -225,6 +225,7 @@ class VmTests(unittest.TestCase):
         self.assertIn("driver=alsa,id=audio0", microphone_joined)
         self.assertIn("in.dev=sniptale_e2e_mic", microphone_joined)
         self.assertIn("out.dev=sniptale_e2e_speaker", microphone_joined)
+        self.assertIn("in.try-poll=off,out.try-poll=off,timer-period=10000", microphone_joined)
 
     def test_windows_runtime_uses_unbounded_ephemeral_microphone_fixture(self) -> None:
         runtime = self.paths.runtime / "windows-audio"

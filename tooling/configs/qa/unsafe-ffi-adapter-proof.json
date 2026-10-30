@@ -16,10 +16,20 @@
       "path": "src/audio/windows_pcm_capture.rs",
       "owner": "audio",
       "boundary": "WASAPI shared-mode PCM capture stream and capture-buffer release",
-      "invariants": ["The active capture packet is released exactly once", "IAudioClient is stopped by the stream owner on drop", "Device positions are monotonic frame counts; timestamp-error and oversized native packets fail before PCM access", "Missing device frames emit bounded ten-millisecond silence chunks instead of shortening the audio timeline", "The COM apartment outlives both capture and audio client interfaces"],
+      "invariants": ["The active capture packet is released exactly once", "IAudioClient is stopped by the stream owner on drop", "Native packet sizes are bounded before PCM access; uncertain timestamps and repeated or reset device positions retain PCM on a continuous accepted-frame timeline", "Device frame positions are converted from the shared engine rate to the PCM rate before gap detection", "Missing device frames emit bounded ten-millisecond silence chunks instead of shortening the audio timeline", "The COM apartment outlives both capture and audio client interfaces"],
       "safeWrapper": "Recording/audio callers receive owned PCM buffers and typed errors.",
       "raiiWrapper": "WindowsWasapiPcmSource and CapturePacketGuard",
-      "shutdownCancelProof": ["Drop stops the audio client and releases capture buffers", "Windows manual QA covers microphone, system audio, and endpoint changes", "src/audio/capture_timeline.rs proves gap retention, bounded padding, rounding, backwards and overflow rejection"],
+      "shutdownCancelProof": ["Drop stops the audio client and releases capture buffers", "Windows manual QA covers microphone, system audio, and endpoint changes", "src/audio/capture_timeline.rs proves gap retention, bounded padding, rounding, uncertain/reset position recovery, and overflow rejection"],
+      "reviews": ["security", "architecture"]
+    },
+    {
+      "path": "src/audio/windows_pcm_capture/native_format.rs",
+      "owner": "audio",
+      "boundary": "WASAPI shared-engine format allocation and native clock sample-rate narrowing",
+      "invariants": ["The returned format pointer stays adapter-local", "The allocation is freed exactly once on success and invalid-rate failure", "Only a bounded nonzero sample rate crosses the safe boundary"],
+      "safeWrapper": "device_sample_rate returns a validated numeric sample rate.",
+      "raiiWrapper": "NativeMixFormat",
+      "shutdownCancelProof": ["NativeMixFormat Drop frees the COM allocation", "Capture timeline tests cover zero rates and mismatched device and PCM rates", "Windows packet-header probe and full recording acceptance exercise shared-format discovery"],
       "reviews": ["security", "architecture"]
     },
     {

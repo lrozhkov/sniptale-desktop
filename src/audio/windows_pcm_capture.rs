@@ -17,6 +17,7 @@ use windows::{
 
 mod format;
 mod metrics;
+mod native_format;
 mod pending;
 
 use super::{
@@ -95,8 +96,6 @@ impl WindowsWasapiPcmSource {
         format: PcmFormat,
     ) -> Result<Self, WindowsWasapiPcmError> {
         let block_align = block_align(format)?;
-        let timeline = CaptureTimeline::new(format.sample_rate_hz)
-            .map_err(|_| WindowsWasapiPcmError::InvalidPacketTimeline)?;
         let wave_format = wave_format(format)?;
         let apartment = ComApartment::initialize().map_err(com_error)?;
         let enumerator = create_enumerator().map_err(device_error)?;
@@ -105,6 +104,9 @@ impl WindowsWasapiPcmSource {
         // returned IAudioClient COM interface is owned by the windows crate wrapper.
         let audio_client: IAudioClient = unsafe { device.Activate(CLSCTX_ALL, None) }
             .map_err(|error| WindowsWasapiPcmError::ActivateFailed(hresult(error)))?;
+        let device_rate = native_format::device_sample_rate(&audio_client)?;
+        let timeline = CaptureTimeline::new(format.sample_rate_hz, device_rate)
+            .map_err(|_| WindowsWasapiPcmError::InvalidPacketTimeline)?;
         let stream_flags = stream_flags(kind);
         // SAFETY: `wave_format` is a valid PCM WAVEFORMATEX for the duration of the call.
         unsafe {
@@ -182,7 +184,7 @@ impl WindowsWasapiPcmSource {
         .map_err(|error| WindowsWasapiPcmError::PacketReadFailed(hresult(error)))?;
         let guard = CapturePacketGuard::new(&self.capture_client, frames);
         self.metrics.observe_packet(frames, flags);
-        let byte_len = pending::packet_bytes(frames, flags, self.buffer_frames, self.block_align)?;
+        let byte_len = pending::packet_bytes(frames, self.buffer_frames, self.block_align)?;
         let bytes = if flags & silent_flag() != 0 {
             vec![0; byte_len]
         } else {
@@ -193,13 +195,7 @@ impl WindowsWasapiPcmSource {
             unsafe { slice::from_raw_parts(data.cast::<u8>(), byte_len) }.to_vec()
         };
         guard.release()?;
-        let gap = self
-            .timeline
-            .queue_packet(device_frame, frames)
-            .map_err(|_| WindowsWasapiPcmError::InvalidPacketTimeline)?;
-        self.metrics.observe_gap(gap);
-        self.pending_packet = Some(bytes);
-        self.emit_pending_packet()?
+        self.accept_packet(device_frame, frames, flags, bytes)?
             .map(PcmSourcePoll::Chunk)
             .ok_or(WindowsWasapiPcmError::InvalidPacketTimeline)
     }
