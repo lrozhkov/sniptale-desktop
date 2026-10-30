@@ -1,8 +1,12 @@
 //! Platform-neutral PCM source coordination before encoding.
+
+mod buffer;
+
 use super::{
     mixer::{AudioInputKind, MixPlan, PcmFormat},
     pcm_mix::{MixedPcmChunk, PcmInputChunk, PcmMixError, mix_pcm_chunks},
 };
+use buffer::{BufferedPacket, BufferedPoll, InputBuffer};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct OwnedPcmInputChunk {
@@ -66,8 +70,10 @@ impl PcmChunkSource for NoPcmChunkSource {
 #[derive(Debug)]
 pub(crate) struct PcmMixPipeline<M = NoPcmChunkSource, S = NoPcmChunkSource> {
     plan: MixPlan,
-    microphone: Option<M>,
-    system_loopback: Option<S>,
+    microphone: InputBuffer<M>,
+    system_loopback: InputBuffer<S>,
+    epoch: Option<i64>,
+    emitted_frames: u64,
     drained: bool,
 }
 
@@ -79,113 +85,175 @@ impl<M, S> PcmMixPipeline<M, S> {
     ) -> Self {
         Self {
             plan,
-            microphone,
-            system_loopback,
+            microphone: InputBuffer::new(microphone),
+            system_loopback: InputBuffer::new(system_loopback),
+            epoch: None,
+            emitted_frames: 0,
             drained: false,
         }
     }
 
     #[cfg(test)]
     pub(crate) fn into_parts(self) -> (Option<M>, Option<S>) {
-        (self.microphone, self.system_loopback)
+        (self.microphone.source, self.system_loopback.source)
     }
 }
 
-impl<M, S> MixedPcmSource for PcmMixPipeline<M, S>
-where
-    M: PcmChunkSource,
-    S: PcmChunkSource,
-{
+impl<M: PcmChunkSource, S: PcmChunkSource> MixedPcmSource for PcmMixPipeline<M, S> {
     fn next_mixed_chunk(&mut self) -> Result<MixedPcmPoll, PcmSourceError> {
         if self.drained {
             return Ok(MixedPcmPoll::Drained);
         }
-
-        let microphone = poll_required_source(
-            self.plan.microphone.is_some(),
-            self.microphone.as_mut(),
-            AudioInputKind::Microphone,
-        )?;
-        let system_loopback = poll_required_source(
-            self.plan.system_loopback.is_some(),
-            self.system_loopback.as_mut(),
-            AudioInputKind::SystemLoopback,
-        )?;
-
-        if matches!(microphone, RequiredPcmPoll::Pending)
-            || matches!(system_loopback, RequiredPcmPoll::Pending)
-        {
+        let microphone = self
+            .microphone
+            .poll(AudioInputKind::Microphone, &self.plan)?;
+        let system = self
+            .system_loopback
+            .poll(AudioInputKind::SystemLoopback, &self.plan)?;
+        if microphone == BufferedPoll::Pending || system == BufferedPoll::Pending {
             return Ok(MixedPcmPoll::Pending);
         }
-        if matches!(microphone, RequiredPcmPoll::Drained)
-            && matches!(system_loopback, RequiredPcmPoll::Drained)
-        {
+        if microphone == BufferedPoll::Drained && system == BufferedPoll::Drained {
             self.drained = true;
             return Ok(MixedPcmPoll::Drained);
         }
-        let microphone = microphone.into_chunk();
-        let system_loopback = system_loopback.into_chunk();
-        require_synced_presence(&self.plan, microphone.as_ref(), system_loopback.as_ref())?;
+        if self.plan.microphone.is_none() {
+            return self
+                .system_loopback
+                .take_packet()
+                .map(MixedPcmPoll::Chunk)
+                .ok_or(PcmSourceError::SourceEndedEarly(
+                    AudioInputKind::SystemLoopback,
+                ));
+        }
+        if self.plan.system_loopback.is_none() {
+            return self
+                .microphone
+                .take_packet()
+                .map(MixedPcmPoll::Chunk)
+                .ok_or(PcmSourceError::SourceEndedEarly(AudioInputKind::Microphone));
+        }
+        self.mix_prefix().map(MixedPcmPoll::Chunk)
+    }
+}
 
+impl<M, S> PcmMixPipeline<M, S> {
+    fn mix_prefix(&mut self) -> Result<MixedPcmChunk, PcmSourceError> {
+        let microphone = self
+            .microphone
+            .packet
+            .as_ref()
+            .ok_or(PcmSourceError::SourceEndedEarly(AudioInputKind::Microphone))?;
+        let system =
+            self.system_loopback
+                .packet
+                .as_ref()
+                .ok_or(PcmSourceError::SourceEndedEarly(
+                    AudioInputKind::SystemLoopback,
+                ))?;
+        let prefix = prefix_plan(
+            microphone,
+            system,
+            self.plan.target_format,
+            self.epoch,
+            self.emitted_frames,
+        )?;
+        // WASAPI inputs have independent packet boundaries. Normalize each once, mix their
+        // common frame prefix, and retain the longer packet for the next peer packet. The
+        // output timeline is derived from cumulative frames, avoiding per-packet rounding drift.
+        let mixed = prefix.mix(&self.plan, microphone, system)?;
+        self.microphone.consume(prefix.bytes)?;
+        self.system_loopback.consume(prefix.bytes)?;
+        self.epoch = Some(prefix.epoch);
+        self.emitted_frames = prefix.end_frame;
+        Ok(mixed)
+    }
+}
+
+struct PcmPrefixPlan {
+    epoch: i64,
+    start: i64,
+    duration: i64,
+    bytes: usize,
+    end_frame: u64,
+}
+
+impl PcmPrefixPlan {
+    fn mix(
+        &self,
+        plan: &MixPlan,
+        microphone: &BufferedPacket,
+        system: &BufferedPacket,
+    ) -> Result<MixedPcmChunk, PcmSourceError> {
         mix_pcm_chunks(
-            &self.plan,
-            microphone.as_ref().map(OwnedPcmInputChunk::as_input),
-            system_loopback.as_ref().map(OwnedPcmInputChunk::as_input),
+            plan,
+            Some(
+                microphone
+                    .prefix(
+                        self.bytes,
+                        AudioInputKind::Microphone,
+                        plan.target_format,
+                        self.start,
+                        self.duration,
+                    )
+                    .map_err(PcmSourceError::Mix)?,
+            ),
+            Some(
+                system
+                    .prefix(
+                        self.bytes,
+                        AudioInputKind::SystemLoopback,
+                        plan.target_format,
+                        self.start,
+                        self.duration,
+                    )
+                    .map_err(PcmSourceError::Mix)?,
+            ),
         )
-        .map(MixedPcmPoll::Chunk)
         .map_err(PcmSourceError::Mix)
     }
 }
 
-#[derive(Debug)]
-enum RequiredPcmPoll {
-    Chunk(OwnedPcmInputChunk),
-    Pending,
-    Drained,
-}
-
-impl RequiredPcmPoll {
-    fn into_chunk(self) -> Option<OwnedPcmInputChunk> {
-        match self {
-            Self::Chunk(chunk) => Some(chunk),
-            Self::Pending | Self::Drained => None,
-        }
-    }
-}
-
-fn poll_required_source<T>(
-    required: bool,
-    source: Option<&mut T>,
-    kind: AudioInputKind,
-) -> Result<RequiredPcmPoll, PcmSourceError>
-where
-    T: PcmChunkSource,
-{
-    if !required {
-        return Ok(RequiredPcmPoll::Drained);
-    }
-    let poll = source
-        .ok_or(PcmSourceError::SourceEndedEarly(kind))?
-        .next_pcm_chunk()?;
-    Ok(match poll {
-        PcmSourcePoll::Chunk(chunk) => RequiredPcmPoll::Chunk(chunk),
-        PcmSourcePoll::Pending => RequiredPcmPoll::Pending,
-        PcmSourcePoll::Drained => RequiredPcmPoll::Drained,
+fn prefix_plan(
+    microphone: &BufferedPacket,
+    system: &BufferedPacket,
+    format: PcmFormat,
+    epoch: Option<i64>,
+    emitted_frames: u64,
+) -> Result<PcmPrefixPlan, PcmSourceError> {
+    let epoch = match epoch {
+        Some(epoch) => epoch,
+        None if microphone.timestamp() == system.timestamp() => microphone.timestamp(),
+        None => return Err(PcmSourceError::Mix(PcmMixError::UnsyncedInputs)),
+    };
+    let frame_bytes = usize::from(format.channels) * 2;
+    let bytes = microphone.remaining_bytes().min(system.remaining_bytes());
+    let frames = u64::try_from(bytes / frame_bytes)
+        .map_err(|_| PcmSourceError::Mix(PcmMixError::OutputTooLarge))?;
+    let end_frame = emitted_frames
+        .checked_add(frames)
+        .ok_or(PcmSourceError::Mix(PcmMixError::OutputTooLarge))?;
+    let start = frame_time(emitted_frames, format.sample_rate_hz, epoch)?;
+    let end = frame_time(end_frame, format.sample_rate_hz, epoch)?;
+    let duration = end
+        .checked_sub(start)
+        .filter(|duration| *duration > 0)
+        .ok_or(PcmSourceError::Mix(PcmMixError::InvalidInputTime))?;
+    Ok(PcmPrefixPlan {
+        epoch,
+        start,
+        duration,
+        bytes,
+        end_frame,
     })
 }
 
-fn require_synced_presence(
-    plan: &MixPlan,
-    microphone: Option<&OwnedPcmInputChunk>,
-    system_loopback: Option<&OwnedPcmInputChunk>,
-) -> Result<(), PcmSourceError> {
-    if plan.microphone.is_some() && microphone.is_none() {
-        return Err(PcmSourceError::SourceEndedEarly(AudioInputKind::Microphone));
-    }
-    if plan.system_loopback.is_some() && system_loopback.is_none() {
-        return Err(PcmSourceError::SourceEndedEarly(
-            AudioInputKind::SystemLoopback,
-        ));
-    }
-    Ok(())
+fn frame_time(frames: u64, rate: u32, epoch: i64) -> Result<i64, PcmSourceError> {
+    let elapsed = u128::from(frames)
+        .checked_mul(10_000_000)
+        .and_then(|time| time.checked_div(u128::from(rate)))
+        .and_then(|time| i64::try_from(time).ok())
+        .and_then(|time| epoch.checked_add(time))
+        .ok_or(PcmSourceError::Mix(PcmMixError::InvalidInputTime))?;
+    Ok(elapsed)
 }

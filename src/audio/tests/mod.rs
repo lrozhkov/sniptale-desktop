@@ -1,6 +1,7 @@
 mod adapters;
 mod devices;
 mod mix_plan;
+mod packet_alignment;
 mod pcm_mixer;
 mod pipeline;
 
