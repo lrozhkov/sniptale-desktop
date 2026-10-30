@@ -30,10 +30,7 @@ def retired_product_roots() -> tuple[str, ...]:
 def retired_identity_strings(path: Path, payload: bytes) -> tuple[str, ...]:
     candidates = [path.name]
     candidates.extend(match.decode("ascii") for match in re.findall(rb"[\x20-\x7e]{3,}", payload))
-    candidates.extend(
-        match.decode("utf-16le")
-        for match in re.findall(rb"(?:[\x20-\x7e]\x00){3,}", payload)
-    )
+    candidates.extend(match.decode("utf-16le") for match in re.findall(rb"(?:[\x20-\x7e]\x00){3,}", payload))
     matches: list[str] = []
     for candidate in candidates:
         folded = candidate.casefold()
@@ -82,10 +79,10 @@ def resource_data_size(payload: bytes, base: int, type_id: int, name_id: int) ->
     type_entry = directory_entry(payload, base, 0, type_id)
     if not type_entry & 0x8000_0000:
         raise PeResourceError(f"resource type {type_id} is not a directory")
-    name_entry = directory_entry(payload, base, type_entry & 0x7fff_ffff, name_id)
+    name_entry = directory_entry(payload, base, type_entry & 0x7FFF_FFFF, name_id)
     if not name_entry & 0x8000_0000:
         raise PeResourceError(f"resource {type_id}/{name_id} has no language directory")
-    language_offset = base + (name_entry & 0x7fff_ffff)
+    language_offset = base + (name_entry & 0x7FFF_FFFF)
     checked_slice(payload, language_offset, 24)
     language_count = read_u16(payload, language_offset + 12) + read_u16(payload, language_offset + 14)
     if language_count == 0:

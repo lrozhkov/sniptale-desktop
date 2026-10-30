@@ -20,7 +20,7 @@ while [[ $# -gt 0 ]]; do
       profile="${1#*=}"
       shift
       ;;
-    -h|--help)
+    -h | --help)
       printf 'Usage: tooling/qa/wrappers/build.sh [--profile dev|release]\n'
       exit 0
       ;;
@@ -32,7 +32,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 case "$profile" in
-  dev|release)
+  dev | release)
     ;;
   *)
     printf 'Unknown build profile: %s\n' "$profile" >&2

@@ -57,7 +57,11 @@ def download_https(
     request = urllib.request.Request(url, headers={"User-Agent": "SniptaleDesktopE2ELab/1"})
     try:
         started = time.monotonic()
-        with _wall_clock_deadline(timeout), urllib.request.urlopen(request, timeout=min(timeout, 120)) as response, partial.open("wb") as output:
+        with (
+            _wall_clock_deadline(timeout),
+            urllib.request.urlopen(request, timeout=min(timeout, 120)) as response,
+            partial.open("wb") as output,
+        ):
             final = urllib.parse.urlparse(response.geturl())
             if final.scheme != "https":
                 raise IntegrityError("download redirected away from HTTPS")
@@ -118,7 +122,11 @@ def run(
         merged.update(env)
     with tempfile.TemporaryFile() as output:
         process = subprocess.Popen(
-            list(command), cwd=cwd, env=merged, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            list(command),
+            cwd=cwd,
+            env=merged,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
             start_new_session=True,
         )
         assert process.stdout is not None
@@ -143,9 +151,7 @@ def run(
                     if captured > max_output_bytes:
                         os.killpg(process.pid, signal.SIGKILL)
                         process.wait()
-                        raise ResourceError(
-                            f"command output exceeded {max_output_bytes} byte limit: {command[0]}"
-                        )
+                        raise ResourceError(f"command output exceeded {max_output_bytes} byte limit: {command[0]}")
                     output.write(chunk)
                     if stream:
                         pending += chunk
@@ -236,12 +242,14 @@ def available_memory_mib() -> int:
 
 def validate_resources(path: Path, *, min_free_gib: int, min_memory_mib: int) -> dict[str, int]:
     usage = shutil.disk_usage(path)
-    free_gib = usage.free // (1024 ** 3)
+    free_gib = usage.free // (1024**3)
     memory_mib = available_memory_mib()
     if free_gib < min_free_gib:
         raise ResourceError(f"desktop E2E lab needs {min_free_gib} GiB free; only {free_gib} GiB available")
     if memory_mib < min_memory_mib:
-        raise ResourceError(f"desktop E2E lab needs {min_memory_mib} MiB available RAM; only {memory_mib} MiB available")
+        raise ResourceError(
+            f"desktop E2E lab needs {min_memory_mib} MiB available RAM; only {memory_mib} MiB available"
+        )
     return {"free_disk_gib": free_gib, "available_memory_mib": memory_mib}
 
 
@@ -256,7 +264,9 @@ def wait_for_resources(
     while True:
         try:
             return validate_resources(
-                path, min_free_gib=min_free_gib, min_memory_mib=min_memory_mib,
+                path,
+                min_free_gib=min_free_gib,
+                min_memory_mib=min_memory_mib,
             )
         except ResourceError:
             if time.monotonic() >= deadline:

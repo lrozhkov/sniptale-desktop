@@ -322,9 +322,7 @@ STARTUP_DEGRADED_FORBIDDEN = {
     ],
 }
 
-BASE64_ENCODING_ALLOWED_PREFIXES = (
-    "src/transfer/",
-)
+BASE64_ENCODING_ALLOWED_PREFIXES = ("src/transfer/",)
 
 BASE64_ENCODING_PATTERNS = {
     r"\bbase64::": "imports base64 encoder outside transfer owner",
@@ -590,13 +588,9 @@ SETTINGS_QUALITY_POLICY_DUPLICATION_PATTERNS = {
     r"\bfn\s+effective_video_bitrate\b": "effective bitrate policy must stay settings-owned",
     r"\bfps_cap\s*\(": "FPS cap policy must stay settings-owned",
     r"\bbitrate_preset\s*\(": "bitrate preset policy must stay settings-owned",
-    r"\bvideo_bitrate_mbps_override[\s\S]{0,200}\.clamp\s*\(": (
-        "manual bitrate clamp policy must stay settings-owned"
-    ),
+    r"\bvideo_bitrate_mbps_override[\s\S]{0,200}\.clamp\s*\(": ("manual bitrate clamp policy must stay settings-owned"),
     r"\b2\.0\s*\.\.\s*=\s*80\.0\b": "video bitrate bounds must use settings-owned constants",
-    r"\b96\s*\|\s*128\s*\|\s*160\s*\|\s*192\b": (
-        "audio bitrate allowlist must use settings-owned constants"
-    ),
+    r"\b96\s*\|\s*128\s*\|\s*160\s*\|\s*192\b": ("audio bitrate allowlist must use settings-owned constants"),
 }
 
 
@@ -659,11 +653,7 @@ def scan_text_files(prefix: str) -> list[Path]:
     base = ROOT / prefix
     if not base.exists():
         return []
-    return [
-        path
-        for path in base.rglob("*")
-        if path.is_file() and path.suffix in {".rs", ".md", ".toml"}
-    ]
+    return [path for path in base.rglob("*") if path.is_file() and path.suffix in {".rs", ".md", ".toml"}]
 
 
 def rust_files(root: Path) -> list[Path]:
@@ -674,11 +664,7 @@ def rust_files(root: Path) -> list[Path]:
 
 
 def production_rust_files(root: Path) -> list[Path]:
-    return [
-        path
-        for path in rust_files(root)
-        if "/tests/" not in path.as_posix() and path.name != "tests.rs"
-    ]
+    return [path for path in rust_files(root) if "/tests/" not in path.as_posix() and path.name != "tests.rs"]
 
 
 def check_protocol_neutrality() -> None:
@@ -701,9 +687,7 @@ def check_windows_api_imports() -> None:
         if "windows::" not in text:
             continue
         relative = rel(path)
-        if relative not in WINDOWS_API_ALLOWED_FILES and not relative.startswith(
-            WINDOWS_API_ALLOWED_PREFIXES
-        ):
+        if relative not in WINDOWS_API_ALLOWED_FILES and not relative.startswith(WINDOWS_API_ALLOWED_PREFIXES):
             offenders.append(relative)
     if offenders:
         fail("windows crate imports outside approved owner modules: " + ", ".join(offenders))
@@ -1078,8 +1062,7 @@ def media_noop_worker_ratchet_errors(
         return []
     return [
         "new media worker component(s) fall through run_basic_worker above AUD11 final "
-        "baseline: "
-        + ", ".join(additions)
+        "baseline: " + ", ".join(additions)
     ]
 
 
@@ -1124,9 +1107,7 @@ def direct_app_media_execution_ratchet_errors(
         allowed = baseline.get(key, 0)
         if count > allowed:
             path, method = key
-            offenders.append(
-                f"{path} has {count} direct {method} call(s), above AUD11 final baseline {allowed}"
-            )
+            offenders.append(f"{path} has {count} direct {method} call(s), above AUD11 final baseline {allowed}")
     return offenders
 
 
@@ -1143,9 +1124,7 @@ def deferred_evaluation_warning_errors(root: Path) -> list[str]:
         if relative in AUD11_DEFERRED_EVALUATION_ALLOWED_FILES:
             continue
         if '"deferred-evaluation"' in path.read_text(encoding="utf-8"):
-            offenders.append(
-                f"{relative} produces deferred-evaluation outside settings-owned policy baseline"
-            )
+            offenders.append(f"{relative} produces deferred-evaluation outside settings-owned policy baseline")
     return offenders
 
 
@@ -1182,7 +1161,9 @@ def native_message_control_limit_errors(root: Path) -> list[str]:
     if not native_messaging_tests.is_file():
         offenders.append("src/ipc/tests/native_messaging.rs is missing")
     elif "chromium_sized_control_frame_is_rejected_before_body_read" not in read(native_messaging_tests):
-        offenders.append("src/ipc/tests/native_messaging.rs must prove Chromium-sized control frames fail before body read")
+        offenders.append(
+            "src/ipc/tests/native_messaging.rs must prove Chromium-sized control frames fail before body read"
+        )
     return offenders
 
 
@@ -1280,16 +1261,11 @@ def stale_hot_path_sleep_allowances(root: Path) -> list[str]:
             stale.append(f"{relative} no longer exists")
             continue
         expressions = [
-            match.group(1)
-            for match in re.finditer(
-                r"thread::sleep\s*\(([^)]*)\)", path.read_text(encoding="utf-8")
-            )
+            match.group(1) for match in re.finditer(r"thread::sleep\s*\(([^)]*)\)", path.read_text(encoding="utf-8"))
         ]
         for term in terms:
             if not any(term in expression for expression in expressions):
-                stale.append(
-                    f"{relative}:{term} no longer identifies a bounded thread::sleep"
-                )
+                stale.append(f"{relative}:{term} no longer identifies a bounded thread::sleep")
     return stale
 
 
@@ -1412,7 +1388,9 @@ def check_windows_pipe_worker_event_bridge() -> None:
         text,
         re.S,
     ):
-        fail("windows pipe worker must use event-aware session-factory pipe server path with process-log lifecycle proof")
+        fail(
+            "windows pipe worker must use event-aware session-factory pipe server path with process-log lifecycle proof"
+        )
     if "let effects_factory =" not in text:
         fail("windows pipe worker must create per-session side-effect adapters")
     if re.search(r"\bserver\.run_with_effects\(&mut effects", text):
@@ -2034,7 +2012,9 @@ def run_self_tests() -> int:
         )
         protected_errors = protected_media_lifecycle_errors(root)
         assert_contains(protected_errors, "src/capture/screenshot.rs missing required protected finalize term")
-        assert_contains(protected_errors, "src/recording/transfer_store/lifecycle.rs missing required protected finalize term")
+        assert_contains(
+            protected_errors, "src/recording/transfer_store/lifecycle.rs missing required protected finalize term"
+        )
         assert_contains(protected_errors, "src/capture/transfer_store/service.rs missing protected chunk-read term")
         assert_contains(protected_errors, "src/capture/transfer_store/service.rs falls back to plaintext")
         assert_contains(protected_errors, "src/capture/transfer_store/service.rs allows plaintext media")

@@ -22,12 +22,16 @@ class CompilationCacheTests(unittest.TestCase):
         self.assertEqual(len(commands), 3)
         for command in commands:
             self.assertEqual(command[:5], ["cargo", "clean", "--locked", "--package", "sniptale-native-agent"])
-        self.assertEqual([c[c.index("--target-dir") + 1] for c in commands], ["target", "target", "target/llvm-cov-target"])
+        self.assertEqual(
+            [c[c.index("--target-dir") + 1] for c in commands], ["target", "target", "target/llvm-cov-target"]
+        )
         self.assertIn("x86_64-pc-windows-msvc", commands[1])
         self.assertTrue(all(call.kwargs["check"] for call in run.call_args_list))
 
     def test_cleanup_failure_blocks_further_steps(self):
-        with mock.patch.object(compilation_cache.subprocess, "run", side_effect=subprocess.CalledProcessError(1, "cargo")) as run:
+        with mock.patch.object(
+            compilation_cache.subprocess, "run", side_effect=subprocess.CalledProcessError(1, "cargo")
+        ) as run:
             with self.assertRaises(subprocess.CalledProcessError):
                 compilation_cache.main()
             self.assertEqual(run.call_count, 1)

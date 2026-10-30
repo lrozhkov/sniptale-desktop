@@ -38,8 +38,7 @@ for path in \
   docs/security/threat-model.md \
   docs/tooling/qa.md \
   docs/oss/provenance.md \
-  docs/engineering/testing-policy.md
-do
+  docs/engineering/testing-policy.md; do
   if [[ -f "$path" ]]; then
     printf 'OK %s\n' "$path"
   else

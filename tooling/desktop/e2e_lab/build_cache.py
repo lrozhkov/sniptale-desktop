@@ -110,9 +110,7 @@ def restore(
             destination.chmod(0o600)
         except OSError:
             pass
-    artifacts = sorted(
-        path for path in output.rglob("*") if path.is_file() and path.suffix.lower() in {".exe", ".msi"}
-    )
+    artifacts = sorted(path for path in output.rglob("*") if path.is_file() and path.suffix.lower() in {".exe", ".msi"})
     return artifacts or None
 
 

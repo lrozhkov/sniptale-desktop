@@ -28,10 +28,19 @@ class WorkSessionTests(unittest.TestCase):
         license_probe.start()
         self.addCleanup(license_probe.stop)
         self.sessions = WorkSessions(self.paths, self.config)
-        self.state = dict(schema_version=1, id="20261030T140000Z", pid=55, started_epoch=int(time.time()),
-                          expires_epoch=int(time.time()) + 600, golden_sha256="a" * 64,
-                          boot_id="639000000000000000", iterations=0, vendor_lock="b" * 64,
-                          last_artifact=None, health="ready")
+        self.state = dict(
+            schema_version=1,
+            id="20261030T140000Z",
+            pid=55,
+            started_epoch=int(time.time()),
+            expires_epoch=int(time.time()) + 600,
+            golden_sha256="a" * 64,
+            boot_id="639000000000000000",
+            iterations=0,
+            vendor_lock="b" * 64,
+            last_artifact=None,
+            health="ready",
+        )
         self.vm = SimpleNamespace(pid=55, started_epoch=self.state["started_epoch"], golden_sha256="a" * 64)
         self.sessions.vms = mock.Mock(spec=VmManager)
         self.sessions.vms.current.return_value = self.vm
@@ -45,18 +54,21 @@ class WorkSessionTests(unittest.TestCase):
     def test_watchdog_records_why_its_owned_session_ends(self):
         import session_watchdog
         from state import read_json
+
         for expired in (False, True):
             with self.subTest(expired=expired):
-                maximum = self.config.limits.max_temporary_gib * 1024 ** 3
+                maximum = self.config.limits.max_temporary_gib * 1024**3
                 now = self.state["expires_epoch"] + 1 if expired else self.state["started_epoch"]
                 usage = 0 if expired else maximum + 1
-                with mock.patch("session_watchdog.sys.argv", ["watchdog", str(self.paths.root), self.state["id"]]), mock.patch(
-                    "session_watchdog.LabPaths.discover", return_value=self.paths
-                ), mock.patch("session_watchdog.LabConfig.load", return_value=self.config), mock.patch(
-                    "session_watchdog.load_session", return_value=self.state
-                ), mock.patch("session_watchdog.time.time", return_value=now), mock.patch(
-                    "session_watchdog.directory_allocated_bytes", return_value=usage
-                ), mock.patch("session_watchdog.WorkSessions") as sessions:
+                with (
+                    mock.patch("session_watchdog.sys.argv", ["watchdog", str(self.paths.root), self.state["id"]]),
+                    mock.patch("session_watchdog.LabPaths.discover", return_value=self.paths),
+                    mock.patch("session_watchdog.LabConfig.load", return_value=self.config),
+                    mock.patch("session_watchdog.load_session", return_value=self.state),
+                    mock.patch("session_watchdog.time.time", return_value=now),
+                    mock.patch("session_watchdog.directory_allocated_bytes", return_value=usage),
+                    mock.patch("session_watchdog.WorkSessions") as sessions,
+                ):
                     session_watchdog.main()
                 sessions.return_value.close.assert_called_once()
                 record = read_json(self.paths.lab / "sessions" / self.state["id"] / "termination.json")
@@ -65,25 +77,34 @@ class WorkSessionTests(unittest.TestCase):
 
     def test_failed_cache_save_preserves_current_disk_and_lease(self):
         from state import read_json
-        with mock.patch.object(self.sessions, 'save_work_image', side_effect=LabError('save failed')):
-            with self.assertRaisesRegex(LabError, 'save failed'):
+
+        with mock.patch.object(self.sessions, "save_work_image", side_effect=LabError("save failed")):
+            with self.assertRaisesRegex(LabError, "save failed"):
                 self.sessions.close(save=True)
         self.sessions.vms.reset.assert_not_called()
         self.assertEqual(read_json(state_path(self.paths)), self.state)
 
     def test_offline_save_retry_requires_unchanged_disk_and_stopped_generation(self):
         from state import read_json
+
         overlay = self.paths.runtime / "windows-11/overlay.qcow2"
         overlay.parent.mkdir(parents=True, exist_ok=True)
         overlay.write_bytes(b"clean shutdown fixture")
-        write_json(self.sessions.vms.state_path.return_value, {
-            "pid": self.state["pid"], "started_epoch": self.state["started_epoch"],
-            "golden_sha256": self.state["golden_sha256"],
-        })
+        write_json(
+            self.sessions.vms.state_path.return_value,
+            {
+                "pid": self.state["pid"],
+                "started_epoch": self.state["started_epoch"],
+                "golden_sha256": self.state["golden_sha256"],
+            },
+        )
         marker = self.paths.runtime / "windows-11/work-image-save.json"
         write_json(marker, self.sessions.save_stamp(self.state, overlay))
         self.sessions.vms.orphan_pids.return_value = []
-        with mock.patch("work_sessions.process_matches", return_value=False), mock.patch.object(self.sessions, "store_work_image") as store:
+        with (
+            mock.patch("work_sessions.process_matches", return_value=False),
+            mock.patch.object(self.sessions, "store_work_image") as store,
+        ):
             original = overlay.read_bytes()
             overlay.write_bytes(b"changed disk")
             with self.assertRaisesRegex(IntegrityError, "identity changed"):
@@ -108,7 +129,9 @@ class WorkSessionTests(unittest.TestCase):
         self.sessions.boot_id.return_value = "639000000000000001"
         with self.assertRaisesRegex(IntegrityError, "rebooted"):
             self.sessions.require()
-        self.sessions.vms.current.return_value = SimpleNamespace(pid=66, started_epoch=self.vm.started_epoch, golden_sha256="a" * 64)
+        self.sessions.vms.current.return_value = SimpleNamespace(
+            pid=66, started_epoch=self.vm.started_epoch, golden_sha256="a" * 64
+        )
         with self.assertRaisesRegex(IntegrityError, "generation"):
             self.sessions.require()
 
@@ -153,9 +176,15 @@ class WorkSessionTests(unittest.TestCase):
         self.assertEqual(load_session(self.paths)["health"], "failed")
 
     def test_untrusted_state_fails_closed(self):
-        for key, value in (("pid", True), ("iterations", -1), ("iterations", 51),
-                           ("boot_id", "1;exit"), ("golden_sha256", "bad"),
-                           ("last_artifact", "../../outside.msi"), ("expires_epoch", self.state["started_epoch"] + 14401)):
+        for key, value in (
+            ("pid", True),
+            ("iterations", -1),
+            ("iterations", 51),
+            ("boot_id", "1;exit"),
+            ("golden_sha256", "bad"),
+            ("last_artifact", "../../outside.msi"),
+            ("expires_epoch", self.state["started_epoch"] + 14401),
+        ):
             with self.subTest(key=key):
                 write_json(state_path(self.paths), {**self.state, key: value})
                 with self.assertRaises(IntegrityError):
@@ -171,18 +200,26 @@ class WorkSessionTests(unittest.TestCase):
     def test_interrupted_dependency_build_invalidates_vendor_before_guest_mutation(self):
         (self.paths.root / "Cargo.lock").write_text("changed dependency lock")
         self.sessions.validate_toolchain = mock.Mock()
+
         def source(root, archive):
             archive.write_bytes(b"source")
             return SimpleNamespace(archive=archive, as_dict=lambda: {"sha256": "c" * 64})
+
         def vendor(command, **kwargs):
             destination = Path(command[-1])
             destination.mkdir()
             (destination / "fixture").write_text("verified dependency")
+
         def build(*args):
             self.assertEqual(load_session(self.paths)["vendor_lock"], "0" * 64)
             self.assertEqual(load_session(self.paths)["health"], "failed")
             raise LabError("injected build interruption")
-        with mock.patch("work_sessions.create_source_bundle", side_effect=source), mock.patch("work_sessions.run", side_effect=vendor), mock.patch("work_sessions.LaneRunner") as runner:
+
+        with (
+            mock.patch("work_sessions.create_source_bundle", side_effect=source),
+            mock.patch("work_sessions.run", side_effect=vendor),
+            mock.patch("work_sessions.LaneRunner") as runner,
+        ):
             runner.return_value._build_windows.side_effect = build
             with self.assertRaisesRegex(LabError, "injected"):
                 self.sessions.iterate("build")

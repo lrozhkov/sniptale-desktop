@@ -112,9 +112,10 @@ class StateSystemTests(unittest.TestCase):
     def test_file_execution_policy_is_an_explicit_process_only_opt_in(self):
         plain = powershell_encoded("Write-Output 'read-only'")
         trusted = powershell_encoded(". ./lab-signing.ps1", allow_lab_scripts=True)
-        self.assertNotIn('-ExecutionPolicy', plain)
-        self.assertEqual(trusted[trusted.index('-ExecutionPolicy') + 1], 'Bypass')
-        with self.assertRaises(TypeError): powershell_encoded('read', allow_lab_scripts='Bypass')
+        self.assertNotIn("-ExecutionPolicy", plain)
+        self.assertEqual(trusted[trusted.index("-ExecutionPolicy") + 1], "Bypass")
+        with self.assertRaises(TypeError):
+            powershell_encoded("read", allow_lab_scripts="Bypass")
 
     def test_lock_rejects_symlink_without_touching_target(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -132,15 +133,16 @@ class StateSystemTests(unittest.TestCase):
             log = Path(directory) / "command.log"
             started = []
             real_popen = subprocess.Popen
+
             def launch(*args, **kwargs):
                 process = real_popen(*args, **kwargs)
                 started.append(process)
                 return process
+
             health = mock.Mock(side_effect=LabError("guest VM is not running"))
             with mock.patch("system.subprocess.Popen", side_effect=launch):
                 with self.assertRaisesRegex(LabError, "VM is not running"):
-                    run([sys.executable, "-c", "import time; time.sleep(30)"],
-                        timeout=60, log=log, health_check=health)
+                    run([sys.executable, "-c", "import time; time.sleep(30)"], timeout=60, log=log, health_check=health)
             self.assertIsNotNone(started[0].poll())
             self.assertTrue(log.exists())
 
@@ -148,9 +150,16 @@ class StateSystemTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             log = Path(directory) / "command.log"
             with self.assertRaises(TimeoutExpired):
-                run([sys.executable, "-u", "-c",
-                     "import time; print('phase-started token=super-secret-token'); time.sleep(30)"],
-                    timeout=1, log=log)
+                run(
+                    [
+                        sys.executable,
+                        "-u",
+                        "-c",
+                        "import time; print('phase-started token=super-secret-token'); time.sleep(30)",
+                    ],
+                    timeout=1,
+                    log=log,
+                )
             self.assertIn("phase-started", log.read_text())
             self.assertNotIn("super-secret-token", log.read_text())
 
@@ -194,19 +203,28 @@ class StateSystemTests(unittest.TestCase):
 
     def test_resource_limits_fail_before_vm_start(self) -> None:
         usage = os.statvfs("/")
-        with mock.patch("system.shutil.disk_usage") as disk, mock.patch("system.available_memory_mib", return_value=1024):
+        with (
+            mock.patch("system.shutil.disk_usage") as disk,
+            mock.patch("system.available_memory_mib", return_value=1024),
+        ):
             disk.return_value = mock.Mock(free=100 * 1024**3)
             with self.assertRaisesRegex(ResourceError, "available RAM"):
                 validate_resources(Path("/"), min_free_gib=40, min_memory_mib=2048)
 
     def test_resource_wait_retries_without_lowering_limits(self) -> None:
         expected = {"free_disk_gib": 100, "available_memory_mib": 12288}
-        with mock.patch(
-            "system.validate_resources",
-            side_effect=[ResourceError("memory is still draining"), expected],
-        ) as validate, mock.patch("system.time.sleep"):
+        with (
+            mock.patch(
+                "system.validate_resources",
+                side_effect=[ResourceError("memory is still draining"), expected],
+            ) as validate,
+            mock.patch("system.time.sleep"),
+        ):
             actual = wait_for_resources(
-                Path("/"), min_free_gib=40, min_memory_mib=10240, timeout=90,
+                Path("/"),
+                min_free_gib=40,
+                min_memory_mib=10240,
+                timeout=90,
             )
         self.assertEqual(actual, expected)
         self.assertEqual(validate.call_count, 2)

@@ -1,4 +1,5 @@
 """Catalog of independent checkpoint checks; Cargo compilation stays sequential."""
+
 from __future__ import annotations
 
 import os
@@ -26,7 +27,10 @@ CHECKS = [
     ("security guardrails", ["python3", "tooling/qa/rules/verify_security.py"]),
     ("dev dependency guardrails", ["python3", "tooling/qa/rules/verify_dev_dependencies.py"]),
     ("test policy", ["python3", "tooling/qa/rules/verify_test_policy.py"]),
-    ("desktop E2E lab controller tests", ["python3", "-m", "unittest", "discover", "-s", "tooling/desktop/e2e_lab/tests", "-p", "test_*.py"]),
+    (
+        "desktop E2E lab controller tests",
+        ["python3", "-m", "unittest", "discover", "-s", "tooling/desktop/e2e_lab/tests", "-p", "test_*.py"],
+    ),
     ("QA runtime tests", ["python3", "-m", "unittest", "discover", "-s", "tooling/qa/tests", "-p", "test_*.py"]),
 ]
 
@@ -34,8 +38,9 @@ CHECKS = [
 def main() -> int:
     try:
         workers = int(os.environ.get("SNIPTALE_QA_STATIC_JOBS", "4"))
-        return run_group(CHECKS, Path(os.environ["SNIPTALE_QA_RUN_RECORD"]),
-                         Path(os.environ["SNIPTALE_QA_RUN_LOG"]), workers)
+        return run_group(
+            CHECKS, Path(os.environ["SNIPTALE_QA_RUN_RECORD"]), Path(os.environ["SNIPTALE_QA_RUN_LOG"]), workers
+        )
     except (KeyError, ValueError):
         print("FAIL checkpoint static proof: invalid worker configuration or missing wrapper context")
         return 1

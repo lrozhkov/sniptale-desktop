@@ -32,18 +32,24 @@ class Probe:
         except Exception as exc:
             status = "fail"
             detail = f"{type(exc).__name__}: {exc}"
-        self.tests.append({
-            "name": name,
-            "status": status,
-            "duration_ms": int((time.monotonic() - started) * 1000),
-            "detail": detail[:4096],
-        })
+        self.tests.append(
+            {
+                "name": name,
+                "status": status,
+                "duration_ms": int((time.monotonic() - started) * 1000),
+                "detail": detail[:4096],
+            }
+        )
 
     @staticmethod
     def command(command: list[str], timeout: int = 60) -> str:
         completed = subprocess.run(
-            command, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            timeout=timeout, check=False,
+            command,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            timeout=timeout,
+            check=False,
         )
         if completed.returncode != 0:
             raise RuntimeError(f"{command[0]} exited {completed.returncode}: {completed.stdout[-1000:]}")
@@ -70,7 +76,17 @@ class Probe:
         return "guest OUTPUT=DROP and external TCP egress was denied"
 
     def portal(self) -> str:
-        output = self.command(["gdbus", "introspect", "--session", "--dest", "org.freedesktop.portal.Desktop", "--object-path", "/org/freedesktop/portal/desktop"])
+        output = self.command(
+            [
+                "gdbus",
+                "introspect",
+                "--session",
+                "--dest",
+                "org.freedesktop.portal.Desktop",
+                "--object-path",
+                "/org/freedesktop/portal/desktop",
+            ]
+        )
         if "org.freedesktop.portal.Screenshot" not in output:
             raise RuntimeError("Screenshot portal interface is absent")
         return "Screenshot portal exported"
@@ -80,11 +96,21 @@ class Probe:
         watcher_deadline = time.monotonic() + 20
         while time.monotonic() < watcher_deadline:
             try:
-                self.command([
-                    "gdbus", "call", "--session", "--dest", "org.kde.StatusNotifierWatcher",
-                    "--object-path", "/StatusNotifierWatcher", "--method", "org.freedesktop.DBus.Properties.Get",
-                    "org.kde.StatusNotifierWatcher", "RegisteredStatusNotifierItems",
-                ])
+                self.command(
+                    [
+                        "gdbus",
+                        "call",
+                        "--session",
+                        "--dest",
+                        "org.kde.StatusNotifierWatcher",
+                        "--object-path",
+                        "/StatusNotifierWatcher",
+                        "--method",
+                        "org.freedesktop.DBus.Properties.Get",
+                        "org.kde.StatusNotifierWatcher",
+                        "RegisteredStatusNotifierItems",
+                    ]
+                )
                 break
             except RuntimeError:
                 time.sleep(1)
@@ -96,11 +122,21 @@ class Probe:
             deadline = time.monotonic() + 20
             while time.monotonic() < deadline:
                 try:
-                    output = self.command([
-                        "gdbus", "call", "--session", "--dest", "org.kde.StatusNotifierWatcher",
-                        "--object-path", "/StatusNotifierWatcher", "--method", "org.freedesktop.DBus.Properties.Get",
-                        "org.kde.StatusNotifierWatcher", "RegisteredStatusNotifierItems",
-                    ])
+                    output = self.command(
+                        [
+                            "gdbus",
+                            "call",
+                            "--session",
+                            "--dest",
+                            "org.kde.StatusNotifierWatcher",
+                            "--object-path",
+                            "/StatusNotifierWatcher",
+                            "--method",
+                            "org.freedesktop.DBus.Properties.Get",
+                            "org.kde.StatusNotifierWatcher",
+                            "RegisteredStatusNotifierItems",
+                        ]
+                    )
                 except RuntimeError:
                     time.sleep(1)
                     continue
@@ -123,27 +159,62 @@ class Probe:
             raise RuntimeError("Pulse compatibility server is not backed by PipeWire")
         self.command(["systemctl", "--user", "is-active", "wireplumber"])
         original_sink = self.command(["pactl", "get-default-sink"])
-        sink_module = self.command(["pactl", "load-module", "module-null-sink", "sink_name=sniptale_test", "sink_properties=device.description=SniptaleSyntheticOutput"])
+        sink_module = self.command(
+            [
+                "pactl",
+                "load-module",
+                "module-null-sink",
+                "sink_name=sniptale_test",
+                "sink_properties=device.description=SniptaleSyntheticOutput",
+            ]
+        )
         source_module = ""
         raw = self.evidence / "synthetic-audio.raw"
         tone = self.evidence / "synthetic-tone.raw"
         try:
             self.command(["pactl", "set-default-sink", "sniptale_test"])
-            source_module = self.command(["pactl", "load-module", "module-remap-source", "master=sniptale_test.monitor", "source_name=sniptale_virtual_mic", "source_properties=device.description=SniptaleSyntheticMicrophone"])
-            tone.write_bytes(b"".join(
-                int(12000 * math.sin(2 * math.pi * 880 * sample / 48000)).to_bytes(2, "little", signed=True)
-                for sample in range(48000)
-            ))
-            recorder = subprocess.Popen([
-                "parecord", "--device=sniptale_virtual_mic", "--raw",
-                "--rate=48000", "--channels=1", "--format=s16le", str(raw),
-            ])
+            source_module = self.command(
+                [
+                    "pactl",
+                    "load-module",
+                    "module-remap-source",
+                    "master=sniptale_test.monitor",
+                    "source_name=sniptale_virtual_mic",
+                    "source_properties=device.description=SniptaleSyntheticMicrophone",
+                ]
+            )
+            tone.write_bytes(
+                b"".join(
+                    int(12000 * math.sin(2 * math.pi * 880 * sample / 48000)).to_bytes(2, "little", signed=True)
+                    for sample in range(48000)
+                )
+            )
+            recorder = subprocess.Popen(
+                [
+                    "parecord",
+                    "--device=sniptale_virtual_mic",
+                    "--raw",
+                    "--rate=48000",
+                    "--channels=1",
+                    "--format=s16le",
+                    str(raw),
+                ]
+            )
             try:
                 time.sleep(1)
-                self.command([
-                    "pacat", "--playback", "--device=sniptale_test", "--raw",
-                    "--rate=48000", "--channels=1", "--format=s16le", str(tone),
-                ], timeout=15)
+                self.command(
+                    [
+                        "pacat",
+                        "--playback",
+                        "--device=sniptale_test",
+                        "--raw",
+                        "--rate=48000",
+                        "--channels=1",
+                        "--format=s16le",
+                        str(tone),
+                    ],
+                    timeout=15,
+                )
                 time.sleep(1)
             finally:
                 if recorder.poll() is None:
@@ -162,7 +233,7 @@ class Probe:
                 while chunk := stream.read(1024 * 1024):
                     usable = len(chunk) - (len(chunk) % 2)
                     for offset in range(0, usable, 2):
-                        sample = int.from_bytes(chunk[offset:offset + 2], "little", signed=True)
+                        sample = int.from_bytes(chunk[offset : offset + 2], "little", signed=True)
                         peak = max(peak, abs(sample))
             if peak < 100:
                 raise RuntimeError("virtual microphone loopback PCM contains no synthetic tone")
@@ -200,22 +271,34 @@ class Probe:
             firefox_profile.mkdir()
             chromium_process = subprocess.Popen(
                 [
-                    chromium, f"--user-data-dir={chromium_profile}", "--no-first-run",
-                    "--no-default-browser-check", "--disable-session-crashed-bubble",
+                    chromium,
+                    f"--user-data-dir={chromium_profile}",
+                    "--no-first-run",
+                    "--no-default-browser-check",
+                    "--disable-session-crashed-bubble",
                     f"--ozone-platform={'wayland' if self.lane == 'linux-wayland' else 'x11'}",
-                    "--new-window", "data:text/html,<title>Sniptale Chromium Probe</title>",
+                    "--new-window",
+                    "data:text/html,<title>Sniptale Chromium Probe</title>",
                 ],
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
             )
             processes.append(chromium_process)
             firefox_env = os.environ.copy()
             firefox_env["MOZ_ENABLE_WAYLAND"] = "1" if self.lane == "linux-wayland" else "0"
             firefox_process = subprocess.Popen(
                 [
-                    firefox, "--no-remote", "--profile", str(firefox_profile),
-                    "--new-window", "data:text/html,<title>Sniptale Firefox Probe</title>",
+                    firefox,
+                    "--no-remote",
+                    "--profile",
+                    str(firefox_profile),
+                    "--new-window",
+                    "data:text/html,<title>Sniptale Firefox Probe</title>",
                 ],
-                env=firefox_env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                env=firefox_env,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
                 start_new_session=True,
             )
             processes.append(firefox_process)
@@ -255,7 +338,9 @@ class Probe:
             shutil.rmtree(profile_root, ignore_errors=True)
 
     def atspi(self) -> str:
-        output = self.command(["gdbus", "introspect", "--session", "--dest", "org.a11y.Bus", "--object-path", "/org/a11y/bus"])
+        output = self.command(
+            ["gdbus", "introspect", "--session", "--dest", "org.a11y.Bus", "--object-path", "/org/a11y/bus"]
+        )
         if "GetAddress" not in output:
             raise RuntimeError("AT-SPI bus has no GetAddress method")
         return "AT-SPI bus exported"

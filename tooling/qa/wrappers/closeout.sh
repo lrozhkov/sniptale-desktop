@@ -16,7 +16,7 @@ while [[ $# -gt 0 ]]; do
       commit=false
       shift
       ;;
-    -m|--message)
+    -m | --message)
       message="${2:-}"
       shift 2
       ;;

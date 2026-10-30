@@ -1,4 +1,5 @@
 """A security label or advisory URL alone must not bypass release age."""
+
 from __future__ import annotations
 
 import copy
@@ -20,18 +21,41 @@ class SecurityUpdateTests(unittest.TestCase):
         self.proofs = json.loads((config / "security-update-proofs.json").read_text())
         self.python = {
             "cveMetadata": {"cveId": "CVE-2026-115557", "state": "PUBLISHED"},
-            "containers": {"cna": {"affected": [{
-                "product": "CPython", "repo": "https://github.com/python/cpython",
-                "defaultStatus": "unaffected", "versions": [
-                    {"version": "3.15.0", "lessThan": "3.15.2", "status": "affected", "versionType": "python"},
-                    {"version": "3.16.0a1", "lessThan": "3.16.0", "status": "affected", "versionType": "python"},
-                ],
-            }]}}
+            "containers": {
+                "cna": {
+                    "affected": [
+                        {
+                            "product": "CPython",
+                            "repo": "https://github.com/python/cpython",
+                            "defaultStatus": "unaffected",
+                            "versions": [
+                                {
+                                    "version": "3.15.0",
+                                    "lessThan": "3.15.2",
+                                    "status": "affected",
+                                    "versionType": "python",
+                                },
+                                {
+                                    "version": "3.16.0a1",
+                                    "lessThan": "3.16.0",
+                                    "status": "affected",
+                                    "versionType": "python",
+                                },
+                            ],
+                        }
+                    ]
+                }
+            },
         }
-        self.nextest = {"id": "RUSTSEC-2026-0412", "affected": [{
-            "package": {"name": "cargo-nextest", "ecosystem": "crates.io"},
-            "ranges": [{"type": "SEMVER", "events": [{"introduced": "0.9.125"}, {"fixed": "0.9.150"}]}],
-        }]}
+        self.nextest = {
+            "id": "RUSTSEC-2026-0412",
+            "affected": [
+                {
+                    "package": {"name": "cargo-nextest", "ecosystem": "crates.io"},
+                    "ranges": [{"type": "SEMVER", "events": [{"introduced": "0.9.125"}, {"fixed": "0.9.150"}]}],
+                }
+            ],
+        }
 
     def source(self, url, payload):
         self.assertIsNone(payload)
@@ -62,7 +86,9 @@ class SecurityUpdateTests(unittest.TestCase):
                 if mutation == "proof":
                     del self.proofs["exceptions"]["python"]
                 elif mutation == "url":
-                    self.catalog["securityExceptions"]["python"]["advisory"] = "https://www.cve.org/CVERecord?id=CVE-2026-0000"
+                    self.catalog["securityExceptions"]["python"]["advisory"] = (
+                        "https://www.cve.org/CVERecord?id=CVE-2026-0000"
+                    )
                 elif mutation == "package":
                     self.nextest["affected"][0]["package"]["name"] = "another-crate"
                 else:

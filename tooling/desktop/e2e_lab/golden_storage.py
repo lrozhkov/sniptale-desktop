@@ -39,10 +39,21 @@ def compact_unsealed_disk(paths: LabPaths, disk: Path) -> tuple[int, int]:
     temporary = disk.with_name(f".{disk.name}.compacted.partial")
     temporary.unlink(missing_ok=True)
     try:
-        run([
-            _qemu_img(paths), "convert", "-q", "-c", "-O", "qcow2",
-            "-o", "compression_type=zlib", str(disk), str(temporary),
-        ], timeout=3600)
+        run(
+            [
+                _qemu_img(paths),
+                "convert",
+                "-q",
+                "-c",
+                "-O",
+                "qcow2",
+                "-o",
+                "compression_type=zlib",
+                str(disk),
+                str(temporary),
+            ],
+            timeout=3600,
+        )
         run([_qemu_img(paths), "check", "-q", str(temporary)], timeout=1800)
         os.chmod(temporary, 0o600)
         os.replace(temporary, disk)
@@ -115,10 +126,21 @@ def compact_existing_goldens(
         for stale in (compacted_disk, compacted_identity, backup_disk, backup_identity):
             stale.unlink(missing_ok=True)
         try:
-            run([
-                _qemu_img(paths), "convert", "-q", "-c", "-O", "qcow2",
-                "-o", "compression_type=zlib", str(disk), str(compacted_disk),
-            ], timeout=3600)
+            run(
+                [
+                    _qemu_img(paths),
+                    "convert",
+                    "-q",
+                    "-c",
+                    "-O",
+                    "qcow2",
+                    "-o",
+                    "compression_type=zlib",
+                    str(disk),
+                    str(compacted_disk),
+                ],
+                timeout=3600,
+            )
             run([_qemu_img(paths), "check", "-q", str(compacted_disk)], timeout=1800)
             identity["disk_sha256"] = sha256_file(compacted_disk)
             identity["storage_format"] = STORAGE_FORMAT

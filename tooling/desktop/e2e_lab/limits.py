@@ -13,11 +13,15 @@ def directory_bytes(path: Path) -> int:
 
 
 def directory_allocated_bytes(path: Path) -> int:
-    return sum(
-        item.stat(follow_symlinks=False).st_blocks * 512
-        for item in path.rglob("*")
-        if item.is_file() and not item.is_symlink()
-    ) if path.exists() else 0
+    return (
+        sum(
+            item.stat(follow_symlinks=False).st_blocks * 512
+            for item in path.rglob("*")
+            if item.is_file() and not item.is_symlink()
+        )
+        if path.exists()
+        else 0
+    )
 
 
 def enforce_run_limits(run_dir: Path, limits: Limits) -> dict[str, int]:

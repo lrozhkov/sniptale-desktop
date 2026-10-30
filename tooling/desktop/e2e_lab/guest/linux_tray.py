@@ -8,7 +8,9 @@ gi.require_version("AppIndicator3", "0.1")
 from gi.repository import AppIndicator3, Gtk  # noqa: E402
 
 indicator = AppIndicator3.Indicator.new(
-    "sniptale-e2e-probe", "dialog-information", AppIndicator3.IndicatorCategory.APPLICATION_STATUS,
+    "sniptale-e2e-probe",
+    "dialog-information",
+    AppIndicator3.IndicatorCategory.APPLICATION_STATUS,
 )
 indicator.set_status(AppIndicator3.IndicatorStatus.ACTIVE)
 indicator.set_title("Sniptale Lab Probe")

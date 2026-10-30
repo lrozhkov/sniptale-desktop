@@ -100,7 +100,11 @@ def print_json(value: object) -> None:
 
 def command_doctor(paths: LabPaths, config: LabConfig, json_output: bool) -> None:
     checks = doctor(paths, config)
-    payload = {"schema_version": 1, "passed": all(item.passed or not item.required for item in checks), "checks": [item.as_dict() for item in checks]}
+    payload = {
+        "schema_version": 1,
+        "passed": all(item.passed or not item.required for item in checks),
+        "checks": [item.as_dict() for item in checks],
+    }
     if json_output:
         print_json(payload)
     else:
@@ -136,7 +140,11 @@ def status(paths: LabPaths, config: LabConfig) -> dict[str, object]:
             "vnc": f"127.0.0.1:{5900 + config.lanes[name].vnc_display}",
             "state_error": state_error,
         }
-    runs = sorted(path.name for path in paths.lab.iterdir() if path.is_dir() and RUN_ID.fullmatch(path.name)) if paths.lab.exists() else []
+    runs = (
+        sorted(path.name for path in paths.lab.iterdir() if path.is_dir() and RUN_ID.fullmatch(path.name))
+        if paths.lab.exists()
+        else []
+    )
     return {"schema_version": 1, "lanes": lanes, "runs": runs}
 
 
@@ -165,21 +173,31 @@ def execute_run(
         gc(paths, config)
     run_id, run_dir = create_run_dir(paths.runs)
     run_mode = (
-        "focused-rerun" if retry_of is not None
-        else "focused-test" if requested_cases is not None
-        else "alpha-release-acceptance" if supplied_artifact is not None and (supplied_artifact.parent / "provenance.json").is_file()
+        "focused-rerun"
+        if retry_of is not None
+        else "focused-test"
+        if requested_cases is not None
+        else "alpha-release-acceptance"
+        if supplied_artifact is not None and (supplied_artifact.parent / "provenance.json").is_file()
         else "full-acceptance"
     )
     emit_progress(
-        "run-start", runId=run_id, mode=run_mode, lanes=lanes,
-        requestedCases=sorted(requested_cases or []), retryOf=retry_of,
+        "run-start",
+        runId=run_id,
+        mode=run_mode,
+        lanes=lanes,
+        requestedCases=sorted(requested_cases or []),
+        retryOf=retry_of,
     )
     source_archive = run_dir / ".source.tar.gz"
     emit_progress("source-bundle", runId=run_id, status="started")
     source = create_source_bundle(paths.root, source_archive)
     emit_progress(
-        "source-bundle", runId=run_id, status="completed",
-        sourceSha256=source.sha256, fileCount=source.file_count,
+        "source-bundle",
+        runId=run_id,
+        status="completed",
+        sourceSha256=source.sha256,
+        fileCount=source.file_count,
     )
     lane_runner = LaneRunner(paths, config)
     results: list[GuestResult] = []
@@ -197,14 +215,19 @@ def execute_run(
                 artifacts.extend(built)
                 suffix = ".msi" if lane == "windows-11" else ".deb"
                 candidates = [path for path in built if path.suffix.lower() == suffix]
-                candidate = next((path for path in candidates if "-0.1.0-" in path.name), None) or next(iter(candidates), None)
+                candidate = next((path for path in candidates if "-0.1.0-" in path.name), None) or next(
+                    iter(candidates), None
+                )
                 if candidate is None:
                     raise LabError(f"no testable artifact was built for {lane}")
             else:
                 candidate = supplied_artifact.resolve(strict=True)
                 artifacts.append(candidate)
             emit_progress(
-                "lane-test", runId=run_id, lane=lane, status="started",
+                "lane-test",
+                runId=run_id,
+                lane=lane,
+                status="started",
                 timeoutSeconds=getattr(getattr(config, "timeouts", None), "test", 0),
             )
             if requested_cases is None:
@@ -221,25 +244,33 @@ def execute_run(
             results.append(GuestResult(lane, (TestCase("controller", "fail", 0, message),), {}, ()))
             controller_error = exc if isinstance(exc, LabError) else LabError(message)
             emit_progress("lane-test", runId=run_id, lane=lane, status="failed", detail=message)
-            for unattempted in lanes[lane_index + 1:]:
-                results.append(GuestResult(
-                    unattempted,
-                    (TestCase("controller", "fail", 0, "not attempted because a prior requested lane failed"),),
-                    {},
-                    (),
-                ))
+            for unattempted in lanes[lane_index + 1 :]:
+                results.append(
+                    GuestResult(
+                        unattempted,
+                        (TestCase("controller", "fail", 0, "not attempted because a prior requested lane failed"),),
+                        {},
+                        (),
+                    )
+                )
                 durations[unattempted] = 0
-                lane_runner.teardowns.setdefault(unattempted, {
-                    "pre_run_forced": False,
-                    "post_run_forced": False,
-                })
+                lane_runner.teardowns.setdefault(
+                    unattempted,
+                    {
+                        "pre_run_forced": False,
+                        "post_run_forced": False,
+                    },
+                )
             break
         finally:
             durations[lane] = int((time.monotonic() - started) * 1000)
-            lane_runner.teardowns.setdefault(lane, {
-                "pre_run_forced": False,
-                "post_run_forced": False,
-            })
+            lane_runner.teardowns.setdefault(
+                lane,
+                {
+                    "pre_run_forced": False,
+                    "post_run_forced": False,
+                },
+            )
     manifest_value = artifact_manifest(dict.fromkeys(artifacts))
     manifest_path = run_dir / "artifact-manifest.json"
     write_manifest(manifest_path, manifest_value)
@@ -253,7 +284,9 @@ def execute_run(
         "lanes": snapshot_identities(paths, lanes),
         "guests": {result.lane: redact_data(result.environment) for result in results},
     }
-    (run_dir / "environment.json").write_text(json.dumps(environment, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+    (run_dir / "environment.json").write_text(
+        json.dumps(environment, sort_keys=True, indent=2) + "\n", encoding="utf-8"
+    )
     write_junit(run_dir / "junit.xml", results)
     evidence_value = evidence_manifest(run_dir)
     evidence_manifest_path = run_dir / "evidence-manifest.json"
@@ -261,7 +294,18 @@ def execute_run(
     clean_teardown = all(not any(values.values()) for values in lane_runner.teardowns.values())
     passed = len(results) == len(lanes) and all(result.passed for result in results) and clean_teardown
     matrix = [
-        {"lane": result.lane, "tests": [{"name": case.name, "status": case.status, "duration_ms": case.duration_ms, "detail": redact(case.detail)} for case in result.cases]}
+        {
+            "lane": result.lane,
+            "tests": [
+                {
+                    "name": case.name,
+                    "status": case.status,
+                    "duration_ms": case.duration_ms,
+                    "detail": redact(case.detail),
+                }
+                for case in result.cases
+            ],
+        }
         for result in results
     ]
     receipt = {
@@ -294,8 +338,11 @@ def execute_run(
             receipt["result"] = "fail"
             write_receipt(run_dir / "receipt.json", receipt)
     emit_progress(
-        "run-finish", runId=run_id, mode=run_mode,
-        status=receipt["result"], cleanTeardown=clean_teardown,
+        "run-finish",
+        runId=run_id,
+        mode=run_mode,
+        status=receipt["result"],
+        cleanTeardown=clean_teardown,
     )
     source_archive.unlink(missing_ok=True)
     # Supplied artifacts can live in an older run, so pre-run GC must not delete their source.
@@ -343,33 +390,47 @@ def execute_build(paths: LabPaths, config: LabConfig, lane: str, profile: str) -
         "lanes": snapshot_identities(paths, [lane]),
         "guests": {},
     }
-    (run_dir / "environment.json").write_text(json.dumps(environment, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+    (run_dir / "environment.json").write_text(
+        json.dumps(environment, sort_keys=True, indent=2) + "\n", encoding="utf-8"
+    )
     clean_teardown = all(not any(values.values()) for values in lane_runner.teardowns.values())
     if build_error is None and not clean_teardown:
         build_error = LabError("build VM required forced teardown")
     status_value = "fail" if build_error else "pass"
     detail = redact(str(build_error)) if build_error else "artifact build completed"
-    result = GuestResult(lane, (TestCase(f"build-{profile}", status_value, duration, detail),), {}, tuple(path.name for path in built))
+    result = GuestResult(
+        lane, (TestCase(f"build-{profile}", status_value, duration, detail),), {}, tuple(path.name for path in built)
+    )
     write_junit(run_dir / "junit.xml", [result])
     evidence_value = evidence_manifest(run_dir)
     evidence_manifest_path = run_dir / "evidence-manifest.json"
     write_manifest(evidence_manifest_path, evidence_value)
-    write_receipt(run_dir / "receipt.json", {
-        "schema_version": 1,
-        "run_id": run_id,
-        "source": {"sha256": source.sha256, "file_count": source.file_count},
-        "commit_sha": source.commit_sha,
-        "dirty_state_sha256": source.dirty_sha256,
-        "artifact_manifest_sha256": sha256_file(manifest_path),
-        "evidence_manifest_sha256": sha256_file(evidence_manifest_path),
-        "artifacts": manifest_value["artifacts"],
-        "lanes": [lane],
-        "snapshots": environment["lanes"],
-        "test_matrix": [{"lane": lane, "tests": [{"name": f"build-{profile}", "status": status_value, "duration_ms": duration, "detail": detail}]}],
-        "durations_ms": {lane: duration, "total": duration},
-        "teardown": lane_runner.teardowns,
-        "result": status_value,
-    })
+    write_receipt(
+        run_dir / "receipt.json",
+        {
+            "schema_version": 1,
+            "run_id": run_id,
+            "source": {"sha256": source.sha256, "file_count": source.file_count},
+            "commit_sha": source.commit_sha,
+            "dirty_state_sha256": source.dirty_sha256,
+            "artifact_manifest_sha256": sha256_file(manifest_path),
+            "evidence_manifest_sha256": sha256_file(evidence_manifest_path),
+            "artifacts": manifest_value["artifacts"],
+            "lanes": [lane],
+            "snapshots": environment["lanes"],
+            "test_matrix": [
+                {
+                    "lane": lane,
+                    "tests": [
+                        {"name": f"build-{profile}", "status": status_value, "duration_ms": duration, "detail": detail}
+                    ],
+                }
+            ],
+            "durations_ms": {lane: duration, "total": duration},
+            "teardown": lane_runner.teardowns,
+            "result": status_value,
+        },
+    )
     source_archive.unlink(missing_ok=True)
     # Build overlays and old evidence are transient too. Enforce retention after every exit so a
     # build-only workflow cannot leave max_runs + 1 directories until the next test or manual GC.
@@ -475,11 +536,15 @@ def _build_run_key(path: Path) -> tuple[str, str] | None:
 
 def gc(paths: LabPaths, config: LabConfig) -> dict[str, int]:
     now = time.time()
-    run_dirs = sorted(
-        (path for path in paths.lab.iterdir() if path.is_dir() and RUN_ID.fullmatch(path.name)),
-        key=lambda path: path.stat().st_mtime,
-        reverse=True,
-    ) if paths.lab.exists() else []
+    run_dirs = (
+        sorted(
+            (path for path in paths.lab.iterdir() if path.is_dir() and RUN_ID.fullmatch(path.name)),
+            key=lambda path: path.stat().st_mtime,
+            reverse=True,
+        )
+        if paths.lab.exists()
+        else []
+    )
     removed = 0
     incomplete = 0
     redundant_builds = 0
@@ -511,15 +576,15 @@ def gc(paths: LabPaths, config: LabConfig) -> dict[str, int]:
         for path in apt_archives.glob("*.deb"):
             paths.scoped(path).unlink()
             package_archives += 1
-    build_caches = sorted(
-        (
-            path
-            for path in (paths.cache / "builds").glob("*/*/*")
-            if path.is_dir() and not path.is_symlink()
-        ),
-        key=lambda path: path.stat().st_mtime,
-        reverse=True,
-    ) if (paths.cache / "builds").is_dir() else []
+    build_caches = (
+        sorted(
+            (path for path in (paths.cache / "builds").glob("*/*/*") if path.is_dir() and not path.is_symlink()),
+            key=lambda path: path.stat().st_mtime,
+            reverse=True,
+        )
+        if (paths.cache / "builds").is_dir()
+        else []
+    )
     build_caches_removed = 0
     for index, path in enumerate(build_caches):
         too_old = now - path.stat().st_mtime > config.limits.max_run_age_days * 86400
@@ -528,6 +593,7 @@ def gc(paths: LabPaths, config: LabConfig) -> dict[str, int]:
             build_caches_removed += 1
     storage = compact_existing_goldens(paths, config, VmManager(paths, config))
     from work_sessions import gc_sessions
+
     sessions_removed = gc_sessions(paths, config)
     source_images = cleanup_source_images(paths)
     return {
@@ -579,13 +645,22 @@ def main(argv: list[str] | None = None) -> int:
                     print_json(sessions.recover())
                 elif args.session_command == "collect":
                     from session_evidence import collect as collect_session
+
                     print_json(collect_session(paths, args.session_id, args.iteration))
                 else:
-                    print_json(sessions.iterate(args.session_command, getattr(args, "profile", "dev"),
-                                                parse_case_selection(getattr(args, "cases", "")),
-                                                getattr(args, "extension_artifact", None), getattr(args, "extension_source", None)))
+                    print_json(
+                        sessions.iterate(
+                            args.session_command,
+                            getattr(args, "profile", "dev"),
+                            parse_case_selection(getattr(args, "cases", "")),
+                            getattr(args, "extension_artifact", None),
+                            getattr(args, "extension_source", None),
+                        )
+                    )
                 return 0
-            resets_windows = (args.command == "reset" and args.lane == "windows-11") or (args.command == "stop" and (args.all or args.lane == "windows-11"))
+            resets_windows = (args.command == "reset" and args.lane == "windows-11") or (
+                args.command == "stop" and (args.all or args.lane == "windows-11")
+            )
             if resets_windows:
                 # Explicit recovery remains available even when the lease is corrupted.
                 manager.reset("windows-11")

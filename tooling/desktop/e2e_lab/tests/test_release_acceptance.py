@@ -27,7 +27,9 @@ class ReleaseAcceptanceTests(unittest.TestCase):
         (output / "e2e-out/screenshots/product.png").write_bytes(b"synthetic png")
         (output / "e2e-out/recordings/product.mp4").write_bytes(recording_bytes)
         value = {
-            "schema_version": 1, "lane": "windows-11", "environment": {},
+            "schema_version": 1,
+            "lane": "windows-11",
+            "environment": {},
             "tests": [{"name": name, "status": "pass", "duration_ms": 1, "detail": "ok"} for name in sorted(CASES)],
             "artifacts": inventory if inventory is not None else ["guest.log", "product.png", "product.mp4"],
         }
@@ -47,11 +49,20 @@ class ReleaseAcceptanceTests(unittest.TestCase):
             runner, output = self._guest_fixture(root)
             result = collect_release_result(runner, "windows-11", output, root)
             self.assertTrue(result.passed)
-            self.assertEqual((root / "recordings/windows-11-e2e-out-recordings-product.mp4").read_bytes(), b"synthetic mp4")
-            self.assertEqual((root / "screenshots/windows-11-e2e-out-screenshots-product.png").read_bytes(), b"synthetic png")
+            self.assertEqual(
+                (root / "recordings/windows-11-e2e-out-recordings-product.mp4").read_bytes(), b"synthetic mp4"
+            )
+            self.assertEqual(
+                (root / "screenshots/windows-11-e2e-out-screenshots-product.png").read_bytes(), b"synthetic png"
+            )
 
     def test_alpha_collection_rejects_missing_extra_and_duplicate_inventory(self):
-        for inventory in ([], ["guest.log", "product.png"], ["guest.log", "product.png", "product.mp4", "ghost.log"], ["guest.log", "product.png", "product.png", "product.mp4"]):
+        for inventory in (
+            [],
+            ["guest.log", "product.png"],
+            ["guest.log", "product.png", "product.mp4", "ghost.log"],
+            ["guest.log", "product.png", "product.png", "product.mp4"],
+        ):
             with self.subTest(inventory=inventory), tempfile.TemporaryDirectory() as name:
                 root = Path(name)
                 runner, output = self._guest_fixture(root, inventory)
@@ -63,14 +74,21 @@ class ReleaseAcceptanceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as name:
             root = Path(name)
             runner, output = self._guest_fixture(root)
-            metadata = {"streams": [{"codec_type": "video", "duration": "180.0"}, {"codec_type": "audio", "duration": "175.445312"}]}
+            metadata = {
+                "streams": [
+                    {"codec_type": "video", "duration": "180.0"},
+                    {"codec_type": "audio", "duration": "175.445312"},
+                ]
+            }
             (output / "e2e-out/logs/recording-metadata.log").write_text(json.dumps(metadata))
             result_path = output / "e2e-out/result.json"
             value = json.loads(result_path.read_text())
             value["artifacts"].append("recording-metadata.log")
             result_path.write_text(json.dumps(value))
             collect_release_result(runner, "windows-11", output, root)
-            self.assertEqual(json.loads((root / "logs/windows-11-e2e-out-logs-recording-metadata.log").read_text()), metadata)
+            self.assertEqual(
+                json.loads((root / "logs/windows-11-e2e-out-logs-recording-metadata.log").read_text()), metadata
+            )
 
     def test_alpha_classification_enforces_recording_budget(self):
         with tempfile.TemporaryDirectory() as name:
@@ -100,18 +118,27 @@ class ReleaseAcceptanceTests(unittest.TestCase):
                         (run_dir / "screenshots/product.png").write_bytes(b"synthetic png")
                         if include_recording:
                             (run_dir / "recordings/product.mp4").write_bytes(b"synthetic mp4")
-                        return GuestResult(lane, tuple(TestCase(case, "pass", 1, "ok") for case in sorted(CASES)), {}, ())
+                        return GuestResult(
+                            lane, tuple(TestCase(case, "pass", 1, "ok") for case in sorted(CASES)), {}, ()
+                        )
 
-                with mock.patch.object(lab_main, "create_source_bundle", return_value=source), mock.patch.object(
-                    lab_main, "LaneRunner", FakeRunner
-                ), mock.patch.object(lab_main, "snapshot_identities", return_value={"windows-11": {"disk_sha256": "d" * 64}}), mock.patch.object(lab_main, "gc"):
+                with (
+                    mock.patch.object(lab_main, "create_source_bundle", return_value=source),
+                    mock.patch.object(lab_main, "LaneRunner", FakeRunner),
+                    mock.patch.object(
+                        lab_main, "snapshot_identities", return_value={"windows-11": {"disk_sha256": "d" * 64}}
+                    ),
+                    mock.patch.object(lab_main, "gc"),
+                ):
                     if include_recording:
                         lab_main.execute_run(paths, SimpleNamespace(), ["windows-11"], "release", artifact)
                     else:
                         with self.assertRaisesRegex(LabError, "recordings evidence"):
                             lab_main.execute_run(paths, SimpleNamespace(), ["windows-11"], "release", artifact)
                 run = next(path for path in paths.runs.iterdir() if path.name[:8].isdigit())
-                self.assertEqual(json.loads((run / "receipt.json").read_text())["result"], "pass" if include_recording else "fail")
+                self.assertEqual(
+                    json.loads((run / "receipt.json").read_text())["result"], "pass" if include_recording else "fail"
+                )
 
     def test_invalid_provenance_cannot_start_a_guest(self):
         for payload in ("{", "[]", '{"tag": 12}'):
@@ -132,14 +159,19 @@ class ReleaseAcceptanceTests(unittest.TestCase):
             artifact.write_bytes(b"msi")
             (root / "provenance.json").write_text('{"tag":"v0.1.0-alpha.1","productVersion":"0.1.0"}')
             runner = SimpleNamespace(
-                paths=SimpleNamespace(root=root), consumed_artifacts=[], vms=mock.Mock(),
+                paths=SimpleNamespace(root=root),
+                consumed_artifacts=[],
+                vms=mock.Mock(),
                 _assert_windows_audio_backend=mock.Mock(side_effect=LabError("capture backend unavailable")),
-                _collect_qemu_log=mock.Mock(), _finish_vm=mock.Mock(),
+                _collect_qemu_log=mock.Mock(),
+                _finish_vm=mock.Mock(),
             )
             runner.vms.reset.return_value = False
-            with mock.patch("release_acceptance.subprocess.check_output", return_value="a" * 40), mock.patch(
-                "release_acceptance.subprocess.run", return_value=SimpleNamespace(returncode=0)
-            ), mock.patch("release_acceptance.GuestSsh") as ssh:
+            with (
+                mock.patch("release_acceptance.subprocess.check_output", return_value="a" * 40),
+                mock.patch("release_acceptance.subprocess.run", return_value=SimpleNamespace(returncode=0)),
+                mock.patch("release_acceptance.GuestSsh") as ssh,
+            ):
                 with self.assertRaisesRegex(LabError, "capture backend unavailable"):
                     test_release(runner, "windows-11", artifact, root)
             runner.vms.start.assert_called_once_with("windows-11", windows_audio_capture=True, host_reserve_mib=1024)
@@ -154,14 +186,18 @@ class ReleaseAcceptanceTests(unittest.TestCase):
         self.assertNotIn("[DateTime]::UtcNow", wait)
         policy = script.split("function Test-TrayMenuPolicy", 1)[1].split("Test-TrayMenuPolicy\n", 1)[0]
         self.assertIn('Wait-TrayMenuItem "Pause" $read 3 $now $delay', policy)
-        self.assertIn('$attempt.Value -ne 6 -or $clock.Value -ne 3', policy)
+        self.assertIn("$attempt.Value -ne 6 -or $clock.Value -ne 3", policy)
 
     def test_interrupted_launcher_retains_log_without_extending_sealed_inventory(self):
         script = (Path(__file__).resolve().parents[1] / "guest/windows/launch-release.ps1").read_text()
         cleanup = script.rsplit("} finally {", 1)[1]
-        self.assertIn('if (-not (Test-Path -LiteralPath (Join-Path $outputPath "result.json")) -and (Test-Path -LiteralPath $taskLog))', cleanup)
-        self.assertLess(cleanup.index("Copy-Item -LiteralPath $taskLog"),
-                        cleanup.index("Remove-Item -LiteralPath $taskLog"))
+        self.assertIn(
+            'if (-not (Test-Path -LiteralPath (Join-Path $outputPath "result.json")) -and (Test-Path -LiteralPath $taskLog))',
+            cleanup,
+        )
+        self.assertLess(
+            cleanup.index("Copy-Item -LiteralPath $taskLog"), cleanup.index("Remove-Item -LiteralPath $taskLog")
+        )
 
     def test_release_guest_contract_has_all_cases_and_no_development_trust(self):
         script = (Path(__file__).resolve().parents[1] / "guest/windows/release-run.ps1").read_text()
@@ -171,27 +207,27 @@ class ReleaseAcceptanceTests(unittest.TestCase):
         self.assertNotIn("protectedSecretHex", script)
         self.assertNotIn('WriteAllText("$directory/local-profile.json"', script)
         self.assertIn('Tray @("Mode","Manual")', script)
-        self.assertIn('Wait-For { Folder-Selected $picker ([IO.Path]::GetFileName($exports)) }', script)
-        self.assertIn('$invoke.Invoke()', script)
-        self.assertIn('Wait-For { Window-Hidden $settings }', script)
-        self.assertIn('Wait-For { Window-Hidden $restartedSettings }', script)
-        self.assertIn('restart or Escape changed user settings', script)
-        self.assertIn('[Windows.Automation.ValuePattern]$pattern).Current.Value -eq $Leaf', script)
+        self.assertIn("Wait-For { Folder-Selected $picker ([IO.Path]::GetFileName($exports)) }", script)
+        self.assertIn("$invoke.Invoke()", script)
+        self.assertIn("Wait-For { Window-Hidden $settings }", script)
+        self.assertIn("Wait-For { Window-Hidden $restartedSettings }", script)
+        self.assertIn("restart or Escape changed user settings", script)
+        self.assertIn("[Windows.Automation.ValuePattern]$pattern).Current.Value -eq $Leaf", script)
         self.assertIn('Wait-For { Tray @("Video","Pause") -ProbeOnly } 90', script)
-        self.assertIn('$videoStreams.Count -ne 1 -or $audioStreams.Count -ne 1', script)
-        self.assertIn('[double]::IsNaN($videoDuration)', script)
-        self.assertIn('[double]::IsInfinity($audioDuration)', script)
-        self.assertIn('[Math]::Abs($videoDuration - $audioDuration) -gt 1', script)
-        self.assertIn('    Assert-RecordedAvTimeline $metadata.streams', script)
+        self.assertIn("$videoStreams.Count -ne 1 -or $audioStreams.Count -ne 1", script)
+        self.assertIn("[double]::IsNaN($videoDuration)", script)
+        self.assertIn("[double]::IsInfinity($audioDuration)", script)
+        self.assertIn("[Math]::Abs($videoDuration - $audioDuration) -gt 1", script)
+        self.assertIn("    Assert-RecordedAvTimeline $metadata.streams", script)
         self.assertIn('Test-RecordedAvTimelinePolicy\n\nAdd-Test "network-isolation"', script)
-        self.assertIn('@(50.97,30.19)', script)
-        self.assertIn('IsWindowVisible(w) && GetWindowRect(w,out r)', script)
-        self.assertIn('$entry = Wait-TrayMenuItem $label', script)
-        self.assertIn('if ($ProbeOnly) { Close-TrayMenus; return (-not $disabled) }', script)
-        self.assertIn('Test-TrayMenuPolicy\nTest-RecordedAvTimelinePolicy', script)
-        self.assertNotIn('Start-Sleep -Milliseconds 800', script)
-        self.assertNotIn('Start-Sleep -Milliseconds 700', script)
-        self.assertIn('logs/recording-metadata.log', script)
+        self.assertIn("@(50.97,30.19)", script)
+        self.assertIn("IsWindowVisible(w) && GetWindowRect(w,out r)", script)
+        self.assertIn("$entry = Wait-TrayMenuItem $label", script)
+        self.assertIn("if ($ProbeOnly) { Close-TrayMenus; return (-not $disabled) }", script)
+        self.assertIn("Test-TrayMenuPolicy\nTest-RecordedAvTimelinePolicy", script)
+        self.assertNotIn("Start-Sleep -Milliseconds 800", script)
+        self.assertNotIn("Start-Sleep -Milliseconds 700", script)
+        self.assertIn("logs/recording-metadata.log", script)
 
 
 if __name__ == "__main__":

@@ -1,4 +1,5 @@
 """Reject duplicate JSON keys and validate every checked-in JSON contract."""
+
 from __future__ import annotations
 
 import json

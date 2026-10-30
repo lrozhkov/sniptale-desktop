@@ -31,6 +31,6 @@ qa_step "dependency license bundle" tooling/qa/wrappers/licenses.sh --check
 
 qa_fail_if_any "supply-chain summary"
 mkdir -p .tmp/qa
-dependency_fingerprint > .tmp/qa/supply-chain.stamp
+dependency_fingerprint >.tmp/qa/supply-chain.stamp
 printf 'supply-chain OK\n'
 printf 'supply-chain reports: %s\n' ".tmp/release/supply-chain"

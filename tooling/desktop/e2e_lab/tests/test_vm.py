@@ -45,12 +45,19 @@ class VmTests(unittest.TestCase):
     def test_stale_pid_state_is_removed(self) -> None:
         runtime = self.paths.runtime / "linux-x11"
         runtime.mkdir(parents=True)
-        write_json(runtime / "state.json", {
-            "lane": "linux-x11", "pid": 999999, "overlay": str(runtime / "overlay.qcow2"),
-            "qmp_socket": str(runtime / "qmp.sock"), "started_epoch": 1,
-            "golden_sha256": "a" * 64, "guest_network": False,
-            "windows_audio_capture": False,
-        })
+        write_json(
+            runtime / "state.json",
+            {
+                "lane": "linux-x11",
+                "pid": 999999,
+                "overlay": str(runtime / "overlay.qcow2"),
+                "qmp_socket": str(runtime / "qmp.sock"),
+                "started_epoch": 1,
+                "golden_sha256": "a" * 64,
+                "guest_network": False,
+                "windows_audio_capture": False,
+            },
+        )
         self.assertIsNone(self.manager.current("linux-x11"))
         self.assertFalse(runtime.exists())
 
@@ -100,17 +107,23 @@ class VmTests(unittest.TestCase):
         runtime = self.paths.runtime / "linux-x11"
         runtime.mkdir(parents=True)
         state = {
-            "lane": "linux-x11", "pid": 2222, "overlay": str(runtime / "overlay.qcow2"),
-            "qmp_socket": str(runtime / "qmp.sock"), "started_epoch": 1,
-            "golden_sha256": "a" * 64, "guest_network": False,
+            "lane": "linux-x11",
+            "pid": 2222,
+            "overlay": str(runtime / "overlay.qcow2"),
+            "qmp_socket": str(runtime / "qmp.sock"),
+            "started_epoch": 1,
+            "golden_sha256": "a" * 64,
+            "guest_network": False,
             "windows_audio_capture": False,
         }
         write_json(runtime / "state.json", state)
         vm = RunningVm("linux-x11", 2222, Path(state["overlay"]), Path(state["qmp_socket"]), 1, "a" * 64, False)
-        with mock.patch.object(self.manager, "current", return_value=vm), \
-             mock.patch.object(self.manager, "qmp"), \
-             mock.patch("vm.process_matches", side_effect=[True, True]), \
-             mock.patch("vm.terminate_process", return_value=True) as terminate:
+        with (
+            mock.patch.object(self.manager, "current", return_value=vm),
+            mock.patch.object(self.manager, "qmp"),
+            mock.patch("vm.process_matches", side_effect=[True, True]),
+            mock.patch("vm.terminate_process", return_value=True) as terminate,
+        ):
             with mock.patch("vm.time.monotonic", side_effect=[0, 999999]):
                 forced = self.manager.stop("linux-x11")
         self.assertTrue(forced)
@@ -119,29 +132,39 @@ class VmTests(unittest.TestCase):
 
     def test_qmp_timeout_is_a_recoverable_lab_error(self) -> None:
         vm = RunningVm(
-            "linux-x11", 2222, Path("/overlay.qcow2"), Path("/qmp.sock"),
-            1, "a" * 64, False,
+            "linux-x11",
+            2222,
+            Path("/overlay.qcow2"),
+            Path("/qmp.sock"),
+            1,
+            "a" * 64,
+            False,
         )
         client = mock.MagicMock()
         client.__enter__.return_value = client
         client.recv.side_effect = TimeoutError("stopped guest")
-        with mock.patch.object(Path, "exists", return_value=True), \
-             mock.patch("vm.socket.socket", return_value=client):
+        with mock.patch.object(Path, "exists", return_value=True), mock.patch("vm.socket.socket", return_value=client):
             with self.assertRaisesRegex(LabError, "QMP transport failed"):
                 self.manager.qmp(vm, "system_powerdown")
 
     def test_qmp_supports_bounded_command_arguments(self) -> None:
         vm = RunningVm(
-            "windows-11", 2222, Path("/overlay.qcow2"), Path("/qmp.sock"),
-            1, "a" * 64, True,
+            "windows-11",
+            2222,
+            Path("/overlay.qcow2"),
+            Path("/qmp.sock"),
+            1,
+            "a" * 64,
+            True,
         )
         client = mock.MagicMock()
         client.__enter__.return_value = client
         client.recv.side_effect = [b'{"QMP":{}}\r\n', b'{"return":{}}\r\n', b'{"return":{}}\r\n']
-        with mock.patch.object(Path, "exists", return_value=True), \
-             mock.patch("vm.socket.socket", return_value=client):
+        with mock.patch.object(Path, "exists", return_value=True), mock.patch("vm.socket.socket", return_value=client):
             self.manager.qmp(
-                vm, "send-key", {"keys": [{"type": "qcode", "data": "spc"}]},
+                vm,
+                "send-key",
+                {"keys": [{"type": "qcode", "data": "spc"}]},
             )
         request = json.loads(client.sendall.call_args_list[-1].args[0])
         self.assertEqual(request["execute"], "send-key")
@@ -161,7 +184,10 @@ class VmTests(unittest.TestCase):
         self.assertIn("virtio-blk-pci,drive=system,addr=0x2", joined)
         with mock.patch.object(self.manager, "_qemu", return_value="qemu-system-x86_64"):
             build_command = self.manager._command(
-                lane, Path("/lab/overlay.qcow2"), Path("/lab/qmp.sock"), Path("/lab"),
+                lane,
+                Path("/lab/overlay.qcow2"),
+                Path("/lab/qmp.sock"),
+                Path("/lab"),
                 allow_guest_network=True,
             )
         self.assertIn("restrict=off", " ".join(build_command))
@@ -174,8 +200,10 @@ class VmTests(unittest.TestCase):
 
     def test_runner_resets_after_shutdown_state_read_failure(self) -> None:
         runner = LaneRunner(self.paths, self.config)
-        with mock.patch.object(runner, "_request_guest_shutdown", side_effect=IntegrityError("corrupt state")), \
-             mock.patch.object(runner.vms, "reset", return_value=False) as reset:
+        with (
+            mock.patch.object(runner, "_request_guest_shutdown", side_effect=IntegrityError("corrupt state")),
+            mock.patch.object(runner.vms, "reset", return_value=False) as reset,
+        ):
             with self.assertRaisesRegex(Exception, "reset completed"):
                 runner._finish_vm("linux-wayland", "test", False)
         reset.assert_called_once_with("linux-wayland")
@@ -183,8 +211,7 @@ class VmTests(unittest.TestCase):
 
     def test_acceptance_test_fails_closed_without_kvm_before_vm_mutation(self) -> None:
         runner = LaneRunner(self.paths, self.config)
-        with mock.patch("runner.os.access", return_value=False), \
-             mock.patch.object(runner, "_test_linux") as test_linux:
+        with mock.patch("runner.os.access", return_value=False), mock.patch.object(runner, "_test_linux") as test_linux:
             with self.assertRaisesRegex(LabError, "acceptance requires"):
                 runner.test("linux-wayland", Path("artifact.deb"), self.paths.lab / "run")
         test_linux.assert_not_called()
@@ -273,8 +300,7 @@ class VmTests(unittest.TestCase):
         log.write_text("", encoding="utf-8")
         runner._assert_windows_audio_backend("windows-11")
         log.write_text(
-            "alsa: Could not initialize ADC\n"
-            "audio: Could not create a backend for voice `adc'\n",
+            "alsa: Could not initialize ADC\naudio: Could not create a backend for voice `adc'\n",
             encoding="utf-8",
         )
         with self.assertRaisesRegex(LabError, "QEMU audio backend is unhealthy"):

@@ -1,4 +1,5 @@
 """Audit cataloged build tools without compiling the application or starting a VM."""
+
 from __future__ import annotations
 
 import argparse
@@ -19,14 +20,22 @@ CATALOG = ROOT / "tooling/configs/qa/tool-versions.json"
 
 
 def catalog_tools(value: dict[str, Any]) -> dict[str, str]:
-    tools = {"python": value["python"]["version"], "rust": value["rust"]["channel"],
-             "node": value["browserAutomation"]["node"], "playwright-core": value["browserAutomation"]["playwrightCore"],
-             "wix": value["windows"]["wix"], "windows-sdk": value["windows"]["sdkPackage"]}
+    tools = {
+        "python": value["python"]["version"],
+        "rust": value["rust"]["channel"],
+        "node": value["browserAutomation"]["node"],
+        "playwright-core": value["browserAutomation"]["playwrightCore"],
+        "wix": value["windows"]["wix"],
+        "windows-sdk": value["windows"]["sdkPackage"],
+    }
     tools.update(value["cargoSubcommands"])
     tools.update({name: item["version"] for name, item in value["externalTools"].items()})
     tools.update(value["githubActions"])
     tools.update({name: item["version"] for name, item in value.get("scriptTools", {}).items()})
-    if any(not isinstance(version, str) or re.fullmatch(r"v?[0-9]+(?:\.[0-9]+){2,3}", version) is None for version in tools.values()):
+    if any(
+        not isinstance(version, str) or re.fullmatch(r"v?[0-9]+(?:\.[0-9]+){2,3}", version) is None
+        for version in tools.values()
+    ):
         raise AdvisoryError("tool audit requires exact stable catalog versions")
     return tools
 
@@ -35,7 +44,11 @@ def audit_tool(name: str, version: str, policy: dict[str, Any], fetch: Fetch) ->
     provider = policy.get("provider")
     result: dict[str, Any] = {"tool": name, "version": version, "provider": provider}
     if provider == "unavailable":
-        if set(policy) != {"provider", "reason", "reviewSource"} or not isinstance(policy["reason"], str) or not policy["reason"].strip():
+        if (
+            set(policy) != {"provider", "reason", "reviewSource"}
+            or not isinstance(policy["reason"], str)
+            or not policy["reason"].strip()
+        ):
             raise AdvisoryError("uncovered tool requires an explicit coverage reason")
         return {**result, "coverage": "manual-review-required", "reason": policy["reason"], "advisories": []}
     if provider == "cpython":
@@ -45,7 +58,10 @@ def audit_tool(name: str, version: str, policy: dict[str, Any], fetch: Fetch) ->
     elif provider == "osv":
         if set(policy) != {"provider", "ecosystem", "package"}:
             raise AdvisoryError("invalid OSV tool policy")
-        query = {"package": {"ecosystem": policy["ecosystem"], "name": policy["package"]}, "version": version.lstrip("v")}
+        query = {
+            "package": {"ecosystem": policy["ecosystem"], "name": policy["package"]},
+            "version": version.lstrip("v"),
+        }
         findings = osv_queries([query], fetch)[0]
     elif provider == "nvd":
         if set(policy) != {"provider", "vendor", "product"}:
@@ -65,20 +81,27 @@ def audit(catalog: dict[str, Any], policy: dict[str, Any], fetch: Fetch = reques
     # NVD's unauthenticated service permits five requests per thirty seconds.
     nvd = [(name, version) for name, version in tools.items() if policy["tools"][name].get("provider") == "nvd"]
     other = [(name, version) for name, version in tools.items() if policy["tools"][name].get("provider") != "nvd"]
+
     def check(item: tuple[str, str]) -> dict[str, Any]:
         name, version = item
         try:
             return audit_tool(name, version, policy["tools"][name], fetch)
         except AdvisoryError as exc:
             raise AdvisoryError(f"{name}: {exc}") from exc
+
     with ThreadPoolExecutor(max_workers=4) as pool:
         pending = [pool.submit(check, item) for item in other]
         results = [check(item) for item in nvd]
         results.extend(task.result() for task in pending)
     results.sort(key=lambda item: item["tool"])
-    return {"schemaVersion": 1, "checkedAt": datetime.now(timezone.utc).isoformat(),
-            "result": "fail" if any(item["advisories"] for item in results) else "pass",
-            "coverageLimit": policy["coverageLimit"], "tools": results, "platformGaps": policy["platformGaps"]}
+    return {
+        "schemaVersion": 1,
+        "checkedAt": datetime.now(timezone.utc).isoformat(),
+        "result": "fail" if any(item["advisories"] for item in results) else "pass",
+        "coverageLimit": policy["coverageLimit"],
+        "tools": results,
+        "platformGaps": policy["platformGaps"],
+    }
 
 
 def main() -> int:
@@ -92,7 +115,13 @@ def main() -> int:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(report, indent=2) + "\n")
         for item in report["tools"]:
-            state = "UNCOVERED" if item["coverage"] == "manual-review-required" else "VULNERABLE" if item["advisories"] else "CHECKED"
+            state = (
+                "UNCOVERED"
+                if item["coverage"] == "manual-review-required"
+                else "VULNERABLE"
+                if item["advisories"]
+                else "CHECKED"
+            )
             print(f"{state} {item['tool']} {item['version']} " + ",".join(item["advisories"]))
         for gap in report["platformGaps"]:
             print("PLATFORM GAP " + gap)

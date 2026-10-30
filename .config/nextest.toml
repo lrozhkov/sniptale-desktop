@@ -4,4 +4,3 @@ fail-fast = false
 status-level = "pass"
 final-status-level = "slow"
 slow-timeout = { period = "60s", terminate-after = 2 }
-

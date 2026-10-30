@@ -28,14 +28,14 @@ while [[ $# -gt 0 ]]; do
 done
 
 case "$lane" in
-  linux-wayland|linux-x11|windows-11|all) ;;
+  linux-wayland | linux-x11 | windows-11 | all) ;;
   *)
     printf 'Usage: tooling/qa/wrappers/desktop-e2e-lab.sh --lane <linux-wayland|linux-x11|windows-11|all> [--profile dev|release]\n' >&2
     exit 2
     ;;
 esac
 case "$profile" in
-  dev|release) ;;
+  dev | release) ;;
   *)
     printf 'Unknown profile: %s\n' "$profile" >&2
     exit 2

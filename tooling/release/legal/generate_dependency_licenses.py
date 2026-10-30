@@ -140,7 +140,9 @@ def write_outputs(output_dir: Path, manifest: dict[str, Any], license_files: dic
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Generate deterministic dependency-license files from cargo-about JSON.")
+    parser = argparse.ArgumentParser(
+        description="Generate deterministic dependency-license files from cargo-about JSON."
+    )
     parser.add_argument("--cargo-about-json", required=True, type=Path)
     parser.add_argument("--output-dir", required=True, type=Path)
     args = parser.parse_args()

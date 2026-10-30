@@ -1,4 +1,5 @@
 """Invalidate application outputs after restoring hosted Linux dependency caches."""
+
 from __future__ import annotations
 
 import subprocess
@@ -8,7 +9,17 @@ from .repository import ROOT
 
 CLEAN_COMMANDS = [
     ["cargo", "clean", "--locked", "--package", "sniptale-native-agent", "--target-dir", "target"],
-    ["cargo", "clean", "--locked", "--package", "sniptale-native-agent", "--target", "x86_64-pc-windows-msvc", "--target-dir", "target"],
+    [
+        "cargo",
+        "clean",
+        "--locked",
+        "--package",
+        "sniptale-native-agent",
+        "--target",
+        "x86_64-pc-windows-msvc",
+        "--target-dir",
+        "target",
+    ],
     ["cargo", "clean", "--locked", "--package", "sniptale-native-agent", "--target-dir", "target/llvm-cov-target"],
 ]
 

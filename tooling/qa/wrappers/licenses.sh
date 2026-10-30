@@ -18,7 +18,7 @@ while [[ $# -gt 0 ]]; do
       mode="write"
       shift
       ;;
-    -h|--help)
+    -h | --help)
       printf 'Usage: tooling/qa/wrappers/licenses.sh [--check|--write]\n'
       printf 'Validates or explicitly regenerates tracked dependency legal outputs.\n'
       exit 0

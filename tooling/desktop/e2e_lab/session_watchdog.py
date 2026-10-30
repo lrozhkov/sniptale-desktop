@@ -1,4 +1,5 @@
 """Expire only the development session generation that launched this watchdog."""
+
 from __future__ import annotations
 
 import sys
@@ -26,12 +27,20 @@ def main():
                     return
                 now = int(time.time())
                 usage = directory_allocated_bytes(paths.lab)
-                maximum = config.limits.max_temporary_gib * 1024 ** 3
+                maximum = config.limits.max_temporary_gib * 1024**3
                 if now >= state["expires_epoch"] or usage > maximum:
-                    write_json(paths.scoped(paths.lab / "sessions" / identity / "termination.json"), {
-                        "schema_version": 1, "reason": "lifetime-expired" if now >= state["expires_epoch"] else "temporary-storage-budget",
-                        "terminated_epoch": now, "temporary_bytes": usage, "maximum_temporary_bytes": maximum,
-                    })
+                    write_json(
+                        paths.scoped(paths.lab / "sessions" / identity / "termination.json"),
+                        {
+                            "schema_version": 1,
+                            "reason": "lifetime-expired"
+                            if now >= state["expires_epoch"]
+                            else "temporary-storage-budget",
+                            "terminated_epoch": now,
+                            "temporary_bytes": usage,
+                            "maximum_temporary_bytes": maximum,
+                        },
+                    )
                     WorkSessions(paths, config).close()
                     return
         except ResourceError:

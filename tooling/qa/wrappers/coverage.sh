@@ -32,9 +32,9 @@ qa_step "coverage llvm-cov" \
 qa_step "coverage owner floors" python3 tooling/qa/rules/coverage-floor.py --check-lcov "$lcov_path"
 qa_step "coverage summary artifact" write_coverage_summary
 qa_fail_if_any "coverage summary"
-fingerprint_worktree > .tmp/qa/coverage.stamp
-python3 tooling/qa/rules/coverage-floor.py --owner-floors-json > "$owner_floors_path"
-python3 - "$min_lines" "$summary_path" "$lcov_path" "$owner_floors_path" <<'PY' > "$metadata_path"
+fingerprint_worktree >.tmp/qa/coverage.stamp
+python3 tooling/qa/rules/coverage-floor.py --owner-floors-json >"$owner_floors_path"
+python3 - "$min_lines" "$summary_path" "$lcov_path" "$owner_floors_path" <<'PY' >"$metadata_path"
 from __future__ import annotations
 
 import json

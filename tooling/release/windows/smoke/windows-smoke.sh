@@ -81,7 +81,7 @@ assert_native_host_origin_gate() {
 }
 
 case "$(uname -s)" in
-  MINGW*|MSYS*|CYGWIN*)
+  MINGW* | MSYS* | CYGWIN*)
     ;;
   *)
     printf 'windows-smoke.sh requires a Windows host with MSVC Build Tools and Windows SDK.\n' >&2

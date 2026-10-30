@@ -26,10 +26,16 @@ def verify_run_evidence(run_dir: Path) -> dict[str, object]:
     validate_receipt(receipt)
     if receipt.get("run_id") != run_dir.name:
         raise IntegrityError("receipt run id does not match its evidence directory")
-    if not COMMIT_ID.fullmatch(str(receipt.get("commit_sha", ""))) or not SHA256.fullmatch(str(receipt.get("dirty_state_sha256", ""))):
+    if not COMMIT_ID.fullmatch(str(receipt.get("commit_sha", ""))) or not SHA256.fullmatch(
+        str(receipt.get("dirty_state_sha256", ""))
+    ):
         raise IntegrityError("receipt source authority hashes are invalid")
     source = receipt.get("source")
-    if not isinstance(source, dict) or not SHA256.fullmatch(str(source.get("sha256", ""))) or not isinstance(source.get("file_count"), int):
+    if (
+        not isinstance(source, dict)
+        or not SHA256.fullmatch(str(source.get("sha256", "")))
+        or not isinstance(source.get("file_count"), int)
+    ):
         raise IntegrityError("receipt source fingerprint is invalid")
     if receipt.get("artifact_manifest_sha256") != sha256_file(run_dir / "artifact-manifest.json"):
         raise IntegrityError("artifact manifest hash does not match receipt")
@@ -50,7 +56,11 @@ def verify_run_evidence(run_dir: Path) -> dict[str, object]:
         raise IntegrityError("JUnit results differ from the receipt test matrix")
     for lane in receipt["lanes"]:
         teardown = receipt.get("teardown", {}).get(lane)
-        if not isinstance(teardown, dict) or not teardown or not all(isinstance(value, bool) for value in teardown.values()):
+        if (
+            not isinstance(teardown, dict)
+            or not teardown
+            or not all(isinstance(value, bool) for value in teardown.values())
+        ):
             raise IntegrityError(f"teardown evidence is missing or invalid for {lane}")
         if receipt["result"] == "pass" and any(teardown.values()):
             raise IntegrityError(f"passing receipt reports forced teardown for {lane}")
@@ -156,7 +166,12 @@ def _evidence_files(manifest: dict[str, object]) -> list[dict[str, object]]:
         ):
             raise IntegrityError("evidence manifest entry is invalid")
         relative = Path(item["relative_path"])
-        if relative.is_absolute() or ".." in relative.parts or len(relative.parts) < 2 or relative.parts[0] != item["category"]:
+        if (
+            relative.is_absolute()
+            or ".." in relative.parts
+            or len(relative.parts) < 2
+            or relative.parts[0] != item["category"]
+        ):
             raise IntegrityError("evidence manifest path is invalid")
         if item["relative_path"] <= previous:
             raise IntegrityError("evidence manifest paths are not canonical and unique")
@@ -172,7 +187,11 @@ def _matrix(receipt: dict[str, object]) -> set[tuple[str, str, str, int]]:
     identities: set[tuple[str, str]] = set()
     matrix_lanes: set[str] = set()
     for lane in raw:
-        if not isinstance(lane, dict) or not isinstance(lane.get("lane"), str) or not isinstance(lane.get("tests"), list):
+        if (
+            not isinstance(lane, dict)
+            or not isinstance(lane.get("lane"), str)
+            or not isinstance(lane.get("tests"), list)
+        ):
             raise IntegrityError("receipt test matrix lane is invalid")
         if lane["lane"] in matrix_lanes:
             raise IntegrityError("receipt test matrix contains a duplicate lane")
@@ -233,7 +252,11 @@ def _junit(path: Path) -> set[tuple[str, str, str, int]]:
         identities.add(identity)
         value = (*identity, status, int(milliseconds))
         values.add(value)
-    if root.get("tests") != str(len(values)) or root.get("failures") != str(failures) or root.get("skipped") != str(skipped):
+    if (
+        root.get("tests") != str(len(values))
+        or root.get("failures") != str(failures)
+        or root.get("skipped") != str(skipped)
+    ):
         raise IntegrityError("JUnit summary counters are incoherent")
     return values
 

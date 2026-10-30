@@ -1,4 +1,5 @@
 """Bounded, fresh advisory queries; an unavailable source is never a clean result."""
+
 from __future__ import annotations
 
 import json
@@ -54,13 +55,24 @@ def github_token() -> str | None:
 
 def request_json(url: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
     parsed = urllib.parse.urlsplit(url)
-    if (parsed.scheme != "https" or parsed.hostname not in {
-        "api.osv.dev", "services.nvd.nist.gov", "api.github.com", "cveawg.mitre.org",
-    } or parsed.username or parsed.password or parsed.fragment):
+    if (
+        parsed.scheme != "https"
+        or parsed.hostname
+        not in {
+            "api.osv.dev",
+            "services.nvd.nist.gov",
+            "api.github.com",
+            "cveawg.mitre.org",
+        }
+        or parsed.username
+        or parsed.password
+        or parsed.fragment
+    ):
         raise AdvisoryError("unapproved advisory endpoint")
     body = json.dumps(payload).encode() if payload is not None else None
     headers = {
-        "User-Agent": "SniptaleEnvironmentAudit/1", "Content-Type": "application/json",
+        "User-Agent": "SniptaleEnvironmentAudit/1",
+        "Content-Type": "application/json",
     }
     token = github_token() if parsed.hostname == "api.github.com" else None
     if parsed.hostname == "api.github.com" and token:
@@ -129,8 +141,11 @@ def cpython_query(version: str, fetch: Fetch = request_json) -> list[str]:
     reference = fetch("https://api.github.com/repos/python/cpython/git/ref/tags/v" + version, None)
     for _ in range(4):
         obj = reference.get("object")
-        if (not isinstance(obj, dict) or not isinstance(obj.get("sha"), str)
-                or re.fullmatch(r"[0-9a-f]{40}", obj["sha"]) is None):
+        if (
+            not isinstance(obj, dict)
+            or not isinstance(obj.get("sha"), str)
+            or re.fullmatch(r"[0-9a-f]{40}", obj["sha"]) is None
+        ):
             raise AdvisoryError("invalid CPython release reference")
         if obj.get("type") == "commit":
             return osv_queries([{"commit": obj["sha"]}], fetch)[0]
@@ -147,12 +162,19 @@ def nvd_query(vendor: str, product: str, version: str, fetch: Fetch = request_js
     found: list[str] = []
     start = 0
     for _ in range(8):
-        query = urllib.parse.urlencode({"cpeName": cpe, "isVulnerable": "", "resultsPerPage": 2000, "startIndex": start})
+        query = urllib.parse.urlencode(
+            {"cpeName": cpe, "isVulnerable": "", "resultsPerPage": 2000, "startIndex": start}
+        )
         value = fetch("https://services.nvd.nist.gov/rest/json/cves/2.0?" + query, None)
         total = value.get("totalResults")
         records = value.get("vulnerabilities")
-        if (type(total) is not int or not 0 <= total <= 4000 or value.get("startIndex") != start
-                or not isinstance(records, list) or len(records) > 2000):
+        if (
+            type(total) is not int
+            or not 0 <= total <= 4000
+            or value.get("startIndex") != start
+            or not isinstance(records, list)
+            or len(records) > 2000
+        ):
             raise AdvisoryError("invalid NVD page")
         for record in records:
             if not isinstance(record, dict) or not isinstance(record.get("cve"), dict):

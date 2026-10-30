@@ -1,4 +1,5 @@
 """Install verified script-checking tools in a repository-local cache."""
+
 from __future__ import annotations
 
 import gzip
@@ -49,7 +50,10 @@ def install() -> None:
                 package.extractall(directory, filter="data")
             (Path(directory) / f"node-v{node['version']}-linux-x64").rename(node_target)
     os.environ["PATH"] = str(node_target / "bin") + os.pathsep + os.environ["PATH"]
-    if subprocess.run(["node", "--version"], capture_output=True, text=True, check=True, timeout=10).stdout.strip() != "v" + node["version"]:
+    if (
+        subprocess.run(["node", "--version"], capture_output=True, text=True, check=True, timeout=10).stdout.strip()
+        != "v" + node["version"]
+    ):
         raise ValueError("script tooling Node runtime differs from catalog")
     for name, spec in catalog["scriptTools"].items():
         if spec["manager"] != "github":
@@ -114,7 +118,15 @@ def install() -> None:
     python_id = hashlib.sha256(python_lock.read_bytes() + build_lock.read_bytes() + sys.version.encode()).hexdigest()
     if not (python_dir / ".identity").is_file() or (python_dir / ".identity").read_text() != python_id:
         run([sys.executable, "-m", "venv", str(python_dir)])
-        pip = [str(python_dir / "bin/python"), "-m", "pip", "install", "--disable-pip-version-check", "--require-hashes", "--no-build-isolation"]
+        pip = [
+            str(python_dir / "bin/python"),
+            "-m",
+            "pip",
+            "install",
+            "--disable-pip-version-check",
+            "--require-hashes",
+            "--no-build-isolation",
+        ]
         run([*pip, "-r", str(build_lock)])
         run([*pip, "-r", str(python_lock)])
         (python_dir / ".identity").write_text(python_id)

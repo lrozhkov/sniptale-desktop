@@ -44,9 +44,7 @@ def safe_component(value: str) -> str:
 
 def readable_license_path_errors(manifest: dict) -> list[str]:
     errors: list[str] = []
-    record_paths = {
-        record.get("file") for record in manifest.get("licenseFiles", []) if isinstance(record, dict)
-    }
+    record_paths = {record.get("file") for record in manifest.get("licenseFiles", []) if isinstance(record, dict)}
     selected_paths: set[str] = set()
     for package in manifest.get("packages", []):
         if not isinstance(package, dict):
@@ -152,7 +150,10 @@ def validate_static() -> list[str]:
         path = ROOT / str(record.get("file"))
         if not path.is_file() or digest(path) != record.get("sha256"):
             errors.append(f"dependency license digest drift: {record.get('file')}")
-        elif any(marker in path.read_text(encoding="utf-8").lower() for marker in ("<year>", "<copyright holders>", "<copyright holder>", "[year]", "[yyyy]")):
+        elif any(
+            marker in path.read_text(encoding="utf-8").lower()
+            for marker in ("<year>", "<copyright holders>", "<copyright holder>", "[year]", "[yyyy]")
+        ):
             errors.append(f"dependency license contains unresolved placeholders: {record.get('file')}")
     if not manifest.get("packages"):
         errors.append("dependency legal manifest contains no packages")
@@ -168,9 +169,11 @@ def validate_candidate(candidate: Path) -> list[str]:
             errors.append(f"generated legal output is stale: {relative}")
     expected_files = relative_files(LICENSE_DIR)
     candidate_root = candidate / "LICENSES/third-party"
-    candidate_files = {
-        path.relative_to(candidate).as_posix() for path in candidate_root.rglob("*") if path.is_file()
-    } if candidate_root.is_dir() else set()
+    candidate_files = (
+        {path.relative_to(candidate).as_posix() for path in candidate_root.rglob("*") if path.is_file()}
+        if candidate_root.is_dir()
+        else set()
+    )
     if expected_files != candidate_files:
         errors.append("generated dependency license inventory is stale")
     else:

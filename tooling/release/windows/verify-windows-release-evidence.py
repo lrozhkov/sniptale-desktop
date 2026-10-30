@@ -280,6 +280,7 @@ def main() -> int:
     parser.add_argument("--expected-provenance-file")
     args = parser.parse_args()
     path = Path(args.path)
+
     def reject_invalid_constant(value: str):
         raise ValueError(f"invalid JSON constant: {value}")
 

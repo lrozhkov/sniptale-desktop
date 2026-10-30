@@ -16,26 +16,28 @@ class GuestContractTests(unittest.TestCase):
 
     def test_real_extension_startup_retries_keep_the_durable_profile(self):
         script = (GUEST / "windows/real-extension.ps1").read_text()
-        startup = script[script.index('foreach ($startupAttempt in 1..3)'):script.index('if (-not $profileExists)')]
-        self.assertIn('Write-ProgressEvent', startup)
-        self.assertIn('$browser.ExitCode', startup)
-        self.assertIn('Stop-ProbeBrowsers', startup)
-        self.assertNotIn('Remove-Item', startup)
-        self.assertIn('if ($startupAttempt -eq 3) { throw', startup)
+        startup = script[script.index("foreach ($startupAttempt in 1..3)") : script.index("if (-not $profileExists)")]
+        self.assertIn("Write-ProgressEvent", startup)
+        self.assertIn("$browser.ExitCode", startup)
+        self.assertIn("Stop-ProbeBrowsers", startup)
+        self.assertNotIn("Remove-Item", startup)
+        self.assertIn("if ($startupAttempt -eq 3) { throw", startup)
 
     def test_lab_signing_keeps_private_key_in_guest_and_checks_installed_signature(self):
         signing = (GUEST / "windows/lab-signing.ps1").read_text()
         build = (GUEST / "windows/build.ps1").read_text()
         runtime = (GUEST / "windows/run.ps1").read_text()
-        self.assertIn('-KeyExportPolicy NonExportable', signing)
-        self.assertNotIn('Pfx', signing)
-        self.assertIn('CurrentUser', signing)
-        self.assertIn('Sign-LabArtifact $exe $labCertificate', build)
-        self.assertIn('Sign-LabArtifact $baselineExe $labCertificate', build)
-        self.assertIn('Sign-LabArtifact $msi $labCertificate', build)
-        self.assertIn('laboratory_certificate_sha256', build)
-        self.assertIn('installed laboratory signature mismatch', runtime)
-        self.assertLess(runtime.index('runtime network isolation must pass'), runtime.index('Import-LabSigningIdentity'))
+        self.assertIn("-KeyExportPolicy NonExportable", signing)
+        self.assertNotIn("Pfx", signing)
+        self.assertIn("CurrentUser", signing)
+        self.assertIn("Sign-LabArtifact $exe $labCertificate", build)
+        self.assertIn("Sign-LabArtifact $baselineExe $labCertificate", build)
+        self.assertIn("Sign-LabArtifact $msi $labCertificate", build)
+        self.assertIn("laboratory_certificate_sha256", build)
+        self.assertIn("installed laboratory signature mismatch", runtime)
+        self.assertLess(
+            runtime.index("runtime network isolation must pass"), runtime.index("Import-LabSigningIdentity")
+        )
 
     def test_repeated_windows_launch_cannot_accept_previous_result(self):
         script = (GUEST / "windows/launch-interactive.ps1").read_text()
@@ -59,16 +61,20 @@ class GuestContractTests(unittest.TestCase):
         self.assertNotIn("chromium-browser firefox", script)
 
     def test_windows_runner_proves_network_pipe_msi_and_both_audio_paths(self) -> None:
-        script = (GUEST / "windows/run.ps1").read_text(encoding="utf-8") + (GUEST / "windows/windows-ui.ps1").read_text(encoding="utf-8")
+        script = (GUEST / "windows/run.ps1").read_text(encoding="utf-8") + (GUEST / "windows/windows-ui.ps1").read_text(
+            encoding="utf-8"
+        )
         self.assertTrue(script.isascii())
         self.assertNotIn("'@ |", script)
         self.assertNotIn("attempt-$attempt:", script)
         for required in (
-            'Add-Test "network-isolation"', "pipe-auth-v2-hmac-sha256",
+            'Add-Test "network-isolation"',
+            "pipe-auth-v2-hmac-sha256",
             'Add-Test "recording-system-audio"',
-            'Add-Test "recording-microphone"', "PreviousExeSha256",
+            'Add-Test "recording-microphone"',
+            "PreviousExeSha256",
             "Remove-Item -LiteralPath $installed -Force",
-            '-replace "(?i)https?://[^\\s`\"\']+"',
+            '-replace "(?i)https?://[^\\s`"\']+"',
             "[IO.Path]::IsPathRooted($Output)",
             "Provision-DevRuntimeTrust",
             '"attempt-${attempt}:start-not-observed"',
@@ -103,26 +109,26 @@ class GuestContractTests(unittest.TestCase):
             '-ExpectedProductVersion "0.1.0"',
             'Where-Object { $_.Extension -ne ".jsonl" }',
             "$folderY = $dialogBounds.Bottom - 75",
-            '$resultDeadline = [DateTime]::UtcNow.AddSeconds(60)',
+            "$resultDeadline = [DateTime]::UtcNow.AddSeconds(60)",
             "foreach ($protocolAttempt in 1..4)",
-            '$existingRecordings = @{}',
-            '$acceptedRecording = $candidate',
+            "$existingRecordings = @{}",
+            "$acceptedRecording = $candidate",
             "$minimumPcmBytes",
             "same rejected file until the deadline cannot change its contents",
-            'sniptale-e2e-result-$ProbeNonce-$Name-$ExpectedStatus',
+            "sniptale-e2e-result-$ProbeNonce-$Name-$ExpectedStatus",
             "Invoke-VideoTrayAction",
             'Find-Ui "Sniptale E2E Probe Running" 15',
             "Write-ProgressEvent",
-            '$selectedTests.Contains($Name)',
+            "$selectedTests.Contains($Name)",
             'Write-ProgressEvent $scenario "retry" $attempt 2 55',
             'Write-ProgressEvent $scenario "finalizing" $attempt 2 20',
             'Write-ProgressEvent $scenario "stop-delivery" $stopAttempt 3 3',
             '$attemptFailure = "runtime-discarded"',
             '"attempt-${attempt}:stop-hotkey-not-observed"',
             '$attemptFailure = "finalization-stalled-${writingBytes}-bytes"',
-            'function Get-AgentHotkeyEventCount',
-            'function Get-AgentRecordingFailure',
-            'function Write-AgentRecordingDiagnostics',
+            "function Get-AgentHotkeyEventCount",
+            "function Get-AgentRecordingFailure",
+            "function Write-AgentRecordingDiagnostics",
         ):
             self.assertIn(required, script)
         self.assertNotIn("PlayLooping()", script)
@@ -136,8 +142,7 @@ class GuestContractTests(unittest.TestCase):
             script.index('Add-Test "recording-system-audio"'),
         )
         recording_helper = script[
-            script.index("function Invoke-SyntheticRecording"):
-            script.index('Add-Test "recording-system-audio"')
+            script.index("function Invoke-SyntheticRecording") : script.index('Add-Test "recording-system-audio"')
         ]
         self.assertNotIn("foreach ($attempt in 1..3)", recording_helper)
         self.assertIn("Initialize-SniptaleHotkeyInput", recording_helper)
@@ -155,8 +160,8 @@ class GuestContractTests(unittest.TestCase):
         self.assertIn('New-ScheduledTaskAction -Execute "C:\\Windows\\System32\\cmd.exe"', launcher)
         self.assertIn("-RunLevel Limited", launcher)
         self.assertNotIn("-RunLevel Highest", launcher)
-        self.assertIn('[guest-progress] $_', launcher)
-        self.assertIn('logs\\progress.log', launcher)
+        self.assertIn("[guest-progress] $_", launcher)
+        self.assertIn("logs\\progress.log", launcher)
         self.assertIn("interactive scheduled task disappeared before result after bounded restart", launcher)
         self.assertIn('`"scenario`":`"interactive-launch`"', launcher)
         self.assertIn("$taskStartAttempts -lt 2", launcher)
@@ -176,19 +181,19 @@ class GuestContractTests(unittest.TestCase):
     def test_windows_build_keeps_release_symbols_for_bounded_lab_diagnostics(self) -> None:
         script = (GUEST / "windows/build.ps1").read_text(encoding="utf-8")
         self.assertIn('$env:CARGO_PROFILE_RELEASE_DEBUG = "1"', script)
-        self.assertIn('sniptale-native-agent-$Profile.pdb', script)
+        self.assertIn("sniptale-native-agent-$Profile.pdb", script)
 
     def test_windows_build_requires_packaged_resources(self) -> None:
         script = (GUEST / "windows/build.ps1").read_text(encoding="utf-8")
         self.assertIn('$env:SNIPTALE_WINDOWS_RESOURCES = "require"', script)
         self.assertIn('$env:SNIPTALE_DEV_LOCAL_BROWSER_TRUST = "1"', script)
         self.assertIn('$env:SNIPTALE_INSTALL_CHANNEL = "dev"', script)
-        self.assertNotIn('$env:SNIPTALE_CHANNEL =', script)
+        self.assertNotIn("$env:SNIPTALE_CHANNEL =", script)
         self.assertIn('-d "ProjectLicense=', script)
         self.assertIn('-d "ProjectNotice=', script)
         self.assertIn('-d "ThirdPartyNotices=', script)
         self.assertIn('-d "ThirdPartyDependencies=', script)
-        self.assertIn('& $identityVerifier -Msi $msi -ExpectedProductVersion $productVersion', script)
+        self.assertIn("& $identityVerifier -Msi $msi -ExpectedProductVersion $productVersion", script)
         self.assertIn('foreach ($productVersion in @("0.0.1", "0.1.0"))', script)
 
     def test_windows_installer_preserves_authorization_state_during_major_upgrade(self) -> None:
@@ -204,11 +209,11 @@ class GuestContractTests(unittest.TestCase):
         self.assertIn("major upgrade changed authorization state", runner)
         self.assertIn('Id="ThirdPartyNoticesMarkdownFile" Guid="{AD1936C4-9944-43AC-A6F0-17726ED05B19}"', wix)
         self.assertNotIn("<RemoveFile ", wix)
-        self.assertIn('& $wix build $currentWixPath', builder)
-        self.assertIn('-d "ThirdPartyNotices=$(Join-Path $work \'THIRD_PARTY_NOTICES.md\')"', builder)
+        self.assertIn("& $wix build $currentWixPath", builder)
+        self.assertIn("-d \"ThirdPartyNotices=$(Join-Path $work 'THIRD_PARTY_NOTICES.md')\"", builder)
         self.assertIn('& $IdentityVerifier -Msi $PreviousMsi -ExpectedProductVersion "0.0.1"', runner)
         self.assertIn('& $IdentityVerifier -Msi $Msi -ExpectedProductVersion "0.1.0"', runner)
-        self.assertIn('SniptaleNativeAgent-dev-$productVersion-$Profile.msi', builder)
+        self.assertIn("SniptaleNativeAgent-dev-$productVersion-$Profile.msi", builder)
 
 
 if __name__ == "__main__":

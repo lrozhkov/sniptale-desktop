@@ -14,13 +14,13 @@
   "inputDigests": {
     "Cargo.toml": "c21545e0d383e9f65cf4a9732130a12ad9b691afca10b5e3d8c55b6e0088127f",
     "Cargo.lock": "0d2bf32041767b06b037ccef0c7765d34fe7e974f3e5209a6cc1b274fb90dd2f",
-    "deny.toml": "fba10564522b1ec2ce2b1366bc029ce5fe2457915dd60133837933f0753dee96",
+    "deny.toml": "ba4dbd903582608c09d6d5c03f1f11b867e860a3e4dd9db9fcf64299f126b98f",
     "tooling/configs/qa/about.toml": "ca45cd75707e67b57d80a59e56fbd321d2ec1d2ab47dd6fd9a2172da0ac37630",
     "tooling/configs/qa/open-source.json": "3a59830bf25aa6a4782182e9804a070f056d1f4303c651d285f2272c37177b3c",
     "tooling/configs/qa/tool-versions.json": "1af41bb83d8b377dd38dc8964931ef8be625f84f733c0d0b7f91abf65777dddc",
     "tooling/release/legal/third-party-notices.hbs": "af5cc2d62af0bed9791b51e96394002221ade4d52d81cb68819a1836002100f1",
-    "tooling/release/legal/generate_dependency_licenses.py": "bdf00d30fbd034543537524c7f1247fcbabdb1f4a0494237216e3d9868649fe8",
-    "tooling/qa/wrappers/licenses.sh": "6be3cb8629ce5e6530cd5ea527eb4ccd5f19ecae5451f03b21249323a08c631b"
+    "tooling/release/legal/generate_dependency_licenses.py": "10879ea429574d2833e2c4cf859c45bb8053928a538729008b024e33825a6623",
+    "tooling/qa/wrappers/licenses.sh": "cf82d03ef47e5eb336766aa9d657527aee99238a60df8199dc4b9a8d98a241c9"
   },
   "packages": [
     {

@@ -1,4 +1,5 @@
 """Verify that each release-age exception actually closes its named advisory."""
+
 from __future__ import annotations
 
 import json
@@ -16,8 +17,13 @@ def version_key(value: str) -> tuple[int, int, int, int, int]:
     if match is None:
         raise AdvisoryError("unsupported advisory version syntax")
     major, minor, patch, prerelease, serial = match.groups()
-    return (int(major), int(minor or 0), int(patch or 0),
-            {None: 0, "a": -3, "b": -2, "rc": -1}[prerelease], int(serial or 0))
+    return (
+        int(major),
+        int(minor or 0),
+        int(patch or 0),
+        {None: 0, "a": -3, "b": -2, "rc": -1}[prerelease],
+        int(serial or 0),
+    )
 
 
 def osv_affected(record: dict[str, Any], package: str, ecosystem: str, version: str) -> bool:
@@ -28,7 +34,11 @@ def osv_affected(record: dict[str, Any], package: str, ecosystem: str, version: 
     matched = False
     affected = False
     for entry in entries:
-        if not isinstance(entry, dict) or entry.get("package", {}).get("name") != package or entry["package"].get("ecosystem") != ecosystem:
+        if (
+            not isinstance(entry, dict)
+            or entry.get("package", {}).get("name") != package
+            or entry["package"].get("ecosystem") != ecosystem
+        ):
             continue
         matched = True
         ranges = entry.get("ranges", [])
@@ -99,9 +109,15 @@ def cpython_affected(record: dict[str, Any], advisory_id: str, version: str) -> 
     return affected
 
 
-def verify(catalog: dict[str, Any], policy: dict[str, Any], proofs: dict[str, Any], fetch: Fetch = request_json) -> list[str]:
+def verify(
+    catalog: dict[str, Any], policy: dict[str, Any], proofs: dict[str, Any], fetch: Fetch = request_json
+) -> list[str]:
     exceptions = catalog.get("securityExceptions", {})
-    if set(proofs) != {"schemaVersion", "exceptions"} or proofs["schemaVersion"] != 1 or set(proofs["exceptions"]) != set(exceptions):
+    if (
+        set(proofs) != {"schemaVersion", "exceptions"}
+        or proofs["schemaVersion"] != 1
+        or set(proofs["exceptions"]) != set(exceptions)
+    ):
         raise AdvisoryError("each age exception requires exactly one advisory-bound proof")
     selected = catalog_tools(catalog)
     verified: list[str] = []

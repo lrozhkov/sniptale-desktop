@@ -68,7 +68,9 @@ class LabPaths:
 
     def _migrate_legacy_persistent_state(self) -> None:
         for name, destination in (
-            ("cache", self.cache), ("images", self.images), ("golden", self.golden),
+            ("cache", self.cache),
+            ("images", self.images),
+            ("golden", self.golden),
         ):
             legacy = self.lab / name
             if not legacy.exists():

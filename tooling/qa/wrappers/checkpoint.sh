@@ -26,8 +26,8 @@ qa_step "clippy" cargo clippy --all-targets --all-features -- -D warnings
 if command -v cargo-nextest >/dev/null 2>&1; then
   qa_step "tests nextest" \
     env NEXTEST_EXPERIMENTAL_LIBTEST_JSON=1 \
-      cargo nextest run --all-targets --all-features --no-tests pass \
-      --message-format libtest-json-plus
+    cargo nextest run --all-targets --all-features --no-tests pass \
+    --message-format libtest-json-plus
 else
   qa_step "tests cargo" cargo test --all-targets --all-features
 fi

@@ -23,10 +23,19 @@ class SessionEvidenceTests(unittest.TestCase):
         self.directory = self.paths.lab / "sessions" / self.identity / "iterations" / self.iteration
         self.directory.mkdir(parents=True)
         (self.directory / "proof.json").write_text('{"passed":true}')
-        write_json(self.directory / "development-receipt.json", dict(
-            mode="development-session", release_admissible=False, session_id=self.identity,
-            iteration=self.iteration, result="pass", operation="test", timings_ms={"test":10},
-            evidence=inventory(self.directory)))
+        write_json(
+            self.directory / "development-receipt.json",
+            dict(
+                mode="development-session",
+                release_admissible=False,
+                session_id=self.identity,
+                iteration=self.iteration,
+                result="pass",
+                operation="test",
+                timings_ms={"test": 10},
+                evidence=inventory(self.directory),
+            ),
+        )
 
     def tearDown(self):
         self.temp.cleanup()
@@ -52,9 +61,15 @@ class SessionEvidenceTests(unittest.TestCase):
 
     def test_collection_rejects_invalid_result_and_phase_metadata(self):
         import json
+
         path = self.directory / "development-receipt.json"
         original = json.loads(path.read_text())
-        for key, value in (("result", "unknown"), ("operation", "release"), ("timings_ms", {"test": True}), ("timings_ms", {"test": -1})):
+        for key, value in (
+            ("result", "unknown"),
+            ("operation", "release"),
+            ("timings_ms", {"test": True}),
+            ("timings_ms", {"test": -1}),
+        ):
             with self.subTest(key=key, value=value):
                 write_json(path, {**original, key: value})
                 with self.assertRaises(IntegrityError):

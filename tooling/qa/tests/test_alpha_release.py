@@ -27,23 +27,43 @@ class AlphaArtifactTests(unittest.TestCase):
         qa.mkdir()
         for name in artifacts.PROOF_FILES - {"qa-proof.json"}:
             (qa / name).write_text("{}")
-        artifacts.write_json(qa / "qa-proof.json", {
-            "schemaVersion": 1, "kind": "sniptale-alpha-qa", "commit": self.commit,
-            "tree": "b" * 40, "gates": {name: {"runId": "local-gate", "recordSha256": "f" * 64} for name in artifacts.GATES}, "files": artifacts.files(qa),
-            "runId": "local", "runAttempt": "local",
-        })
-        for source, target in [("LICENSE", "LICENSE.txt"), ("NOTICE", "NOTICE.txt"),
-                               ("THIRD_PARTY_NOTICES.md", "THIRD_PARTY_NOTICES.md"),
-                               ("THIRD_PARTY_DEPENDENCIES.json", "THIRD_PARTY_DEPENDENCIES.json")]:
+        artifacts.write_json(
+            qa / "qa-proof.json",
+            {
+                "schemaVersion": 1,
+                "kind": "sniptale-alpha-qa",
+                "commit": self.commit,
+                "tree": "b" * 40,
+                "gates": {name: {"runId": "local-gate", "recordSha256": "f" * 64} for name in artifacts.GATES},
+                "files": artifacts.files(qa),
+                "runId": "local",
+                "runAttempt": "local",
+            },
+        )
+        for source, target in [
+            ("LICENSE", "LICENSE.txt"),
+            ("NOTICE", "NOTICE.txt"),
+            ("THIRD_PARTY_NOTICES.md", "THIRD_PARTY_NOTICES.md"),
+            ("THIRD_PARTY_DEPENDENCIES.json", "THIRD_PARTY_DEPENDENCIES.json"),
+        ]:
             shutil.copyfile(ROOT / source, directory / target)
         shutil.copytree(ROOT / "LICENSES", directory / "LICENSES")
         (directory / "SniptaleNativeAgent-dev-0.1.0.msi").write_bytes(b"msi")
         (directory / "sniptale-native-agent.exe").write_bytes(b"exe")
         (directory / "build-environment.json").write_text("{}")
-        artifacts.write_json(directory / "native-host.json", {
-            "name": "com.sniptale.dev.native_host", "allowed_origins": [artifacts.ORIGIN], "path": "sniptale-native-agent.exe",
-        })
-        with mock.patch.object(artifacts, "assert_source"), mock.patch.object(artifacts, "git", return_value="b" * 40), mock.patch.dict(artifacts.os.environ, {"GITHUB_RUN_ID": "local", "GITHUB_RUN_ATTEMPT": "local"}):
+        artifacts.write_json(
+            directory / "native-host.json",
+            {
+                "name": "com.sniptale.dev.native_host",
+                "allowed_origins": [artifacts.ORIGIN],
+                "path": "sniptale-native-agent.exe",
+            },
+        )
+        with (
+            mock.patch.object(artifacts, "assert_source"),
+            mock.patch.object(artifacts, "git", return_value="b" * 40),
+            mock.patch.dict(artifacts.os.environ, {"GITHUB_RUN_ID": "local", "GITHUB_RUN_ATTEMPT": "local"}),
+        ):
             artifacts.seal(directory, self.commit, self.tag)
 
     def test_bundle_accepts_exact_inventory_and_rejects_mutations(self):
@@ -70,22 +90,45 @@ class AlphaArtifactTests(unittest.TestCase):
                         artifacts.verify_bundle(directory, self.commit, self.tag)
 
     def test_publication_rejects_wrong_run_attempt_repository_and_missing_cases(self):
-        run = {"id": 12, "run_attempt": 2, "head_sha": self.commit, "head_branch": "main",
-               "event": "workflow_dispatch", "conclusion": "success", "status": "completed",
-               "path": ".github/workflows/alpha.yml", "repository": {"full_name": publish.REPO},
-               "head_repository": {"full_name": publish.REPO}}
+        run = {
+            "id": 12,
+            "run_attempt": 2,
+            "head_sha": self.commit,
+            "head_branch": "main",
+            "event": "workflow_dispatch",
+            "conclusion": "success",
+            "status": "completed",
+            "path": ".github/workflows/alpha.yml",
+            "repository": {"full_name": publish.REPO},
+            "head_repository": {"full_name": publish.REPO},
+        }
         artifact = {"id": 23, "name": f"alpha-{self.commit}-12-2", "expired": False, "digest": "sha256:" + "c" * 64}
-        receipt = {"schemaVersion": 1, "kind": "sniptale-alpha-windows-acceptance", "commit": self.commit,
-                   "tag": self.tag, "runId": "12", "runAttempt": "2", "artifactId": 23,
-                   "artifactDigest": artifact["digest"], "result": "pass", "verified": True,
-                   "cleanTeardown": True, "devLocalTrust": False,
-                   "tests": {name: "pass" for name in sorted(publish.RELEASE_CASES)},
-                   "checksumsSha256": "d" * 64, "receiptSha256": "e" * 64}
+        receipt = {
+            "schemaVersion": 1,
+            "kind": "sniptale-alpha-windows-acceptance",
+            "commit": self.commit,
+            "tag": self.tag,
+            "runId": "12",
+            "runAttempt": "2",
+            "artifactId": 23,
+            "artifactDigest": artifact["digest"],
+            "result": "pass",
+            "verified": True,
+            "cleanTeardown": True,
+            "devLocalTrust": False,
+            "tests": {name: "pass" for name in sorted(publish.RELEASE_CASES)},
+            "checksumsSha256": "d" * 64,
+            "receiptSha256": "e" * 64,
+        }
         publish.admit(run, artifact, receipt, self.commit, self.tag)
-        for target, field, value in [(run, "event", "pull_request"), (run, "run_attempt", 3),
-                                      (run, "head_repository", {"full_name": "other/fork"}),
-                                      (artifact, "expired", True), (receipt, "tests", {"capture": "pass"}),
-                                      (receipt, "devLocalTrust", True)]:
+        for target, field, value in [
+            (run, "event", "pull_request"),
+            (run, "run_attempt", 3),
+            (run, "head_repository", {"full_name": "other/fork"}),
+            (artifact, "expired", True),
+            (receipt, "tests", {"capture": "pass"}),
+            (receipt, "devLocalTrust", True),
+        ]:
             with self.subTest(field=field), mock.patch.dict(target, {field: value}):
                 with self.assertRaises(ValueError):
                     publish.admit(run, artifact, receipt, self.commit, self.tag)
@@ -98,19 +141,36 @@ class AlphaArtifactTests(unittest.TestCase):
     def test_diagnostic_dirty_duplicate_or_forced_receipt_cannot_admit_release(self):
         import copy
         import hashlib
-        receipt = {"result": "pass", "run_mode": "alpha-release-acceptance", "commit_sha": self.commit,
-                   "dirty_state_sha256": hashlib.sha256(b"").hexdigest(), "lanes": ["windows-11"],
-                   "teardown": {"windows-11": {"post_forced": False}},
-                   "test_matrix": [{"lane": "windows-11", "tests": [{"name": name, "status": "pass"} for name in sorted(publish.RELEASE_CASES)]}]}
+
+        receipt = {
+            "result": "pass",
+            "run_mode": "alpha-release-acceptance",
+            "commit_sha": self.commit,
+            "dirty_state_sha256": hashlib.sha256(b"").hexdigest(),
+            "lanes": ["windows-11"],
+            "teardown": {"windows-11": {"post_forced": False}},
+            "test_matrix": [
+                {
+                    "lane": "windows-11",
+                    "tests": [{"name": name, "status": "pass"} for name in sorted(publish.RELEASE_CASES)],
+                }
+            ],
+        }
         acceptance.verified_tests(receipt, self.commit)
         for mutation in ("dirty", "mode", "duplicate", "forced", "missing", "lane"):
             value = copy.deepcopy(receipt)
-            if mutation == "dirty": value["dirty_state_sha256"] = "f" * 64
-            elif mutation == "mode": value["run_mode"] = "focused-test"
-            elif mutation == "duplicate": value["test_matrix"][0]["tests"].append(value["test_matrix"][0]["tests"][0])
-            elif mutation == "forced": value["teardown"]["windows-11"]["post_forced"] = True
-            elif mutation == "missing": value["test_matrix"][0]["tests"].pop()
-            else: value["lanes"] = ["linux-x11"]
+            if mutation == "dirty":
+                value["dirty_state_sha256"] = "f" * 64
+            elif mutation == "mode":
+                value["run_mode"] = "focused-test"
+            elif mutation == "duplicate":
+                value["test_matrix"][0]["tests"].append(value["test_matrix"][0]["tests"][0])
+            elif mutation == "forced":
+                value["teardown"]["windows-11"]["post_forced"] = True
+            elif mutation == "missing":
+                value["test_matrix"][0]["tests"].pop()
+            else:
+                value["lanes"] = ["linux-x11"]
             with self.subTest(mutation=mutation), self.assertRaises(ValueError):
                 acceptance.verified_tests(value, self.commit)
 
@@ -132,7 +192,9 @@ class AlphaArtifactTests(unittest.TestCase):
                 binaries = root / "bin"
                 for directory in (installers, runtime, configs, binaries):
                     directory.mkdir(parents=True)
-                shutil.copyfile(ROOT / "tooling/qa/installers/install-release-tools.sh", installers / "install-release-tools.sh")
+                shutil.copyfile(
+                    ROOT / "tooling/qa/installers/install-release-tools.sh", installers / "install-release-tools.sh"
+                )
                 (runtime / "lib.sh").write_text("ensure_rust_env() { :; }\n")
                 (configs / "tool-versions.json").write_text(json.dumps(versions))
                 shutil.copyfile(ROOT / "tooling/configs/qa/toolchain-lock.json", configs / "toolchain-lock.json")
@@ -142,17 +204,25 @@ class AlphaArtifactTests(unittest.TestCase):
                 shutil.copyfile(ROOT / "Cargo.lock", root / "Cargo.lock")
                 shutil.copyfile(ROOT / "Cargo.toml", root / "Cargo.toml")
                 for executable, body in {"rustup": "exit 0", "gitleaks-installer": "exit 0"}.items():
-                    target = installers / "install-gitleaks.sh" if executable == "gitleaks-installer" else binaries / executable
+                    target = (
+                        installers / "install-gitleaks.sh"
+                        if executable == "gitleaks-installer"
+                        else binaries / executable
+                    )
                     target.write_text("#!/usr/bin/env bash\n" + body + "\n")
                     target.chmod(0o700)
                 for tool, version in versions["cargoSubcommands"].items():
                     if tool != "cargo-about":
                         target = binaries / tool
-                        guard = '[[ "${1:-}" == llvm-cov && "${2:-}" == --version ]] || exit 2\n' if tool == "cargo-llvm-cov" else ""
+                        guard = (
+                            '[[ "${1:-}" == llvm-cov && "${2:-}" == --version ]] || exit 2\n'
+                            if tool == "cargo-llvm-cov"
+                            else ""
+                        )
                         target.write_text(f"#!/usr/bin/env bash\n{guard}echo '{tool} {version}'\n")
                         target.chmod(0o700)
                 cargo = binaries / "cargo"
-                cargo.write_text('''#!/usr/bin/env python3
+                cargo.write_text("""#!/usr/bin/env python3
 import os, pathlib, subprocess, sys
 args = sys.argv[1:]
 if args[0] != 'install':
@@ -162,11 +232,20 @@ if '--features' in args and args[args.index('--features')+1] == 'cli' and os.env
     version = args[args.index('--version') + 1]
     target.write_text('#!/usr/bin/env bash\\necho "cargo-about ' + version + '"\\n')
     target.chmod(0o700)
-''')
+""")
                 cargo.chmod(0o700)
-                environment = {**os.environ, "PATH": str(binaries) + os.pathsep + "/usr/bin:/bin",
-                               "FAKE_BIN": str(binaries), "FAKE_MISSING": "1" if missing else "0"}
-                result = subprocess.run(["bash", str(installers / "install-release-tools.sh")], env=environment, capture_output=True, text=True)
+                environment = {
+                    **os.environ,
+                    "PATH": str(binaries) + os.pathsep + "/usr/bin:/bin",
+                    "FAKE_BIN": str(binaries),
+                    "FAKE_MISSING": "1" if missing else "0",
+                }
+                result = subprocess.run(
+                    ["bash", str(installers / "install-release-tools.sh")],
+                    env=environment,
+                    capture_output=True,
+                    text=True,
+                )
                 self.assertEqual(result.returncode, 1 if missing else 0, result.stderr)
 
 

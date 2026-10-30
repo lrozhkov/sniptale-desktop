@@ -24,9 +24,13 @@ def powershell_encoded(script: str, *, allow_lab_scripts: bool = False) -> list[
         raise TypeError("laboratory script execution flag must be boolean")
     encoded = base64.b64encode(script.encode("utf-16-le")).decode("ascii")
     return [
-        "powershell.exe", "-NoLogo", "-NoProfile", "-NonInteractive",
+        "powershell.exe",
+        "-NoLogo",
+        "-NoProfile",
+        "-NonInteractive",
         *(["-ExecutionPolicy", "Bypass"] if allow_lab_scripts else []),
-        "-EncodedCommand", encoded,
+        "-EncodedCommand",
+        encoded,
     ]
 
 
@@ -40,15 +44,33 @@ class GuestSsh:
 
     def options(self) -> list[str]:
         return [
-            "-i", str(self.key), "-p", str(self.port), "-o", "BatchMode=yes",
-            "-o", "StrictHostKeyChecking=accept-new", "-o", f"UserKnownHostsFile={self.known_hosts}",
-            "-o", "ConnectTimeout=10", "-o", "ServerAliveInterval=15", "-o", "ServerAliveCountMax=3",
-            "-o", "ControlMaster=auto", "-o", "ControlPersist=30",
-            "-o", f"ControlPath={self.paths.locks}/ssh-{self.port}",
+            "-i",
+            str(self.key),
+            "-p",
+            str(self.port),
+            "-o",
+            "BatchMode=yes",
+            "-o",
+            "StrictHostKeyChecking=accept-new",
+            "-o",
+            f"UserKnownHostsFile={self.known_hosts}",
+            "-o",
+            "ConnectTimeout=10",
+            "-o",
+            "ServerAliveInterval=15",
+            "-o",
+            "ServerAliveCountMax=3",
+            "-o",
+            "ControlMaster=auto",
+            "-o",
+            "ControlPersist=30",
+            "-o",
+            f"ControlPath={self.paths.locks}/ssh-{self.port}",
         ]
 
-    def wait(self, timeout: int, *, probe: list[str] | None = None,
-             health_check: Callable[[], None] | None = None) -> None:
+    def wait(
+        self, timeout: int, *, probe: list[str] | None = None, health_check: Callable[[], None] | None = None
+    ) -> None:
         probe_command = probe or ["true"]
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
@@ -95,7 +117,11 @@ class GuestSsh:
         run(["scp", *scp_options, str(source), f"{self.user}@127.0.0.1:{remote}"], timeout=timeout)
 
     def upload_many(self, sources: dict[str, Path], *, timeout: int) -> None:
-        if not sources or len(sources) > 16 or any(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}", name) is None for name in sources):
+        if (
+            not sources
+            or len(sources) > 16
+            or any(re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}", name) is None for name in sources)
+        ):
             raise LabError("invalid guest upload inventory")
         with tempfile.TemporaryDirectory(prefix="upload-", dir=self.paths.lab) as directory:
             staged = []
@@ -130,7 +156,10 @@ class GuestSsh:
         command = ["scp", *flags, *scp_options, f"{self.user}@127.0.0.1:{remote}", str(destination)]
         with tempfile.TemporaryFile() as output:
             process = subprocess.Popen(
-                command, stdout=output, stderr=subprocess.STDOUT, start_new_session=True,
+                command,
+                stdout=output,
+                stderr=subprocess.STDOUT,
+                start_new_session=True,
             )
             deadline = time.monotonic() + timeout
             while process.poll() is None:

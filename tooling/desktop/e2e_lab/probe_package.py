@@ -65,11 +65,18 @@ def build(root: Path, destination: Path) -> Path:
         "Description: Deterministic Sniptale desktop E2E infrastructure probe\n"
     ).encode()
     control_tar = _tar_gz({"./control": (control, 0o644)})
-    data_tar = _tar_gz({
-        "./usr/bin/sniptale-e2e-probe": (probe, 0o755),
-        "./usr/lib/sniptale-e2e-probe/tray.py": (tray, 0o755),
-    })
-    content = b"!<arch>\n" + _ar_member("debian-binary", b"2.0\n") + _ar_member("control.tar.gz", control_tar) + _ar_member("data.tar.gz", data_tar)
+    data_tar = _tar_gz(
+        {
+            "./usr/bin/sniptale-e2e-probe": (probe, 0o755),
+            "./usr/lib/sniptale-e2e-probe/tray.py": (tray, 0o755),
+        }
+    )
+    content = (
+        b"!<arch>\n"
+        + _ar_member("debian-binary", b"2.0\n")
+        + _ar_member("control.tar.gz", control_tar)
+        + _ar_member("data.tar.gz", data_tar)
+    )
     destination.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     temporary = destination.with_suffix(".partial")
     temporary.write_bytes(content)

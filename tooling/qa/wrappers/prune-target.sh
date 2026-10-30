@@ -14,7 +14,7 @@ case "${1:-}" in
   --dry-run)
     dry_run=1
     ;;
-  -h|--help)
+  -h | --help)
     printf '%s\n' \
       'Usage: tooling/qa/wrappers/prune-target.sh [--dry-run]' \
       '' \
@@ -57,12 +57,12 @@ size_kib="$(du -sk -- "$target_dir" | awk '{print $1}')"
 limit_kib="$((max_gib * 1024 * 1024))"
 size_gib="$(awk -v kib="$size_kib" 'BEGIN { printf "%.1f", kib / 1024 / 1024 }')"
 
-if (( size_kib <= limit_kib )); then
+if ((size_kib <= limit_kib)); then
   printf 'target budget OK: %s GiB used, limit %s GiB\n' "$size_gib" "$max_gib"
   exit 0
 fi
 
-if (( dry_run == 1 )); then
+if ((dry_run == 1)); then
   printf 'target budget exceeded: %s GiB used, limit %s GiB; cargo clean would run\n' \
     "$size_gib" "$max_gib"
   exit 0

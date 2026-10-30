@@ -1,4 +1,5 @@
 """Negative proof for tool identity, vulnerable Python, and incomplete advisory sources."""
+
 from __future__ import annotations
 
 import copy
@@ -42,7 +43,9 @@ class EnvironmentAuditTests(unittest.TestCase):
         python = next(tool for tool in report["tools"] if tool["tool"] == "python")
         self.assertEqual(python["advisories"], ["PSF-2024-2"])
         self.assertTrue(any(payload == {"commit": VULNERABLE_PYTHON_3121} for _, payload in self.calls))
-        self.assertFalse(any(payload and payload.get("package", {}).get("name") == "python" for _, payload in self.calls))
+        self.assertFalse(
+            any(payload and payload.get("package", {}).get("name") == "python" for _, payload in self.calls)
+        )
 
     def test_clean_results_cover_every_exact_catalog_pin(self):
         report = audit(self.catalog, self.policy, self.source)
@@ -59,11 +62,16 @@ class EnvironmentAuditTests(unittest.TestCase):
     def test_source_failure_cannot_be_treated_as_a_clean_run(self):
         def unavailable(url, payload):
             raise AdvisoryError("source unavailable")
+
         with self.assertRaisesRegex(AdvisoryError, "unavailable"):
             audit(self.catalog, self.policy, unavailable)
 
     def test_explicit_coverage_gap_is_reported_with_reason(self):
-        self.policy["tools"]["wix"] = {"provider": "unavailable", "reason": "fixture unsupported ecosystem", "reviewSource": "vendor"}
+        self.policy["tools"]["wix"] = {
+            "provider": "unavailable",
+            "reason": "fixture unsupported ecosystem",
+            "reviewSource": "vendor",
+        }
         report = audit(self.catalog, self.policy, self.source)
         tool = next(tool for tool in report["tools"] if tool["tool"] == "wix")
         self.assertEqual(tool["coverage"], "manual-review-required")
@@ -73,7 +81,9 @@ class EnvironmentAuditTests(unittest.TestCase):
         with self.assertRaisesRegex(AdvisoryError, "duplicate"):
             decode(b'{"result":"pass","result":"fail"}')
         with self.assertRaisesRegex(AdvisoryError, "incomplete NVD"):
-            nvd_query("python", "python", "3.12.1", lambda *_: {"totalResults": 2, "startIndex": 0, "vulnerabilities": []})
+            nvd_query(
+                "python", "python", "3.12.1", lambda *_: {"totalResults": 2, "startIndex": 0, "vulnerabilities": []}
+            )
         with self.assertRaisesRegex(AdvisoryError, "pagination"):
             osv_queries([{"commit": "a" * 40}], lambda *_: {"next_page_token": "repeated"})
 

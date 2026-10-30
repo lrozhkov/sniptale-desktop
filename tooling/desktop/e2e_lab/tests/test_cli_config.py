@@ -44,10 +44,16 @@ class CliConfigTests(unittest.TestCase):
                 self.assertEqual(parser().parse_args(arguments).command, expected)
 
     def test_focused_test_case_selection_is_explicit(self) -> None:
-        args = parser().parse_args([
-            "test", "windows-11", "--artifact", "probe.msi",
-            "--cases", "recording-system-audio,capture",
-        ])
+        args = parser().parse_args(
+            [
+                "test",
+                "windows-11",
+                "--artifact",
+                "probe.msi",
+                "--cases",
+                "recording-system-audio,capture",
+            ]
+        )
         self.assertEqual(args.cases, "recording-system-audio,capture")
 
     def test_failed_run_still_prints_machine_readable_identity(self) -> None:
@@ -75,9 +81,15 @@ class CliConfigTests(unittest.TestCase):
             redirect_stdout(output),
             redirect_stderr(diagnostics),
         ):
-            status = lab_main_module.main([
-                "run", "--lane", "windows-11", "--build", "current",
-            ])
+            status = lab_main_module.main(
+                [
+                    "run",
+                    "--lane",
+                    "windows-11",
+                    "--build",
+                    "current",
+                ]
+            )
         self.assertEqual(status, 1)
         self.assertEqual(
             json.loads(output.getvalue()),

@@ -62,8 +62,12 @@ def _dpkg(path: Path, *arguments: str) -> str:
     if not arguments:
         raise ValueError("dpkg-deb operation is required")
     completed = subprocess.run(
-        ["dpkg-deb", arguments[0], str(path), *arguments[1:]], text=True, stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE, timeout=120, check=False,
+        ["dpkg-deb", arguments[0], str(path), *arguments[1:]],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=120,
+        check=False,
     )
     if completed.returncode != 0:
         raise IntegrityError(f"invalid Debian package metadata: {completed.stderr[-512:]}")

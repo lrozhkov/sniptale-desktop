@@ -1,4 +1,5 @@
 """Negative proof for configuration parsing and mandatory tool inventory."""
+
 from __future__ import annotations
 
 import unittest

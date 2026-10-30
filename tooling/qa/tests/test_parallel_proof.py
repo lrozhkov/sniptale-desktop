@@ -20,9 +20,11 @@ class ParallelProofTests(unittest.TestCase):
             root = Path(directory)
             record, log = root / "record.json", root / "run.log"
             storage.atomic_write_json(record, {"steps": [], "log": {"path": "run.log"}})
-            checks = [("failure", [sys.executable, "-c", "print('TOKEN=secret-value'); raise SystemExit(7)"]),
-                      ("missing", [str(root / "missing-executable")]),
-                      ("success", [sys.executable, "-c", "print('complete')"])]
+            checks = [
+                ("failure", [sys.executable, "-c", "print('TOKEN=secret-value'); raise SystemExit(7)"]),
+                ("missing", [str(root / "missing-executable")]),
+                ("success", [sys.executable, "-c", "print('complete')"]),
+            ]
             with mock.patch.object(parallel, "ROOT", root), mock.patch.object(run, "ROOT", root):
                 self.assertEqual(parallel.run_group(checks, record, log, 2), 7)
             steps = storage.read_json(record)["steps"]
@@ -53,7 +55,10 @@ class ParallelProofTests(unittest.TestCase):
                 storage.atomic_write_json(path, {"steps": [{"label": label, "durationMs": 1, "exitCode": 0}]})
                 return 0
 
-            with mock.patch.object(parallel, "ROOT", root), mock.patch.object(parallel, "run_step", side_effect=fake_run):
+            with (
+                mock.patch.object(parallel, "ROOT", root),
+                mock.patch.object(parallel, "run_step", side_effect=fake_run),
+            ):
                 self.assertEqual(parallel.run_group([(str(i), ["fixture"]) for i in range(6)], record, log, 2), 0)
             self.assertEqual(peak, 2)
             self.assertEqual(len(storage.read_json(record)["steps"]), 6)
@@ -66,15 +71,31 @@ class ParallelProofTests(unittest.TestCase):
             parallel.run_group([("x", ["true"])] * 2, Path("unused"), Path("unused"), 1)
 
     def test_catalog_retains_all_twenty_independent_checks(self):
-        self.assertEqual({label for label, _ in CHECKS}, {
-            "fmt", "documentation policy", "open-source legal policy", "audit11 architecture snapshot",
-            "tooling topology and exception registry", "architecture guardrail self-tests",
-            "architecture guardrails", "topology guardrails", "boundary guardrail self-tests",
-            "boundary guardrails", "contract guardrail self-tests", "contract guardrails",
-            "release artifact guardrails", "Windows resource guardrails", "security guardrail self-tests",
-            "security guardrails", "dev dependency guardrails", "test policy",
-            "desktop E2E lab controller tests", "QA runtime tests",
-        })
+        self.assertEqual(
+            {label for label, _ in CHECKS},
+            {
+                "fmt",
+                "documentation policy",
+                "open-source legal policy",
+                "audit11 architecture snapshot",
+                "tooling topology and exception registry",
+                "architecture guardrail self-tests",
+                "architecture guardrails",
+                "topology guardrails",
+                "boundary guardrail self-tests",
+                "boundary guardrails",
+                "contract guardrail self-tests",
+                "contract guardrails",
+                "release artifact guardrails",
+                "Windows resource guardrails",
+                "security guardrail self-tests",
+                "security guardrails",
+                "dev dependency guardrails",
+                "test policy",
+                "desktop E2E lab controller tests",
+                "QA runtime tests",
+            },
+        )
         self.assertEqual(sum("--self-test" in cmd for _, cmd in CHECKS), 4)
         self.assertEqual(sum("unittest" in cmd for _, cmd in CHECKS), 2)
         self.assertTrue(all(cmd[:2] != ["cargo", "check"] for _, cmd in CHECKS))
@@ -99,14 +120,25 @@ class ParallelProofTests(unittest.TestCase):
 
 class MetricsTests(unittest.TestCase):
     def test_malformed_step_or_source_is_rejected(self):
-        for steps, source in (([None], {}), ([{"durationMs": True}], {}), ([], []), ([], {"revision": "https://example.invalid/private"})):
+        for steps, source in (
+            ([None], {}),
+            ([{"durationMs": True}], {}),
+            ([], []),
+            ([], {"revision": "https://example.invalid/private"}),
+        ):
             with self.subTest(steps=steps, source=source), self.assertRaises(ValueError):
                 summarize({"durationMs": 1, "steps": steps, "repository": source})
 
     def test_parallel_children_do_not_double_count_wall_time(self):
-        receipt = {"runId": "fixture", "wrapperId": "qa:checkpoint", "durationMs": 100,
-                   "steps": [{"label": "group", "durationMs": 80, "exitCode": 0},
-                             {"label": "child", "durationMs": 60, "exitCode": 0, "parallelGroup": "group"}]}
+        receipt = {
+            "runId": "fixture",
+            "wrapperId": "qa:checkpoint",
+            "durationMs": 100,
+            "steps": [
+                {"label": "group", "durationMs": 80, "exitCode": 0},
+                {"label": "child", "durationMs": 60, "exitCode": 0, "parallelGroup": "group"},
+            ],
+        }
         report = summarize(receipt)
         self.assertEqual(report["wallMs"], 100)
         self.assertEqual(report["topLevelStepMs"], 80)
