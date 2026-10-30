@@ -147,6 +147,15 @@ class ReleaseAcceptanceTests(unittest.TestCase):
             ssh.assert_not_called()
             runner._finish_vm.assert_called_once_with("windows-11", "test", False)
 
+    def test_guest_policy_uses_injected_time_and_production_waits_are_monotonic(self):
+        script = (Path(__file__).resolve().parents[1] / "guest/windows/release-run.ps1").read_text()
+        wait = script.split("function Wait-For(", 1)[1].split("function Screenshot", 1)[0]
+        self.assertIn("[Diagnostics.Stopwatch]::GetTimestamp()", wait)
+        self.assertNotIn("[DateTime]::UtcNow", wait)
+        policy = script.split("function Test-TrayMenuPolicy", 1)[1].split("Test-TrayMenuPolicy\n", 1)[0]
+        self.assertIn('Wait-TrayMenuItem "Pause" $read 3 $now $delay', policy)
+        self.assertIn('$attempt.Value -ne 6 -or $clock.Value -ne 3', policy)
+
     def test_interrupted_launcher_retains_log_without_extending_sealed_inventory(self):
         script = (Path(__file__).resolve().parents[1] / "guest/windows/launch-release.ps1").read_text()
         cleanup = script.rsplit("} finally {", 1)[1]
