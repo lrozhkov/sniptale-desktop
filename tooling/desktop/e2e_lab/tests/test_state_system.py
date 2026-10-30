@@ -23,6 +23,35 @@ from ssh import GuestSsh, powershell_encoded
 
 
 class StateSystemTests(unittest.TestCase):
+    def test_guest_commands_close_stdin_without_changing_scp_options(self):
+        ssh = GuestSsh(LabPaths.discover(Path("/tmp/synthetic-lab")), 22423, "lab")
+        with mock.patch("ssh.run") as execute:
+            ssh.command(["cmd.exe", "/d", "/c", "exit", "0"], timeout=30)
+        argv = execute.call_args.args[0]
+        self.assertEqual(argv[:2], ["ssh", "-n"])
+        self.assertNotIn("-n", ssh.options())
+
+    def test_batch_upload_rejects_escaping_names_and_links_before_transport(self):
+        with tempfile.TemporaryDirectory() as directory:
+            paths = LabPaths.discover(Path(directory))
+            paths.ensure()
+            ssh = GuestSsh(paths, 22423, "lab")
+            source = paths.lab / "fixture.ps1"
+            source.write_text("synthetic")
+            link = paths.lab / "link.ps1"
+            link.symlink_to(source)
+            with mock.patch("ssh.run") as execute:
+                for files in ({"../escape.ps1": source}, {"-option": source}, {"fixture.ps1": link}):
+                    with self.assertRaises(LabError):
+                        ssh.upload_many(files, timeout=10)
+                execute.assert_not_called()
+                ssh.upload_many({"first.ps1": source, "second.ps1": source}, timeout=10)
+                execute.assert_called_once()
+                self.assertEqual(execute.call_args.args[0][0], "scp")
+                self.assertNotIn("-n", execute.call_args.args[0])
+            self.assertEqual(source.read_text(), "synthetic")
+            self.assertEqual(list(paths.lab.glob("upload-*")), [])
+
     def test_ssh_wait_uses_platform_probe(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             ssh = GuestSsh(LabPaths.discover(Path(directory)), 22423, "lab")
@@ -79,6 +108,13 @@ class StateSystemTests(unittest.TestCase):
                 with self.assertRaisesRegex(ResourceError, "lab is busy"):
                     with LabLock(path, "inner"):
                         self.fail("nested lock unexpectedly acquired")
+
+    def test_file_execution_policy_is_an_explicit_process_only_opt_in(self):
+        plain = powershell_encoded("Write-Output 'read-only'")
+        trusted = powershell_encoded(". ./lab-signing.ps1", allow_lab_scripts=True)
+        self.assertNotIn('-ExecutionPolicy', plain)
+        self.assertEqual(trusted[trusted.index('-ExecutionPolicy') + 1], 'Bypass')
+        with self.assertRaises(TypeError): powershell_encoded('read', allow_lab_scripts='Bypass')
 
     def test_lock_rejects_symlink_without_touching_target(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

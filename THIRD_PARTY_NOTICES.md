@@ -105,40 +105,7 @@ DEALINGS IN THE SOFTWARE.
 
 ## MIT License
 
-Used by: lazy_static 1.5.0
-
-```text
-Copyright (c) 2010 The Rust Project Developers
-
-Permission is hereby granted, free of charge, to any
-person obtaining a copy of this software and associated
-documentation files (the "Software"), to deal in the
-Software without restriction, including without
-limitation the rights to use, copy, modify, merge,
-publish, distribute, sublicense, and/or sell copies of
-the Software, and to permit persons to whom the Software
-is furnished to do so, subject to the following
-conditions:
-
-The above copyright notice and this permission notice
-shall be included in all copies or substantial portions
-of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
-ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
-TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
-IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-DEALINGS IN THE SOFTWARE.
-
-```
-
-## MIT License
-
-Used by: cfg-if 1.0.4
+Used by: cfg-if 1.0.5
 
 ```text
 Copyright (c) 2014 Alex Crichton
@@ -171,7 +138,7 @@ DEALINGS IN THE SOFTWARE.
 
 ## MIT License
 
-Used by: log 0.4.33, regex-automata 0.4.14, regex-syntax 0.8.11
+Used by: log 0.4.34, regex-automata 0.4.18, regex-syntax 0.8.11
 
 ```text
 Copyright (c) 2014 The Rust Project Developers
@@ -237,7 +204,7 @@ DEALINGS IN THE SOFTWARE.
 
 ## MIT License
 
-Used by: thread_local 1.1.9
+Used by: thread_local 1.1.10
 
 ```text
 Copyright (c) 2016 The Rust Project Developers
@@ -336,7 +303,7 @@ DEALINGS IN THE SOFTWARE.
 
 ## MIT License
 
-Used by: smallvec 1.15.2
+Used by: smallvec 1.16.3
 
 ```text
 Copyright (c) 2018 The Servo Project Developers
@@ -503,7 +470,7 @@ DEALINGS IN THE SOFTWARE.
 
 ## MIT License
 
-Used by: zeroize 1.9.0
+Used by: zeroize 1.9.1
 
 ```text
 Copyright (c) 2018-2026 The RustCrypto Project Developers
@@ -890,7 +857,7 @@ DEALINGS IN THE SOFTWARE.
 
 ## MIT License
 
-Used by: crc32fast 1.5.0
+Used by: crc32fast 1.5.3
 
 ```text
 MIT License
@@ -919,7 +886,7 @@ SOFTWARE.
 
 ## MIT License
 
-Used by: itoa 1.0.18, once_cell 1.21.4, pin-project-lite 0.2.17, proc-macro2 1.0.106, quote 1.0.46, serde 1.0.228, serde_core 1.0.228, serde_derive 1.0.228, serde_json 1.0.150, syn 2.0.118, unicode-ident 1.0.24, zmij 1.0.21
+Used by: itoa 1.0.18, lazy_static 1.5.1, once_cell 1.21.4, pin-project-lite 0.2.17, proc-macro2 1.0.107, quote 1.0.47, serde 1.0.229, serde_core 1.0.229, serde_derive 1.0.229, serde_json 1.0.154, syn 2.0.119, syn 3.0.9, unicode-ident 1.0.27, zmij 1.0.23
 
 ```text
 Permission is hereby granted, free of charge, to any
@@ -945,6 +912,35 @@ CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
+
+```
+
+## MIT License
+
+Used by: tracing-core 0.1.36
+
+```text
+The MIT License (MIT)
+
+Copyright (c) 2014 Mathijs van de Nes
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 
 ```
 
@@ -1008,7 +1004,7 @@ THE SOFTWARE.
 
 ## MIT License
 
-Used by: memchr 2.8.2
+Used by: memchr 2.8.3
 
 ```text
 The MIT License (MIT)
@@ -1095,7 +1091,7 @@ SOFTWARE.
 
 ## Unicode License v3
 
-Used by: unicode-ident 1.0.24
+Used by: unicode-ident 1.0.27
 
 ```text
 UNICODE LICENSE V3

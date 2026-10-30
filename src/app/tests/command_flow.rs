@@ -50,7 +50,7 @@ fn native_host_fails_operational_commands_with_typed_error() -> Result<(), Box<d
     );
 
     let values = read_framed_json_values(&stdout)?;
-    assert!(stderr.is_empty());
+    assert_eq!(stderr.len(), 0);
     assert_eq!(values[3]["type"], "app.operation.failed");
     assert_eq!(values[3]["operation"], "screenshot");
     assert_eq!(values[3]["operationId"], "command-1");
@@ -167,7 +167,7 @@ fn outbound_command_events_require_matching_controller_lease() -> Result<(), Box
 
     assert_eq!(owner_responses.len(), 1);
     assert_eq!(owner_responses[0]["type"], "app.screenshot.start");
-    assert!(observer_responses.is_empty());
+    assert_eq!(observer_responses.len(), 0);
     Ok(())
 }
 
@@ -209,8 +209,8 @@ fn outbound_command_failures_require_matching_controller_lease() -> Result<(), B
         "lease:connection-1"
     );
     assert_eq!(owner_responses[0]["operation"], "telemetry");
-    assert!(observer_responses.is_empty());
-    assert!(unroutable_responses.is_empty());
+    assert_eq!(observer_responses.len(), 0);
+    assert_eq!(unroutable_responses.len(), 0);
     Ok(())
 }
 
@@ -487,7 +487,7 @@ fn native_host_rejects_command_settings_revision_mismatch() -> Result<(), Box<dy
     );
 
     let values = read_framed_json_values(&stdout)?;
-    assert!(stderr.is_empty());
+    assert_eq!(stderr.len(), 0);
     assert_eq!(values[3]["type"], "app.operation.failed");
     assert_eq!(values[3]["operation"], "screenshot");
     assert_eq!(values[3]["operationId"], "command-1");
@@ -546,7 +546,7 @@ fn native_host_rejects_command_after_controller_lease_expiry() -> Result<(), Box
     );
 
     let values = read_framed_json_values(&stdout)?;
-    assert!(stderr.is_empty());
+    assert_eq!(stderr.len(), 0);
     assert_eq!(values[3]["type"], "app.operation.failed");
     assert_eq!(values[3]["operation"], "screenshot");
     assert_eq!(values[3]["operationId"], "command-expired-lease");
@@ -642,7 +642,7 @@ fn native_host_replays_previous_command_result_for_duplicate_id() -> Result<(), 
     );
 
     let values = read_framed_json_values(&stdout)?;
-    assert!(stderr.is_empty());
+    assert_eq!(stderr.len(), 0);
     assert_eq!(values[3]["error"]["code"], "unsupported-capability");
     assert_eq!(values[3], values[4]);
     Ok(())
@@ -706,7 +706,7 @@ fn native_host_does_not_replay_cached_command_after_lease_expiry() -> Result<(),
     );
 
     let values = read_framed_json_values(&stdout)?;
-    assert!(stderr.is_empty());
+    assert_eq!(stderr.len(), 0);
     assert_eq!(values[3]["error"]["code"], "unsupported-capability");
     assert_eq!(values[5]["phase"], "lease-validation");
     assert_eq!(values[5]["error"]["code"], "stale-controller-lease");
@@ -751,7 +751,7 @@ fn native_host_rejects_unknown_screenshot_ack_with_typed_failure() -> Result<(),
     );
 
     let values = read_framed_json_values(&stdout)?;
-    assert!(stderr.is_empty());
+    assert_eq!(stderr.len(), 0);
     assert_eq!(values[3]["type"], "app.operation.failed");
     assert_eq!(values[3]["operation"], "screenshot");
     assert_eq!(values[3]["operationId"], "capture-not-pending");
@@ -805,7 +805,7 @@ fn native_host_rejects_recording_chunk_request_after_lease_expiry() -> Result<()
     );
 
     let values = read_framed_json_values(&stdout)?;
-    assert!(stderr.is_empty());
+    assert_eq!(stderr.len(), 0);
     assert_eq!(values[4]["type"], "app.operation.failed");
     assert_eq!(values[4]["operation"], "recording");
     assert_eq!(values[4]["operationId"], "recording-not-pending");
@@ -838,7 +838,7 @@ fn native_host_reports_unavailable_lease_state_for_transfer_validation()
     let responses =
         responses_for_message_with_effects(&mut session, &message, &value, &mut effects);
 
-    assert!(effects.screenshot_requests.is_empty());
+    assert_eq!(effects.screenshot_requests.len(), 0);
     assert_eq!(responses.len(), 1);
     assert_eq!(responses[0]["type"], "app.operation.failed");
     assert_eq!(responses[0]["operation"], "screenshot");
@@ -1155,7 +1155,7 @@ fn native_host_accepts_recording_ack_for_pending_transfer() -> Result<(), Box<dy
     let responses =
         responses_for_message_with_effects(&mut session, &message, &value, &mut effects);
 
-    assert!(responses.is_empty());
+    assert_eq!(responses.len(), 0);
     assert_eq!(effects.acked_recording_id.as_deref(), Some("recording-1"));
     Ok(())
 }
@@ -1180,7 +1180,7 @@ fn native_host_accepts_screenshot_ack_for_pending_transfer() -> Result<(), Box<d
     let responses =
         responses_for_message_with_effects(&mut session, &message, &value, &mut effects);
 
-    assert!(responses.is_empty());
+    assert_eq!(responses.len(), 0);
     assert_eq!(effects.acked_capture_id.as_deref(), Some("capture-1"));
     Ok(())
 }
@@ -1206,7 +1206,7 @@ fn native_host_accepts_screenshot_reject_with_diagnostic_retention() -> Result<(
     let responses =
         responses_for_message_with_effects(&mut session, &message, &value, &mut effects);
 
-    assert!(responses.is_empty());
+    assert_eq!(responses.len(), 0);
     assert_eq!(effects.rejected_capture_id.as_deref(), Some("capture-1"));
     assert_eq!(effects.retain_for_diagnostics, Some(true));
     Ok(())
@@ -1233,7 +1233,7 @@ fn native_host_accepts_recording_reject_with_diagnostic_retention() -> Result<()
     let responses =
         responses_for_message_with_effects(&mut session, &message, &value, &mut effects);
 
-    assert!(responses.is_empty());
+    assert_eq!(responses.len(), 0);
     assert_eq!(
         effects.rejected_recording_id.as_deref(),
         Some("recording-1")

@@ -135,6 +135,12 @@ class AlphaArtifactTests(unittest.TestCase):
                 shutil.copyfile(ROOT / "tooling/qa/installers/install-release-tools.sh", installers / "install-release-tools.sh")
                 (runtime / "lib.sh").write_text("ensure_rust_env() { :; }\n")
                 (configs / "tool-versions.json").write_text(json.dumps(versions))
+                shutil.copyfile(ROOT / "tooling/configs/qa/toolchain-lock.json", configs / "toolchain-lock.json")
+                for module in ("toolchain.py", "browser_toolchain.py"):
+                    shutil.copyfile(ROOT / "tooling/qa/runtime" / module, runtime / module)
+                shutil.copyfile(ROOT / "rust-toolchain.toml", root / "rust-toolchain.toml")
+                shutil.copyfile(ROOT / "Cargo.lock", root / "Cargo.lock")
+                shutil.copyfile(ROOT / "Cargo.toml", root / "Cargo.toml")
                 for executable, body in {"rustup": "exit 0", "gitleaks-installer": "exit 0"}.items():
                     target = installers / "install-gitleaks.sh" if executable == "gitleaks-installer" else binaries / executable
                     target.write_text("#!/usr/bin/env bash\n" + body + "\n")
@@ -153,7 +159,8 @@ if args[0] != 'install':
     sys.exit(subprocess.run([str(pathlib.Path(os.environ['FAKE_BIN']) / ('cargo-' + args[0])), *args]).returncode)
 if '--features' in args and args[args.index('--features')+1] == 'cli' and os.environ['FAKE_MISSING'] != '1':
     target = pathlib.Path(os.environ['FAKE_BIN']) / 'cargo-about'
-    target.write_text('#!/usr/bin/env bash\\necho "cargo-about 0.9.1"\\n')
+    version = args[args.index('--version') + 1]
+    target.write_text('#!/usr/bin/env bash\\necho "cargo-about ' + version + '"\\n')
     target.chmod(0o700)
 ''')
                 cargo.chmod(0o700)

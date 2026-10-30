@@ -208,7 +208,7 @@ dependency_files_changed() {
   if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     return 1
   fi
-  [[ -n "$(git status --short -- Cargo.toml Cargo.lock deny.toml rust-toolchain.toml LICENSE NOTICE THIRD_PARTY_DEPENDENCIES.json THIRD_PARTY_NOTICES.md LICENSES tooling/configs/qa/about.toml tooling/configs/qa/open-source.json tooling/configs/qa/tool-versions.json tooling/release/legal)" ]]
+  [[ -n "$(git status --short -- Cargo.toml Cargo.lock deny.toml rust-toolchain.toml LICENSE NOTICE THIRD_PARTY_DEPENDENCIES.json THIRD_PARTY_NOTICES.md LICENSES tooling/configs/qa/about.toml tooling/configs/qa/open-source.json tooling/configs/qa/tool-versions.json tooling/configs/qa/toolchain-lock.json tooling/release/legal)" ]]
 }
 
 high_risk_files_changed() {
@@ -232,7 +232,7 @@ high_risk_files_changed() {
 
 dependency_fingerprint() {
   {
-    for path in Cargo.toml Cargo.lock deny.toml rust-toolchain.toml LICENSE NOTICE THIRD_PARTY_DEPENDENCIES.json THIRD_PARTY_NOTICES.md tooling/configs/qa/about.toml tooling/configs/qa/open-source.json tooling/configs/qa/tool-versions.json tooling/release/legal/third-party-notices.hbs; do
+    for path in Cargo.toml Cargo.lock deny.toml rust-toolchain.toml LICENSE NOTICE THIRD_PARTY_DEPENDENCIES.json THIRD_PARTY_NOTICES.md tooling/configs/qa/about.toml tooling/configs/qa/open-source.json tooling/configs/qa/tool-versions.json tooling/configs/qa/toolchain-lock.json tooling/release/legal/third-party-notices.hbs; do
       if [[ -f "$path" ]]; then
         sha256sum "$path"
       fi

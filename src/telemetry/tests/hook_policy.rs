@@ -88,16 +88,17 @@ fn hook_plan_installs_available_keyboard_and_mouse_hooks() -> Result<(), HookFai
         plan.install,
         vec![TelemetryHookKind::Keyboard, TelemetryHookKind::Mouse]
     );
-    assert!(plan.warnings.is_empty());
+    assert_eq!(plan.warnings.len(), 0);
     Ok(())
 }
 
 #[test]
 fn default_telemetry_policy_requests_no_hooks() {
-    assert!(
+    assert_eq!(
         RecordingTelemetryPolicy::default()
             .requested_hook_kinds()
-            .is_empty()
+            .len(),
+        0
     );
 }
 

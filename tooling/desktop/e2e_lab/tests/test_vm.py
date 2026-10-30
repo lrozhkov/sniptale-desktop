@@ -14,7 +14,7 @@ from config import LabConfig
 from errors import IntegrityError, LabError
 from paths import LabPaths
 from state import write_json
-from vm import RunningVm, VmManager
+from vm import RunningVm, VmManager, cpu_model
 from runner import LaneRunner
 
 
@@ -33,6 +33,14 @@ class VmTests(unittest.TestCase):
 
     def tearDown(self) -> None:
         self.temp.cleanup()
+
+    def test_hyperv_clock_enlightenments_only_apply_to_windows_kvm(self):
+        windows = self.config.lanes["windows-11"]
+        self.assertIn("hv-time=on", cpu_model(windows, "kvm"))
+        self.assertIn("hv-stimer-direct=on", cpu_model(windows, "kvm"))
+        self.assertNotIn("hv-relaxed", cpu_model(windows, "kvm"))
+        self.assertEqual(cpu_model(windows, "tcg"), "max")
+        self.assertEqual(cpu_model(self.config.lanes["linux-x11"], "kvm"), "host")
 
     def test_stale_pid_state_is_removed(self) -> None:
         runtime = self.paths.runtime / "linux-x11"
@@ -234,7 +242,8 @@ class VmTests(unittest.TestCase):
         config_text = config.read_text(encoding="utf-8")
         self.assertIn('infile "/dev/urandom"', config_text)
         self.assertIn("pcm.sniptale_e2e_speaker", config_text)
-        self.assertIn("system-audio-output-s16le.raw", config_text)
+        self.assertNotIn("system-audio-output-s16le.raw", config_text)
+        self.assertIn('file "/dev/null"', config_text)
         self.assertFalse(any(runtime.glob("*.raw")))
 
     def test_windows_qemu_log_is_bounded_redacted_evidence(self) -> None:

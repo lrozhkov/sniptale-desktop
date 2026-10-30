@@ -152,7 +152,7 @@ fn write_payload_rejects_oversize() {
             max: 5
         })
     ));
-    assert!(output.is_empty());
+    assert_eq!(output.len(), 0);
 }
 
 struct HeaderOnlyReader {

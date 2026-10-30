@@ -34,6 +34,20 @@ from system import sha256_file
 
 
 class ArtifactResultTests(unittest.TestCase):
+    def test_extension_inventory_rejects_windows_path_aliases(self):
+        from extension_artifact import artifact_files
+        for names in (("asset\\..\\outside.js",), ("file.js:stream",), ("file.js.",), ("file.js ",), ("File.js", "file.js")):
+            with self.subTest(names=names), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                for name in names:
+                    (root / name).write_bytes(b"synthetic extension")
+                with self.assertRaisesRegex(IntegrityError, "unsafe on Windows"):
+                    artifact_files(root)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "runtime.js").write_bytes(b"synthetic extension")
+            self.assertEqual(artifact_files(root)[0]["name"], "runtime.js")
+
     def test_failed_rerun_resolves_supplied_msi_by_receipt_hash_from_persistent_cache(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             paths = LabPaths.discover(Path(directory) / "repo")
@@ -261,6 +275,44 @@ class ArtifactResultTests(unittest.TestCase):
             self.assertNotIn("super-secret-token", json.dumps(result))
             self.assertEqual((guest / "capture.png").read_bytes(), binary)
 
+    def test_real_extension_evidence_requires_both_browsers_and_only_typed_facts(self):
+        import copy
+        from session_evidence import sanitize_real_extension
+        automation = {"node": "24.22.1", "playwrightCore": "1.64.1"}
+        connection = {"passed": True, "connectionState": "connected", "settingsApplied": True,
+                      "browserVersion": ["Chrome/156.0.0.0"], "automation": automation}
+        media = {"passed": True, "sha256": "a" * 64, "bytes": 1234, "width": 1280, "height": 800,
+                 "mimeType": "image/png", "automation": automation}
+        chrome = {"browser": "chrome", "profile_reused": True, "capture_trigger": "native-tray-current-screen",
+                  "connection": connection, "reconnect": connection, "resident_restart": connection, "media": media}
+        edge = copy.deepcopy(chrome)
+        edge["browser"] = "edge"
+        for name in ("connection", "reconnect", "resident_restart"):
+            edge[name] = {**connection, "browserVersion": ["Chrome/150.0.0.0", "Edg/150.0.0.0"]}
+        valid = [chrome, edge]
+        self.assertEqual(sanitize_real_extension(valid), valid)
+        rejected = [valid[:1], [chrome, chrome], {"browsers": valid}]
+        for path, bad in [(('media', 'bytes'), True), (('media', 'width'), 0), (('media', 'sha256'), 'invalid'),
+                          (('media', 'mimeType'), 'text/plain'), (('connection', 'settingsApplied'), False),
+                          (('reconnect', 'passed'), False), (('resident_restart', 'browserVersion'), ['https://private.invalid/']),
+                          (('media', 'secret'), 'private'), (('connection', 'automation'), {'node': 'private'})]:
+            candidate = copy.deepcopy(valid)
+            candidate[0][path[0]][path[1]] = bad
+            rejected.append(candidate)
+        for candidate in rejected:
+            with self.subTest(candidate=candidate), self.assertRaisesRegex(IntegrityError, "invalid real extension"):
+                sanitize_real_extension(candidate)
+        with tempfile.TemporaryDirectory() as directory:
+            guest = Path(directory)
+            report = guest / "real-extension-result.json"
+            report.write_text(json.dumps(valid), encoding="utf-8")
+            LaneRunner._sanitize_guest_text_tree(guest)
+            self.assertEqual(json.loads(report.read_text()), valid)
+            report.write_text(json.dumps(rejected[-1]), encoding="utf-8")
+            with self.assertRaisesRegex(IntegrityError, "invalid real extension"):
+                LaneRunner._sanitize_guest_text_tree(guest)
+            self.assertFalse(report.exists())
+
     def test_guest_evidence_rejects_unknown_or_oversized_text_before_reading(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             guest = Path(directory)
@@ -480,6 +532,30 @@ class ArtifactResultTests(unittest.TestCase):
             self.assertEqual(fingerprint.file_count, 6)
             self.assertEqual(archive.read_bytes(), second.read_bytes())
 
+    def test_source_fingerprint_ignores_generated_files_and_binds_new_typescript(self):
+        from artifacts import source_tree_fingerprint
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "repo"
+            root.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+            (root / ".gitignore").write_text("tasks/\ndist/\nignored.ts\n")
+            for folder in ("tasks", "dist"):
+                (root / folder).mkdir()
+                (root / folder / "generated.json").write_text("generated local state")
+            (root / "ignored.ts").write_text("tracked despite ignore rule")
+            subprocess.run(["git", "add", "-f", "ignored.ts"], cwd=root, check=True)
+            (root / "new.ts").write_text("export const value = 1;")
+            before = source_tree_fingerprint(root)
+            (root / "tasks/generated.json").write_text("changed generated state")
+            self.assertEqual(source_tree_fingerprint(root), before)
+            (root / "new.ts").write_text("export const value = 2;")
+            after = source_tree_fingerprint(root)
+            self.assertNotEqual(after["source_tree_sha256"], before["source_tree_sha256"])
+            archive = Path(directory) / "source.tar.gz"
+            create_source_bundle(root, archive)
+            with tarfile.open(archive) as bundle:
+                self.assertEqual(set(bundle.getnames()), {"ignored.ts", "new.ts"})
+
     def test_source_bundle_rejects_escaping_directory_symlink(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "repo"
@@ -495,9 +571,13 @@ class ArtifactResultTests(unittest.TestCase):
             root = Path(directory) / "repo"
             root.mkdir()
             (root / "oversize.rs").write_text("too large", encoding="utf-8")
+            archive = Path(directory) / "source.tar.gz"
+            archive.write_bytes(b"previous verified archive")
             with mock.patch("artifacts.MAX_SOURCE_FILE_BYTES", 1):
                 with self.assertRaisesRegex(IntegrityError, "source file exceeds"):
-                    create_source_bundle(root, Path(directory) / "source.tar.gz")
+                    create_source_bundle(root, archive)
+            self.assertEqual(archive.read_bytes(), b"previous verified archive")
+            self.assertFalse(list(Path(directory).glob("*.partial")))
 
     def test_redaction_filters_token_extension_and_sensitive_path(self) -> None:
         value = "Bearer abc.def token=hunter2 chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/ /home/alice/private/file"
@@ -632,9 +712,10 @@ class ArtifactResultTests(unittest.TestCase):
         validate_receipt(receipt)
         receipt["run_mode"] = "alpha-release-acceptance"
         validate_receipt(receipt)
-        receipt["run_mode"] = "invented-mode"
-        with self.assertRaisesRegex(IntegrityError, "run mode"):
-            validate_receipt(receipt)
+        for mode in ("invented-mode", "development-session"):
+            receipt["run_mode"] = mode
+            with self.assertRaisesRegex(IntegrityError, "run mode"):
+                validate_receipt(receipt)
         receipt["run_mode"] = "alpha-release-acceptance"
         del receipt["source"]
         with self.assertRaisesRegex(IntegrityError, "missing fields"):

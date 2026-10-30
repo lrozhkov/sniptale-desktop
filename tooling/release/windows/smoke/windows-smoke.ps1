@@ -36,34 +36,18 @@ function Test-Command($Name) {
 }
 
 function Ensure-WixUiExtension($WixCommand) {
-  $versionOutput = (& $WixCommand --version 2>&1 | Out-String).Trim()
-  $versionMatch = [regex]::Match($versionOutput, '^(\d+\.\d+\.\d+)')
-  if (-not $versionMatch.Success) {
-    throw "Could not determine WiX version from: $versionOutput"
+  . (Join-Path $PSScriptRoot "../toolchain.ps1")
+  $cache = if ($env:SNIPTALE_WINDOWS_TOOLS_CACHE) { $env:SNIPTALE_WINDOWS_TOOLS_CACHE } else { Join-Path $Repo ".tmp/windows-build-tools" }
+  $tools = Initialize-SniptaleWindowsTools $Repo $cache
+  $null = Initialize-SniptaleWindowsPython $Repo $cache
+  if ($WixCommand -ne "wix") {
+    $expected = (Get-Content -Raw (Join-Path $Repo "tooling/configs/qa/tool-versions.json") | ConvertFrom-Json).windows.wix
+    $actual = ((& $WixCommand --version) -split '\+')[0].Trim()
+    if ($actual -ne $expected) { throw "custom WiX version differs from canonical policy" }
+  } else {
+    $script:Wix = $tools.Wix
   }
-  $wixVersion = $versionMatch.Groups[1].Value
-  $extensionPath = Join-Path $env:USERPROFILE ".wix\extensions\WixToolset.UI.wixext\$wixVersion\wixext4\WixToolset.UI.wixext.dll"
-  if (Test-Path -LiteralPath $extensionPath) {
-    return $extensionPath
-  }
-
-  $extensions = & $WixCommand extension list 2>&1
-  if ($LASTEXITCODE -eq 0 -and (($extensions | Out-String) -match "WixToolset\.UI\.wixext\s+$([regex]::Escape($wixVersion))")) {
-    if (Test-Path -LiteralPath $extensionPath) {
-      return $extensionPath
-    }
-  }
-
-  $extensionPackage = "WixToolset.UI.wixext/$wixVersion"
-  Write-Host "Installing WiX extension: $extensionPackage"
-  & $WixCommand extension add -g $extensionPackage
-  if ($LASTEXITCODE -ne 0) {
-    throw "WiX UI extension install failed. Run '$WixCommand extension add -g $extensionPackage' and retry."
-  }
-  if (-not (Test-Path -LiteralPath $extensionPath)) {
-    throw "WiX UI extension installed but expected dll is missing: $extensionPath"
-  }
-  return $extensionPath
+  return $tools.WixExtension
 }
 
 function Push-RepoLocation($Path) {
@@ -868,14 +852,8 @@ try {
   if (-not (Test-Command "cargo")) {
     throw "cargo not found in PATH"
   }
-  if (-not (Test-Command "python")) {
-    throw "python not found in PATH"
-  }
-  if (-not (Test-Command $Wix)) {
-    throw "WiX v4 CLI not found in PATH: $Wix"
-  }
-  $wixUiExtension = Ensure-WixUiExtension $Wix
   Import-VsDevEnvironment
+  $wixUiExtension = Ensure-WixUiExtension $Wix
 
   if (-not $ProductVersion) {
     $cargoToml = Get-Content "Cargo.toml" -Raw
@@ -923,7 +901,8 @@ try {
     [System.Text.UTF8Encoding]::new($false)
   )
 
-  $exePath = "target\x86_64-pc-windows-msvc\release\sniptale-native-agent.exe"
+  $targetRoot = if ($env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR } else { "target" }
+  $exePath = Join-Path $targetRoot "x86_64-pc-windows-msvc\release\sniptale-native-agent.exe"
   Invoke-Step "verify Windows executable resources" {
     python tooling/release/windows/verify_windows_pe_resources.py $exePath
   }

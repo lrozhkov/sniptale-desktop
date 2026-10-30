@@ -179,7 +179,7 @@ fn navigation_is_presentation_only_and_all_sections_have_copy() {
     for section in SettingsWindowSection::ALL {
         model.navigate(section);
         assert_eq!(model.presentation().section(), section);
-        assert!(!section.label().is_empty());
+        assert_ne!(section.label().len(), 0);
     }
 }
 

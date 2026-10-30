@@ -61,11 +61,12 @@ fn manual_screenshot_route_is_accepted_only_with_a_bound_local_asset_job()
             .map_err(|error| std::io::Error::other(format!("{error:?}")))?,
         None
     );
-    assert!(
+    assert_eq!(
         store
             .pending_screenshots_for_reconnect_at(2_000)
             .map_err(|error| std::io::Error::other(format!("{error:?}")))?
-            .is_empty()
+            .len(),
+        0
     );
     Ok(())
 }

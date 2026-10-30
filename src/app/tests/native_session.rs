@@ -18,8 +18,8 @@ fn native_host_clean_eof_keeps_stdout_reserved_for_native_messages() {
     );
 
     assert!(result.is_ok());
-    assert!(stdout.is_empty());
-    assert!(stderr.is_empty());
+    assert_eq!(stdout.len(), 0);
+    assert_eq!(stderr.len(), 0);
 }
 
 #[test]
@@ -54,7 +54,7 @@ fn native_host_replies_to_extension_hello_with_framed_app_hello() -> Result<(), 
         .is_ok()
     );
 
-    assert!(stderr.is_empty());
+    assert_eq!(stderr.len(), 0);
     let value = read_framed_json(&stdout)?;
     assert_eq!(value["type"], "app.hello");
     assert_eq!(value["protocolVersion"], 1);
@@ -106,7 +106,7 @@ fn native_host_rejects_incompatible_hello_with_typed_failure() -> Result<(), Box
         .is_ok()
     );
 
-    assert!(stderr.is_empty());
+    assert_eq!(stderr.len(), 0);
     let value = read_framed_json(&stdout)?;
     assert_eq!(value["type"], "app.operation.failed");
     assert_eq!(value["operation"], "handshake");
@@ -149,7 +149,7 @@ fn native_host_requires_accepted_hello_before_controller_acquire() -> Result<(),
     );
 
     let value = read_framed_json(&stdout)?;
-    assert!(stderr.is_empty());
+    assert_eq!(stderr.len(), 0);
     assert_eq!(value["type"], "app.operation.failed");
     assert_eq!(value["operation"], "handshake");
     assert_eq!(value["operationId"], "connection-1");
@@ -289,7 +289,7 @@ fn rejected_tray_action_result_shows_tray_notice() -> Result<(), Box<dyn Error>>
     let responses =
         responses_for_message_with_effects(&mut session, &message, &value, &mut effects);
 
-    assert!(responses.is_empty());
+    assert_eq!(responses.len(), 0);
     assert_eq!(effects.notices, vec![TrayNoticeKind::ActionRejected]);
     Ok(())
 }
@@ -312,8 +312,8 @@ fn accepted_tray_action_result_does_not_show_tray_notice() -> Result<(), Box<dyn
     let responses =
         responses_for_message_with_effects(&mut session, &message, &value, &mut effects);
 
-    assert!(responses.is_empty());
-    assert!(effects.notices.is_empty());
+    assert_eq!(responses.len(), 0);
+    assert_eq!(effects.notices.len(), 0);
     Ok(())
 }
 
@@ -362,7 +362,7 @@ fn native_host_grants_controller_and_accepts_settings_sync() -> Result<(), Box<d
         .is_ok()
     );
 
-    assert!(stderr.is_empty());
+    assert_eq!(stderr.len(), 0);
     let values = read_framed_json_values(&stdout)?;
     assert_eq!(values.len(), 4);
     assert_eq!(values[0]["type"], "app.hello");
@@ -430,7 +430,7 @@ fn native_host_controller_identity_comes_from_acquire_message() -> Result<(), Bo
     );
 
     let values = read_framed_json_values(&stdout)?;
-    assert!(stderr.is_empty());
+    assert_eq!(stderr.len(), 0);
     assert_eq!(values[1]["type"], "app.controller.lease");
     assert_eq!(values[1]["status"], "granted");
     assert_eq!(values[1]["controllerLeaseId"], "lease:edge-connection-1");
@@ -495,7 +495,7 @@ fn native_host_second_initial_controller_does_not_receive_active_lease()
     );
 
     let values = read_framed_json_values(&stdout)?;
-    assert!(stderr.is_empty());
+    assert_eq!(stderr.len(), 0);
     assert_eq!(values[1]["status"], "granted");
     assert_eq!(values[1]["controllerLeaseId"], "lease:connection-1");
     assert_eq!(values[2]["status"], "owned-by-other-profile");
@@ -557,7 +557,7 @@ fn native_host_document_id_difference_does_not_bypass_profile_owner() -> Result<
     );
 
     let values = read_framed_json_values(&stdout)?;
-    assert!(stderr.is_empty());
+    assert_eq!(stderr.len(), 0);
     assert_eq!(values[1]["status"], "granted");
     assert_eq!(values[2]["status"], "owned-by-other-profile");
     assert_eq!(values[2]["controller"]["profileKey"], "profile-1");
@@ -615,7 +615,7 @@ fn native_host_browser_family_difference_is_distinct_controller() -> Result<(), 
     );
 
     let values = read_framed_json_values(&stdout)?;
-    assert!(stderr.is_empty());
+    assert_eq!(stderr.len(), 0);
     assert_eq!(values[1]["status"], "granted");
     assert_eq!(values[2]["status"], "owned-by-other-profile");
     assert_eq!(values[2]["controller"]["browserFamily"], "chrome");
@@ -684,7 +684,7 @@ fn native_host_takeover_rotates_active_controller_lease() -> Result<(), Box<dyn 
     );
 
     let values = read_framed_json_values(&stdout)?;
-    assert!(stderr.is_empty());
+    assert_eq!(stderr.len(), 0);
     assert_eq!(values[2]["status"], "granted");
     assert_eq!(values[2]["controllerLeaseId"], "lease:connection-2");
     assert_eq!(values[3]["type"], "app.operation.failed");
@@ -718,7 +718,7 @@ fn native_host_rejects_stale_settings_sync_with_typed_failure() -> Result<(), Bo
     );
 
     let values = read_framed_json_values(&stdout)?;
-    assert!(stderr.is_empty());
+    assert_eq!(stderr.len(), 0);
     assert_eq!(values.len(), 2);
     assert_eq!(values[1]["type"], "app.operation.failed");
     assert_eq!(values[1]["controllerLeaseId"], "lease:connection-1");
@@ -811,7 +811,7 @@ fn native_host_rejects_expired_settings_sync_with_typed_failure() -> Result<(), 
     );
 
     let values = read_framed_json_values(&stdout)?;
-    assert!(stderr.is_empty());
+    assert_eq!(stderr.len(), 0);
     assert_eq!(values[2]["type"], "app.operation.failed");
     assert_eq!(values[2]["operation"], "settings-sync");
     assert_eq!(values[2]["operationId"], "settings-revision-expired");
@@ -901,7 +901,7 @@ fn native_host_rejects_settings_sync_schema_mismatch() -> Result<(), Box<dyn Err
     );
 
     let values = read_framed_json_values(&stdout)?;
-    assert!(stderr.is_empty());
+    assert_eq!(stderr.len(), 0);
     assert_eq!(values[2]["type"], "app.operation.failed");
     assert_eq!(values[2]["operation"], "settings-sync");
     assert_eq!(values[2]["operationId"], "settings-revision-bad-schema");
@@ -988,7 +988,7 @@ fn native_host_rejects_settings_sync_with_invalid_hotkey_label() -> Result<(), B
     );
 
     let values = read_framed_json_values(&stdout)?;
-    assert!(stderr.is_empty());
+    assert_eq!(stderr.len(), 0);
     assert_eq!(values[2]["type"], "app.operation.failed");
     assert_eq!(values[2]["operation"], "settings-sync");
     assert_eq!(values[2]["operationId"], "settings-revision-bad-hotkey");

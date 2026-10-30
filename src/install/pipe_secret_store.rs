@@ -226,7 +226,7 @@ fn decode_hex(value: &str) -> Result<Vec<u8>, PipeSecretFileError> {
         return Err(PipeSecretFileError::InvalidHex);
     }
     let mut decoded = Vec::with_capacity(bytes.len() / 2);
-    for pair in bytes.chunks_exact(2) {
+    for pair in bytes.as_chunks::<2>().0 {
         let high = hex_digit(pair[0])?;
         let low = hex_digit(pair[1])?;
         decoded.push((high << 4) | low);

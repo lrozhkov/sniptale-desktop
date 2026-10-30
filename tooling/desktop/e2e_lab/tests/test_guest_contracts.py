@@ -6,6 +6,43 @@ GUEST = Path(__file__).resolve().parents[1] / "guest"
 
 
 class GuestContractTests(unittest.TestCase):
+    def test_windows_runtime_proves_network_isolation_before_msi_mutation(self):
+        script = (GUEST / "windows/run.ps1").read_text()
+        proof = script.index('Add-Test "network-isolation"')
+        guard = script.index('throw "runtime network isolation must pass before installer work"')
+        self.assertLess(proof, guard)
+        self.assertLess(guard, script.index('Invoke-Msi @("/i", $Msi) "warm-update"'))
+        self.assertLess(guard, script.index('Invoke-Msi @("/i", $PreviousMsi) "install-baseline"'))
+
+    def test_real_extension_startup_retries_keep_the_durable_profile(self):
+        script = (GUEST / "windows/real-extension.ps1").read_text()
+        startup = script[script.index('foreach ($startupAttempt in 1..3)'):script.index('if (-not $profileExists)')]
+        self.assertIn('Write-ProgressEvent', startup)
+        self.assertIn('$browser.ExitCode', startup)
+        self.assertIn('Stop-ProbeBrowsers', startup)
+        self.assertNotIn('Remove-Item', startup)
+        self.assertIn('if ($startupAttempt -eq 3) { throw', startup)
+
+    def test_lab_signing_keeps_private_key_in_guest_and_checks_installed_signature(self):
+        signing = (GUEST / "windows/lab-signing.ps1").read_text()
+        build = (GUEST / "windows/build.ps1").read_text()
+        runtime = (GUEST / "windows/run.ps1").read_text()
+        self.assertIn('-KeyExportPolicy NonExportable', signing)
+        self.assertNotIn('Pfx', signing)
+        self.assertIn('CurrentUser', signing)
+        self.assertIn('Sign-LabArtifact $exe $labCertificate', build)
+        self.assertIn('Sign-LabArtifact $baselineExe $labCertificate', build)
+        self.assertIn('Sign-LabArtifact $msi $labCertificate', build)
+        self.assertIn('laboratory_certificate_sha256', build)
+        self.assertIn('installed laboratory signature mismatch', runtime)
+        self.assertLess(runtime.index('runtime network isolation must pass'), runtime.index('Import-LabSigningIdentity'))
+
+    def test_repeated_windows_launch_cannot_accept_previous_result(self):
+        script = (GUEST / "windows/launch-interactive.ps1").read_text()
+        clear = "Remove-Item -LiteralPath $outputPath -Recurse -Force -ErrorAction Stop"
+        self.assertLess(script.index(clear), script.index("Start-ScheduledTask"))
+        self.assertLess(script.index(clear), script.index('Join-Path $outputPath "result.json"'))
+
     def test_linux_golden_disables_cloud_init_network_regeneration(self) -> None:
         script = (GUEST / "linux-provision.sh").read_text(encoding="utf-8")
         self.assertIn("99-sniptale-disable-network-config.cfg", script)
@@ -22,7 +59,7 @@ class GuestContractTests(unittest.TestCase):
         self.assertNotIn("chromium-browser firefox", script)
 
     def test_windows_runner_proves_network_pipe_msi_and_both_audio_paths(self) -> None:
-        script = (GUEST / "windows/run.ps1").read_text(encoding="utf-8")
+        script = (GUEST / "windows/run.ps1").read_text(encoding="utf-8") + (GUEST / "windows/windows-ui.ps1").read_text(encoding="utf-8")
         self.assertTrue(script.isascii())
         self.assertNotIn("'@ |", script)
         self.assertNotIn("attempt-$attempt:", script)

@@ -72,6 +72,19 @@ class DependencyLicenseGeneratorTests(unittest.TestCase):
             {"LICENSES/third-party/dep-1.0.0-MIT.txt", "LICENSES/third-party/dep-1.0.0-Unicode-3.0.txt"},
         )
 
+    def test_generator_preserves_distinct_texts_with_the_same_spdx(self) -> None:
+        package = {"name": "dep", "version": "1.0.0", "id": "registry#dep@1.0.0", "source": "registry", "repository": None}
+        texts = ["Copyright first\nMIT terms\n", "Copyright second\nMIT terms\n"]
+        raw = {"crates": [{"package": package, "license": "MIT"}], "licenses": [
+            {"id": "MIT", "text": text, "used_by": [{"crate": package}]} for text in [*texts, texts[0]]
+        ]}
+        manifest, files = legal_generator.build_outputs(raw)
+        self.assertEqual(set(files.values()), {text.encode() for text in texts})
+        self.assertEqual(len(files), 2)
+        self.assertEqual(legal_verifier.readable_license_path_errors(manifest), [])
+        for name in files:
+            self.assertRegex(name, r"dep-1\.0\.0-MIT-[0-9a-f]{12}\.txt$")
+
     def test_verifier_rejects_hash_only_license_filename(self) -> None:
         manifest = {
             "packages": [{"name": "dep", "version": "1.0.0", "selectedLicenses": [{"spdxId": "MIT", "file": "LICENSES/third-party/abc123.txt"}]}],
@@ -90,6 +103,38 @@ class DependencyLicenseGeneratorTests(unittest.TestCase):
         raw = {"crates": [{"package": package, "license": "MIT"}], "licenses": [{"id": "MIT", "text": "Copyright (c) Example\nMIT terms", "used_by": [{"crate": package}]}]}
         manifest, _ = legal_generator.build_outputs(raw)
         self.assertEqual(manifest["packages"][0]["declaredLicense"], "MIT OR Apache-2.0")
+
+    def test_license_write_keeps_files_when_candidate_generation_fails(self):
+        import os
+        import shutil
+        import subprocess
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for relative in ("tooling/qa/wrappers/licenses.sh", "tooling/release/legal/generate_dependency_licenses.py"):
+                destination = root / relative
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(ROOT / relative, destination)
+            runtime = root / "tooling/qa/runtime"
+            runtime.mkdir(parents=True)
+            (runtime / "lib.sh").write_text("""ensure_rust_env() { :; }
+require_command() { command -v "$1" >/dev/null; }
+qa_init() { SNIPTALE_QA_RUN_ID=fixture; QA_FAILED_STEPS=(); }
+qa_step() { local label="$1"; shift; if "$@"; then :; else QA_FAILED_STEPS+=("$label"); fi; }
+qa_fail_if_any() { if [[ ${#QA_FAILED_STEPS[@]} -gt 0 ]]; then exit 1; fi; }
+""")
+            binaries = root / "bin"
+            binaries.mkdir()
+            about = binaries / "cargo-about"
+            about.write_text("#!/usr/bin/env python3\nimport pathlib,sys\npathlib.Path(sys.argv[sys.argv.index('--output-file')+1]).write_text('{bad')\n")
+            about.chmod(0o700)
+            preserved = root / "LICENSES/third-party/existing.txt"
+            preserved.parent.mkdir(parents=True)
+            preserved.write_bytes(b"exact upstream bytes\r\n")
+            result = subprocess.run(["bash", str(root / "tooling/qa/wrappers/licenses.sh"), "--write"],
+                                    env={**os.environ, "PATH": str(binaries) + os.pathsep + os.environ["PATH"]},
+                                    capture_output=True, text=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(preserved.read_bytes(), b"exact upstream bytes\r\n")
 
     def test_contribution_policy_requires_machine_false(self) -> None:
         errors = legal_verifier.contribution_policy_errors(

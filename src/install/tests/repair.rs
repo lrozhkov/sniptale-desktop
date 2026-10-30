@@ -299,7 +299,7 @@ fn registration_repair_composer_accepts_healthy_facts() {
         assessment.replacement_decision,
         ReplacementDecision::Allowed
     );
-    assert!(assessment.issues.is_empty());
+    assert_eq!(assessment.issues.len(), 0);
 }
 
 #[test]

@@ -2,6 +2,14 @@
 
 Canonical executable tooling lives under `tooling/**`. Generated logs, state, reports, coverage, release evidence, VM overlays, and audit output live under ignored `.tmp/**`; persistent local desktop-lab inputs live under ignored `.artifacts/**`.
 
+## Managed toolchain
+
+Edit versions only in `tooling/configs/qa/tool-versions.json`, then run `tooling/qa/wrappers/toolchain.sh --sync`. The resolver verifies official release metadata and produces `toolchain-lock.json`, Rust configuration, pinned GitHub Action commits, and hosted Python settings. `--check` is offline; the tooling gate rejects stale generated inputs and incomplete release metadata. Run `--install-rust` and `tooling/qa/installers/install-release-tools.sh` to prepare local QA tools.
+
+The version catalog owns the minimum release age. Ordinary stable updates require seven complete days since publication. A younger release requires a reviewed `securityExceptions` entry naming the exact fixed version, an advisory or CVE URL, and the vulnerability reason. The Python exception records the confirmed compromised-CA and tarfile fixes. This rule applies to managed Rust, Cargo lockfile packages, QA tools, WiX, SDK packages, Python, and GitHub Actions. Runner OS images and golden OS/browser inventories remain separate platform inputs; a tool update does not silently update those images.
+
+Windows CI and guest builds use `tooling/release/windows/toolchain.ps1` to verify and prepare the same locked WiX and portable SDK packages. Development sessions transfer verified packages over the lab transport and compile without guest network access. Rust components also come from the official hash-bound manifest. Windows smoke uses the cataloged Python version from a checksum-verified embeddable package, so an older golden does not need a Python installation. Updating those pins does not require rebuilding the Windows golden image. WiX 7 is deferred because its new EULA and maintenance-fee terms require a separate decision; the selected WiX 5 line remains explicit in the catalog.
+
 ## Wrapper routing
 
 - `preflight.sh` reports repository/toolchain context and runs read-only architecture checks.
@@ -51,3 +59,7 @@ For Windows acceptance, report controller wall time, guest scenario durations, a
 ## Gate ownership
 
 [Implementation rules](../engineering/implementation-rules.md) maps product rules to deterministic guardrails. [Testing policy](../engineering/testing-policy.md) owns required proof families. [Local OSS release](../oss/release.md) owns release and residual manual acceptance.
+
+The Windows laboratory uses cataloged Node.js and `playwright-core` packages to attach to the actual guest Chrome and Edge through loopback CDP. The controller verifies official package hashes and release age, validates the archive before extraction, and verifies the extracted client before execution. Persistent browser profiles remain guest-local. The driver does not download or substitute bundled Chromium.
+
+Laboratory Windows builds use a self-signed code-signing certificate trusted only inside the isolated guest (machine Root and current-user TrustedPublisher stores). The private key is non-exportable and remains in that guest; build evidence carries only its public certificate and hash. Baseline/current EXE and MSI signatures and installed executable hashes are verified. This permits testing the real extension's signature requirement without weakening product trust. These certificates and packages are laboratory fixtures and are not public release signing credentials or distributables. The public alpha packaging path remains separate.

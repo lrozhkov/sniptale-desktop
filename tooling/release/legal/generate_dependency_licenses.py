@@ -5,7 +5,7 @@ import argparse
 import hashlib
 import json
 import re
-from collections import defaultdict
+from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
@@ -49,6 +49,7 @@ def safe_component(value: str) -> str:
 
 def build_outputs(raw: dict[str, Any], root: Path = ROOT) -> tuple[dict[str, Any], dict[str, bytes]]:
     policy = json.loads((root / "tooling/configs/qa/open-source.json").read_text(encoding="utf-8"))
+    tools = json.loads((root / "tooling/configs/qa/tool-versions.json").read_text(encoding="utf-8"))
     packages = {entry["package"]["id"]: entry for entry in raw.get("crates", [])}
     package_licenses: dict[str, list[dict[str, Any]]] = defaultdict(list)
     license_files: dict[str, bytes] = {}
@@ -72,7 +73,9 @@ def build_outputs(raw: dict[str, Any], root: Path = ROOT) -> tuple[dict[str, Any
     package_bases: set[str] = set()
     for package_id, entry in packages.items():
         package = entry["package"]
-        selected_sources = sorted(package_licenses.get(package_id, []), key=lambda item: (item["spdxId"], item["sha256"]))
+        distinct_sources = {(item["spdxId"], item["sha256"]): item for item in package_licenses.get(package_id, [])}
+        selected_sources = [distinct_sources[key] for key in sorted(distinct_sources)]
+        spdx_counts = Counter(item["spdxId"] for item in selected_sources)
         if not selected_sources:
             raise ValueError(f"cargo-about returned no selected license text for {package_id}")
         base = f"{safe_component(package['name'])}-{safe_component(package['version'])}"
@@ -82,6 +85,8 @@ def build_outputs(raw: dict[str, Any], root: Path = ROOT) -> tuple[dict[str, Any
         selected = []
         for source in selected_sources:
             suffix = "" if len(selected_sources) == 1 else f"-{safe_component(source['spdxId'])}"
+            if spdx_counts[source["spdxId"]] > 1:
+                suffix += "-" + source["sha256"][:12]
             relative = f"LICENSES/third-party/{base}{suffix}.txt"
             if relative in license_files:
                 raise ValueError(f"multiple selected license texts map to the same filename: {relative}")
@@ -108,7 +113,7 @@ def build_outputs(raw: dict[str, Any], root: Path = ROOT) -> tuple[dict[str, Any
 
     manifest = {
         "formatVersion": 1,
-        "generator": {"name": "cargo-about", "version": policy["dependencyLicenses"]["cargoAboutVersion"]},
+        "generator": {"name": "cargo-about", "version": tools["cargoSubcommands"]["cargo-about"]},
         "scope": {
             "target": policy["dependencyLicenses"]["target"],
             "allFeatures": policy["dependencyLicenses"]["allFeatures"],

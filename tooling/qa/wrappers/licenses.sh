@@ -39,6 +39,8 @@ qa_step "cargo-about JSON" cargo about generate --workspace --all-features --fro
 qa_step "cargo-about notices" cargo about generate --workspace --all-features --frozen --fail --config tooling/configs/qa/about.toml --output-file "$candidate/THIRD_PARTY_NOTICES.md" tooling/release/legal/third-party-notices.hbs
 qa_step "dependency legal manifest" python3 tooling/release/legal/generate_dependency_licenses.py --cargo-about-json "$candidate/cargo-about.json" --output-dir "$candidate"
 
+qa_fail_if_any "license candidate generation summary"
+
 if [[ "$mode" == "write" ]]; then
   mkdir -p LICENSES/third-party
   find LICENSES/third-party -type f -delete

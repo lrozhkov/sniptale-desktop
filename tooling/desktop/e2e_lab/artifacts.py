@@ -32,7 +32,7 @@ SENSITIVE_NAMES = {
 }
 UNTRACKED_MEDIA_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}
 UNTRACKED_SOURCE_SUFFIXES = {
-    ".css", ".html", ".js", ".json", ".lock", ".md", ".ps1", ".py", ".rs",
+    ".css", ".html", ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".mts", ".cts", ".json", ".lock", ".md", ".ps1", ".py", ".rs",
     ".sh", ".svg", ".toml", ".txt", ".wxs", ".xml", ".yaml", ".yml",
 }
 UNTRACKED_ROOT_TEXT_NAMES = {"LICENSE", "NOTICE"}
@@ -73,6 +73,13 @@ def excluded(relative: PurePosixPath, *, tracked: bool = False) -> bool:
 def source_files(root: Path) -> Iterable[tuple[Path, PurePosixPath]]:
     tracked_output = _git(root, "ls-files", "-z")
     tracked = set(tracked_output.split("\0")) if tracked_output != "unavailable" else set()
+    visible_output = _git(root, "ls-files", "--cached", "--others", "--exclude-standard", "-z")
+    visible = None if visible_output == "unavailable" else set(visible_output.split("\0"))
+    visible_directories = {
+        PurePosixPath(*PurePosixPath(item).parts[:depth]).as_posix()
+        for item in (visible or ())
+        for depth in range(1, len(PurePosixPath(item).parts))
+    }
     tracked_directories = {
         PurePosixPath(*PurePosixPath(item).parts[:depth]).as_posix()
         for item in tracked
@@ -85,6 +92,8 @@ def source_files(root: Path) -> Iterable[tuple[Path, PurePosixPath]]:
         for name in sorted(directories):
             path = current_path / name
             relative = PurePosixPath((relative_dir / name).as_posix())
+            if visible is not None and relative.as_posix() not in visible and relative.as_posix() not in visible_directories:
+                continue
             tracked_path = relative.as_posix() in tracked_directories
             if excluded(relative, tracked=tracked_path):
                 continue
@@ -99,6 +108,8 @@ def source_files(root: Path) -> Iterable[tuple[Path, PurePosixPath]]:
         for name in sorted(files):
             path = current_path / name
             relative = PurePosixPath(path.relative_to(root).as_posix())
+            if visible is not None and relative.as_posix() not in visible:
+                continue
             tracked_path = relative.as_posix() in tracked
             if excluded(relative, tracked=tracked_path):
                 continue
@@ -159,39 +170,65 @@ def dirty_fingerprint(root: Path) -> str:
     return digest.hexdigest()
 
 
+def source_tree_fingerprint(root: Path) -> dict:
+    """Bind external build inputs without generating an unused transport archive."""
+    entries = []
+    total = 0
+    for path, relative in source_files(root):
+        info = path.lstat()
+        entry = {"name": relative.as_posix(), "mode": stat.S_IMODE(info.st_mode)}
+        if stat.S_ISREG(info.st_mode):
+            total += info.st_size
+            if info.st_size > MAX_SOURCE_FILE_BYTES or total > MAX_SOURCE_TOTAL_BYTES:
+                raise IntegrityError("source fingerprint exceeds file or total byte limit")
+            entry.update(bytes=info.st_size, sha256=sha256_file(path))
+        else:
+            entry["link"] = os.readlink(path)
+        entries.append(entry)
+        if len(entries) > MAX_SOURCE_FILES:
+            raise IntegrityError("source fingerprint exceeds file count limit")
+    digest = hashlib.sha256(json.dumps(sorted(entries, key=lambda entry: entry["name"]), sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    return {"source_tree_sha256": digest, "commit_sha": _git(root, "rev-parse", "HEAD"),
+            "dirty_state_sha256": dirty_fingerprint(root), "file_count": len(entries)}
+
+
 def create_source_bundle(root: Path, destination: Path) -> SourceFingerprint:
     destination.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     temporary = destination.with_suffix(destination.suffix + ".partial")
     raw_tar = destination.with_suffix(destination.suffix + ".tar.partial")
     count = 0
     total_bytes = 0
-    with tarfile.open(raw_tar, "w", format=tarfile.PAX_FORMAT) as archive:
-        for path, relative in source_files(root):
-            info = archive.gettarinfo(str(path), arcname=relative.as_posix())
-            if info.isreg():
-                if info.size > MAX_SOURCE_FILE_BYTES:
-                    raise IntegrityError(f"source file exceeds 64 MiB limit: {relative}")
-                total_bytes += info.size
-                if total_bytes > MAX_SOURCE_TOTAL_BYTES:
-                    raise IntegrityError("source bundle exceeds the 512 MiB uncompressed limit")
-            count += 1
-            if count > MAX_SOURCE_FILES:
-                raise IntegrityError(f"source bundle exceeds the {MAX_SOURCE_FILES} file limit")
-            info.uid = 0
-            info.gid = 0
-            info.uname = "root"
-            info.gname = "root"
-            info.mtime = 0
-            if info.isreg():
-                with path.open("rb") as stream:
-                    archive.addfile(info, stream)
-            else:
-                archive.addfile(info)
-    with raw_tar.open("rb") as source, temporary.open("wb") as target:
-        with gzip.GzipFile(filename="", mode="wb", fileobj=target, mtime=0) as compressed:
-            shutil.copyfileobj(source, compressed, length=1024 * 1024)
-    raw_tar.unlink()
-    os.replace(temporary, destination)
+    try:
+        with tarfile.open(raw_tar, "w", format=tarfile.PAX_FORMAT) as archive:
+            for path, relative in source_files(root):
+                info = archive.gettarinfo(str(path), arcname=relative.as_posix())
+                if info.isreg():
+                    if info.size > MAX_SOURCE_FILE_BYTES:
+                        raise IntegrityError(f"source file exceeds 64 MiB limit: {relative}")
+                    total_bytes += info.size
+                    if total_bytes > MAX_SOURCE_TOTAL_BYTES:
+                        raise IntegrityError("source bundle exceeds the 512 MiB uncompressed limit")
+                count += 1
+                if count > MAX_SOURCE_FILES:
+                    raise IntegrityError(f"source bundle exceeds the {MAX_SOURCE_FILES} file limit")
+                info.uid = 0
+                info.gid = 0
+                info.uname = "root"
+                info.gname = "root"
+                info.mtime = 0
+                if info.isreg():
+                    with path.open("rb") as stream:
+                        archive.addfile(info, stream)
+                else:
+                    archive.addfile(info)
+        with raw_tar.open("rb") as source, temporary.open("wb") as target:
+            with gzip.GzipFile(filename="", mode="wb", fileobj=target, mtime=0) as compressed:
+                shutil.copyfileobj(source, compressed, length=1024 * 1024)
+        raw_tar.unlink()
+        os.replace(temporary, destination)
+    finally:
+        raw_tar.unlink(missing_ok=True)
+        temporary.unlink(missing_ok=True)
     return SourceFingerprint(
         archive=destination,
         sha256=sha256_file(destination),

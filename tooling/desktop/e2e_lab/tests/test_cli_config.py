@@ -53,6 +53,8 @@ class CliConfigTests(unittest.TestCase):
     def test_failed_run_still_prints_machine_readable_identity(self) -> None:
         paths = SimpleNamespace(
             root=Path("/tmp/sniptale-e2e-test-root"),
+            lab=Path("/tmp/sniptale-e2e-test-root/lab"),
+            scoped=lambda path: path,
             locks=Path("/tmp/sniptale-e2e-test-locks"),
             ensure=mock.Mock(),
         )

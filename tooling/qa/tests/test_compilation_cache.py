@@ -40,6 +40,9 @@ class CompilationCacheTests(unittest.TestCase):
             with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
                 shutil.copytree(ROOT / ".github", root / ".github")
+                config = root / "tooling/configs/qa"
+                config.mkdir(parents=True)
+                shutil.copyfile(ROOT / "tooling/configs/qa/toolchain-lock.json", config / "toolchain-lock.json")
                 script = root / "tooling/release/windows/alpha-package.ps1"
                 script.parent.mkdir(parents=True)
                 shutil.copyfile(ROOT / script.relative_to(root), script)

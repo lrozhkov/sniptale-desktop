@@ -301,6 +301,12 @@ ensure_wix_ui_extension() {
     printf 'Could not determine WiX version from %s --version.\n' "$wix_cmd" >&2
     exit 1
   fi
+  local expected_wix
+  expected_wix="$(python3 -c 'import json; print(json.load(open("tooling/configs/qa/tool-versions.json"))["windows"]["wix"])')"
+  if [[ "$wix_version" != "$expected_wix" ]]; then
+    printf 'WiX version differs from canonical tool policy; prepare the pinned Windows toolchain.\n' >&2
+    exit 1
+  fi
   if "$wix_cmd" extension list 2>/dev/null | grep -Eq "WixToolset\\.UI\\.wixext[[:space:]]+$wix_version"; then
     return 0
   fi

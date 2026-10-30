@@ -9,14 +9,54 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from errors import LabError, TimeoutExpired
-from windows_session import prepare_console
+from windows_session import prepare_console, require_license
 
 
 class WindowsSessionTests(unittest.TestCase):
+    def test_license_requires_enough_time_and_rejects_notification(self):
+        import json
+        ssh = mock.Mock()
+        for row in (
+            {"status": 1, "grace_minutes": 125, "evaluation": True},
+            {"status": 1, "grace_minutes": 0, "evaluation": False},
+        ):
+            ssh.command.return_value.stdout = json.dumps({"licenses": [row]})
+            self.assertEqual(require_license(ssh, 7200), row)
+        for row in (
+            {"status": 5, "grace_minutes": 10000, "evaluation": True},
+            {"status": 1, "grace_minutes": 124, "evaluation": True},
+            {"status": 1, "grace_minutes": 0, "evaluation": True},
+        ):
+            ssh.command.return_value.stdout = json.dumps({"licenses": [row]})
+            with self.assertRaisesRegex(LabError, "license expired"):
+                require_license(ssh, 7200)
+
+    def test_malformed_license_status_fails_closed(self):
+        import json
+        ssh = mock.Mock()
+        for value in ({"licenses": []}, {"licenses": [{"status": True, "grace_minutes": 999, "evaluation": True}]},
+                      {"licenses": [{"status": 1, "grace_minutes": "999", "evaluation": True}]},
+                      {"licenses": [{"status": 1, "grace_minutes": 999, "evaluation": "true"}]},
+                      {"licenses": [{"status": 1, "grace_minutes": 999, "evaluation": True, "key": "secret"}]}):
+            ssh.command.return_value.stdout = json.dumps(value)
+            with self.assertRaisesRegex(LabError, "invalid Windows license"):
+                require_license(ssh, 60)
+
+    def test_ready_console_retains_boot_without_restart(self):
+        ssh = mock.Mock()
+        ssh.command.side_effect = [SimpleNamespace(stdout="639000000000000000"), SimpleNamespace(stdout="console-ready")]
+        health = mock.Mock()
+        prepare_console(ssh, 60, health_check=health)
+        self.assertEqual(ssh.command.call_count, 2)
+        health.assert_called_once()
+        for call in ssh.command.call_args_list:
+            command = base64.b64decode(call.args[0][-1]).decode("utf-16-le")
+            self.assertNotIn("shutdown", command)
+
     def test_reboot_requires_new_boot_and_console_after_transport_interruption(self):
         ssh = mock.Mock()
         ssh.command.side_effect = [
-            SimpleNamespace(stdout="639000000000000000\n"), SimpleNamespace(stdout=""),
+            SimpleNamespace(stdout="639000000000000000\n"), SimpleNamespace(stdout="console-waiting"), SimpleNamespace(stdout=""),
             SimpleNamespace(stdout="console-waiting"), LabError("transport restarting"),
             SimpleNamespace(stdout="console-ready"),
         ]
@@ -25,19 +65,19 @@ class WindowsSessionTests(unittest.TestCase):
         probe = base64.b64decode(ssh.command.call_args.args[0][-1]).decode("utf-16-le")
         self.assertIn("$boot -gt 639000000000000000", probe)
         self.assertIn("Get-Process explorer", probe)
-        self.assertEqual(ssh.command.call_count, 5)
+        self.assertEqual(ssh.command.call_count, 6)
         for call in ssh.command.call_args_list:
             command = base64.b64decode(call.args[0][-1]).decode("utf-16-le")
             self.assertIn("$ProgressPreference='SilentlyContinue'", command)
 
     def test_vm_halt_is_not_retried_as_transient_ssh_failure(self):
         ssh = mock.Mock()
-        ssh.command.side_effect = [SimpleNamespace(stdout="639000000000000000"), SimpleNamespace(stdout="")]
+        ssh.command.side_effect = [SimpleNamespace(stdout="639000000000000000"), SimpleNamespace(stdout="console-waiting"), SimpleNamespace(stdout="")]
         health = mock.Mock(side_effect=LabError("guest VM is not running"))
         with mock.patch("windows_session.time.sleep") as sleep:
             with self.assertRaisesRegex(LabError, "VM is not running"):
                 prepare_console(ssh, 360, health_check=health)
-        self.assertEqual(ssh.command.call_count, 2)
+        self.assertEqual(ssh.command.call_count, 3)
         health.assert_called_once()
         sleep.assert_not_called()
 
@@ -53,7 +93,7 @@ class WindowsSessionTests(unittest.TestCase):
     def test_old_boot_or_missing_console_cannot_pass(self):
         ssh = mock.Mock()
         ssh.command.side_effect = [
-            SimpleNamespace(stdout="639000000000000000"), SimpleNamespace(stdout=""),
+            SimpleNamespace(stdout="639000000000000000"), SimpleNamespace(stdout="console-waiting"), SimpleNamespace(stdout=""),
             SimpleNamespace(stdout="console-waiting"),
         ]
         with mock.patch("windows_session.time.monotonic", side_effect=[0, 0, 0, 1, 1, 2]), mock.patch(

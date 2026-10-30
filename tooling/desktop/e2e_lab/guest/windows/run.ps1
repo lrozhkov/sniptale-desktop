@@ -12,7 +12,10 @@ param(
   [Parameter(Mandatory = $true)][string] $BrowserProbeSha256,
   [Parameter(Mandatory = $true)][string] $ProbeNonce,
   [string] $Output = "e2e-out",
-  [string] $Cases = ""
+  [string] $Cases = "",
+  [ValidateSet("", "warm")][string] $WorkspaceMode = "",
+  [string] $RealExtensionSha256 = "",
+  [string] $LabCertificateSha256 = ""
 )
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
@@ -34,6 +37,7 @@ $settingsTitle = "Sniptale $([char]0x2014) Manual settings"
 $agent = $null
 $script:manualProfileTemplate = $null
 $script:browserProbeAttempt = 0
+. "$PSScriptRoot\windows-ui.ps1"
 
 function Write-ProgressEvent(
   [string] $Scenario,
@@ -114,48 +118,6 @@ function Invoke-Msi([string[]] $Arguments, [string] $LogName) {
   if ($process.ExitCode -notin @(0, 1641, 3010)) { throw "msiexec exit=$($process.ExitCode)" }
 }
 
-function ConvertTo-LowerHex([byte[]] $Bytes) {
-  -join ($Bytes | ForEach-Object { $_.ToString("x2") })
-}
-
-function Provision-DevRuntimeTrust {
-  Add-Type -AssemblyName System.Security
-  $directory = [IO.Path]::GetDirectoryName($installed)
-  $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
-  $secretBytes = [byte[]]::new(32)
-  $rng = [Security.Cryptography.RandomNumberGenerator]::Create()
-  try { $rng.GetBytes($secretBytes) } finally { $rng.Dispose() }
-  $plain = [Text.Encoding]::UTF8.GetBytes((ConvertTo-LowerHex $secretBytes))
-  $protected = [Security.Cryptography.ProtectedData]::Protect(
-    $plain,
-    $null,
-    [Security.Cryptography.DataProtectionScope]::CurrentUser
-  )
-  $secret = [ordered]@{
-    installId = "install-dev"
-    currentUserSid = $sid
-    authAlgorithm = "pipe-auth-v2-hmac-sha256"
-    protection = "current-user-dpapi"
-    protectedSecretHex = ConvertTo-LowerHex $protected
-  }
-  [IO.File]::WriteAllText(
-    (Join-Path $directory "pipe-secret.json"),
-    ($secret | ConvertTo-Json -Depth 5 -Compress),
-    [Text.UTF8Encoding]::new($false)
-  )
-  $marker = [ordered]@{
-    kind = "sniptale-dev-local-browser-trust"
-    enabled = $true
-    scope = "current-user-browser-parent"
-    executableSha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $installed).Hash.ToLowerInvariant()
-  }
-  [IO.File]::WriteAllText(
-    (Join-Path $directory "dev-local-browser-trust.json"),
-    ($marker | ConvertTo-Json -Depth 4 -Compress),
-    [Text.UTF8Encoding]::new($false)
-  )
-}
-
 function Write-UpgradeAuthorizationFixture {
   Provision-DevRuntimeTrust
   $directory = [IO.Path]::GetDirectoryName($installed)
@@ -169,16 +131,6 @@ function Write-UpgradeAuthorizationFixture {
   foreach ($name in @("pipe-secret.json", "dev-local-browser-trust.json", "trusted-connections.json")) {
     $script:upgradeAuthorizationHashes[$name] = (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $directory $name)).Hash
   }
-}
-
-function Save-Desktop([string] $Name) {
-  Add-Type -AssemblyName System.Drawing
-  Add-Type -AssemblyName System.Windows.Forms
-  $bounds = [Windows.Forms.SystemInformation]::VirtualScreen
-  $bitmap = [Drawing.Bitmap]::new($bounds.Width, $bounds.Height)
-  $graphics = [Drawing.Graphics]::FromImage($bitmap)
-  try { $graphics.CopyFromScreen($bounds.Left, $bounds.Top, 0, 0, $bounds.Size); $bitmap.Save((Join-Path $outputPath "screenshots\$Name.png"), [Drawing.Imaging.ImageFormat]::Png) }
-  finally { $graphics.Dispose(); $bitmap.Dispose() }
 }
 
 function Save-UiWindow([object] $Element, [string] $Name) {
@@ -212,57 +164,6 @@ function Test-BinaryMarker([string] $Path, [string] $Marker) {
     return $false
   } finally {
     $stream.Dispose()
-  }
-}
-
-function Find-Ui([string] $Name, [int] $Seconds = 20) {
-  Add-Type -AssemblyName UIAutomationClient
-  $deadline = [DateTime]::UtcNow.AddSeconds($Seconds)
-  $condition = [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty, $Name)
-  while ([DateTime]::UtcNow -lt $deadline) {
-    $item = [Windows.Automation.AutomationElement]::RootElement.FindFirst([Windows.Automation.TreeScope]::Descendants, $condition)
-    if ($item) { return $item }
-    Start-Sleep -Milliseconds 500
-  }
-  throw "UI element not found: $Name"
-}
-
-function Restart-AgentWithMode([ValidateSet("manual", "extension-managed")][string] $Mode) {
-  if ($script:agent -and -not $script:agent.HasExited) {
-    Stop-Process -Id $script:agent.Id -Force -ErrorAction SilentlyContinue
-    $null = $script:agent.WaitForExit(5000)
-  }
-  $ownedProcesses = @(Get-Process "sniptale-native-agent" -ErrorAction SilentlyContinue | Where-Object {
-    try { [string]::Equals($_.Path, $installed, [StringComparison]::OrdinalIgnoreCase) } catch { $false }
-  })
-  foreach ($process in $ownedProcesses) { Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue }
-  $deadline = [DateTime]::UtcNow.AddSeconds(15)
-  do {
-    $remaining = @(Get-Process "sniptale-native-agent" -ErrorAction SilentlyContinue | Where-Object {
-      try { [string]::Equals($_.Path, $installed, [StringComparison]::OrdinalIgnoreCase) } catch { $false }
-    })
-    if ($remaining.Count -eq 0) { break }
-    Start-Sleep -Milliseconds 100
-  } while ([DateTime]::UtcNow -lt $deadline)
-  if ($remaining.Count -ne 0) { throw "resident process did not stop before mode restart" }
-  $profilePath = Join-Path $env:LOCALAPPDATA "Sniptale\NativeAgent\local-profile.json"
-  $profile = Get-Content -Raw -LiteralPath $profilePath | ConvertFrom-Json
-  $profile.revision = [uint64]$profile.revision + 1
-  $profile.operatingMode = $Mode
-  if ($Mode -eq "manual" -and $null -eq $profile.manualProfile) {
-    $profile.manualProfile = $script:manualProfileTemplate
-  }
-  [IO.File]::WriteAllText($profilePath, ($profile | ConvertTo-Json -Depth 8 -Compress), [Text.UTF8Encoding]::new($false))
-  $script:agent = Start-Process -FilePath $installed -PassThru
-  Start-Sleep -Seconds 4
-  if ($script:agent.HasExited) {
-    # MSI autostart can observe the forced stop and win the singleton race against Start-Process.
-    # Accept that installed owner only when it is live and path-bound to the exact tested binary.
-    $replacement = @(Get-Process "sniptale-native-agent" -ErrorAction SilentlyContinue | Where-Object {
-      try { -not $_.HasExited -and [string]::Equals($_.Path, $installed, [StringComparison]::OrdinalIgnoreCase) } catch { $false }
-    } | Sort-Object StartTime -Descending | Select-Object -First 1)
-    if ($replacement.Count -ne 1) { throw "resident failed to start in $Mode mode" }
-    $script:agent = $replacement[0]
   }
 }
 
@@ -332,225 +233,6 @@ try {
   )
   $process = Start-Process powershell.exe -ArgumentList $arguments -WindowStyle Hidden -PassThru
   [pscustomobject]@{ Process = $process; ReadyPath = $readyPath; ResultPath = $resultPath; ErrorPath = $errorPath }
-}
-
-function Install-UnpackedBrowserExtension([string] $Name, [IntPtr] $Window, [string] $ExtensionPath, [object] $DeveloperMode) {
-  Add-Type -AssemblyName System.Windows.Forms
-  Add-Type -AssemblyName UIAutomationClient
-  if ($Name -eq "edge") {
-    $edgeBounds = [SniptaleBrowserFocus+Rect]::new()
-    if (-not [SniptaleBrowserFocus]::GetWindowRect($Window, [ref]$edgeBounds)) { throw "edge developer switch bounds are unavailable" }
-    $developerBounds = $DeveloperMode.Current.BoundingRectangle
-    $edgeToggleY = [int]($developerBounds.Top + ($developerBounds.Height / 2))
-    [SniptaleBrowserFocus]::SetCursorPos($edgeBounds.Left + 352, $edgeToggleY) | Out-Null
-    [SniptaleBrowserFocus]::mouse_event(2, 0, 0, 0, [UIntPtr]::Zero)
-    [SniptaleBrowserFocus]::mouse_event(4, 0, 0, 0, [UIntPtr]::Zero)
-    Start-Sleep -Seconds 2
-    Save-Desktop "edge-developer-mode-enabled"
-    Open-EdgeExtensionsMenu $Window
-  } else {
-    $toggleOffset = [int]($DeveloperMode.Current.BoundingRectangle.Width / 2) + 38
-    Click-UiElement $DeveloperMode $toggleOffset
-  }
-  Start-Sleep -Seconds 1
-  try {
-    $loadUnpacked = Find-Ui "Load unpacked" 15
-  } catch {
-    if ($Name -eq "edge") {
-      throw
-    } else {
-      Click-UiElement $DeveloperMode $toggleOffset
-    }
-    $loadUnpacked = Find-Ui "Load unpacked" 15
-  }
-  Click-UiElement $loadUnpacked
-  Start-Sleep -Seconds 1
-  $dialog = Find-Ui "Select the extension directory." 30
-  $dialogWindow = [IntPtr]$dialog.Current.NativeWindowHandle
-  [SniptaleBrowserFocus]::ShowWindowAsync($dialogWindow, 9) | Out-Null
-  if (-not [SniptaleBrowserFocus]::SetForegroundWindow($dialogWindow)) { throw "extension directory dialog could not be focused" }
-  Start-Sleep -Milliseconds 300
-  $dialogBounds = [SniptaleBrowserFocus+Rect]::new()
-  if (-not [SniptaleBrowserFocus]::GetWindowRect($dialogWindow, [ref]$dialogBounds)) {
-    throw "extension directory dialog bounds are unavailable"
-  }
-  $folderX = $dialogBounds.Left + [int](($dialogBounds.Right - $dialogBounds.Left) * 0.62)
-  $folderY = $dialogBounds.Bottom - 75
-  [SniptaleBrowserFocus]::SetCursorPos($folderX, $folderY) | Out-Null
-  [SniptaleBrowserFocus]::mouse_event(2, 0, 0, 0, [UIntPtr]::Zero)
-  [SniptaleBrowserFocus]::mouse_event(4, 0, 0, 0, [UIntPtr]::Zero)
-  Start-Sleep -Milliseconds 300
-  [Windows.Forms.SendKeys]::SendWait("^a")
-  [Windows.Forms.SendKeys]::SendWait($ExtensionPath)
-  Start-Sleep -Milliseconds 500
-  $selectFolder = Find-Ui "Select Folder" 10
-  Click-UiElement $selectFolder
-  Start-Sleep -Seconds 2
-}
-
-function Focus-BrowserWindow([string] $Name, [int] $Seconds = 20) {
-  if (-not ("SniptaleBrowserFocus" -as [type])) {
-    Add-Type @'
-using System;
-using System.Runtime.InteropServices;
-public static class SniptaleBrowserFocus {
-  [StructLayout(LayoutKind.Sequential)] public struct Rect { public int Left; public int Top; public int Right; public int Bottom; }
-  public delegate bool EnumWindowsProc(IntPtr window, IntPtr parameter);
-  [DllImport("user32.dll")] public static extern bool EnumWindows(EnumWindowsProc callback, IntPtr parameter);
-  [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern IntPtr FindWindow(string className, string windowName);
-  [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern int GetClassName(IntPtr window, System.Text.StringBuilder className, int capacity);
-  [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr window);
-  [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr window, out Rect rect);
-  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window);
-  [DllImport("user32.dll")] public static extern bool ShowWindowAsync(IntPtr window, int command);
-  [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
-  [DllImport("user32.dll")] public static extern void mouse_event(uint flags, uint x, uint y, uint data, UIntPtr extraInfo);
-  [DllImport("user32.dll")] static extern void keybd_event(byte key, byte scan, uint flags, UIntPtr extra);
-  [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr window, uint message, UIntPtr wparam, IntPtr lparam);
-  public static IntPtr FindBrowserWindow() {
-    IntPtr found = IntPtr.Zero;
-    EnumWindows((window, parameter) => {
-      var className = new System.Text.StringBuilder(256);
-      if (IsWindowVisible(window) && GetClassName(window, className, className.Capacity) > 0 &&
-          className.ToString().StartsWith("Chrome_WidgetWin_", StringComparison.Ordinal)) {
-        found = window;
-        return false;
-      }
-      return true;
-    }, IntPtr.Zero);
-    return found;
-  }
-}
-'@
-  }
-  $deadline = [DateTime]::UtcNow.AddSeconds($Seconds)
-  $window = [IntPtr]::Zero
-  while ($window -eq [IntPtr]::Zero -and [DateTime]::UtcNow -lt $deadline) {
-    $window = [SniptaleBrowserFocus]::FindBrowserWindow()
-    if ($window -eq [IntPtr]::Zero) { Start-Sleep -Milliseconds 200 }
-  }
-  if ($window -eq [IntPtr]::Zero) { throw "$Name browser window is unavailable" }
-  [SniptaleBrowserFocus]::ShowWindowAsync($window, 9) | Out-Null
-  if (-not [SniptaleBrowserFocus]::SetForegroundWindow($window)) { throw "$Name browser window could not be focused" }
-  Start-Sleep -Milliseconds 500
-  return $window
-}
-
-function Set-BrowserLocation([IntPtr] $Window, [string] $Url) {
-  Add-Type -AssemblyName UIAutomationClient
-  Add-Type -AssemblyName System.Windows.Forms
-  $root = [Windows.Automation.AutomationElement]::FromHandle($Window)
-  $nameCondition = [Windows.Automation.PropertyCondition]::new(
-    [Windows.Automation.AutomationElement]::NameProperty,
-    "Address and search bar"
-  )
-  $address = $root.FindFirst([Windows.Automation.TreeScope]::Descendants, $nameCondition)
-  $editCondition = [Windows.Automation.PropertyCondition]::new(
-    [Windows.Automation.AutomationElement]::ControlTypeProperty,
-    [Windows.Automation.ControlType]::Edit
-  )
-  if (-not $address) { $address = $root.FindFirst([Windows.Automation.TreeScope]::Descendants, $editCondition) }
-  if ($address) {
-    try {
-      $address.SetFocus()
-      $value = $address.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern)
-      $value.SetValue($Url)
-    } catch {
-      $address = $null
-    }
-  }
-  if (-not $address) {
-    [SniptaleBrowserFocus]::ShowWindowAsync($Window, 9) | Out-Null
-    if (-not [SniptaleBrowserFocus]::SetForegroundWindow($Window)) { throw "browser location fallback could not focus the window" }
-    [Windows.Forms.SendKeys]::SendWait("^l")
-    [Windows.Forms.SendKeys]::SendWait($Url)
-  }
-  [Windows.Forms.SendKeys]::SendWait("{ENTER}")
-}
-
-function Open-EdgeExtensionsMenu([IntPtr] $Window) {
-  $bounds = [SniptaleBrowserFocus+Rect]::new()
-  if (-not [SniptaleBrowserFocus]::GetWindowRect($Window, [ref]$bounds)) { throw "edge extensions window bounds are unavailable" }
-  [SniptaleBrowserFocus]::SetCursorPos($bounds.Left + 42, $bounds.Top + 148) | Out-Null
-  [SniptaleBrowserFocus]::mouse_event(2, 0, 0, 0, [UIntPtr]::Zero)
-  [SniptaleBrowserFocus]::mouse_event(4, 0, 0, 0, [UIntPtr]::Zero)
-  Start-Sleep -Seconds 1
-}
-
-function Click-UiElement([object] $Element, [int] $OffsetX = 0) {
-  $bounds = $Element.Current.BoundingRectangle
-  if ($bounds.Width -lt 4 -or $bounds.Height -lt 4) { throw "browser UI element bounds are invalid" }
-  [SniptaleBrowserFocus]::SetCursorPos([int]($bounds.Left + ($bounds.Width / 2) + $OffsetX), [int]($bounds.Top + ($bounds.Height / 2))) | Out-Null
-  [SniptaleBrowserFocus]::mouse_event(2, 0, 0, 0, [UIntPtr]::Zero)
-  [SniptaleBrowserFocus]::mouse_event(4, 0, 0, 0, [UIntPtr]::Zero)
-  Start-Sleep -Milliseconds 300
-}
-
-function Stop-ProbeBrowsers {
-  $deadline = [DateTime]::UtcNow.AddSeconds(30)
-  do {
-    $processes = @(Get-Process chrome, msedge -ErrorAction SilentlyContinue)
-    if ($processes.Count -eq 0) { return }
-    if ("SniptaleBrowserFocus" -as [type]) {
-      $window = [SniptaleBrowserFocus]::FindBrowserWindow()
-      if ($window -ne [IntPtr]::Zero) {
-        [SniptaleBrowserFocus]::PostMessage($window, 0x0010, [UIntPtr]::Zero, [IntPtr]::Zero) | Out-Null
-        Start-Sleep -Milliseconds 500
-      }
-    }
-    & cmd.exe /d /c "taskkill.exe /F /T /IM chrome.exe >NUL 2>&1" | Out-Null
-    & cmd.exe /d /c "taskkill.exe /F /T /IM msedge.exe >NUL 2>&1" | Out-Null
-    $processes | Stop-Process -Force -ErrorAction SilentlyContinue
-    Start-Sleep -Milliseconds 200
-  } while ([DateTime]::UtcNow -lt $deadline)
-  if (@(Get-Process chrome, msedge -ErrorAction SilentlyContinue).Count -ne 0) {
-    throw "probe browser processes did not stop within their bound"
-  }
-}
-
-function Add-BrowserConnectionTrust([string] $ProcessName) {
-  $storePath = Join-Path $env:LOCALAPPDATA "Sniptale\NativeAgent\trusted-connections.json"
-  $store = if (Test-Path -LiteralPath $storePath) {
-    Get-Content -Raw -LiteralPath $storePath | ConvertFrom-Json
-  } else {
-    [pscustomobject]@{ formatVersion = 1; trusted = @() }
-  }
-  $trusted = @($store.trusted)
-  $origin = "chrome-extension://elhndangpenapadjimfoodlaenpcndpo/"
-  $hostHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $installed).Hash.ToLowerInvariant()
-  $paths = @($env:ComSpec)
-  $paths += @(Get-Process $ProcessName -ErrorAction SilentlyContinue | ForEach-Object {
-    try { $_.Path } catch { $null }
-  })
-  $paths = @($paths | Where-Object { $_ } | Sort-Object -Unique)
-  if ($paths.Count -eq 0) { throw "$ProcessName browser process path is unavailable for connection trust" }
-  foreach ($path in $paths) {
-    $normalized = $path.Replace('/', '\').TrimEnd('\').ToLowerInvariant()
-    $label = [IO.Path]::GetFileName($normalized)
-    $category = if ($label -in @("cmd.exe", "powershell.exe", "pwsh.exe", "conhost.exe")) {
-      "shell-launcher-parent"
-    } else {
-      "recognized-browser-parent"
-    }
-    $value = "$category|$label|$normalized"
-    $sha = [Security.Cryptography.SHA256]::Create()
-    try {
-      $fingerprint = ConvertTo-LowerHex ($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($value)))
-    } finally {
-      $sha.Dispose()
-    }
-    if (-not @($trusted | Where-Object {
-      $_.extensionOrigin -eq $origin -and $_.hostExeSha256 -eq $hostHash -and $_.parentFingerprint -eq $fingerprint
-    })) {
-      $trusted += [ordered]@{
-        extensionOrigin = $origin
-        hostExeSha256 = $hostHash
-        parentFingerprint = $fingerprint
-      }
-    }
-  }
-  $payload = [ordered]@{ formatVersion = 1; trusted = @($trusted) }
-  [IO.File]::WriteAllText($storePath, ($payload | ConvertTo-Json -Depth 5), [Text.UTF8Encoding]::new($false))
 }
 
 function Approve-ConnectionConsent([object] $Listener, [int] $Seconds = 20) {
@@ -736,6 +418,7 @@ function Invoke-BrowserNativeProbeWithRetry(
   throw $lastError
 }
 
+
 Add-Test "network-isolation" {
   $client = [Net.Sockets.TcpClient]::new()
   try {
@@ -747,6 +430,28 @@ Add-Test "network-isolation" {
   }
   "QEMU runtime policy denied guest egress"
 }
+
+if (@($tests | Where-Object { $_.name -eq "network-isolation" -and $_.status -eq "pass" }).Count -ne 1) {
+  throw "runtime network isolation must pass before installer work"
+}
+
+if ($LabCertificateSha256) {
+  . "$PSScriptRoot\lab-signing.ps1"
+  $script:labCertificate = Import-LabSigningIdentity (Join-Path $PWD "lab-signing.cer") $LabCertificateSha256
+}
+
+if ($WorkspaceMode -eq "warm") {
+  if ($selectedTests.Count -eq 0 -or @("install", "upgrade", "repair", "uninstall" | Where-Object { $selectedTests.Contains($_) }).Count -gt 0) {
+    throw "warm runtime testing requires explicit runtime cases without installer lifecycle cases"
+  }
+  Get-Process sniptale-native-agent -ErrorAction SilentlyContinue | Stop-Process -Force
+  Invoke-Msi @("/i", $Msi) "warm-update"
+  if ((Get-FileHash -LiteralPath $installed).Hash.ToLowerInvariant() -ne $ExpectedExeSha256) { throw "warm update executable mismatch" }
+  $manifestPath = Join-Path ([IO.Path]::GetDirectoryName($installed)) "native-host.json"
+  if ((Get-FileHash -LiteralPath $manifestPath).Hash.ToLowerInvariant() -ne $ExpectedNativeHostManifestSha256) { throw "warm update manifest mismatch" }
+  Provision-DevRuntimeTrust
+}
+
 
 Add-Test "install" {
   Invoke-Msi @("/i", $PreviousMsi) "install-baseline"
@@ -803,6 +508,10 @@ Add-Test "repair" {
 }
 
 Add-Test "resident" {
+  if ($script:labCertificate) {
+    $signature = Get-AuthenticodeSignature -LiteralPath $installed
+    if ($signature.Status -ne 'Valid' -or [Convert]::ToBase64String($signature.SignerCertificate.RawData) -cne [Convert]::ToBase64String($script:labCertificate.RawData)) { throw "installed laboratory signature mismatch" }
+  }
   $media = Join-Path $outputPath "product-media"
   New-Item -ItemType Directory -Force -Path $media | Out-Null
   $profileDir = Join-Path $env:LOCALAPPDATA "Sniptale\NativeAgent"
@@ -818,7 +527,13 @@ Add-Test "resident" {
     schemaVersion = 1; revision = 1; operatingMode = "extension-managed"
     manualProfile = $null
   }
-  [IO.File]::WriteAllText((Join-Path $profileDir "local-profile.json"), ($profile | ConvertTo-Json -Depth 8 -Compress), [Text.UTF8Encoding]::new($false))
+  $profilePath = Join-Path $profileDir "local-profile.json"
+  if ($WorkspaceMode -eq "warm" -and (Test-Path -LiteralPath $profilePath)) {
+    $existingProfile = Get-Content -Raw -LiteralPath $profilePath | ConvertFrom-Json
+    if ($existingProfile.manualProfile) { $script:manualProfileTemplate = $existingProfile.manualProfile }
+  } else {
+    [IO.File]::WriteAllText($profilePath, ($profile | ConvertTo-Json -Depth 8 -Compress), [Text.UTF8Encoding]::new($false))
+  }
   # MSI autostart may already own the singleton after install/upgrade/repair. Starting a second
   # process and checking that process' exit status mistakes a healthy singleton handoff for a
   # product crash. The shared restart helper stops every installed owner, applies the requested
@@ -927,7 +642,8 @@ Add-Test "settings" {
   $transform = $window.GetCurrentPattern([Windows.Automation.TransformPattern]::Pattern)
   if (-not $transform.Current.CanResize) { throw "settings window is not resizable" }
   $beforeBounds = $window.Current.BoundingRectangle
-  $transform.Resize(1000, 720)
+  if ([Math]::Abs($beforeBounds.Width - 1000) -lt 50) { $transform.Resize(1120, 800) }
+  else { $transform.Resize(1000, 720) }
   Start-Sleep -Seconds 2
   $window = Find-Ui $settingsTitle 5
   $afterBounds = $window.Current.BoundingRectangle
@@ -1570,6 +1286,31 @@ $player.PlaySync()
     "Sniptale MP4 captured synthetic motion and non-silent system audio"
   } else {
     "Sniptale MP4 captured non-silent microphone audio"
+  }
+}
+
+# The real product extension is opt-in; clean acceptance has no extension artifact.
+if ($RealExtensionSha256 -or $selectedTests.Contains("real-extension")) {
+  Add-Test "real-extension" {
+    if ($WorkspaceMode -ne "warm" -or $RealExtensionSha256 -notmatch '^[0-9a-f]{64}$') { throw "real extension scenario requires an explicit development artifact" }
+    if ((Get-FileHash -LiteralPath "real-extension.zip").Hash.ToLowerInvariant() -ne $RealExtensionSha256) { throw "real extension hash mismatch" }
+    $realPath = "C:\SniptaleLab\real-extension"
+    if (Test-Path -LiteralPath $realPath) { Remove-Item -LiteralPath $realPath -Recurse -Force -ErrorAction Stop }
+    New-Item -ItemType Directory -Force -Path $realPath | Out-Null
+    Write-ProgressEvent "real-extension-extraction" "started"
+    & tar.exe -xf "real-extension.zip" -C $realPath
+    if ($LASTEXITCODE -ne 0) { throw "real extension extraction failed" }
+    Write-ProgressEvent "real-extension-extraction" "pass"
+    . "$PSScriptRoot\real-extension.ps1"
+    try {
+      Restart-AgentWithMode "extension-managed"
+      $results = @(
+        (Invoke-RealExtension "chrome" (Get-LabBrowserExecutable "chrome") $realPath),
+        (Invoke-RealExtension "edge" (Get-LabBrowserExecutable "edge") $realPath)
+      )
+      [IO.File]::WriteAllText((Join-Path $outputPath "real-extension-result.json"), ($results | ConvertTo-Json -Depth 10), [Text.UTF8Encoding]::new($false))
+      "real extension in Chrome and Edge received and verified native PNG; product reconnect restored lease and settings"
+    } finally { Restart-AgentWithMode "manual" }
   }
 }
 

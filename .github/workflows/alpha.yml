@@ -26,20 +26,20 @@
       "timeout-minutes": 45,
       "steps": [
         {
-          "uses": "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
+          "uses": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
           "with": {
             "fetch-depth": 0,
             "persist-credentials": false
           }
         },
         {
-          "uses": "actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065",
+          "uses": "actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0",
           "with": {
-            "python-version": "3.12.10"
+            "python-version": "3.15.2"
           }
         },
         {
-          "uses": "actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093",
+          "uses": "actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333",
           "with": {
             "name": "qa-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}",
             "path": ".tmp/release/alpha-proof"
@@ -53,10 +53,10 @@
         },
         {
           "name": "Cache compiled Windows dependencies",
-          "uses": "actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830",
+          "uses": "actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9",
           "with": {
             "path": "target",
-            "key": "windows-msvc-static-v1-${{ steps.build-image.outputs.version }}-${{ hashFiles('Cargo.lock', 'Cargo.toml', 'build.rs', 'rust-toolchain.toml', '.cargo/**', 'resources/**', 'tooling/configs/qa/tool-versions.json', 'tooling/release/windows/alpha-package.ps1') }}"
+            "key": "windows-msvc-static-v1-${{ steps.build-image.outputs.version }}-${{ hashFiles('Cargo.lock', 'Cargo.toml', 'build.rs', 'rust-toolchain.toml', '.cargo/**', 'resources/**', 'tooling/configs/qa/tool-versions.json', 'tooling/configs/qa/toolchain-lock.json', 'tooling/release/windows/toolchain.ps1', 'tooling/release/windows/alpha-package.ps1') }}"
           }
         },
         {
@@ -68,7 +68,7 @@
           "run": "& tooling/release/windows/alpha-package.ps1 -QaProof .tmp/release/alpha-proof -Tag $env:ALPHA_TAG"
         },
         {
-          "uses": "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
           "with": {
             "name": "alpha-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}",
             "path": ".tmp/release/alpha",

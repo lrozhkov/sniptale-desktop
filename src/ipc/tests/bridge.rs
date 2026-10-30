@@ -247,8 +247,8 @@ fn malformed_browser_payload_is_not_forwarded_to_agent() -> Result<(), Box<dyn E
         result,
         Err(BridgeForwardError::BrowserProtocol(_))
     ));
-    assert!(agent_pipe.written.is_empty());
-    assert!(browser_writer.is_empty());
+    assert_eq!(agent_pipe.written.len(), 0);
+    assert_eq!(browser_writer.len(), 0);
     Ok(())
 }
 
@@ -272,8 +272,8 @@ fn logged_forwarder_does_not_log_unparsed_browser_type() -> Result<(), Box<dyn E
         result,
         Err(BridgeForwardError::BrowserProtocol(_))
     ));
-    assert!(agent_pipe.written.is_empty());
-    assert!(browser_writer.is_empty());
+    assert_eq!(agent_pipe.written.len(), 0);
+    assert_eq!(browser_writer.len(), 0);
     assert_no_log_message_contains(&entries, secret_type);
     Ok(())
 }
@@ -290,8 +290,8 @@ fn malformed_agent_response_is_not_written_to_browser() -> Result<(), Box<dyn Er
         forward_native_host_stream(&mut browser_reader, &mut browser_writer, &mut agent_pipe);
 
     assert!(matches!(result, Err(BridgeForwardError::AgentProtocol(_))));
-    assert!(!agent_pipe.written.is_empty());
-    assert!(browser_writer.is_empty());
+    assert_ne!(agent_pipe.written.len(), 0);
+    assert_eq!(browser_writer.len(), 0);
     Ok(())
 }
 
@@ -315,8 +315,8 @@ fn logged_forwarder_does_not_log_unparsed_agent_type() -> Result<(), Box<dyn Err
     );
 
     assert!(matches!(result, Err(BridgeForwardError::AgentProtocol(_))));
-    assert!(!agent_pipe.written.is_empty());
-    assert!(browser_writer.is_empty());
+    assert_ne!(agent_pipe.written.len(), 0);
+    assert_eq!(browser_writer.len(), 0);
     assert!(
         log_messages(&entries)
             .iter()
@@ -334,8 +334,8 @@ fn clean_browser_eof_does_not_touch_agent_pipe() -> Result<(), Box<dyn Error>> {
 
     forward_native_host_stream(&mut browser_reader, &mut browser_writer, &mut agent_pipe)?;
 
-    assert!(agent_pipe.written.is_empty());
-    assert!(browser_writer.is_empty());
+    assert_eq!(agent_pipe.written.len(), 0);
+    assert_eq!(browser_writer.len(), 0);
     Ok(())
 }
 
@@ -400,7 +400,7 @@ fn authenticated_forwarder_rejects_malformed_challenge_before_forwarding()
     let mut written = Cursor::new(agent_pipe.written);
     assert!(read_payload(&mut written, FRAME_LIMIT)?.is_some());
     assert!(read_payload(&mut written, FRAME_LIMIT)?.is_none());
-    assert!(browser_writer.is_empty());
+    assert_eq!(browser_writer.len(), 0);
     Ok(())
 }
 
@@ -539,7 +539,7 @@ fn authenticated_forwarder_does_not_run_hook_after_failed_auth() -> Result<(), B
         Err(AuthenticatedBridgeForwardError::Handshake(_))
     ));
     assert_eq!(hook_calls, 0);
-    assert!(browser_writer.is_empty());
+    assert_eq!(browser_writer.len(), 0);
     Ok(())
 }
 

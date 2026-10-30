@@ -86,7 +86,7 @@ pub(super) fn operation_failed(failure: OperationFailure<'_>) -> Value {
     let descriptor = failure.kind.descriptor();
     debug_assert!(failure.kind.is_cataloged());
     debug_assert!(failure.kind.has_cataloged_public_code());
-    debug_assert!(!descriptor.catalog_key.is_empty());
+    debug_assert_ne!(descriptor.catalog_key, "");
     wire_value(WireMessage::AppOperationFailed(Box::new(
         AppOperationFailedMessage {
             protocol_version: PROTOCOL_VERSION,
