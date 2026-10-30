@@ -5,15 +5,11 @@ use crate::audio::pcm_source::OwnedPcmInputChunk;
 
 pub(super) fn packet_bytes(
     frames: u32,
-    flags: u32,
     buffer_frames: u32,
     block_align: usize,
 ) -> Result<usize, WindowsWasapiPcmError> {
     if frames > buffer_frames {
         return Err(WindowsWasapiPcmError::BufferTooLarge);
-    }
-    if flags & timestamp_error_flag() != 0 {
-        return Err(WindowsWasapiPcmError::InvalidPacketTimeline);
     }
     usize::try_from(frames)
         .ok()
@@ -22,6 +18,23 @@ pub(super) fn packet_bytes(
 }
 
 impl WindowsWasapiPcmSource {
+    pub(super) fn accept_packet(
+        &mut self,
+        position: u64,
+        frames: u32,
+        flags: u32,
+        bytes: Vec<u8>,
+    ) -> Result<Option<OwnedPcmInputChunk>, WindowsWasapiPcmError> {
+        let position = (flags & timestamp_error_flag() == 0).then_some(position);
+        let gap = self
+            .timeline
+            .queue_packet(position, frames)
+            .map_err(|_| WindowsWasapiPcmError::InvalidPacketTimeline)?;
+        self.metrics.observe_gap(gap);
+        self.pending_packet = Some(bytes);
+        self.emit_pending_packet()
+    }
+
     pub(super) fn emit_pending_packet(
         &mut self,
     ) -> Result<Option<OwnedPcmInputChunk>, WindowsWasapiPcmError> {

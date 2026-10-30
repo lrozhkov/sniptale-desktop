@@ -65,9 +65,13 @@ function Add-Test([string] $Name, [scriptblock] $Body) {
   Write-Output "[release-progress] $Name $status"
   [IO.File]::AppendAllText("$outputPath/logs/progress.log", "$Name $status`n")
 }
-function Wait-For([scriptblock] $Probe, [int] $Seconds = 30) {
-  $deadline = [DateTime]::UtcNow.AddSeconds($Seconds)
-  do { $value = & $Probe; if ($value) { return $value }; Start-Sleep -Milliseconds 500 } while ([DateTime]::UtcNow -lt $deadline)
+function Wait-For(
+  [scriptblock] $Probe, [int] $Seconds = 30,
+  [scriptblock] $Now = { [Diagnostics.Stopwatch]::GetTimestamp() / [Diagnostics.Stopwatch]::Frequency },
+  [scriptblock] $Delay = { Start-Sleep -Milliseconds 500 }
+) {
+  $deadline = (& $Now) + $Seconds
+  do { $value = & $Probe; if ($value) { return $value }; & $Delay } while ((& $Now) -lt $deadline)
   throw "release condition timed out"
 }
 function Screenshot([string] $Name) {
@@ -88,12 +92,16 @@ function Read-TrayMenuItems {
     @{ Label=($text.ToString().Replace('&','') -split "`t")[0]; Menu=$menu; Index=$i }
   }
 }
-function Wait-TrayMenuItem([string] $Label, [scriptblock] $Read = { Read-TrayMenuItems }, [int] $Seconds = 30) {
+function Wait-TrayMenuItem(
+  [string] $Label, [scriptblock] $Read = { Read-TrayMenuItems }, [int] $Seconds = 30,
+  [scriptblock] $Now = { [Diagnostics.Stopwatch]::GetTimestamp() / [Diagnostics.Stopwatch]::Frequency },
+  [scriptblock] $Delay = { Start-Sleep -Milliseconds 500 }
+) {
   Wait-For {
     $entries = @(& $Read | Where-Object { $_.Label -eq $Label })
     if ($entries.Count -gt 1) { throw "ambiguous tray menu item" }
     if ($entries.Count -eq 1) { $entries[0] }
-  } $Seconds
+  } $Seconds $Now $Delay
 }
 function Close-TrayMenus {
   [Windows.Forms.SendKeys]::SendWait("{ESC}{ESC}")
@@ -188,20 +196,29 @@ function Test-RecordedAvTimelinePolicy {
 }
 
 function Test-TrayMenuPolicy {
+  $clock = [ref]0.0
+  $now = { $clock.Value }.GetNewClosure()
+  $delay = { $clock.Value += 0.5 }.GetNewClosure()
   $attempt = [ref]0
   $read = {
     $attempt.Value++
     if ($attempt.Value -eq 2) { @{Label="Video";Menu=1;Index=0} }
     if ($attempt.Value -ge 3) { @{Label="Pause";Menu=2;Index=4} }
   }.GetNewClosure()
-  $entry = Wait-TrayMenuItem "Pause" $read 3
+  $entry = Wait-TrayMenuItem "Pause" $read 3 $now $delay
   if ($attempt.Value -ne 3 -or $entry.Menu -ne 2 -or $entry.Index -ne 4) { throw "delayed tray menu proof failed" }
   $rejected = $false
-  try { Wait-TrayMenuItem "Stop" { } 0 | Out-Null } catch { $rejected = $_.Exception.Message -eq "release condition timed out" }
+  try { Wait-TrayMenuItem "Stop" { } 0 $now $delay | Out-Null } catch { $rejected = $_.Exception.Message -eq "release condition timed out" }
   if (-not $rejected) { throw "missing tray menu rejection proof failed" }
   $rejected = $false
-  try { Wait-TrayMenuItem "Stop" { @{Label="Stop"}; @{Label="Stop"} } 0 | Out-Null } catch { $rejected = $_.Exception.Message -eq "ambiguous tray menu item" }
+  try { Wait-TrayMenuItem "Stop" { @{Label="Stop"}; @{Label="Stop"} } 0 $now $delay | Out-Null } catch { $rejected = $_.Exception.Message -eq "ambiguous tray menu item" }
   if (-not $rejected) { throw "ambiguous tray menu rejection proof failed" }
+  $clock.Value = 0.0
+  $attempt.Value = 0
+  $neverReady = { $attempt.Value++; $false }.GetNewClosure()
+  $rejected = $false
+  try { Wait-For $neverReady 3 $now $delay | Out-Null } catch { $rejected = $_.Exception.Message -eq "release condition timed out" }
+  if (-not $rejected -or $attempt.Value -ne 6 -or $clock.Value -ne 3) { throw "bounded wait timeout proof failed" }
 }
 
 Test-TrayMenuPolicy
