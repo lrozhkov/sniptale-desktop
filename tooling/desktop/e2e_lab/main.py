@@ -267,6 +267,14 @@ def execute_run(
         "retry_of": retry_of,
     }
     write_receipt(run_dir / "receipt.json", receipt)
+    if passed and run_mode == "alpha-release-acceptance":
+        try:
+            verify_run_evidence(run_dir)
+        except LabError as exc:
+            controller_error = exc
+            passed = False
+            receipt["result"] = "fail"
+            write_receipt(run_dir / "receipt.json", receipt)
     emit_progress(
         "run-finish", runId=run_id, mode=run_mode,
         status=receipt["result"], cleanTeardown=clean_teardown,

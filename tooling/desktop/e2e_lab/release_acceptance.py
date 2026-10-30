@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 from errors import LabError
+from limits import enforce_run_limits
 from results import parse_guest_result
 from ssh import GuestSsh
 from system import sha256_file
@@ -64,6 +65,10 @@ def test_release(runner, lane_name: str, artifact: Path, run_dir: Path):
     finally:
         runner._collect_qemu_log(lane_name, run_dir)
         runner._finish_vm(lane_name, "test", pre_forced)
+    return collect_release_result(runner, lane_name, output, run_dir, error)
+
+
+def collect_release_result(runner, lane_name: str, output: Path, run_dir: Path, error=None):
     runner._validate_guest_tree(output)
     runner._sanitize_guest_text_tree(output)
     result_path = next(iter(output.rglob("result.json")), None)
@@ -72,4 +77,7 @@ def test_release(runner, lane_name: str, artifact: Path, run_dir: Path):
     result = parse_guest_result(result_path, expected_lane=lane_name, required_cases=CASES)
     if set(case.name for case in result.cases) != CASES:
         raise LabError("release guest case inventory mismatch")
+    runner._verify_declared_artifacts(output, result)
+    runner._classify_evidence(output, run_dir)
+    enforce_run_limits(run_dir, runner.config.limits)
     return result

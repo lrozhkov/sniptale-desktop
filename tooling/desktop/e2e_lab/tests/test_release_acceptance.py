@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -8,11 +9,97 @@ from types import SimpleNamespace
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from errors import LabError
-from release_acceptance import CASES, test_release
+from errors import IntegrityError, LabError, ResourceError
+from paths import LabPaths
+from release_acceptance import CASES, collect_release_result, test_release
+from results import GuestResult, TestCase
+from runner import LaneRunner
+import main as lab_main
 
 
 class ReleaseAcceptanceTests(unittest.TestCase):
+    def _guest_fixture(self, root, inventory=None, recording_bytes=b"synthetic mp4"):
+        output = root / "guest/windows-11"
+        for category in ("logs", "screenshots", "recordings"):
+            (output / "e2e-out" / category).mkdir(parents=True)
+            (root / category).mkdir()
+        (output / "e2e-out/logs/guest.log").write_text("synthetic status\n")
+        (output / "e2e-out/screenshots/product.png").write_bytes(b"synthetic png")
+        (output / "e2e-out/recordings/product.mp4").write_bytes(recording_bytes)
+        value = {
+            "schema_version": 1, "lane": "windows-11", "environment": {},
+            "tests": [{"name": name, "status": "pass", "duration_ms": 1, "detail": "ok"} for name in sorted(CASES)],
+            "artifacts": inventory if inventory is not None else ["guest.log", "product.png", "product.mp4"],
+        }
+        (output / "e2e-out/result.json").write_text(json.dumps(value))
+        runner = SimpleNamespace(
+            _validate_guest_tree=LaneRunner._validate_guest_tree,
+            _sanitize_guest_text_tree=LaneRunner._sanitize_guest_text_tree,
+            _verify_declared_artifacts=LaneRunner._verify_declared_artifacts,
+            _classify_evidence=LaneRunner._classify_evidence,
+            config=SimpleNamespace(limits=SimpleNamespace(max_log_mib=1, max_screenshot_mib=1, max_recording_mib=1)),
+        )
+        return runner, output
+
+    def test_alpha_media_is_classified_before_receipt_manifest_creation(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            runner, output = self._guest_fixture(root)
+            result = collect_release_result(runner, "windows-11", output, root)
+            self.assertTrue(result.passed)
+            self.assertEqual((root / "recordings/windows-11-e2e-out-recordings-product.mp4").read_bytes(), b"synthetic mp4")
+            self.assertEqual((root / "screenshots/windows-11-e2e-out-screenshots-product.png").read_bytes(), b"synthetic png")
+
+    def test_alpha_collection_rejects_missing_extra_and_duplicate_inventory(self):
+        for inventory in ([], ["guest.log", "product.png"], ["guest.log", "product.png", "product.mp4", "ghost.log"], ["guest.log", "product.png", "product.png", "product.mp4"]):
+            with self.subTest(inventory=inventory), tempfile.TemporaryDirectory() as name:
+                root = Path(name)
+                runner, output = self._guest_fixture(root, inventory)
+                with self.assertRaisesRegex(IntegrityError, "artifact inventory"):
+                    collect_release_result(runner, "windows-11", output, root)
+                self.assertEqual(list((root / "recordings").iterdir()), [])
+
+    def test_alpha_classification_enforces_recording_budget(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            runner, output = self._guest_fixture(root, recording_bytes=b"x" * (1024 * 1024 + 1))
+            with self.assertRaisesRegex(ResourceError, "recordings evidence"):
+                collect_release_result(runner, "windows-11", output, root)
+
+    def test_alpha_controller_cannot_report_success_without_verified_media(self):
+        for include_recording in (True, False):
+            with self.subTest(include_recording=include_recording), tempfile.TemporaryDirectory() as name:
+                root = Path(name).resolve()
+                paths = LabPaths.discover(root)
+                paths.ensure()
+                artifact = root / "candidate.msi"
+                artifact.write_bytes(b"msi")
+                (root / "provenance.json").write_text("{}")
+                source = SimpleNamespace(sha256="a" * 64, file_count=1, commit_sha="b" * 40, dirty_sha256="c" * 64)
+
+                class FakeRunner:
+                    def __init__(self, _paths, _config):
+                        self.teardowns = {}
+                        self.consumed_artifacts = []
+
+                    def test(self, lane, _artifact, run_dir):
+                        (run_dir / "logs/guest.log").write_text("synthetic status")
+                        (run_dir / "screenshots/product.png").write_bytes(b"synthetic png")
+                        if include_recording:
+                            (run_dir / "recordings/product.mp4").write_bytes(b"synthetic mp4")
+                        return GuestResult(lane, tuple(TestCase(case, "pass", 1, "ok") for case in sorted(CASES)), {}, ())
+
+                with mock.patch.object(lab_main, "create_source_bundle", return_value=source), mock.patch.object(
+                    lab_main, "LaneRunner", FakeRunner
+                ), mock.patch.object(lab_main, "snapshot_identities", return_value={"windows-11": {"disk_sha256": "d" * 64}}), mock.patch.object(lab_main, "gc"):
+                    if include_recording:
+                        lab_main.execute_run(paths, SimpleNamespace(), ["windows-11"], "release", artifact)
+                    else:
+                        with self.assertRaisesRegex(LabError, "recordings evidence"):
+                            lab_main.execute_run(paths, SimpleNamespace(), ["windows-11"], "release", artifact)
+                run = next(path for path in paths.runs.iterdir() if path.name[:8].isdigit())
+                self.assertEqual(json.loads((run / "receipt.json").read_text())["result"], "pass" if include_recording else "fail")
+
     def test_invalid_provenance_cannot_start_a_guest(self):
         for payload in ("{", "[]", '{"tag": 12}'):
             with self.subTest(payload=payload), tempfile.TemporaryDirectory() as name:
