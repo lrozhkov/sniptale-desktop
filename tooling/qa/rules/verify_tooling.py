@@ -352,16 +352,15 @@ def validate_hosted_qa_policy(errors: list[str]) -> None:
     if found != expected:
         errors.append("hosted workflow allowlist mismatch")
         return
-    pinned = {
-        "actions/checkout@11d5960a326750d5838078e36cf38b85af677262",
-        "actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830",
-        "actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830",
-        "actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065",
-        "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
-        "actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093",
-    }
+    try:
+        lock = load_object(ROOT / "tooling/configs/qa/toolchain-lock.json")
+    except (OSError, ValueError):
+        errors.append("hosted toolchain lock missing or invalid")
+        return
+    pinned = {repo + "@" + item["commit"] for repo, item in lock["actions"].items()}
+    pinned.add("actions/cache/save@" + lock["actions"]["actions/cache"]["commit"])
     commands = {
-        "rustup toolchain install 1.96.0 --profile minimal --component rustfmt,clippy,llvm-tools-preview --target x86_64-pc-windows-msvc",
+        "python3 tooling/qa/runtime/toolchain.py --install-rust",
         "tooling/qa/installers/install-release-tools.sh",
         "tooling/qa/wrappers/alpha-proof.sh",
         "python3 -m tooling.qa.runtime.compilation_cache",
@@ -399,13 +398,15 @@ def validate_hosted_qa_policy(errors: list[str]) -> None:
                     action = step.get("uses", "")
                     options = step.get("with", {})
                     if name == "checks.yml" and step.get("name") == "Cache compiled Linux dependencies":
-                        expected_key = "linux-ubuntu24-cargo-v1-${{ runner.arch }}-${{ steps.build-image.outputs.version }}-${{ hashFiles('Cargo.lock', 'Cargo.toml', 'build.rs', 'rust-toolchain.toml', '.cargo/**', 'resources/**', 'tooling/configs/qa/tool-versions.json', 'tooling/qa/runtime/compilation_cache.py', 'tooling/qa/runtime/lib.sh', 'tooling/qa/wrappers/coverage.sh', '.github/workflows/checks.yml') }}"
-                        if action != "actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830" or options != {"path": "target", "key": expected_key}:
+                        expected_key = "linux-ubuntu24-cargo-v1-${{ runner.arch }}-${{ steps.build-image.outputs.version }}-${{ hashFiles('Cargo.lock', 'Cargo.toml', 'build.rs', 'rust-toolchain.toml', '.cargo/**', 'resources/**', 'tooling/configs/qa/tool-versions.json', 'tooling/configs/qa/toolchain-lock.json', 'tooling/qa/runtime/compilation_cache.py', 'tooling/qa/runtime/lib.sh', 'tooling/qa/wrappers/coverage.sh', '.github/workflows/checks.yml') }}"
+                        if action != "actions/cache@" + lock["actions"]["actions/cache"]["commit"] or options != {"path": "target", "key": expected_key}:
                             errors.append("Linux compilation cache scope or identity drift")
                     if name == "alpha.yml" and action.startswith("actions/cache"):
-                        expected_key = "windows-msvc-static-v1-${{ steps.build-image.outputs.version }}-${{ hashFiles('Cargo.lock', 'Cargo.toml', 'build.rs', 'rust-toolchain.toml', '.cargo/**', 'resources/**', 'tooling/configs/qa/tool-versions.json', 'tooling/release/windows/alpha-package.ps1') }}"
+                        expected_key = "windows-msvc-static-v1-${{ steps.build-image.outputs.version }}-${{ hashFiles('Cargo.lock', 'Cargo.toml', 'build.rs', 'rust-toolchain.toml', '.cargo/**', 'resources/**', 'tooling/configs/qa/tool-versions.json', 'tooling/configs/qa/toolchain-lock.json', 'tooling/release/windows/toolchain.ps1', 'tooling/release/windows/alpha-package.ps1') }}"
                         if name != "alpha.yml" or job_name != "package" or options != {"path": "target", "key": expected_key}:
                             errors.append("compiled dependency cache scope or identity drift")
+                    if action.startswith("actions/setup-python@") and options.get("python-version") != lock["python"]["version"]:
+                        errors.append("hosted Python version differs from canonical toolchain")
                     if action.startswith("actions/upload-artifact@"):
                         kind = "alpha" if name == "alpha.yml" else "qa"
                         path = ".tmp/release/alpha" if kind == "alpha" else ".tmp/release/alpha-proof"
@@ -562,6 +563,12 @@ def main() -> int:
     validate_retired_scripts(errors)
     validate_zero_baselines(errors)
     validate_hosted_qa_policy(errors)
+    sys.path.insert(0, str(ROOT / "tooling/qa/runtime"))
+    import toolchain
+    try:
+        toolchain.check(ROOT)
+    except (toolchain.ToolchainError, OSError, ValueError, KeyError, TypeError) as exc:
+        errors.append(f"canonical toolchain policy: {exc}")
     validate_git_attributes(errors)
     validate_secret_audit(errors)
     validate_retired_smoke_queue(errors)

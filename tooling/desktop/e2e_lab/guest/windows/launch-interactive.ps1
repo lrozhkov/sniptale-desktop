@@ -14,7 +14,10 @@ param(
   [Parameter(Mandatory = $true)][string] $ProbeNonce,
   [string] $Output = "e2e-out",
   [string] $Cases = "",
-  [int] $TimeoutSeconds = 3600
+  [int] $TimeoutSeconds = 3600,
+  [ValidateSet("", "warm")][string] $WorkspaceMode = "",
+  [string] $RealExtensionSha256 = "",
+  [string] $LabCertificateSha256 = ""
 )
 $ErrorActionPreference = "Stop"
 $runnerPath = [IO.Path]::GetFullPath((Join-Path $PWD $Runner))
@@ -31,6 +34,9 @@ foreach ($path in @($runnerPath, $msiPath, $previousMsiPath, $identityVerifierPa
   if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "interactive input missing: $([IO.Path]::GetFileName($path))" }
 }
 
+# Warm sessions must never accept a previous runner result if this launch fails.
+if (Test-Path -LiteralPath $outputPath) { Remove-Item -LiteralPath $outputPath -Recurse -Force -ErrorAction Stop }
+
 $taskName = "SniptaleDesktopE2E"
 $identity = "$env:COMPUTERNAME\lab"
 $entryConfig = [ordered]@{
@@ -45,6 +51,9 @@ $entryConfig = [ordered]@{
     ProbeNonce = $ProbeNonce; Output = $outputPath; Cases = $Cases
   }
 }
+if ($WorkspaceMode) { $entryConfig.parameters.WorkspaceMode = $WorkspaceMode }
+if ($LabCertificateSha256) { $entryConfig.parameters.LabCertificateSha256 = $LabCertificateSha256 }
+if ($RealExtensionSha256) { $entryConfig.parameters.RealExtensionSha256 = $RealExtensionSha256 }
 $entrySource = @'
 param([Parameter(Mandatory = $true)][string] $ConfigPath)
 $ErrorActionPreference = "Stop"
@@ -68,6 +77,8 @@ $arguments = "/d /c `"`"$commandPath`"`""
 $action = New-ScheduledTaskAction -Execute "C:\Windows\System32\cmd.exe" -Argument $arguments -WorkingDirectory ([IO.Path]::GetDirectoryName($runnerPath))
 $principal = New-ScheduledTaskPrincipal -UserId $identity -LogonType Interactive -RunLevel Limited
 $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Seconds $TimeoutSeconds) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
+# Normal CPU, I/O, and memory priority; Task Scheduler defaults to below normal.
+$settings.Priority = 4
 $task = New-ScheduledTask -Action $action -Principal $principal -Settings $settings
 
 Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue

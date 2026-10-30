@@ -142,7 +142,7 @@ fn media_pump_does_not_poll_audio_after_video_source_failure() {
 
     let (_video, audio, sink) = pump.into_parts();
     assert_eq!(audio.polls, 0);
-    assert!(sink.events.is_empty());
+    assert_eq!(sink.events.len(), 0);
 }
 
 #[test]

@@ -20,7 +20,7 @@ from paths import LabPaths
 from ssh import GuestSsh, powershell_encoded
 from state import read_json, write_json
 from system import download_https, require_sha256, run, sha256_file, terminate_process, validate_resources
-from vm import RunningVm, VmManager
+from vm import RunningVm, VmManager, cpu_model
 
 UBUNTU_BASE = "https://cloud-images.ubuntu.com/noble/current"
 UBUNTU_IMAGE = "noble-server-cloudimg-amd64.img"
@@ -284,7 +284,7 @@ class Provisioner:
         stream = log.open("ab", buffering=0)
         command = [
             self.tool("qemu-system-x86_64"), "-name", f"sniptale-lab-{lane.name},process=sniptale-{lane.name}",
-            "-machine", "q35", "-accel", acceleration if acceleration == "kvm" else "tcg,thread=multi", "-cpu", "host" if acceleration == "kvm" else "max",
+            "-machine", "q35", "-accel", acceleration if acceleration == "kvm" else "tcg,thread=multi", "-cpu", cpu_model(lane, acceleration),
             "-smp", str(lane.vcpus), "-m", str(lane.memory_mib), "-no-reboot",
             "-drive", f"if=none,id=system,file={disk},format=qcow2,cache=none,discard=unmap",
             "-device", "virtio-blk-pci,drive=system,addr=0x2",
@@ -409,6 +409,8 @@ class Provisioner:
                 time.sleep(15)
             if not sentinel_seen and process.poll() is None:
                 raise TimeoutExpired("Windows provisioning timed out")
+            from windows_session import require_license
+            require_license(ssh, 14400)
             identity_output = ssh.command(powershell_encoded(
                 "$p=Get-ItemProperty 'HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion'; "
                 "$e=(Get-WindowsEdition -Online).Edition; "
@@ -482,6 +484,11 @@ class Provisioner:
         source = self.paths.root / "tooling/desktop/e2e_lab/guest/windows"
         shutil.copy2(source / "Autounattend.xml", seed / "Autounattend.xml")
         script = (source / "provision.ps1").read_text(encoding="utf-8").replace("{{SSH_PUBLIC_KEY}}", public_key)
+        versions = read_json(self.paths.root / "tooling/configs/qa/tool-versions.json")
+        for token, version in {"RUST_VERSION": versions["rust"]["channel"], "WIX_VERSION": versions["windows"]["wix"]}.items():
+            if not isinstance(version, str) or re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version) is None:
+                raise IntegrityError("invalid provisioned build tool version")
+            script = script.replace("{{" + token + "}}", version)
         (seed / "provision.ps1").write_text(script, encoding="utf-8-sig")
         run(
             [self.tool("genisoimage"), "-quiet", "-output", str(destination), "-volid", "SNIPTALE_E2E", "-joliet", "-rock", str(seed / "Autounattend.xml"), str(seed / "provision.ps1")],
@@ -493,7 +500,7 @@ class Provisioner:
         log = runtime / "qemu-provision.log"
         command = [
             self.tool("qemu-system-x86_64"), "-name", f"sniptale-lab-{lane.name},process=sniptale-{lane.name}",
-            "-machine", "q35", "-accel", acceleration if acceleration == "kvm" else "tcg,thread=multi", "-cpu", "host" if acceleration == "kvm" else "max",
+            "-machine", "q35", "-accel", acceleration if acceleration == "kvm" else "tcg,thread=multi", "-cpu", cpu_model(lane, acceleration),
             "-smp", str(lane.vcpus), "-m", str(lane.memory_mib), "-boot", "order=d,once=d",
             "-drive", f"if=none,id=system,file={disk},format=qcow2,cache=none,discard=unmap",
             "-device", "nvme,drive=system,serial=sniptalelab,addr=0x2",

@@ -182,7 +182,7 @@ fn settings_sync_rejects_unsupported_schema_version_without_commit() -> Result<(
     assert_eq!(responses[0]["error"]["code"], "incompatible-settings");
     assert!(settings_store.accepted().is_none());
     assert!(tray_registry.is_none());
-    assert!(effects.tray_registries.is_empty());
+    assert_eq!(effects.tray_registries.len(), 0);
     Ok(())
 }
 

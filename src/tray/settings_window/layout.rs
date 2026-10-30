@@ -255,7 +255,7 @@ mod tests {
     fn every_manual_section_has_nonempty_card_geometry() {
         for section in SettingsWindowSection::ALL {
             let cards = card_geometry(section);
-            assert!(!cards.is_empty());
+            assert_ne!(cards.len(), 0);
             assert!(cards.iter().all(|(_, height)| *height > 0));
         }
     }

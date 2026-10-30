@@ -16,7 +16,7 @@ fn tray_icon_adds_then_updates_only_when_state_changes() {
         }]
     );
 
-    assert!(plan_icon_update(Some(&state), &state, None).is_empty());
+    assert_eq!(plan_icon_update(Some(&state), &state, None).len(), 0);
 
     let mut changed = state.clone();
     changed.recording = TrayRecordingStatus::Recording;
@@ -73,7 +73,7 @@ fn tray_icon_notice_is_status_only_and_remove_is_idempotent() {
         ]
     );
     assert_eq!(plan_icon_remove(true), vec![TrayIconCommand::Remove]);
-    assert!(plan_icon_remove(false).is_empty());
+    assert_eq!(plan_icon_remove(false).len(), 0);
 }
 
 #[test]

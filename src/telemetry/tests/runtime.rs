@@ -128,8 +128,8 @@ fn runtime_telemetry_source_denies_events_by_default() -> Result<(), TelemetryCo
         .into_protocol();
 
     assert_eq!(snapshot.cursor_track, None);
-    assert!(snapshot.action_events.is_empty());
-    assert!(snapshot.signals.is_empty());
+    assert_eq!(snapshot.action_events.len(), 0);
+    assert_eq!(snapshot.signals.len(), 0);
     Ok(())
 }
 
@@ -186,8 +186,8 @@ fn runtime_telemetry_source_ignores_mid_session_policy_enable()
         .ok_or(TelemetryCollectorError::NotRecording)?
         .into_protocol();
 
-    assert!(snapshot.signals.is_empty());
-    assert!(snapshot.action_events.is_empty());
+    assert_eq!(snapshot.signals.len(), 0);
+    assert_eq!(snapshot.action_events.len(), 0);
     Ok(())
 }
 
@@ -255,7 +255,7 @@ fn runtime_telemetry_source_honors_telemetry_policy_flags() -> Result<(), Teleme
         .into_protocol();
 
     assert_eq!(snapshot.cursor_track, None);
-    assert!(snapshot.action_events.is_empty());
+    assert_eq!(snapshot.action_events.len(), 0);
     assert_eq!(snapshot.signals.len(), 1);
     assert_eq!(snapshot.signals[0]["kind"], "typing");
     Ok(())

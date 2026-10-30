@@ -91,7 +91,7 @@ fn oversized_hello_is_rejected_before_auth_state_mutates() -> Result<(), Box<dyn
             NativeMessagingError::MessageTooLarge { .. }
         ))
     ));
-    assert!(pipe.written.is_empty());
+    assert_eq!(pipe.written.len(), 0);
     Ok(())
 }
 

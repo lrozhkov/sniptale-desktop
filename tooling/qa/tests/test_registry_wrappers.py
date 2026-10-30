@@ -142,6 +142,9 @@ exit {checkpoint_exit}
             with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
                 shutil.copytree(ROOT / ".github", root / ".github")
+                config = root / "tooling/configs/qa"
+                config.mkdir(parents=True)
+                shutil.copyfile(ROOT / "tooling/configs/qa/toolchain-lock.json", config / "toolchain-lock.json")
                 workflow = root / ".github/workflows/alpha-publish.yml"
                 value = json.loads(workflow.read_text())
                 if mutation == "unknown":
@@ -170,6 +173,9 @@ exit {checkpoint_exit}
             with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
                 shutil.copytree(ROOT / ".github", root / ".github")
+                config = root / "tooling/configs/qa"
+                config.mkdir(parents=True)
+                shutil.copyfile(ROOT / "tooling/configs/qa/toolchain-lock.json", config / "toolchain-lock.json")
                 workflow = root / ".github/workflows/alpha.yml"
                 value = json.loads(workflow.read_text())
                 cache = next(step for step in value["jobs"]["package"]["steps"]
@@ -191,6 +197,9 @@ exit {checkpoint_exit}
             with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
                 shutil.copytree(ROOT / ".github", root / ".github")
+                config = root / "tooling/configs/qa"
+                config.mkdir(parents=True)
+                shutil.copyfile(ROOT / "tooling/configs/qa/toolchain-lock.json", config / "toolchain-lock.json")
                 script = root / "tooling/release/windows/alpha-package.ps1"
                 script.parent.mkdir(parents=True)
                 source = (ROOT / script.relative_to(root)).read_text()

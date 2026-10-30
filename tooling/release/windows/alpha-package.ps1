@@ -45,22 +45,15 @@ $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.e
 $vs = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
 if (-not $vs) { throw "install Visual Studio Build Tools with C++ and Windows SDK" }
 $devcmd = Join-Path $vs "Common7/Tools/VsDevCmd.bat"
-$environment = & cmd.exe /d /c "call `"$devcmd`" -arch=amd64 -host_arch=amd64 -winsdk=$($versions.windows.sdk) && set"
+$environment = & cmd.exe /d /c "call `"$devcmd`" -arch=amd64 -host_arch=amd64 && set"
 if ($LASTEXITCODE -ne 0) { throw "MSVC environment activation failed" }
 foreach ($line in $environment) {
   if ($line -match '^([^=]+)=(.*)$') { [Environment]::SetEnvironmentVariable($Matches[1], $Matches[2], "Process") }
 }
-$tools = Join-Path $root ".tmp/alpha-tools"
-$wix = Join-Path $tools "wix.exe"
-$env:DOTNET_ROLL_FORWARD = "Major"
-if (-not (Test-Path -LiteralPath $wix)) {
-  & dotnet tool install wix --version $versions.windows.wix --tool-path $tools
-  if ($LASTEXITCODE -ne 0) { throw "pinned WiX installation failed" }
-}
-$wixVersion = ((& $wix --version) -split '\+')[0].Trim()
-if ($wixVersion -ne $versions.windows.wix) { throw "WiX version mismatch" }
-& $wix extension add -g "WixToolset.UI.wixext/$wixVersion"
-if ($LASTEXITCODE -ne 0) { throw "WiX UI extension installation failed" }
+. (Join-Path $PSScriptRoot "toolchain.ps1")
+$windowsTools = Initialize-SniptaleWindowsTools $root (Join-Path $root ".tmp/alpha-tools")
+$wix = $windowsTools.Wix
+$wixVersion = $versions.windows.wix
 Remove-Item Env:SNIPTALE_DEV_LOCAL_BROWSER_TRUST -ErrorAction SilentlyContinue
 $env:SNIPTALE_INSTALL_CHANNEL = "dev"
 $env:SNIPTALE_RELEASE_FLAVOR = "alpha"
@@ -92,7 +85,7 @@ Copy-Item NOTICE (Join-Path $out "NOTICE.txt")
 Copy-Item THIRD_PARTY_NOTICES.md, THIRD_PARTY_DEPENDENCIES.json $out
 Copy-Item LICENSES (Join-Path $out "LICENSES") -Recurse
 $msi = Join-Path $out "SniptaleNativeAgent-dev-$version.msi"
-& $wix build installer/wix/SniptaleNativeAgent.wxs -ext "WixToolset.UI.wixext/$wixVersion" `
+& $wix build installer/wix/SniptaleNativeAgent.wxs -ext $windowsTools.WixExtension `
   -d "NativeAgentExe=$exe" -d "NativeHostManifest=$(Join-Path $out 'native-host.json')" `
   -d "ProjectLicense=$(Join-Path $out 'LICENSE.txt')" -d "ProjectNotice=$(Join-Path $out 'NOTICE.txt')" `
   -d "ThirdPartyNotices=$(Join-Path $out 'THIRD_PARTY_NOTICES.md')" `
@@ -105,6 +98,7 @@ Remove-Item (Join-Path $out "*.wixpdb") -ErrorAction SilentlyContinue
 if ($LASTEXITCODE -ne 0) { throw "MSI identity rejected" }
 $facts = [ordered]@{
   rustc = (& rustc --version); cargo = (& cargo --version); wix = $wixVersion
+  windows_sdk = $windowsTools.Sdk; windows_sdk_package = $windowsTools.SdkPackage
   rustflags = $env:RUSTFLAGS
   windowsSdk = $env:WindowsSDKVersion; msvc = $env:VCToolsVersion
   dotnet = (& dotnet --version); python = (& python --version)

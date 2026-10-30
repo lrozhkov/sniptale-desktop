@@ -27,7 +27,7 @@ fn collector_compacts_typed_characters_without_raw_text() -> Result<(), Telemetr
         .ok_or(TelemetryCollectorError::NotRecording)?
         .into_protocol();
 
-    assert!(snapshot.action_events.is_empty());
+    assert_eq!(snapshot.action_events.len(), 0);
     assert_eq!(snapshot.signals.len(), 1);
     assert_eq!(snapshot.signals[0]["kind"], "typing");
     assert_eq!(snapshot.signals[0]["startTime"], 1);

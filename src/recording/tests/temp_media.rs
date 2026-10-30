@@ -123,7 +123,7 @@ fn disk_temp_store_cleanup_removes_expired_record_and_media() -> Result<(), Temp
 
     let kept = store.cleanup_expired(3_000, 500, 60_000)?;
 
-    assert!(kept.is_empty());
+    assert_eq!(kept.len(), 0);
     assert!(!temp.path().join("recording-1.json").exists());
     assert!(!temp.path().join("recording-1.mp4").exists());
     Ok(())
@@ -365,7 +365,7 @@ fn recording_transfer_store_reconnect_cleanup_deletes_expired_media()
         },
     )?;
 
-    assert!(store.pending_recordings_for_reconnect_at(3_000)?.is_empty());
+    assert_eq!(store.pending_recordings_for_reconnect_at(3_000)?.len(), 0);
     assert!(!temp.path().join("recording-1.json").exists());
     assert!(!temp.path().join("recording-1.mp4").exists());
     Ok(())

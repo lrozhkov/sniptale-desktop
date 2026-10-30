@@ -90,11 +90,12 @@ fn manual_recording_reader_cannot_be_projected_into_extension_reconnect()
             .map_err(|error| std::io::Error::other(format!("{error:?}")))?
             .is_some()
     );
-    assert!(
+    assert_eq!(
         store
             .pending_recordings_for_reconnect_at(2_500)
             .map_err(|error| std::io::Error::other(format!("{error:?}")))?
-            .is_empty()
+            .len(),
+        0
     );
     Ok(())
 }

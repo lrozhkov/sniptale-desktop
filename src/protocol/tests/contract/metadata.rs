@@ -113,7 +113,7 @@ fn operation_error_catalog_matches_protocol_taxonomy() -> Result<(), Box<dyn Err
         let default_phase = entry["defaultPhase"]
             .as_str()
             .ok_or("operation defaultPhase must be a string")?;
-        assert!(!default_phase.is_empty());
+        assert_ne!(default_phase.len(), 0);
         assert!(!default_phase.contains('/'));
     }
     Ok(())

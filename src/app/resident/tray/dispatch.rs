@@ -290,7 +290,7 @@ mod tests {
         open_save_folder(&settings, &mut source);
 
         assert!(source.opened);
-        assert!(source.notices.is_empty());
+        assert_eq!(source.notices.len(), 0);
         Ok(())
     }
 }

@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
   "cargoSubcommands": {
-    "cargo-nextest": "0.9.138",
-    "cargo-llvm-cov": "0.8.7",
+    "cargo-nextest": "0.9.149",
+    "cargo-llvm-cov": "0.9.1",
     "cargo-audit": "0.22.2",
-    "cargo-deny": "0.19.9",
-    "cargo-about": "0.9.1"
+    "cargo-deny": "0.20.2",
+    "cargo-about": "0.9.2"
   },
   "externalTools": {
     "gitleaks": {
@@ -17,11 +17,36 @@
     }
   },
   "rust": {
-    "channel": "1.96.0",
-    "minimumObserved": "1.96.0"
+    "channel": "1.99.1"
   },
   "windows": {
-    "wix": "4.0.6",
-    "sdk": "10.0.26100.0"
+    "wix": "5.0.2",
+    "sdk": "10.0.28000.0",
+    "sdkPackage": "10.0.28000.2705"
+  },
+  "updatePolicy": {
+    "minimumReleaseAgeDays": 7
+  },
+  "python": {
+    "version": "3.15.2",
+    "windowsEmbeddableSha256": "d012f3aa29cf07436dae8aea1fec0fd195c2612a0b059b1f915ae0afb9ad1f62"
+  },
+  "githubActions": {
+    "actions/checkout": "v7.0.1",
+    "actions/cache": "v6.1.0",
+    "actions/setup-python": "v7.1.0",
+    "actions/upload-artifact": "v7.0.2",
+    "actions/download-artifact": "v8.0.2"
+  },
+  "securityExceptions": {
+    "python": {
+      "advisory": "https://www.cve.org/CVERecord?id=CVE-2026-115557",
+      "reason": "Python security release distrusts compromised eMudhra CA keys and fixes tarfile link replacement (CVE-2026-114583). Official confirmation: https://blog.python.org/2026/10/python-3152-31410-31318-31216-31118/",
+      "fixedVersion": "3.15.2"
+    }
+  },
+  "browserAutomation": {
+    "node": "24.22.1",
+    "playwrightCore": "1.64.1"
   }
 }

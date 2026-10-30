@@ -10,7 +10,7 @@ import socket
 import stat
 import subprocess
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from config import Lane, LabConfig
@@ -19,6 +19,15 @@ from paths import LabPaths
 from qmp import QmpReader
 from state import process_matches, read_json, write_json
 from system import run, sha256_file, terminate_process, wait_for_resources
+
+
+def cpu_model(lane: Lane, acceleration: str) -> str:
+    if acceleration != "kvm":
+        return "max"
+    if lane.os == "windows":
+        # Paravirtual clocks and timers avoid Windows falling back to expensive HPET/RTC.
+        return "host,hv-time=on,hv-vpindex=on,hv-synic=on,hv-stimer=on,hv-stimer-direct=on,hv-vapic=on"
+    return "host"
 
 
 @dataclass(frozen=True)
@@ -117,6 +126,8 @@ class VmManager:
         allow_guest_network: bool = False,
         windows_audio_capture: bool = False,
         host_reserve_mib: int = 2048,
+        memory_mib: int | None = None,
+        reuse_work_cache: bool = False,
     ) -> RunningVm:
         existing = self.current(lane_name)
         if existing:
@@ -130,6 +141,12 @@ class VmManager:
             raise LabError(f"unmanaged QEMU process exists for {lane_name}; run reset {lane_name}")
         self._assert_only_one(lane_name)
         lane = self.config.lanes[lane_name]
+        if memory_mib is not None:
+            if lane.os != "windows" or type(memory_mib) is not int or memory_mib not in (4096, 6144, 8192):
+                raise IntegrityError("invalid Windows development VM memory budget")
+            lane = replace(lane, memory_mib=memory_mib)
+        if reuse_work_cache and (lane.os != "windows" or memory_mib is None or allow_guest_network or not windows_audio_capture):
+            raise IntegrityError("work image cache requires an isolated development Windows VM")
         if host_reserve_mib < 1024 or host_reserve_mib > 4096:
             raise IntegrityError("VM host memory reserve must be 1024..4096 MiB")
         wait_for_resources(
@@ -220,7 +237,14 @@ class VmManager:
         runtime = self._fresh_runtime(lane_name)
         overlay = runtime / "overlay.qcow2"
         qmp = runtime / "qmp.sock"
-        run([qemu_img, "create", "-q", "-f", "qcow2", "-F", "qcow2", "-b", str(golden), str(overlay)], timeout=60)
+        restored = None
+        if reuse_work_cache:
+            from session_cache import restore
+            restored = restore(self.paths, qemu_img, golden, identity_value["disk_sha256"], overlay, lane.disk_gib)
+        if restored is None:
+            run([qemu_img, "create", "-q", "-f", "qcow2", "-F", "qcow2", "-b", str(golden), str(overlay)], timeout=60)
+        else:
+            write_json(runtime / "development-base.json", restored)
         command = self._command(
             lane, overlay, qmp, runtime,
             allow_guest_network=allow_guest_network,
@@ -280,7 +304,7 @@ class VmManager:
         acceleration = "kvm" if os.access("/dev/kvm", os.R_OK | os.W_OK) else "tcg"
         command = [
             self._qemu(), "-name", f"sniptale-lab-{lane.name},process=sniptale-{lane.name}",
-            "-machine", "q35", "-accel", acceleration if acceleration == "kvm" else "tcg,thread=multi", "-cpu", "host" if acceleration == "kvm" else "max",
+            "-machine", "q35", "-accel", acceleration if acceleration == "kvm" else "tcg,thread=multi", "-cpu", cpu_model(lane, acceleration),
             "-smp", str(lane.vcpus), "-m", str(lane.memory_mib), "-monitor", "none",
             "-drive", f"if=none,id=system,file={overlay},format=qcow2,cache=none,discard=unmap",
             "-device", "virtio-blk-pci,drive=system,addr=0x2",
@@ -349,7 +373,9 @@ class VmManager:
             "pcm.sniptale_e2e_speaker {\n"
             "  type file\n"
             "  slave.pcm null\n"
-            f"  file \"{runtime / 'system-audio-output-s16le.raw'}\"\n"
+            # Guest MP4 decoding proves loopback audio. An unused host PCM dump grows for the
+            # entire VM lifetime and makes a warm development session unbounded.
+            "  file \"/dev/null\"\n"
             "  format raw\n"
             "}\n",
             encoding="utf-8",

@@ -28,6 +28,7 @@ from runner import LaneRunner
 from state import LabLock, read_json
 from system import sha256_file
 from vm import VmManager
+from work_sessions import WorkSessions, load_session, state_path as session_state_path
 
 RUN_ID = re.compile(r"^\d{8}T\d{6}Z(?:-\d{3})?$")
 
@@ -39,6 +40,23 @@ def _interrupt(_signum: int, _frame: object) -> None:
 def parser() -> argparse.ArgumentParser:
     root = argparse.ArgumentParser(prog="tooling/desktop/e2e-lab")
     sub = root.add_subparsers(dest="command", required=True)
+    session_parser = sub.add_parser("session")
+    session_sub = session_parser.add_subparsers(dest="session_command", required=True)
+    session_open = session_sub.add_parser("open")
+    session_open.add_argument("--ttl-seconds", type=int, default=7200)
+    session_sub.add_parser("status")
+    session_close = session_sub.add_parser("close")
+    session_close.add_argument("--save", action="store_true")
+    session_sub.add_parser("recover")
+    session_collect = session_sub.add_parser("collect")
+    session_collect.add_argument("session_id")
+    session_collect.add_argument("iteration")
+    session_build = session_sub.add_parser("build")
+    session_build.add_argument("--profile", choices=("dev", "release"), default="dev")
+    session_test = session_sub.add_parser("test")
+    session_test.add_argument("--cases", default="")
+    session_test.add_argument("--extension-artifact", type=Path)
+    session_test.add_argument("--extension-source", type=Path)
     doctor_parser = sub.add_parser("doctor")
     doctor_parser.add_argument("--json", action="store_true")
     sub.add_parser("bootstrap")
@@ -509,9 +527,12 @@ def gc(paths: LabPaths, config: LabConfig) -> dict[str, int]:
             shutil.rmtree(paths.scoped(path))
             build_caches_removed += 1
     storage = compact_existing_goldens(paths, config, VmManager(paths, config))
+    from work_sessions import gc_sessions
+    sessions_removed = gc_sessions(paths, config)
     source_images = cleanup_source_images(paths)
     return {
         "runs_removed": removed,
+        "sessions_removed": sessions_removed,
         "incomplete_runs_removed": incomplete,
         "redundant_build_runs_removed": redundant_builds,
         "partials_removed": partials,
@@ -546,6 +567,31 @@ def main(argv: list[str] | None = None) -> int:
         paths.ensure()
         with LabLock(paths.locks / "controller.lock", args.command):
             manager = VmManager(paths, config)
+            if args.command == "session":
+                sessions = WorkSessions(paths, config)
+                if args.session_command == "open":
+                    print_json(sessions.open(args.ttl_seconds))
+                elif args.session_command == "status":
+                    print_json(load_session(paths))
+                elif args.session_command == "close":
+                    print_json(sessions.close(save=args.save))
+                elif args.session_command == "recover":
+                    print_json(sessions.recover())
+                elif args.session_command == "collect":
+                    from session_evidence import collect as collect_session
+                    print_json(collect_session(paths, args.session_id, args.iteration))
+                else:
+                    print_json(sessions.iterate(args.session_command, getattr(args, "profile", "dev"),
+                                                parse_case_selection(getattr(args, "cases", "")),
+                                                getattr(args, "extension_artifact", None), getattr(args, "extension_source", None)))
+                return 0
+            resets_windows = (args.command == "reset" and args.lane == "windows-11") or (args.command == "stop" and (args.all or args.lane == "windows-11"))
+            if resets_windows:
+                # Explicit recovery remains available even when the lease is corrupted.
+                manager.reset("windows-11")
+                session_state_path(paths).unlink(missing_ok=True)
+            elif load_session(paths) is not None:
+                raise UsageError("close the development session before clean lab operations")
             if args.command == "bootstrap":
                 print_json(bootstrap(paths))
             elif args.command == "provision":

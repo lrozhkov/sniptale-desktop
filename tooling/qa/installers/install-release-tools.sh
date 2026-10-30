@@ -4,6 +4,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 source "$ROOT/tooling/qa/runtime/lib.sh"
 ensure_rust_env
 cd "$ROOT"
+python3 tooling/qa/runtime/toolchain.py --check
 while read -r name version; do
   if ! command -v "$name" >/dev/null 2>&1 || [[ "$(cargo "${name#cargo-}" --version)" != *" $version"* ]]; then
     features=()

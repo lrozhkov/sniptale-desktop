@@ -76,7 +76,9 @@ fn pcm_bytes(samples: &[i16]) -> Vec<u8> {
 
 fn decode_i16(bytes: &[u8]) -> Vec<i16> {
     bytes
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|bytes| i16::from_le_bytes([bytes[0], bytes[1]]))
         .collect()
 }

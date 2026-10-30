@@ -65,10 +65,10 @@ fn native_host_capability_mapper_reports_available_runtime_facts() {
     assert_eq!(capabilities.codecs.containers, vec![ContainerCodec::Mp4]);
     assert_eq!(capabilities.codecs.video, vec![VideoCodec::H264]);
     assert!(capabilities.codecs.hardware_encoder_available);
-    assert!(capabilities.codecs.unavailable_reasons.is_empty());
+    assert_eq!(capabilities.codecs.unavailable_reasons.len(), 0);
     assert!(capabilities.audio.supports_mixed_audio);
     assert_eq!(capabilities.audio.microphone_devices[0].id, "mic-default");
-    assert!(capabilities.audio.unavailable_reasons.is_empty());
+    assert_eq!(capabilities.audio.unavailable_reasons.len(), 0);
 }
 
 #[test]
@@ -99,12 +99,12 @@ fn native_host_capability_mapper_keeps_codecs_separate_from_recording_runtime() 
             ScreenshotMode::AllScreens
         ]
     );
-    assert!(capabilities.capture.video_modes.is_empty());
+    assert_eq!(capabilities.capture.video_modes.len(), 0);
     assert!(!capabilities.capture.supports_freeze_region_selection);
     assert_eq!(capabilities.codecs.containers, vec![ContainerCodec::Mp4]);
     assert_eq!(capabilities.codecs.video, vec![VideoCodec::H264]);
     assert!(!capabilities.codecs.hardware_encoder_available);
-    assert!(capabilities.codecs.unavailable_reasons.is_empty());
+    assert_eq!(capabilities.codecs.unavailable_reasons.len(), 0);
 }
 
 #[test]
@@ -162,8 +162,8 @@ fn native_host_capability_mapper_requires_capture_for_video_modes() {
         },
     });
 
-    assert!(capabilities.capture.screenshot_modes.is_empty());
-    assert!(capabilities.capture.video_modes.is_empty());
+    assert_eq!(capabilities.capture.screenshot_modes.len(), 0);
+    assert_eq!(capabilities.capture.video_modes.len(), 0);
     assert_eq!(capabilities.codecs.containers, vec![ContainerCodec::Mp4]);
     assert_eq!(capabilities.codecs.video, vec![VideoCodec::H264]);
 }
@@ -213,8 +213,8 @@ fn native_host_capability_mapper_requires_h264_encoder_for_video_codecs() {
         },
     });
 
-    assert!(capabilities.codecs.containers.is_empty());
-    assert!(capabilities.codecs.video.is_empty());
+    assert_eq!(capabilities.codecs.containers.len(), 0);
+    assert_eq!(capabilities.codecs.video.len(), 0);
     assert_eq!(
         capabilities.codecs.unavailable_reasons,
         vec![crate::protocol::NativeCapabilityUnavailableReason::EncoderMissing]
@@ -240,8 +240,8 @@ fn native_host_accepts_allowed_origin_and_parent_window_zero() {
     );
 
     assert!(result.is_ok());
-    assert!(stdout.is_empty());
-    assert!(stderr.is_empty());
+    assert_eq!(stdout.len(), 0);
+    assert_eq!(stderr.len(), 0);
 }
 
 #[test]
@@ -262,8 +262,8 @@ fn native_host_accepts_browser_manifest_origin_without_mode_flag() {
     );
 
     assert!(result.is_ok());
-    assert!(stdout.is_empty());
-    assert!(stderr.is_empty());
+    assert_eq!(stdout.len(), 0);
+    assert_eq!(stderr.len(), 0);
 }
 
 #[test]
@@ -298,7 +298,7 @@ fn native_host_rejects_missing_or_unknown_origin_before_stdio_bridge() {
         );
 
         assert!(result.is_err());
-        assert!(stdout.is_empty());
+        assert_eq!(stdout.len(), 0);
         assert_eq!(stderr, b"unsupported argument\n");
     }
 }
@@ -318,7 +318,7 @@ fn version_json_reports_contract_versions() -> Result<(), Box<dyn Error>> {
     );
     let value: Value = serde_json::from_slice(&stdout)?;
 
-    assert!(stderr.is_empty());
+    assert_eq!(stderr.len(), 0);
     assert_eq!(value["appVersion"], env!("CARGO_PKG_VERSION"));
     assert_eq!(value["protocolVersion"], 1);
     assert_eq!(value["settingsSchemaVersion"], 1);
@@ -345,7 +345,7 @@ fn unknown_argument_fails_without_echoing_input() {
     );
 
     assert!(result.is_err());
-    assert!(stdout.is_empty());
+    assert_eq!(stdout.len(), 0);
     assert!(!String::from_utf8_lossy(&stdout).contains("logger.init.status"));
     assert_eq!(stderr, b"unsupported argument\n");
 }
@@ -372,7 +372,7 @@ fn support_mode_accepts_logging_options_without_echoing_paths() -> Result<(), Bo
     );
     let value: Value = serde_json::from_slice(&stdout)?;
 
-    assert!(stderr.is_empty());
+    assert_eq!(stderr.len(), 0);
     assert_eq!(value["processMode"], "doctor-json");
     let output = String::from_utf8(stdout)?;
     assert!(!output.contains("Alice"));
@@ -398,7 +398,7 @@ fn native_host_rejects_support_logging_options() {
     );
 
     assert!(result.is_err());
-    assert!(stdout.is_empty());
+    assert_eq!(stdout.len(), 0);
     assert_eq!(stderr, b"unsupported argument\n");
 }
 
@@ -420,7 +420,7 @@ fn support_modes_emit_json_without_raw_paths() -> Result<(), Box<dyn Error>> {
         );
         let value: Value = serde_json::from_slice(&stdout)?;
 
-        assert!(stderr.is_empty());
+        assert_eq!(stderr.len(), 0);
         assert_eq!(value["processMode"], process_mode);
         assert!(!String::from_utf8_lossy(&stdout).contains(":\\Users\\"));
         if flag == "--repair-registration" {
@@ -488,7 +488,7 @@ fn doctor_json_reports_redacted_runtime_checks() -> Result<(), Box<dyn Error>> {
     );
     let value: Value = serde_json::from_slice(&stdout)?;
 
-    assert!(stderr.is_empty());
+    assert_eq!(stderr.len(), 0);
     assert_eq!(value["processMode"], "doctor-json");
     assert_eq!(value["status"], "fail");
     assert_eq!(value["repairRequired"], true);

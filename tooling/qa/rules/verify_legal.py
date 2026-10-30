@@ -64,6 +64,12 @@ def readable_license_path_errors(manifest: dict) -> list[str]:
                 errors.append(f"dependency package has an invalid selected license: {name} {version}")
                 continue
             suffix = "" if len(selected) == 1 else f"-{safe_component(license_record['spdxId'])}"
+            if sum(isinstance(item, dict) and item.get("spdxId") == license_record["spdxId"] for item in selected) > 1:
+                sha = license_record.get("sha256")
+                if not isinstance(sha, str) or re.fullmatch(r"[0-9a-f]{64}", sha) is None:
+                    errors.append("duplicate SPDX texts require exact content hashes")
+                    continue
+                suffix += "-" + sha[:12]
             expected = f"{base}{suffix}.txt"
             actual = license_record.get("file")
             if actual != expected:
@@ -107,9 +113,8 @@ def validate_static() -> list[str]:
         errors.append("cargo-deny license audit must include build and dev dependencies")
     if license_policy.get("private", {}).get("ignore") is not False:
         errors.append("cargo-deny must audit the private first-party crate")
-    expected_about = policy["dependencyLicenses"]["cargoAboutVersion"]
-    if tools.get("cargoSubcommands", {}).get("cargo-about") != expected_about:
-        errors.append("cargo-about version differs between tool and open-source policy")
+    if "cargoAboutVersion" in policy["dependencyLicenses"]:
+        errors.append("cargo-about version must be owned only by tool-versions.json")
 
     for relative, expected in policy.get("trackedDigests", {}).items():
         path = ROOT / relative
@@ -122,6 +127,8 @@ def validate_static() -> list[str]:
     errors.extend(contribution_policy_errors(policy, contributing))
 
     manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+    if manifest.get("generator") != {"name": "cargo-about", "version": tools["cargoSubcommands"]["cargo-about"]}:
+        errors.append("dependency legal generator differs from canonical tool version")
     if manifest.get("formatVersion") != 1:
         errors.append("dependency legal manifest formatVersion must be 1")
     inputs = manifest.get("inputDigests", {})

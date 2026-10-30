@@ -275,7 +275,7 @@ fn tray_worker_dispatches_menu_commands_to_outbound_events() -> Result<(), Strin
         source.settings_views,
         vec![crate::tray::settings_window::model::SettingsWindowView::ExtensionManagedReadOnly]
     );
-    assert!(source.notices.is_empty());
+    assert_eq!(source.notices.len(), 0);
 
     let open_extension_settings = command_id_for(&worker, "open-extension-settings")?;
     worker.handle_command(
@@ -364,8 +364,8 @@ fn manual_mode_picker_cancel_leaves_authority_and_window_untouched() -> Result<(
         &mut source,
     );
 
-    assert!(source.settings_views.is_empty());
-    assert!(source.notices.is_empty());
+    assert_eq!(source.settings_views.len(), 0);
+    assert_eq!(source.notices.len(), 0);
     assert_eq!(
         worker
             .active_settings
@@ -398,7 +398,7 @@ fn manual_mode_picker_error_rejects_without_changing_authority() -> Result<(), S
         &mut source,
     );
 
-    assert!(source.settings_views.is_empty());
+    assert_eq!(source.settings_views.len(), 0);
     assert_eq!(source.notices, vec![TrayNoticeKind::ActionRejected]);
     assert_eq!(
         worker
@@ -434,7 +434,7 @@ fn tray_worker_open_settings_notifies_when_extension_session_is_absent() -> Resu
         &mut source,
     );
 
-    assert!(source.notices.is_empty());
+    assert_eq!(source.notices.len(), 0);
     assert_eq!(
         source.settings_views,
         vec![crate::tray::settings_window::model::SettingsWindowView::ExtensionManagedReadOnly]

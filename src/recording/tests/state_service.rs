@@ -176,7 +176,7 @@ fn recording_lifecycle_starts_manual_route_without_a_fabricated_delivery_session
             .next()
             .is_some()
     );
-    assert!(telemetry.events().is_empty());
+    assert_eq!(telemetry.events().len(), 0);
     Ok(())
 }
 
@@ -324,16 +324,8 @@ fn recording_progress_ticks_are_rate_limited_and_state_changes_emit()
         RecordingStartPolicy::default(),
     )?;
 
-    assert!(
-        service
-            .progress_tick("lease:connection-1", 4_100)?
-            .is_empty()
-    );
-    assert!(
-        service
-            .progress_tick("lease:connection-1", 4_499)?
-            .is_empty()
-    );
+    assert_eq!(service.progress_tick("lease:connection-1", 4_100)?.len(), 0);
+    assert_eq!(service.progress_tick("lease:connection-1", 4_499)?.len(), 0);
     let tick = service.progress_tick("lease:connection-1", 4_500)?;
     let Some(RecordingCommandEvent::Progress(progress)) = tick.first() else {
         return Err(RecordingRuntimeError::InvalidState);
@@ -341,11 +333,7 @@ fn recording_progress_ticks_are_rate_limited_and_state_changes_emit()
     assert_eq!(progress.duration_ms, 500);
     assert_eq!(progress.status, RecordingProgressStatus::Recording);
 
-    assert!(
-        service
-            .progress_tick("lease:connection-1", 4_800)?
-            .is_empty()
-    );
+    assert_eq!(service.progress_tick("lease:connection-1", 4_800)?.len(), 0);
     let pause = service.control_recording(&recording_control_command(
         crate::protocol::RecordingControl::Pause,
         COMMAND_1_RECORDING_ID,
@@ -356,11 +344,7 @@ fn recording_progress_ticks_are_rate_limited_and_state_changes_emit()
     };
     assert_eq!(progress.duration_ms, 850);
     assert_eq!(progress.status, RecordingProgressStatus::Paused);
-    assert!(
-        service
-            .progress_tick("lease:connection-1", 4_900)?
-            .is_empty()
-    );
+    assert_eq!(service.progress_tick("lease:connection-1", 4_900)?.len(), 0);
 
     let resume = service.control_recording(&recording_control_command(
         crate::protocol::RecordingControl::Resume,
@@ -372,11 +356,7 @@ fn recording_progress_ticks_are_rate_limited_and_state_changes_emit()
     };
     assert_eq!(progress.duration_ms, 850);
     assert_eq!(progress.status, RecordingProgressStatus::Recording);
-    assert!(
-        service
-            .progress_tick("lease:connection-1", 5_200)?
-            .is_empty()
-    );
+    assert_eq!(service.progress_tick("lease:connection-1", 5_200)?.len(), 0);
     let tick = service.progress_tick("lease:connection-1", 5_450)?;
     let Some(RecordingCommandEvent::Progress(progress)) = tick.first() else {
         return Err(RecordingRuntimeError::InvalidState);
@@ -432,11 +412,7 @@ fn recording_progress_tick_finalizes_at_start_policy_duration_cap()
             TelemetryLifecycleEvent::Snapshot(COMMAND_1_RECORDING_ID.to_owned(), 2_000),
         ]
     );
-    assert!(
-        service
-            .progress_tick("lease:connection-1", 6_500)?
-            .is_empty()
-    );
+    assert_eq!(service.progress_tick("lease:connection-1", 6_500)?.len(), 0);
     Ok(())
 }
 
