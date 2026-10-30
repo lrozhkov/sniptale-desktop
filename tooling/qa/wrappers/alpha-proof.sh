@@ -2,7 +2,7 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 source "$ROOT/tooling/qa/runtime/lib.sh"
-ensure_rust_env
+ensure_rust_env release
 cd "$ROOT"
 qa_init "qa:alpha-proof" blocking
 qa_step "release harness" tooling/qa/wrappers/release-harness.sh

@@ -364,6 +364,8 @@ def validate_hosted_qa_policy(errors: list[str]) -> None:
         "rustup toolchain install 1.96.0 --profile minimal --component rustfmt,clippy,llvm-tools-preview --target x86_64-pc-windows-msvc",
         "tooling/qa/installers/install-release-tools.sh",
         "tooling/qa/wrappers/alpha-proof.sh",
+        "python3 -m tooling.qa.runtime.compilation_cache",
+        'test -n "$ImageVersion" && echo "version=$ImageVersion" >> "$GITHUB_OUTPUT"',
         "& tooling/release/windows/alpha-package.ps1 -QaProof .tmp/release/alpha-proof -Tag $env:ALPHA_TAG",
         'if (-not $env:ImageVersion) { throw "runner image identity missing" }; "version=$env:ImageVersion" >> $env:GITHUB_OUTPUT',
         "python3 tooling/release/windows/alpha_publish.py",
@@ -396,6 +398,10 @@ def validate_hosted_qa_policy(errors: list[str]) -> None:
                         errors.append("publication must not rebuild")
                     action = step.get("uses", "")
                     options = step.get("with", {})
+                    if name == "checks.yml" and step.get("name") == "Cache compiled Linux dependencies":
+                        expected_key = "linux-ubuntu24-cargo-v1-${{ runner.arch }}-${{ steps.build-image.outputs.version }}-${{ hashFiles('Cargo.lock', 'Cargo.toml', 'build.rs', 'rust-toolchain.toml', '.cargo/**', 'resources/**', 'tooling/configs/qa/tool-versions.json', 'tooling/qa/runtime/compilation_cache.py', 'tooling/qa/runtime/lib.sh', 'tooling/qa/wrappers/coverage.sh', '.github/workflows/checks.yml') }}"
+                        if action != "actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830" or options != {"path": "target", "key": expected_key}:
+                            errors.append("Linux compilation cache scope or identity drift")
                     if name == "alpha.yml" and action.startswith("actions/cache"):
                         expected_key = "windows-msvc-static-v1-${{ steps.build-image.outputs.version }}-${{ hashFiles('Cargo.lock', 'Cargo.toml', 'build.rs', 'rust-toolchain.toml', '.cargo/**', 'resources/**', 'tooling/configs/qa/tool-versions.json', 'tooling/release/windows/alpha-package.ps1') }}"
                         if name != "alpha.yml" or job_name != "package" or options != {"path": "target", "key": expected_key}:
@@ -413,6 +419,19 @@ def validate_hosted_qa_policy(errors: list[str]) -> None:
                         errors.append("QA handoff path or identity drift")
             if name == "alpha.yml" and workflow["jobs"]["package"].get("needs") != "qa":
                 errors.append("alpha package must require canonical QA")
+            if name == "checks.yml":
+                steps = workflow["jobs"]["qa"]["steps"]
+                cache = [i for i, step in enumerate(steps) if step.get("name") == "Cache compiled Linux dependencies"]
+                images = [i for i, step in enumerate(steps) if step.get("id") == "build-image"
+                          and step.get("run") == 'test -n "$ImageVersion" && echo "version=$ImageVersion" >> "$GITHUB_OUTPUT"']
+                invalidate = [i for i, step in enumerate(steps) if step.get("run") == "python3 -m tooling.qa.runtime.compilation_cache"]
+                proof = [i for i, step in enumerate(steps) if step.get("run") == "tooling/qa/wrappers/alpha-proof.sh"]
+                if len(images) != 1 or len(cache) != 1 or images[0] >= cache[0]:
+                    errors.append("Linux compilation cache requires an exact runner image identity")
+                if len(cache) != 1 or len(invalidate) != 2 or len(proof) != 1 or not cache[0] < invalidate[0] < proof[0] < invalidate[1]:
+                    errors.append("Linux compilation cache requires application invalidation before full QA")
+                if any("if" in steps[i] or steps[i].get("continue-on-error", False) for i in invalidate + proof):
+                    errors.append("Linux cache invalidation and full QA must be unconditional and blocking")
     except (ValueError, KeyError, TypeError) as exc:
         errors.append("malformed hosted workflow policy: " + type(exc).__name__)
     package_script = ROOT / "tooling/release/windows/alpha-package.ps1"

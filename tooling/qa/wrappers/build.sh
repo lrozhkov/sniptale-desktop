@@ -4,10 +4,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 # shellcheck disable=SC1091
 source "$ROOT/tooling/qa/runtime/lib.sh"
-ensure_rust_env
 cd "$ROOT"
 
-require_command cargo
 qa_init "qa:build" blocking
 
 profile="dev"
@@ -43,6 +41,8 @@ case "$profile" in
     ;;
 esac
 
+ensure_rust_env "$profile"
+require_command cargo
 qa_require_harness
 qa_assert_state checkpoint
 

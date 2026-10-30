@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import ast
 import sys
 from pathlib import Path
 
@@ -390,8 +391,16 @@ def check_release_wrapper_contract() -> None:
             "coverage wrapper is missing required gate/artifact terms: "
             + ", ".join(missing_coverage_terms)
         )
-    if "tooling/release/windows/verify_release_artifacts.py" not in checkpoint:
-        fail("checkpoint wrapper must call release artifact guardrails")
+    if 'qa_step "checkpoint static proof" python3 -m tooling.qa.runtime.checkpoint_checks' not in checkpoint:
+        fail("checkpoint wrapper must call the independent proof catalog")
+    try:
+        catalog = ast.parse((ROOT / "tooling/qa/runtime/checkpoint_checks.py").read_text())
+        checks = next(ast.literal_eval(node.value) for node in catalog.body
+                      if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == "CHECKS" for target in node.targets))
+    except (OSError, ValueError, SyntaxError, StopIteration):
+        fail("checkpoint proof catalog must be a literal command list")
+    if ("release artifact guardrails", ["python3", "tooling/release/windows/verify_release_artifacts.py"]) not in checks:
+        fail("checkpoint catalog must call release artifact guardrails")
     if "cargo check --release --target x86_64-pc-windows-msvc --bin sniptale-native-agent" not in checkpoint:
         fail("checkpoint wrapper must check the Windows MSVC release executable target")
     if "tooling/qa/wrappers/checkpoint.sh" not in pre_commit:

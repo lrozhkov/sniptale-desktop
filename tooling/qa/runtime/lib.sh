@@ -179,10 +179,13 @@ ensure_rust_env() {
     # shellcheck disable=SC1091
     source "$HOME/.cargo/env"
   fi
-  # QA exercises several profile/target combinations. Their incremental caches are large and are
-  # not reused by the other combinations, so keep incremental compilation for ad hoc developer
-  # commands but disable it inside repo-owned QA wrappers by default.
-  export CARGO_INCREMENTAL="${CARGO_INCREMENTAL:-0}"
+  # Local edit loops reuse each profile's own incremental cache. Release proof and CI keep the
+  # prior non-incremental default; explicit caller configuration still takes precedence.
+  local incremental_default=1
+  if [[ "${1:-dev}" == release || "${CI:-}" == true || "${CI:-}" == 1 || "${GITHUB_ACTIONS:-}" == true ]]; then
+    incremental_default=0
+  fi
+  export CARGO_INCREMENTAL="${CARGO_INCREMENTAL:-$incremental_default}"
 }
 
 fingerprint_worktree() {

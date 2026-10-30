@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 # shellcheck disable=SC1091
 source "$ROOT/tooling/qa/runtime/lib.sh"
-ensure_rust_env
+ensure_rust_env release
 cd "$ROOT"
 qa_init "qa:release" blocking
 
