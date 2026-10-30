@@ -35,10 +35,11 @@ public static class AlphaUi {
   [DllImport("user32.dll")] public static extern bool EnumWindows(EnumCallback c,IntPtr p);
   [DllImport("user32.dll",CharSet=CharSet.Unicode)] public static extern int GetClassName(IntPtr w,StringBuilder s,int c);
   [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr w,out Rect r);
+  [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr w);
   public static IntPtr RightmostMenu() {
     IntPtr found=IntPtr.Zero; int x=-100000;
     EnumWindows((w,p)=>{var s=new StringBuilder(128);GetClassName(w,s,128);Rect r;
-      if(s.ToString()=="#32768" && GetWindowRect(w,out r) && r.Left>x){x=r.Left;found=w;}return true;},IntPtr.Zero);
+      if(s.ToString()=="#32768" && IsWindowVisible(w) && GetWindowRect(w,out r) && r.Left>x){x=r.Left;found=w;}return true;},IntPtr.Zero);
     return found;
   }
 }
@@ -71,36 +72,47 @@ function Screenshot([string] $Name) {
   try { $graphics.CopyFromScreen($bounds.Left,$bounds.Top,0,0,$bounds.Size); $bitmap.Save("$outputPath/screenshots/$Name.png") }
   finally { $graphics.Dispose(); $bitmap.Dispose() }
 }
-function Tray([string[]] $Labels, [switch] $ProbeOnly) {
+function Read-TrayMenuItems {
+  $popup = [AlphaUi]::RightmostMenu()
+  if ($popup -eq [IntPtr]::Zero) { return }
+  $menu = [AlphaUi]::SendMessage($popup,0x01e1,[IntPtr]::Zero,[IntPtr]::Zero)
+  for ($i=0; $i -lt [AlphaUi]::GetMenuItemCount($menu); $i++) {
+    $text = [Text.StringBuilder]::new(512)
+    [void][AlphaUi]::GetMenuString($menu,$i,$text,512,0x400)
+    @{ Label=($text.ToString().Replace('&','') -split "`t")[0]; Menu=$menu; Index=$i }
+  }
+}
+function Wait-TrayMenuItem([string] $Label, [scriptblock] $Read = { Read-TrayMenuItems }, [int] $Seconds = 30) {
+  Wait-For {
+    $entries = @(& $Read | Where-Object { $_.Label -eq $Label })
+    if ($entries.Count -gt 1) { throw "ambiguous tray menu item" }
+    if ($entries.Count -eq 1) { $entries[0] }
+  } $Seconds
+}
+function Close-TrayMenus {
   [Windows.Forms.SendKeys]::SendWait("{ESC}{ESC}")
+  Wait-For { [AlphaUi]::RightmostMenu() -eq [IntPtr]::Zero } | Out-Null
+}
+function Tray([string[]] $Labels, [switch] $ProbeOnly) {
+  Close-TrayMenus
   $window = Wait-For { [AlphaUi]::FindWindow("SniptaleTrayCommandSource",$null) -ne [IntPtr]::Zero }
   $window = [AlphaUi]::FindWindow("SniptaleTrayCommandSource",$null)
   [AlphaUi]::SetCursorPos(600,350) | Out-Null
   [AlphaUi]::PostMessage($window,0x8001,[UIntPtr]::Zero,[IntPtr]((1 -shl 16) -bor 0x007b)) | Out-Null
   foreach ($label in $Labels) {
-    Start-Sleep -Milliseconds 800
-    $popup = [AlphaUi]::RightmostMenu()
-    if ($popup -eq [IntPtr]::Zero) { throw "tray menu unavailable" }
-    $menu = [AlphaUi]::SendMessage($popup,0x01e1,[IntPtr]::Zero,[IntPtr]::Zero)
-    $found = $false
-    for ($i=0; $i -lt [AlphaUi]::GetMenuItemCount($menu); $i++) {
-      $text = [Text.StringBuilder]::new(512)
-      [void][AlphaUi]::GetMenuString($menu,$i,$text,512,0x400)
-      if (($text.ToString().Replace('&','') -split "`t")[0] -eq $label) {
-        $rect = [AlphaUi+Rect]::new()
-        if (-not [AlphaUi]::GetMenuItemRect([IntPtr]::Zero,$menu,$i,[ref]$rect)) { throw "menu geometry unavailable" }
-        [AlphaUi]::SetCursorPos([int](($rect.Left+$rect.Right)/2),[int](($rect.Top+$rect.Bottom)/2)) | Out-Null
-        Start-Sleep -Milliseconds 700
-        if ($label -eq $Labels[-1]) {
-          $disabled = ([AlphaUi]::GetMenuState($menu,$i,0x400) -band 3) -ne 0
-          if ($ProbeOnly) { [Windows.Forms.SendKeys]::SendWait("{ESC}{ESC}"); return (-not $disabled) }
-          if ($disabled) { Screenshot "disabled-menu"; throw "menu action disabled" }
-        }
-        if ($label -eq $Labels[-1]) { [AlphaUi]::mouse_event(2,0,0,0,[UIntPtr]::Zero); [AlphaUi]::mouse_event(4,0,0,0,[UIntPtr]::Zero) }
-        $found=$true; break
-      }
+    try { $entry = Wait-TrayMenuItem $label }
+    catch { Screenshot "missing-menu"; throw }
+    $rect = [AlphaUi+Rect]::new()
+    if (-not [AlphaUi]::GetMenuItemRect([IntPtr]::Zero,$entry.Menu,$entry.Index,[ref]$rect)) { throw "menu geometry unavailable" }
+    [AlphaUi]::SetCursorPos([int](($rect.Left+$rect.Right)/2),[int](($rect.Top+$rect.Bottom)/2)) | Out-Null
+    if ($label -eq $Labels[-1]) {
+      $disabled = ([AlphaUi]::GetMenuState($entry.Menu,$entry.Index,0x400) -band 3) -ne 0
+      if ($ProbeOnly) { Close-TrayMenus; return (-not $disabled) }
+      if ($disabled) { Screenshot "disabled-menu"; throw "menu action disabled" }
+      [AlphaUi]::mouse_event(2,0,0,0,[UIntPtr]::Zero)
+      [AlphaUi]::mouse_event(4,0,0,0,[UIntPtr]::Zero)
+      Wait-For { [AlphaUi]::RightmostMenu() -eq [IntPtr]::Zero } | Out-Null
     }
-    if (-not $found) { Screenshot "missing-menu"; throw "menu action unavailable" }
   }
 }
 function Window([string] $Name) {
@@ -169,6 +181,24 @@ function Test-RecordedAvTimelinePolicy {
   }
 }
 
+function Test-TrayMenuPolicy {
+  $attempt = [ref]0
+  $read = {
+    $attempt.Value++
+    if ($attempt.Value -eq 2) { @{Label="Video";Menu=1;Index=0} }
+    if ($attempt.Value -ge 3) { @{Label="Pause";Menu=2;Index=4} }
+  }.GetNewClosure()
+  $entry = Wait-TrayMenuItem "Pause" $read 3
+  if ($attempt.Value -ne 3 -or $entry.Menu -ne 2 -or $entry.Index -ne 4) { throw "delayed tray menu proof failed" }
+  $rejected = $false
+  try { Wait-TrayMenuItem "Stop" { } 0 | Out-Null } catch { $rejected = $_.Exception.Message -eq "release condition timed out" }
+  if (-not $rejected) { throw "missing tray menu rejection proof failed" }
+  $rejected = $false
+  try { Wait-TrayMenuItem "Stop" { @{Label="Stop"}; @{Label="Stop"} } 0 | Out-Null } catch { $rejected = $_.Exception.Message -eq "ambiguous tray menu item" }
+  if (-not $rejected) { throw "ambiguous tray menu rejection proof failed" }
+}
+
+Test-TrayMenuPolicy
 Test-RecordedAvTimelinePolicy
 
 Add-Test "network-isolation" {
