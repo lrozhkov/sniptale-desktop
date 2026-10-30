@@ -18,13 +18,13 @@ use windows::{
         Graphics::Gdi::HBRUSH,
         System::LibraryLoader::GetModuleHandleW,
         UI::WindowsAndMessaging::{
-            CreateWindowExW, DefWindowProcW, DestroyWindow, IDC_ARROW, IsDialogMessageW,
-            LoadCursorW, MSG, RegisterClassW, SW_HIDE, SW_SHOWNORMAL, SetForegroundWindow,
-            SetWindowTextW, ShowWindow, WM_CHAR, WM_CLOSE, WM_COMMAND, WM_CTLCOLORBTN,
-            WM_CTLCOLORSTATIC, WM_DPICHANGED, WM_DRAWITEM, WM_ERASEBKGND, WM_GETMINMAXINFO,
-            WM_KEYDOWN, WM_KEYUP, WM_MOUSEWHEEL, WM_NCDESTROY, WM_PAINT, WM_SETTINGCHANGE, WM_SIZE,
-            WM_SYSKEYDOWN, WM_SYSKEYUP, WM_THEMECHANGED, WM_VSCROLL, WNDCLASSW,
-            WS_EX_CONTROLPARENT, WS_OVERLAPPEDWINDOW, WS_VSCROLL,
+            CreateWindowExW, DefWindowProcW, DestroyWindow, IDC_ARROW, IDCANCEL, IDOK,
+            IsDialogMessageW, LoadCursorW, MSG, RegisterClassW, SW_HIDE, SW_SHOWNORMAL,
+            SetForegroundWindow, SetWindowTextW, ShowWindow, WM_CHAR, WM_CLOSE, WM_COMMAND,
+            WM_CTLCOLORBTN, WM_CTLCOLORSTATIC, WM_DPICHANGED, WM_DRAWITEM, WM_ERASEBKGND,
+            WM_GETMINMAXINFO, WM_KEYDOWN, WM_KEYUP, WM_MOUSEWHEEL, WM_NCDESTROY, WM_PAINT,
+            WM_SETTINGCHANGE, WM_SIZE, WM_SYSKEYDOWN, WM_SYSKEYUP, WM_THEMECHANGED, WM_VSCROLL,
+            WNDCLASSW, WS_EX_CONTROLPARENT, WS_OVERLAPPEDWINDOW, WS_VSCROLL,
         },
     },
     core::PCWSTR,
@@ -54,9 +54,10 @@ mod theme;
 use controls::SettingsNativeWindow;
 use support::{to_io_error, wide_null};
 
-pub(super) const BROWSE_DESTINATION_ID: usize = 1;
-pub(super) const APPLY_ID: usize = 2;
-pub(super) const CANCEL_ID: usize = 3;
+use super::dialog_commands::{APPLY_ID, BROWSE_DESTINATION_ID, CANCEL_ID};
+
+// IsDialogMessageW synthesizes these commands for Enter and Escape respectively.
+const _: () = assert!(APPLY_ID == IDOK.0 as usize && CANCEL_ID == IDCANCEL.0 as usize);
 pub(super) const EXTENSION_MODE_ID: usize = 4;
 pub(super) const SCREENSHOT_CURSOR_ID: usize = 5;
 pub(super) const VIDEO_QUALITY_ID: usize = 6;

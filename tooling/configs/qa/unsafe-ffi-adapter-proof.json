@@ -386,10 +386,10 @@
       "path": "src/tray/settings_window/windows.rs",
       "owner": "tray",
       "boundary": "Win32 modeless settings-window HWND owner",
-      "invariants": ["The HWND remains adapter-local and is destroyed exactly once", "The callback resolves only a thread-local weak adapter reference and uses non-panicking mutable borrow", "WM_CLOSE emits a semantic close request and never changes resident lifetime or settings authority directly"],
+      "invariants": ["The HWND remains adapter-local and is destroyed exactly once", "The callback resolves only a thread-local weak adapter reference and uses non-panicking mutable borrow", "WM_CLOSE emits a semantic close request and never changes resident lifetime or settings authority directly", "Dialog keyboard commands use IDOK for Apply and IDCANCEL for RequestClose; browsing uses a non-reserved control id"],
       "safeWrapper": "Tray owner receives typed show results and passes a semantic settings view and event sink.",
       "raiiWrapper": "WindowsSettingsWindow",
-      "shutdownCancelProof": ["Drop destroys the settings HWND", "src/tray/settings_window/model/tests.rs covers dirty close, discard, and keep-editing state"],
+      "shutdownCancelProof": ["Drop destroys the settings HWND", "src/tray/settings_window/dialog_commands.rs proves Enter/Apply, Escape/RequestClose, and unrelated-command rejection", "src/tray/settings_window/model/tests.rs covers dirty close, discard, and keep-editing state", "Windows alpha restart acceptance proves Escape hides settings without changing the profile hash"],
       "reviews": ["security", "architecture"]
     },
     {

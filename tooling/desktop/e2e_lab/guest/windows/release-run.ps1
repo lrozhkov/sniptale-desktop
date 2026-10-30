@@ -126,6 +126,10 @@ function Folder-Selected($Picker,[string] $Leaf) {
   }
   return $false
 }
+function Window-Hidden($Element) {
+  try { return $Element.Current.IsOffscreen }
+  catch [Windows.Automation.ElementNotAvailableException] { return $true }
+}
 function Stop-Agent {
   Get-Process sniptale-native-agent -ErrorAction SilentlyContinue | Stop-Process -Force
   Start-Sleep -Seconds 2
@@ -212,7 +216,7 @@ Add-Test "first-run" {
     }
   }
   if ($profile.operatingMode -ne "manual" -or $profile.manualProfile.destination.path -ne $exports) { throw "first-run UI did not persist Manual destination" }
-  [Windows.Forms.SendKeys]::SendWait("{ESC}")
+  Wait-For { Window-Hidden $settings } | Out-Null
 }
 Add-Test "capture" {
   Tray @("Screenshot","Current screen")
@@ -270,9 +274,13 @@ Add-Test "restart" {
   Stop-Agent
   Start-Agent
   Tray @("Settings$([char]0x2026)")
-  $null=Window "Sniptale $([char]0x2014) Manual settings"
-  if ((Get-FileHash "$directory/local-profile.json" -Algorithm SHA256).Hash -ne $before) { throw "restart changed user settings" }
+  $restartedSettings=Window "Sniptale $([char]0x2014) Manual settings"
   Screenshot "restarted-settings"
+  [AlphaUi]::SetForegroundWindow([IntPtr]$restartedSettings.Current.NativeWindowHandle) | Out-Null
+  $restartedSettings.SetFocus()
+  [Windows.Forms.SendKeys]::SendWait("{ESC}")
+  Wait-For { Window-Hidden $restartedSettings } | Out-Null
+  if ((Get-FileHash "$directory/local-profile.json" -Algorithm SHA256).Hash -ne $before) { throw "restart or Escape changed user settings" }
   if (Test-Path "$directory/dev-local-browser-trust.json") { throw "unexpected dev trust after restart" }
 }
 Add-Test "uninstall" {
