@@ -17,15 +17,17 @@ use windows::{
 
 mod format;
 mod metrics;
+mod pending;
 
 use super::{
+    capture_timeline::CaptureTimeline,
     devices::{AudioEndpoint, AudioEndpointKind},
     mixer::{AudioInputKind, PcmFormat},
-    pcm_source::{OwnedPcmInputChunk, PcmChunkSource, PcmSourceError, PcmSourcePoll},
+    pcm_source::{PcmChunkSource, PcmSourceError, PcmSourcePoll},
     windows_devices::{ComApartment, WindowsAudioDeviceError, create_enumerator},
 };
 
-use format::{block_align, packet_duration_100ns, silent_flag, stream_flags, wave_format};
+use format::{block_align, silent_flag, stream_flags, wave_format};
 use metrics::CaptureMetrics;
 
 // Shared capture buffers are allowed to be larger than the engine period. A two-second buffer is
@@ -47,20 +49,23 @@ pub(crate) enum WindowsWasapiPcmError {
     StartFailed(i32),
     PacketReadFailed(i32),
     BufferTooLarge,
+    InvalidPacketTimeline,
 }
 
 #[derive(Debug)]
 pub(crate) struct WindowsWasapiPcmSource {
-    _apartment: ComApartment,
     audio_client: IAudioClient,
     capture_client: IAudioCaptureClient,
     kind: AudioInputKind,
     format: PcmFormat,
     block_align: usize,
     buffer_frames: u32,
-    next_timestamp_100ns: i64,
+    timeline: CaptureTimeline,
+    pending_packet: Option<Vec<u8>>,
     metrics: CaptureMetrics,
     started: bool,
+    // Release capture/client interfaces before uninitializing their COM apartment.
+    _apartment: ComApartment,
 }
 
 impl WindowsWasapiPcmSource {
@@ -90,6 +95,8 @@ impl WindowsWasapiPcmSource {
         format: PcmFormat,
     ) -> Result<Self, WindowsWasapiPcmError> {
         let block_align = block_align(format)?;
+        let timeline = CaptureTimeline::new(format.sample_rate_hz)
+            .map_err(|_| WindowsWasapiPcmError::InvalidPacketTimeline)?;
         let wave_format = wave_format(format)?;
         let apartment = ComApartment::initialize().map_err(com_error)?;
         let enumerator = create_enumerator().map_err(device_error)?;
@@ -130,7 +137,8 @@ impl WindowsWasapiPcmSource {
             format,
             block_align,
             buffer_frames,
-            next_timestamp_100ns: 0,
+            timeline,
+            pending_packet: None,
             metrics: CaptureMetrics::default(),
             started: true,
         })
@@ -146,6 +154,9 @@ impl PcmChunkSource for WindowsWasapiPcmSource {
 
 impl WindowsWasapiPcmSource {
     fn read_next_packet(&mut self) -> Result<PcmSourcePoll, WindowsWasapiPcmError> {
+        if let Some(chunk) = self.emit_pending_packet()? {
+            return Ok(PcmSourcePoll::Chunk(chunk));
+        }
         // SAFETY: capture client is valid while `self` is alive.
         let packet_frames = unsafe { self.capture_client.GetNextPacketSize() }
             .map_err(|error| WindowsWasapiPcmError::PacketReadFailed(hresult(error)))?;
@@ -157,18 +168,21 @@ impl WindowsWasapiPcmSource {
         let mut data = null_mut();
         let mut frames = 0_u32;
         let mut flags = 0_u32;
+        let mut device_frame = 0_u64;
         // SAFETY: output pointers are valid for the call; buffer is released by CapturePacketGuard.
         unsafe {
-            self.capture_client
-                .GetBuffer(&mut data, &mut frames, &mut flags, None, None)
+            self.capture_client.GetBuffer(
+                &mut data,
+                &mut frames,
+                &mut flags,
+                Some(&mut device_frame),
+                None,
+            )
         }
         .map_err(|error| WindowsWasapiPcmError::PacketReadFailed(hresult(error)))?;
         let guard = CapturePacketGuard::new(&self.capture_client, frames);
         self.metrics.observe_packet(frames, flags);
-        let byte_len = usize::try_from(frames)
-            .ok()
-            .and_then(|frames| frames.checked_mul(self.block_align))
-            .ok_or(WindowsWasapiPcmError::BufferTooLarge)?;
+        let byte_len = pending::packet_bytes(frames, flags, self.buffer_frames, self.block_align)?;
         let bytes = if flags & silent_flag() != 0 {
             vec![0; byte_len]
         } else {
@@ -179,20 +193,15 @@ impl WindowsWasapiPcmSource {
             unsafe { slice::from_raw_parts(data.cast::<u8>(), byte_len) }.to_vec()
         };
         guard.release()?;
-        let duration_100ns = packet_duration_100ns(frames, self.format.sample_rate_hz)?;
-        let timestamp_100ns = self.next_timestamp_100ns;
-        self.next_timestamp_100ns = self
-            .next_timestamp_100ns
-            .checked_add(duration_100ns)
-            .ok_or(WindowsWasapiPcmError::BufferTooLarge)?;
-
-        Ok(PcmSourcePoll::Chunk(OwnedPcmInputChunk {
-            kind: self.kind,
-            format: self.format,
-            bytes,
-            timestamp_100ns,
-            duration_100ns,
-        }))
+        let gap = self
+            .timeline
+            .queue_packet(device_frame, frames)
+            .map_err(|_| WindowsWasapiPcmError::InvalidPacketTimeline)?;
+        self.metrics.observe_gap(gap);
+        self.pending_packet = Some(bytes);
+        self.emit_pending_packet()?
+            .map(PcmSourcePoll::Chunk)
+            .ok_or(WindowsWasapiPcmError::InvalidPacketTimeline)
     }
 }
 

@@ -16,10 +16,10 @@
       "path": "src/audio/windows_pcm_capture.rs",
       "owner": "audio",
       "boundary": "WASAPI shared-mode PCM capture stream and capture-buffer release",
-      "invariants": ["The active capture packet is released exactly once", "IAudioClient is stopped by the stream owner on drop"],
+      "invariants": ["The active capture packet is released exactly once", "IAudioClient is stopped by the stream owner on drop", "Device positions are monotonic frame counts; timestamp-error and oversized native packets fail before PCM access", "Missing device frames emit bounded ten-millisecond silence chunks instead of shortening the audio timeline", "The COM apartment outlives both capture and audio client interfaces"],
       "safeWrapper": "Recording/audio callers receive owned PCM buffers and typed errors.",
       "raiiWrapper": "WindowsWasapiPcmSource and CapturePacketGuard",
-      "shutdownCancelProof": ["Drop stops the audio client and releases capture buffers", "Windows manual QA covers microphone, system audio, and endpoint changes"],
+      "shutdownCancelProof": ["Drop stops the audio client and releases capture buffers", "Windows manual QA covers microphone, system audio, and endpoint changes", "src/audio/capture_timeline.rs proves gap retention, bounded padding, rounding, backwards and overflow rejection"],
       "reviews": ["security", "architecture"]
     },
     {

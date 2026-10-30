@@ -15,7 +15,6 @@ use super::{
 
 const PCM_BITS_PER_SAMPLE: u16 = 16;
 const PCM_BYTES_PER_SAMPLE: u16 = PCM_BITS_PER_SAMPLE / 8;
-const HUNDRED_NS_PER_SECOND: u64 = 10_000_000;
 
 pub(super) fn wave_format(format: PcmFormat) -> Result<WAVEFORMATEX, WindowsWasapiPcmError> {
     let block_align =
@@ -51,17 +50,6 @@ pub(super) fn stream_flags(kind: AudioInputKind) -> u32 {
         AudioInputKind::Microphone => flags,
         AudioInputKind::SystemLoopback => flags | AUDCLNT_STREAMFLAGS_LOOPBACK,
     }
-}
-
-pub(super) fn packet_duration_100ns(
-    frames: u32,
-    sample_rate_hz: u32,
-) -> Result<i64, WindowsWasapiPcmError> {
-    let duration = u64::from(frames)
-        .checked_mul(HUNDRED_NS_PER_SECOND)
-        .ok_or(WindowsWasapiPcmError::BufferTooLarge)?
-        / u64::from(sample_rate_hz);
-    i64::try_from(duration.max(1)).map_err(|_| WindowsWasapiPcmError::BufferTooLarge)
 }
 
 pub(super) const fn silent_flag() -> u32 {

@@ -1,6 +1,8 @@
 //! WASAPI endpoint discovery, capture, loopback, mixing, resampling, and sync.
 
 mod capabilities;
+#[cfg(any(windows, test))]
+mod capture_timeline;
 mod devices;
 #[cfg(any(windows, test))]
 mod loopback;
