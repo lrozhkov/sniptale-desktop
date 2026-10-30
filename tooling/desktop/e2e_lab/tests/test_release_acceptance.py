@@ -59,6 +59,19 @@ class ReleaseAcceptanceTests(unittest.TestCase):
                     collect_release_result(runner, "windows-11", output, root)
                 self.assertEqual(list((root / "recordings").iterdir()), [])
 
+    def test_alpha_collection_retains_narrow_av_metadata_in_supported_log_format(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            runner, output = self._guest_fixture(root)
+            metadata = {"streams": [{"codec_type": "video", "duration": "180.0"}, {"codec_type": "audio", "duration": "175.445312"}]}
+            (output / "e2e-out/logs/recording-metadata.log").write_text(json.dumps(metadata))
+            result_path = output / "e2e-out/result.json"
+            value = json.loads(result_path.read_text())
+            value["artifacts"].append("recording-metadata.log")
+            result_path.write_text(json.dumps(value))
+            collect_release_result(runner, "windows-11", output, root)
+            self.assertEqual(json.loads((root / "logs/windows-11-e2e-out-logs-recording-metadata.log").read_text()), metadata)
+
     def test_alpha_classification_enforces_recording_budget(self):
         with tempfile.TemporaryDirectory() as name:
             root = Path(name)
@@ -162,6 +175,7 @@ class ReleaseAcceptanceTests(unittest.TestCase):
         self.assertIn('Test-TrayMenuPolicy\nTest-RecordedAvTimelinePolicy', script)
         self.assertNotIn('Start-Sleep -Milliseconds 800', script)
         self.assertNotIn('Start-Sleep -Milliseconds 700', script)
+        self.assertIn('logs/recording-metadata.log', script)
 
 
 if __name__ == "__main__":

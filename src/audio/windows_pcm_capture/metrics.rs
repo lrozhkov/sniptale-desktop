@@ -13,9 +13,13 @@ pub(super) struct CaptureMetrics {
     silent_packet_count: u64,
     discontinuity_count: u64,
     timestamp_error_count: u64,
+    gap_frame_count: u64,
 }
 
 impl CaptureMetrics {
+    pub(super) fn observe_gap(&mut self, frames: u64) {
+        self.gap_frame_count = self.gap_frame_count.saturating_add(frames);
+    }
     pub(super) fn observe_pending(&mut self) {
         self.pending_poll_count = self.pending_poll_count.saturating_add(1);
     }
@@ -46,6 +50,7 @@ impl CaptureMetrics {
             silent_packet_count = self.silent_packet_count,
             discontinuity_count = self.discontinuity_count,
             timestamp_error_count = self.timestamp_error_count,
+            gap_frame_count = self.gap_frame_count,
             "recording audio source stopped"
         );
     }

@@ -274,9 +274,12 @@ Add-Test "recording" {
     Screenshot "recording-active"
     Tray @("Video","Stop")
     $mp4=Wait-For { Get-ChildItem $exports -Filter *.mp4 | Select-Object -First 1 } 60
+    Copy-Item $mp4.FullName "$outputPath/recordings/product.mp4"
     $bytes=[IO.File]::ReadAllBytes($mp4.FullName)
     if ($bytes.Length -lt 4096 -or [Text.Encoding]::ASCII.GetString($bytes,4,4) -ne "ftyp" -or [Text.Encoding]::ASCII.GetString($bytes) -notmatch 'moov') { throw "MP4 did not finalize" }
     $metadata = & ffprobe.exe -v error -show_streams -show_format -of json $mp4.FullName | ConvertFrom-Json
+    $recordedMetadata=@{ streams=@($metadata.streams | Select-Object codec_type,codec_name,duration,start_time,time_base,nb_frames,sample_rate); formatDuration=$metadata.format.duration }
+    [IO.File]::WriteAllText("$outputPath/logs/recording-metadata.log",($recordedMetadata|ConvertTo-Json -Depth 5),[Text.UTF8Encoding]::new($false))
     if ($LASTEXITCODE -ne 0 -or [double]$metadata.format.duration -lt 5 -or @($metadata.streams | Where-Object { $_.codec_type -eq "video" -and $_.width -ge 100 -and $_.height -ge 100 }).Count -eq 0) { throw "recorded MP4 has no valid video stream" }
     if (@($metadata.streams | Where-Object { $_.codec_type -eq "audio" -and [double]$_.duration -ge 5 }).Count -eq 0) { throw "recorded MP4 has no valid audio stream" }
     Assert-RecordedAvTimeline $metadata.streams
@@ -292,7 +295,6 @@ Add-Test "recording" {
       for ($index=0; $index -lt $count; $index++) { if ($sample[$index] -ne 0) { $nonZero++ } }
       if ($nonZero -lt 64) { throw "recorded mixed audio is silent" }
     } finally { $stream.Dispose() }
-    Copy-Item $mp4.FullName "$outputPath/recordings/product.mp4"
   } finally {
     $player.Stop()
     $player.Dispose()
