@@ -5,7 +5,7 @@
 mod media_types;
 mod sample_buffers;
 
-use std::{os::windows::ffi::OsStrExt, path::Path};
+use std::{marker::PhantomData, os::windows::ffi::OsStrExt, path::Path, rc::Rc};
 
 use windows::{
     Win32::{
@@ -14,6 +14,7 @@ use windows::{
             IMFByteStream, IMFSinkWriter, MF_SINK_WRITER_DISABLE_THROTTLING, MFCreateAttributes,
             MFCreateSinkWriterFromURL,
         },
+        System::Com::{COINIT_MULTITHREADED, CoInitializeEx, CoUninitialize},
     },
     core::PCWSTR,
 };
@@ -22,6 +23,7 @@ use crate::recording::host_runtime::MediaFoundationRuntime;
 
 use super::{
     Mp4SinkWriterPlan,
+    runtime_owner::EncoderRuntimeOwners,
     samples::{BgraVideoSample, PcmAudioSample, SinkWriterSampleError},
 };
 use crate::recording::runtime::worker::{RecordingMediaSink, RecordingWorkerError};
@@ -42,8 +44,7 @@ impl From<SinkWriterSampleError> for Mp4SinkWriterError {
 
 #[derive(Debug)]
 pub(crate) struct WindowsMp4SinkWriter {
-    _runtime: MediaFoundationRuntime,
-    writer: IMFSinkWriter,
+    owners: EncoderRuntimeOwners<IMFSinkWriter, MediaFoundationRuntime, SinkWriterApartment>,
     plan: Mp4SinkWriterPlan,
     pub(crate) video_stream_index: u32,
     pub(crate) audio_stream_index: u32,
@@ -56,6 +57,7 @@ impl WindowsMp4SinkWriter {
         plan: &Mp4SinkWriterPlan,
     ) -> Result<Self, Mp4SinkWriterError> {
         let output_path = wide_path(path)?;
+        let apartment = SinkWriterApartment::initialize().map_err(to_error)?;
         let runtime = MediaFoundationRuntime::startup().map_err(to_error)?;
         let writer = create_sink_writer(&output_path)?;
         let video_stream_index = media_types::add_h264_stream(&writer, &plan.video)?;
@@ -66,8 +68,7 @@ impl WindowsMp4SinkWriter {
         // writer COM object remains owned by this RAII adapter until explicit finalize or drop.
         unsafe { writer.BeginWriting() }.map_err(to_error)?;
         Ok(Self {
-            _runtime: runtime,
-            writer,
+            owners: EncoderRuntimeOwners::new(writer, runtime, apartment),
             plan: plan.clone(),
             video_stream_index,
             audio_stream_index,
@@ -88,7 +89,8 @@ impl WindowsMp4SinkWriter {
         // SAFETY: stream_index came from this writer's H.264 stream. The sample buffer was created
         // by this adapter and validated against the configured video stream plan.
         unsafe {
-            self.writer
+            self.owners
+                .writer()
                 .WriteSample(self.video_stream_index, &media_sample)
         }
         .map_err(to_error)
@@ -107,7 +109,8 @@ impl WindowsMp4SinkWriter {
         // SAFETY: stream_index came from this writer's AAC stream. The sample buffer was created
         // by this adapter and validated against the configured audio stream plan.
         unsafe {
-            self.writer
+            self.owners
+                .writer()
                 .WriteSample(self.audio_stream_index, &media_sample)
         }
         .map_err(to_error)
@@ -118,9 +121,34 @@ impl WindowsMp4SinkWriter {
             return Ok(());
         }
         // SAFETY: finalizes the live sink writer exactly once from the owner that created it.
-        unsafe { self.writer.Finalize() }.map_err(to_error)?;
+        unsafe { self.owners.writer().Finalize() }.map_err(to_error)?;
         self.finalized = true;
         Ok(())
+    }
+}
+
+#[derive(Debug)]
+struct SinkWriterApartment {
+    // COM initialization must be balanced on the creating thread, including partial setup failure.
+    _thread_bound: PhantomData<Rc<()>>,
+}
+
+impl SinkWriterApartment {
+    fn initialize() -> windows::core::Result<Self> {
+        // SAFETY: initializes this recording thread as MTA before any encoder COM calls. Both S_OK
+        // and S_FALSE own one initialization count; failed or incompatible apartments are rejected.
+        unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) }.ok()?;
+        Ok(Self {
+            _thread_bound: PhantomData,
+        })
+    }
+}
+
+impl Drop for SinkWriterApartment {
+    fn drop(&mut self) {
+        // SAFETY: this non-Send owner balances one successful initialization on the same thread,
+        // after the sink writer and Media Foundation runtime have been released.
+        unsafe { CoUninitialize() };
     }
 }
 

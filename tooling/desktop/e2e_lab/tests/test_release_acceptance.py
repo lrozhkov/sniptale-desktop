@@ -55,6 +55,14 @@ class ReleaseAcceptanceTests(unittest.TestCase):
         self.assertNotIn("protectedSecretHex", script)
         self.assertNotIn('WriteAllText("$directory/local-profile.json"', script)
         self.assertIn('Tray @("Mode","Manual")', script)
+        self.assertIn('Wait-For { Tray @("Video","Pause") -ProbeOnly } 90', script)
+        self.assertIn('$videoStreams.Count -ne 1 -or $audioStreams.Count -ne 1', script)
+        self.assertIn('[double]::IsNaN($videoDuration)', script)
+        self.assertIn('[double]::IsInfinity($audioDuration)', script)
+        self.assertIn('[Math]::Abs($videoDuration - $audioDuration) -gt 1', script)
+        self.assertIn('    Assert-RecordedAvTimeline $metadata.streams', script)
+        self.assertIn('Test-RecordedAvTimelinePolicy\n\nAdd-Test "network-isolation"', script)
+        self.assertIn('@(50.97,30.19)', script)
 
 
 if __name__ == "__main__":
