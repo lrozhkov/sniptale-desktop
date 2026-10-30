@@ -256,10 +256,10 @@
       "path": "src/recording/encoder/windows_sink_writer/mod.rs",
       "owner": "recording",
       "boundary": "Media Foundation MP4 Sink Writer lifecycle/finalize owner",
-      "invariants": ["Sink writer is finalized at most once by its owner", "Output path is validated and NUL-terminated before MFCreateSinkWriterFromURL", "Default WriteSample throttling is disabled only while the recording worker provides clock-paced video and bounds audio to the published video timeline"],
+      "invariants": ["Sink writer is finalized at most once by its owner", "Output path is validated and NUL-terminated before MFCreateSinkWriterFromURL", "Default WriteSample throttling is disabled only while the recording worker provides clock-paced video and bounds audio to the published video timeline", "The recording-owned non-Send MTA initialization is balanced on its creating thread after writer release and MFShutdown", "Codec initialization completes before starting live video and audio sources"],
       "safeWrapper": "Recording runtime receives a typed encoder session and finalize result.",
-      "raiiWrapper": "WindowsSinkWriter",
-      "shutdownCancelProof": ["src/recording/runtime/worker/tests.rs covers bounded audio/video interleaving", "src/recording/tests.rs covers terminal/finalize state", "Windows desktop E2E recording cases cover stop responsiveness and MP4 finalization"],
+      "raiiWrapper": "WindowsMp4SinkWriter, EncoderRuntimeOwners, and SinkWriterApartment",
+      "shutdownCancelProof": ["src/recording/encoder/runtime_owner.rs proves writer/runtime/apartment release order on success and error", "src/recording/runtime/worker/tests.rs covers bounded audio/video interleaving", "src/recording/tests.rs covers terminal/finalize state", "Windows desktop E2E recording cases cover stop responsiveness, MP4 finalization, and audio/video duration agreement"],
       "reviews": ["security", "architecture"]
     },
     {

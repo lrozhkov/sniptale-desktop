@@ -71,7 +71,7 @@ function Screenshot([string] $Name) {
   try { $graphics.CopyFromScreen($bounds.Left,$bounds.Top,0,0,$bounds.Size); $bitmap.Save("$outputPath/screenshots/$Name.png") }
   finally { $graphics.Dispose(); $bitmap.Dispose() }
 }
-function Tray([string[]] $Labels) {
+function Tray([string[]] $Labels, [switch] $ProbeOnly) {
   [Windows.Forms.SendKeys]::SendWait("{ESC}{ESC}")
   $window = Wait-For { [AlphaUi]::FindWindow("SniptaleTrayCommandSource",$null) -ne [IntPtr]::Zero }
   $window = [AlphaUi]::FindWindow("SniptaleTrayCommandSource",$null)
@@ -91,7 +91,11 @@ function Tray([string[]] $Labels) {
         if (-not [AlphaUi]::GetMenuItemRect([IntPtr]::Zero,$menu,$i,[ref]$rect)) { throw "menu geometry unavailable" }
         [AlphaUi]::SetCursorPos([int](($rect.Left+$rect.Right)/2),[int](($rect.Top+$rect.Bottom)/2)) | Out-Null
         Start-Sleep -Milliseconds 700
-        if ($label -eq $Labels[-1] -and ([AlphaUi]::GetMenuState($menu,$i,0x400) -band 3) -ne 0) { Screenshot "disabled-menu"; throw "menu action disabled" }
+        if ($label -eq $Labels[-1]) {
+          $disabled = ([AlphaUi]::GetMenuState($menu,$i,0x400) -band 3) -ne 0
+          if ($ProbeOnly) { [Windows.Forms.SendKeys]::SendWait("{ESC}{ESC}"); return (-not $disabled) }
+          if ($disabled) { Screenshot "disabled-menu"; throw "menu action disabled" }
+        }
         if ($label -eq $Labels[-1]) { [AlphaUi]::mouse_event(2,0,0,0,[UIntPtr]::Zero); [AlphaUi]::mouse_event(4,0,0,0,[UIntPtr]::Zero) }
         $found=$true; break
       }
@@ -128,6 +132,33 @@ function Msi([string] $Operation) {
   $process=Start-Process msiexec.exe -ArgumentList @($Operation,"`"$Msi`"","/qn","/norestart","/l*v","`"$outputPath/logs/msi-$($Operation.Trim('/')).log`"") -Wait -PassThru
   if ($process.ExitCode -notin @(0,1641,3010)) { throw "MSI operation failed" }
 }
+
+function Assert-RecordedAvTimeline($Streams) {
+  $videoStreams = @($Streams | Where-Object { $_.codec_type -eq "video" })
+  $audioStreams = @($Streams | Where-Object { $_.codec_type -eq "audio" })
+  if ($videoStreams.Count -ne 1 -or $audioStreams.Count -ne 1) { throw "recorded MP4 stream inventory mismatch" }
+  $videoDuration = [double]$videoStreams[0].duration
+  $audioDuration = [double]$audioStreams[0].duration
+  if ([double]::IsNaN($videoDuration) -or [double]::IsInfinity($videoDuration) -or [double]::IsNaN($audioDuration) -or [double]::IsInfinity($audioDuration) -or $videoDuration -lt 5 -or $audioDuration -lt 5 -or [Math]::Abs($videoDuration - $audioDuration) -gt 1) { throw "recorded audio video duration mismatch" }
+}
+
+function Test-RecordedAvTimelinePolicy {
+  foreach ($pair in @(@(5,5),@(15,16),@(30,29.5))) {
+    Assert-RecordedAvTimeline @(@{codec_type="video";duration=$pair[0]},@{codec_type="audio";duration=$pair[1]})
+  }
+  foreach ($pair in @(@(4,5),@(5,4),@(15,16.01),@(50.97,30.19),@([double]::NaN,15),@(15,[double]::PositiveInfinity),@([double]::NegativeInfinity,15),@(15,[double]::NaN))) {
+    $accepted=$false
+    try { Assert-RecordedAvTimeline @(@{codec_type="video";duration=$pair[0]},@{codec_type="audio";duration=$pair[1]}); $accepted=$true } catch { }
+    if ($accepted) { throw "recording duration rejection proof failed" }
+  }
+  foreach ($streams in @(@(@{codec_type="video";duration=15}),@(@{codec_type="video";duration=15},@{codec_type="video";duration=15},@{codec_type="audio";duration=15}))) {
+    $accepted=$false
+    try { Assert-RecordedAvTimeline $streams; $accepted=$true } catch { }
+    if ($accepted) { throw "recording stream inventory rejection proof failed" }
+  }
+}
+
+Test-RecordedAvTimelinePolicy
 
 Add-Test "network-isolation" {
   $client=[Net.Sockets.TcpClient]::new()
@@ -193,9 +224,11 @@ Add-Test "recording" {
   $player = [Media.SoundPlayer]::new($tone)
   try {
     $player.Load()
-    $player.Play()
+    $player.PlayLooping()
     Start-Sleep -Seconds 2
     Tray @("Video","Start current screen")
+    # Pause becomes enabled only after the resident reports Recording, following codec/source setup.
+    Wait-For { Tray @("Video","Pause") -ProbeOnly } 90 | Out-Null
     Start-Sleep -Seconds 12
     Screenshot "recording-active"
     Tray @("Video","Stop")
@@ -205,6 +238,7 @@ Add-Test "recording" {
     $metadata = & ffprobe.exe -v error -show_streams -show_format -of json $mp4.FullName | ConvertFrom-Json
     if ($LASTEXITCODE -ne 0 -or [double]$metadata.format.duration -lt 5 -or @($metadata.streams | Where-Object { $_.codec_type -eq "video" -and $_.width -ge 100 -and $_.height -ge 100 }).Count -eq 0) { throw "recorded MP4 has no valid video stream" }
     if (@($metadata.streams | Where-Object { $_.codec_type -eq "audio" -and [double]$_.duration -ge 5 }).Count -eq 0) { throw "recorded MP4 has no valid audio stream" }
+    Assert-RecordedAvTimeline $metadata.streams
     & ffmpeg.exe -nostdin -v error -i $mp4.FullName -map 0:v:0 -f null - 2>&1 | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "recorded MP4 cannot be decoded" }
     & ffmpeg.exe -nostdin -v error -i $mp4.FullName -map 0:a:0 -t 5 -f s16le -y $decoded

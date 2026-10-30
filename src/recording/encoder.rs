@@ -1,4 +1,6 @@
 //! Media Foundation Sink Writer owner.
+#[cfg(any(windows, test))]
+mod runtime_owner;
 pub(crate) mod samples;
 #[cfg(windows)]
 pub(crate) mod windows_sink_writer;

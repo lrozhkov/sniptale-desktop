@@ -25,15 +25,17 @@ pub(super) fn create_worker_components(
     ),
     RecordingRuntimeError,
 > {
+    // Cold codec activation can take several seconds. Complete it before either live source
+    // starts, so buffered capture timestamps cannot include encoder initialization time.
+    let sink = WindowsMp4SinkWriter::create(&start.media_path, &start.sink_plan)
+        .map_err(sink_writer_create_error)?;
+    let audio_pipeline = windows_audio_pipeline(&start.audio_selection, start.mix)?;
+    let audio = RecordingPcmAudioSource::new(audio_pipeline);
     let video = WindowsWgcRecordingVideoSource::start(
         &start.source,
         start.include_cursor,
         start.sink_plan.video.clone(),
     )
     .map_err(worker_error)?;
-    let audio_pipeline = windows_audio_pipeline(&start.audio_selection, start.mix)?;
-    let audio = RecordingPcmAudioSource::new(audio_pipeline);
-    let sink = WindowsMp4SinkWriter::create(&start.media_path, &start.sink_plan)
-        .map_err(sink_writer_create_error)?;
     Ok((video, audio, sink))
 }
