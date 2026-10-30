@@ -67,16 +67,15 @@ impl WindowsWgcRecordingSession {
             .iter()
             .map(|target| {
                 let item = target.create_item()?;
+                let mut session =
+                    readback::CaptureSession::start(&device, &item, 2, true, include_cursor)?;
+                // A recording source is ready only after WGC has delivered a real frame.
+                // Preserve that frame for the pump, even if the desktop stays unchanged.
+                let first_frame = session.next_frame(&device)?;
                 Ok(ActiveRecordingTarget {
                     bounds: target.bounds,
-                    session: readback::CaptureSession::start(
-                        &device,
-                        &item,
-                        2,
-                        true,
-                        include_cursor,
-                    )?,
-                    pending_frame: None,
+                    session,
+                    pending_frame: Some(first_frame),
                 })
             })
             .collect::<Result<Vec<_>, ScreenshotCaptureError>>()?;

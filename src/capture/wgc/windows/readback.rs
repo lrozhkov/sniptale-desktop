@@ -116,6 +116,8 @@ pub(super) fn request_borderless_access() -> bool {
 pub(super) struct CaptureSession {
     pool: Direct3D11CaptureFramePool,
     session: GraphicsCaptureSession,
+    // Keep the selected source alive until the session and pool have been closed.
+    _item: GraphicsCaptureItem,
     poll_recovery: FramePollRecovery,
 }
 impl CaptureSession {
@@ -145,6 +147,7 @@ impl CaptureSession {
         let capture_session = Self {
             pool,
             session,
+            _item: item.clone(),
             poll_recovery: FramePollRecovery::default(),
         };
         capture_session
