@@ -12,6 +12,7 @@ from pathlib import Path
 from errors import IntegrityError
 from paths import LabPaths
 from system import sha256_file
+import contextlib
 
 
 CACHE_SCHEMA_VERSION = 1
@@ -106,13 +107,9 @@ def restore(
         destination = output / relative
         destination.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         shutil.copy2(entry / relative, destination)
-        try:
+        with contextlib.suppress(OSError):
             destination.chmod(0o600)
-        except OSError:
-            pass
-    artifacts = sorted(
-        path for path in output.rglob("*") if path.is_file() and path.suffix.lower() in {".exe", ".msi"}
-    )
+    artifacts = sorted(path for path in output.rglob("*") if path.is_file() and path.suffix.lower() in {".exe", ".msi"})
     return artifacts or None
 
 
@@ -135,10 +132,8 @@ def store(
             destination = temporary / relative
             destination.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
             shutil.copy2(source, destination)
-            try:
+            with contextlib.suppress(OSError):
                 destination.chmod(0o600)
-            except OSError:
-                pass
             manifest_files.append(
                 {
                     "path": relative.as_posix(),

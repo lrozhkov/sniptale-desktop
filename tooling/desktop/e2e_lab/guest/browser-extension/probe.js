@@ -10,7 +10,7 @@ async function report(browser, status, detail) {
       body: JSON.stringify({browser, status, detail, nonce}),
       keepalive: true,
     });
-  } catch (_) {
+  } catch {
     // The bounded guest runner owns timeout/failure reporting when loopback is unavailable.
   }
 }
@@ -21,7 +21,7 @@ function probe() {
   let completed = false;
   let staleCommandSent = false;
   const timeout = setTimeout(() => {
-    if (!completed) report(browser, 'fail', 'native response timeout');
+    if (!completed) report(browser, 'fail', 'native response timeout').catch(() => { document.title = 'sniptale-e2e-report-failed'; });
   }, 45000);
   port.onMessage.addListener((message) => {
     if (message && message.type === 'app.hello') {
@@ -52,14 +52,15 @@ function probe() {
       clearTimeout(timeout);
       const status = staleCommandSent && code === 'stale-controller-lease' ? 'pass' : 'fail';
       report(browser, status, `app.hello, controller lease, and operation failure received (${code})`)
-        .finally(() => port.disconnect());
+        .finally(() => port.disconnect()).catch(() => { document.title = 'sniptale-e2e-report-failed'; });
     }
   });
   port.onDisconnect.addListener(() => {
     if (!completed) {
       completed = true;
       clearTimeout(timeout);
-      report(browser, 'fail', chrome.runtime.lastError?.message || 'native port disconnected');
+      report(browser, 'fail', chrome.runtime.lastError?.message || 'native port disconnected')
+        .catch(() => { document.title = 'sniptale-e2e-report-failed'; });
     }
   });
   port.postMessage({

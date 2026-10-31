@@ -42,6 +42,11 @@
       "blocking": true
     },
     {
+      "id": "qa:environment-audit",
+      "entrypoint": "tooling/qa/wrappers/environment-audit.sh",
+      "blocking": true
+    },
+    {
       "id": "qa:install-hooks",
       "entrypoint": "tooling/qa/wrappers/install-hooks.sh",
       "blocking": false
@@ -99,6 +104,16 @@
     {
       "id": "qa:windows-smoke-from-wsl",
       "entrypoint": "tooling/qa/wrappers/windows-smoke-from-wsl.sh",
+      "blocking": true
+    },
+    {
+      "id": "qa:script-lints",
+      "entrypoint": "tooling/qa/wrappers/script-lints.sh",
+      "blocking": true
+    },
+    {
+      "id": "qa:fast",
+      "entrypoint": "tooling/qa/wrappers/fast.sh",
       "blocking": true
     }
   ]

@@ -54,14 +54,30 @@
       "owner": "runtime-lifecycle",
       "exactScope": {
         "pathTerms": {
-          "src/app/bridge/session/duplex/authenticated.rs": ["SESSION_MODE_EPOCH_POLL_INTERVAL"],
-          "src/app/bridge/windows_runtime.rs": ["PIPE_CONNECT_RETRY_DELAY"],
-          "src/app/resident/pipe_broker/duplex.rs": ["SESSION_BROKER_IDLE_POLL_INTERVAL"],
-          "src/app/resident/pipe_windows.rs": ["PIPE_ACCEPT_POLL_INTERVAL"],
-          "src/capture/wgc/windows/readback.rs": ["FRAME_WAIT_INTERVAL"],
-          "src/recording/runtime/windows_runtime/worker_loop.rs": ["RECORDING_IDLE_POLL_INTERVAL"],
-          "src/ipc/bridge/duplex.rs": ["BROWSER_EOF_RESPONSE_GRACE"],
-          "src/ipc/bridge/polling.rs": ["AGENT_RESPONSE_POLL_INTERVAL"]
+          "src/app/bridge/session/duplex/authenticated.rs": [
+            "SESSION_MODE_EPOCH_POLL_INTERVAL"
+          ],
+          "src/app/bridge/windows_runtime.rs": [
+            "PIPE_CONNECT_RETRY_DELAY"
+          ],
+          "src/app/resident/pipe_broker/duplex.rs": [
+            "SESSION_BROKER_IDLE_POLL_INTERVAL"
+          ],
+          "src/app/resident/pipe_windows.rs": [
+            "PIPE_ACCEPT_POLL_INTERVAL"
+          ],
+          "src/capture/wgc/windows/readback.rs": [
+            "FRAME_WAIT_INTERVAL"
+          ],
+          "src/recording/runtime/windows_runtime/worker_loop.rs": [
+            "RECORDING_IDLE_POLL_INTERVAL"
+          ],
+          "src/ipc/bridge/duplex.rs": [
+            "BROWSER_EOF_RESPONSE_GRACE"
+          ],
+          "src/ipc/bridge/polling.rs": [
+            "AGENT_RESPONSE_POLL_INTERVAL"
+          ]
         }
       },
       "rationale": "These waits are named, bounded polling intervals owned by cancellable runtime loops.",
@@ -90,6 +106,27 @@
       "proofReferences": [
         "docs/architecture/module-ownership.md",
         "docs/architecture/adr/0003-transfer-lifecycle-ownership.md"
+      ]
+    },
+    {
+      "id": "qa.workflow-self-reference-compatibility",
+      "ruleId": "qa.workflow-self-reference-compatibility",
+      "classification": "tool-noise",
+      "owner": "qa-tooling",
+      "exactScope": {
+        "pathTerms": {
+          ".github/workflows/alpha.yml": [
+            "\"uses\": \"./.github/workflows/checks.yml\""
+          ]
+        }
+      },
+      "rationale": "Pinned actionlint 1.7.12 predates GitHub self-repository syntax. This same-commit reusable workflow has server-side resolution, and verify_tooling rejects any other target; zizmor ignores only the exact uses scalar.",
+      "risk": "The newer self-repository syntax must be adopted after an aged compatible actionlint release is available. No external Action or untrusted workspace checkout is allowed by this exception.",
+      "reviewBy": "2026-11-14",
+      "proofReferences": [
+        "tooling/qa/rules/verify_tooling.py",
+        "tooling/configs/qa/zizmor.yaml",
+        "tooling/qa/tests/test_compilation_cache.py"
       ]
     }
   ],

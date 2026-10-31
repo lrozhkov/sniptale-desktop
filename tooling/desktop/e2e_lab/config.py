@@ -52,7 +52,7 @@ class LabConfig:
     limits: Limits
 
     @classmethod
-    def load(cls, root: Path) -> "LabConfig":
+    def load(cls, root: Path) -> LabConfig:
         path = root / "tooling/desktop/e2e_lab/lab-config.json"
         try:
             raw = json.loads(path.read_text(encoding="utf-8"))

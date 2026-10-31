@@ -1,4 +1,5 @@
 """Export a bounded public summary only after verifying complete local VM evidence."""
+
 from __future__ import annotations
 
 import argparse
@@ -14,12 +15,16 @@ from alpha_publish import RELEASE_CASES, admit, api
 
 def verified_tests(receipt: dict, commit: str) -> dict:
     matrix = receipt.get("test_matrix", [])
-    if (receipt.get("result") != "pass" or receipt.get("run_mode") != "alpha-release-acceptance"
-            or receipt.get("commit_sha") != commit
-            or receipt.get("dirty_state_sha256") != hashlib.sha256(b"").hexdigest()
-            or receipt.get("lanes") != ["windows-11"] or len(matrix) != 1
-            or matrix[0].get("lane") != "windows-11"
-            or any(any(values.values()) for values in receipt["teardown"].values())):
+    if (
+        receipt.get("result") != "pass"
+        or receipt.get("run_mode") != "alpha-release-acceptance"
+        or receipt.get("commit_sha") != commit
+        or receipt.get("dirty_state_sha256") != hashlib.sha256(b"").hexdigest()
+        or receipt.get("lanes") != ["windows-11"]
+        or len(matrix) != 1
+        or matrix[0].get("lane") != "windows-11"
+        or any(any(values.values()) for values in receipt["teardown"].values())
+    ):
         raise ValueError("VM receipt is not complete clean alpha acceptance")
     cases = matrix[0]["tests"]
     tests = {item["name"]: item["status"] for item in cases}
@@ -47,11 +52,21 @@ def export(bundle: Path, run_directory: Path, artifact_id: int, output: Path) ->
     run = api(f"actions/runs/{provenance['runId']}")
     artifact = api(f"actions/artifacts/{artifact_id}")
     value = {
-        "schemaVersion": 1, "kind": "sniptale-alpha-windows-acceptance", "commit": commit, "tag": tag,
-        "runId": provenance["runId"], "runAttempt": provenance["runAttempt"],
-        "artifactId": artifact_id, "artifactDigest": artifact["digest"], "result": "pass",
-        "verified": True, "cleanTeardown": True, "devLocalTrust": False, "tests": tests,
-        "checksumsSha256": digest(bundle / "SHA256SUMS"), "receiptSha256": digest(run_directory / "receipt.json"),
+        "schemaVersion": 1,
+        "kind": "sniptale-alpha-windows-acceptance",
+        "commit": commit,
+        "tag": tag,
+        "runId": provenance["runId"],
+        "runAttempt": provenance["runAttempt"],
+        "artifactId": artifact_id,
+        "artifactDigest": artifact["digest"],
+        "result": "pass",
+        "verified": True,
+        "cleanTeardown": True,
+        "devLocalTrust": False,
+        "tests": tests,
+        "checksumsSha256": digest(bundle / "SHA256SUMS"),
+        "receiptSha256": digest(run_directory / "receipt.json"),
         "windowsImage": receipt["snapshots"]["windows-11"],
     }
     admit(run, artifact, value, commit, tag)

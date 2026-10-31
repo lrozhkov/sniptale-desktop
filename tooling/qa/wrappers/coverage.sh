@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
-# shellcheck disable=SC1091
+# shellcheck source=../runtime/lib.sh
 source "$ROOT/tooling/qa/runtime/lib.sh"
 ensure_rust_env release
 cd "$ROOT"
@@ -10,6 +10,8 @@ cd "$ROOT"
 require_command cargo
 require_command python3
 qa_init "qa:coverage" blocking
+qa_require_harness
+qa_assert_state checkpoint
 
 if ! command -v cargo-llvm-cov >/dev/null 2>&1; then
   printf 'Missing cargo-llvm-cov. Install with: cargo install --locked cargo-llvm-cov\n' >&2
@@ -32,9 +34,9 @@ qa_step "coverage llvm-cov" \
 qa_step "coverage owner floors" python3 tooling/qa/rules/coverage-floor.py --check-lcov "$lcov_path"
 qa_step "coverage summary artifact" write_coverage_summary
 qa_fail_if_any "coverage summary"
-fingerprint_worktree > .tmp/qa/coverage.stamp
-python3 tooling/qa/rules/coverage-floor.py --owner-floors-json > "$owner_floors_path"
-python3 - "$min_lines" "$summary_path" "$lcov_path" "$owner_floors_path" <<'PY' > "$metadata_path"
+fingerprint_worktree >.tmp/qa/coverage.stamp
+python3 tooling/qa/rules/coverage-floor.py --owner-floors-json >"$owner_floors_path"
+python3 - "$min_lines" "$summary_path" "$lcov_path" "$owner_floors_path" <<'PY' >"$metadata_path"
 from __future__ import annotations
 
 import json

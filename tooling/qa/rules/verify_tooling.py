@@ -51,9 +51,7 @@ def load_object(path: Path) -> dict[str, Any]:
 
 
 def git(*args: str) -> str:
-    completed = subprocess.run(
-        ["git", *args], cwd=ROOT, check=False, text=True, capture_output=True
-    )
+    completed = subprocess.run(["git", *args], cwd=ROOT, check=False, text=True, capture_output=True)
     if completed.returncode not in {0, 1}:
         raise RuntimeError(completed.stderr.strip())
     return completed.stdout
@@ -208,10 +206,12 @@ def validate_registry(errors: list[str]) -> None:
         if classification not in VALID_CLASSIFICATIONS:
             errors.append(f"{entry['id']} has invalid classification {classification}")
         if classification == "temporary-debt":
-            if "reviewBy" not in entry or not isinstance(entry.get("removalCondition"), str) or not entry["removalCondition"].strip():
-                errors.append(
-                    f"temporary debt requires reviewBy and removalCondition: {entry['id']}"
-                )
+            if (
+                "reviewBy" not in entry
+                or not isinstance(entry.get("removalCondition"), str)
+                or not entry["removalCondition"].strip()
+            ):
+                errors.append(f"temporary debt requires reviewBy and removalCondition: {entry['id']}")
             errors.append(f"temporary debt is forbidden in this wave: {entry['id']}")
         if classification == "tool-noise" and "reviewBy" not in entry:
             errors.append(f"tool-noise entry requires reviewBy: {entry['id']}")
@@ -233,11 +233,11 @@ def validate_wrapper_topology(errors: list[str]) -> None:
     if manifest.get("schemaVersion") != 1 or not isinstance(entries, list):
         errors.append("wrapper registry must use schemaVersion 1 and a wrappers list")
         return
-    registered = {entry.get("entrypoint") for entry in entries if isinstance(entry, dict)}
-    actual = {
-        path.relative_to(ROOT).as_posix()
-        for path in (ROOT / "tooling/qa/wrappers").glob("*.sh")
-    }
+    if any(not isinstance(entry, dict) or not isinstance(entry.get("entrypoint"), str) for entry in entries):
+        errors.append("wrapper registry entrypoints must be strings")
+        return
+    registered: set[str] = {entry["entrypoint"] for entry in entries}
+    actual = {path.relative_to(ROOT).as_posix() for path in (ROOT / "tooling/qa/wrappers").glob("*.sh")}
     if registered != actual:
         errors.append(
             "wrapper registry drift: missing="
@@ -276,9 +276,7 @@ def validate_wrapper_topology(errors: list[str]) -> None:
                 )
         expected_mode = "blocking" if blocking else "non-blocking"
         if match is None or match.group(1) != wrapper_id or match.group(2) != expected_mode:
-            errors.append(
-                f"wrapper registry lifecycle drift: {entrypoint} expected {wrapper_id}/{expected_mode}"
-            )
+            errors.append(f"wrapper registry lifecycle drift: {entrypoint} expected {wrapper_id}/{expected_mode}")
 
 
 def validate_executable_topology(errors: list[str]) -> None:
@@ -294,17 +292,12 @@ def validate_executable_topology(errors: list[str]) -> None:
             errors.append(f"tooling file has no approved owner: {relative}")
         path = ROOT / relative
         if os.access(path, os.X_OK) and not (
-            relative in APPROVED_EXECUTABLE_FILES
-            or relative.startswith(APPROVED_EXECUTABLE_PREFIXES)
+            relative in APPROVED_EXECUTABLE_FILES or relative.startswith(APPROVED_EXECUTABLE_PREFIXES)
         ):
             errors.append(f"executable repository tooling is outside an approved owner: {relative}")
     for relative in sorted(repository_files):
         path = ROOT / relative
-        if (
-            os.access(path, os.X_OK)
-            and not relative.startswith("tooling/")
-            and not relative.startswith(".git/")
-        ):
+        if os.access(path, os.X_OK) and not relative.startswith("tooling/") and not relative.startswith(".git/"):
             errors.append(f"tracked executable must live under tooling/**: {relative}")
 
 
@@ -363,6 +356,12 @@ def validate_hosted_qa_policy(errors: list[str]) -> None:
         "python3 tooling/qa/runtime/toolchain.py --install-rust",
         "tooling/qa/installers/install-release-tools.sh",
         "tooling/qa/wrappers/alpha-proof.sh",
+        "tooling/qa/wrappers/environment-audit.sh",
+        "tooling/qa/wrappers/fast.sh",
+        "tooling/qa/installers/install-script-tools.sh",
+        "python3 -m tooling.qa.runtime.lint_receipts --export .tmp/qa-artifacts/script-lint-proof.json",
+        "python3 -m tooling.qa.runtime.script_lints --powershell-inventory",
+        "& tooling/qa/runtime/lint-windows-powershell.ps1 -Repository (Get-Location).Path -Inventory .tmp/qa-reports/powershell-inventory.json",
         "python3 -m tooling.qa.runtime.compilation_cache",
         'test -n "$ImageVersion" && echo "version=$ImageVersion" >> "$GITHUB_OUTPUT"',
         "& tooling/release/windows/alpha-package.ps1 -QaProof .tmp/release/alpha-proof -Tag $env:ALPHA_TAG",
@@ -373,14 +372,22 @@ def validate_hosted_qa_policy(errors: list[str]) -> None:
         for name in sorted(found):
             workflow = load_object(workflow_root / name)
             triggers = set(workflow["on"])
-            wanted = {"pull_request", "workflow_dispatch", "workflow_call"} if name == "checks.yml" else {"workflow_dispatch"}
-            if triggers != wanted or workflow.get("permissions") != ({"contents": "read", "actions": "read"} if name == "alpha.yml" else {"contents": "read"}):
+            wanted = (
+                {"pull_request", "workflow_dispatch", "workflow_call"}
+                if name == "checks.yml"
+                else {"workflow_dispatch"}
+            )
+            if triggers != wanted or workflow.get("permissions") != (
+                {"contents": "read", "actions": "read"} if name == "alpha.yml" else {"contents": "read"}
+            ):
                 errors.append("hosted trigger or default permission drift: " + name)
             for job_name, job in workflow["jobs"].items():
                 publisher = name == "alpha-publish.yml" and job_name == "publish"
                 if "uses" in job and job["uses"] != "./.github/workflows/checks.yml":
                     errors.append("unapproved reusable workflow")
-                if "permissions" in job and (not publisher or job["permissions"] != {"contents": "write", "actions": "read"}):
+                if "permissions" in job and (
+                    not publisher or job["permissions"] != {"contents": "write", "actions": "read"}
+                ):
                     errors.append("hosted job permission drift")
                 if publisher and job.get("permissions") != {"contents": "write", "actions": "read"}:
                     errors.append("publication permissions missing")
@@ -389,47 +396,160 @@ def validate_hosted_qa_policy(errors: list[str]) -> None:
                 for step in job.get("steps", []):
                     if "uses" in step and step["uses"] not in pinned:
                         errors.append("hosted Action must use approved immutable SHA")
-                    if step.get("uses", "").startswith("actions/checkout@") and step.get("with") != {"fetch-depth": 0, "persist-credentials": False}:
+                    if step.get("uses", "").startswith("actions/checkout@") and step.get("with") != {
+                        "fetch-depth": 0,
+                        "persist-credentials": False,
+                    }:
                         errors.append("checkout must use full current source without persisted credentials")
                     if "run" in step and (step["run"] not in commands or "${{" in step["run"]):
                         errors.append("unapproved hosted command")
-                    if publisher and "run" in step and step["run"] != "python3 tooling/release/windows/alpha_publish.py":
+                    if (
+                        publisher
+                        and "run" in step
+                        and step["run"] != "python3 tooling/release/windows/alpha_publish.py"
+                    ):
                         errors.append("publication must not rebuild")
                     action = step.get("uses", "")
                     options = step.get("with", {})
                     if name == "checks.yml" and step.get("name") == "Cache compiled Linux dependencies":
                         expected_key = "linux-ubuntu24-cargo-v1-${{ runner.arch }}-${{ steps.build-image.outputs.version }}-${{ hashFiles('Cargo.lock', 'Cargo.toml', 'build.rs', 'rust-toolchain.toml', '.cargo/**', 'resources/**', 'tooling/configs/qa/tool-versions.json', 'tooling/configs/qa/toolchain-lock.json', 'tooling/qa/runtime/compilation_cache.py', 'tooling/qa/runtime/lib.sh', 'tooling/qa/wrappers/coverage.sh', '.github/workflows/checks.yml') }}"
-                        if action != "actions/cache@" + lock["actions"]["actions/cache"]["commit"] or options != {"path": "target", "key": expected_key}:
+                        if action != "actions/cache@" + lock["actions"]["actions/cache"]["commit"] or options != {
+                            "path": "target",
+                            "key": expected_key,
+                        }:
                             errors.append("Linux compilation cache scope or identity drift")
+                    if name == "checks.yml" and step.get("name") in {
+                        "Cache pinned script tools",
+                        "Save prepared script tools",
+                        "Restore pinned script tools",
+                    }:
+                        checker_key = "script-tools-ubuntu24-v1-${{ hashFiles('tooling/configs/qa/tool-versions.json', 'tooling/configs/qa/toolchain-lock.json', 'tooling/configs/qa/script-python*', 'tooling/configs/qa/script-node/**', 'tooling/qa/installers/install-script-tools.sh', 'tooling/qa/runtime/install_script_tools.py') }}"
+                        if not action.startswith("actions/cache") or options != {
+                            "path": ".tmp/qa-tools/script-tools\n.tmp/qa-tools/node-*",
+                            "key": checker_key,
+                        }:
+                            errors.append("checker cache must bind exact catalog, locks and installer")
                     if name == "alpha.yml" and action.startswith("actions/cache"):
                         expected_key = "windows-msvc-static-v1-${{ steps.build-image.outputs.version }}-${{ hashFiles('Cargo.lock', 'Cargo.toml', 'build.rs', 'rust-toolchain.toml', '.cargo/**', 'resources/**', 'tooling/configs/qa/tool-versions.json', 'tooling/configs/qa/toolchain-lock.json', 'tooling/release/windows/toolchain.ps1', 'tooling/release/windows/alpha-package.ps1') }}"
-                        if name != "alpha.yml" or job_name != "package" or options != {"path": "target", "key": expected_key}:
+                        if (
+                            name != "alpha.yml"
+                            or job_name != "package"
+                            or options != {"path": "target", "key": expected_key}
+                        ):
                             errors.append("compiled dependency cache scope or identity drift")
-                    if action.startswith("actions/setup-python@") and options.get("python-version") != lock["python"]["version"]:
+                    if (
+                        action.startswith("actions/setup-python@")
+                        and options.get("python-version") != lock["python"]["version"]
+                    ):
                         errors.append("hosted Python version differs from canonical toolchain")
-                    if action.startswith("actions/upload-artifact@"):
+                    if action.startswith("actions/upload-artifact@") and name == "checks.yml" and job_name == "fast":
+                        if options != {
+                            "name": "lint-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}",
+                            "path": ".tmp/qa-artifacts",
+                            "include-hidden-files": True,
+                            "if-no-files-found": "error",
+                            "retention-days": 2,
+                        }:
+                            errors.append("lint proof upload scope or run identity drift")
+                    elif action.startswith("actions/upload-artifact@"):
                         kind = "alpha" if name == "alpha.yml" else "qa"
                         path = ".tmp/release/alpha" if kind == "alpha" else ".tmp/release/alpha-proof"
-                        if (publisher or options.get("path") != path or options.get("if-no-files-found") != "error"
-                                or options.get("name") != kind + "-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}"):
+                        if (
+                            publisher
+                            or options.get("path") != path
+                            or options.get("if-no-files-found") != "error"
+                            or options.get("name")
+                            != kind + "-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}"
+                        ):
                             errors.append("artifact output path or identity drift")
-                    if action.startswith("actions/download-artifact@") and (name != "alpha.yml" or options != {
-                        "name": "qa-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}",
-                        "path": ".tmp/release/alpha-proof",
-                    }):
+                    if action.startswith("actions/download-artifact@") and name == "checks.yml" and job_name == "qa":
+                        if options != {
+                            "name": "lint-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}",
+                            "path": ".tmp/qa-artifacts",
+                        }:
+                            errors.append("lint proof download must use the same run, attempt and commit")
+                    elif action.startswith("actions/download-artifact@") and (
+                        name != "alpha.yml"
+                        or options
+                        != {
+                            "name": "qa-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}",
+                            "path": ".tmp/release/alpha-proof",
+                        }
+                    ):
                         errors.append("QA handoff path or identity drift")
+            if name == "alpha-publish.yml":
+                admission = workflow["jobs"].get("environment-audit", {})
+                runs = [
+                    step
+                    for step in admission.get("steps", [])
+                    if step.get("run") == "tooling/qa/wrappers/environment-audit.sh"
+                ]
+                if (
+                    workflow["jobs"]["publish"].get("needs") != "environment-audit"
+                    or len(runs) != 1
+                    or runs[0].get("continue-on-error")
+                    or "if" in runs[0]
+                    or admission.get("if") != "github.ref == 'refs/heads/main'"
+                ):
+                    errors.append("alpha publication must wait for a fresh read-only environment audit")
             if name == "alpha.yml" and workflow["jobs"]["package"].get("needs") != "qa":
                 errors.append("alpha package must require canonical QA")
             if name == "checks.yml":
+                fast = workflow["jobs"].get("fast", {})
+                if workflow["jobs"]["qa"].get("needs") != ["fast", "windows-powershell"]:
+                    errors.append("compilation must wait for fast environment and script checks")
+                audits = [step for step in fast.get("steps", []) if step.get("run") == "tooling/qa/wrappers/fast.sh"]
+                if len(audits) != 1 or any(step.get("continue-on-error") or "if" in step for step in audits):
+                    errors.append("fast tool environment audit must be unconditional and blocking")
+                windows = workflow["jobs"].get("windows-powershell", {})
+                parsers = [
+                    step
+                    for step in windows.get("steps", [])
+                    if step.get("run", "").startswith("& tooling/qa/runtime/lint-windows-powershell.ps1")
+                ]
+                if (
+                    windows.get("runs-on") != "windows-2025"
+                    or len(parsers) != 1
+                    or parsers[0].get("shell") != "powershell"
+                    or parsers[0].get("continue-on-error")
+                    or "if" in parsers[0]
+                ):
+                    errors.append("native Windows PowerShell 5.1 proof must be unconditional and blocking")
+                expected_lint_path = ".tmp/qa-artifacts/script-lint-proof.json"
+                if workflow["jobs"]["qa"].get("env", {}).get("SNIPTALE_QA_LINT_PROOF") != expected_lint_path:
+                    errors.append("compilation must admit the exact source lint artifact")
+                required_fast = [
+                    "tooling/qa/installers/install-script-tools.sh",
+                    "tooling/qa/wrappers/fast.sh",
+                    "python3 -m tooling.qa.runtime.lint_receipts --export .tmp/qa-artifacts/script-lint-proof.json",
+                ]
+                commands_in_fast = [step.get("run") for step in fast.get("steps", []) if "run" in step]
+                if commands_in_fast != required_fast or any(
+                    step.get("continue-on-error") or "if" in step for step in fast.get("steps", []) if "run" in step
+                ):
+                    errors.append("fast install, check and proof export order must remain blocking")
                 steps = workflow["jobs"]["qa"]["steps"]
                 cache = [i for i, step in enumerate(steps) if step.get("name") == "Cache compiled Linux dependencies"]
-                images = [i for i, step in enumerate(steps) if step.get("id") == "build-image"
-                          and step.get("run") == 'test -n "$ImageVersion" && echo "version=$ImageVersion" >> "$GITHUB_OUTPUT"']
-                invalidate = [i for i, step in enumerate(steps) if step.get("run") == "python3 -m tooling.qa.runtime.compilation_cache"]
+                images = [
+                    i
+                    for i, step in enumerate(steps)
+                    if step.get("id") == "build-image"
+                    and step.get("run") == 'test -n "$ImageVersion" && echo "version=$ImageVersion" >> "$GITHUB_OUTPUT"'
+                ]
+                invalidate = [
+                    i
+                    for i, step in enumerate(steps)
+                    if step.get("run") == "python3 -m tooling.qa.runtime.compilation_cache"
+                ]
                 proof = [i for i, step in enumerate(steps) if step.get("run") == "tooling/qa/wrappers/alpha-proof.sh"]
                 if len(images) != 1 or len(cache) != 1 or images[0] >= cache[0]:
                     errors.append("Linux compilation cache requires an exact runner image identity")
-                if len(cache) != 1 or len(invalidate) != 2 or len(proof) != 1 or not cache[0] < invalidate[0] < proof[0] < invalidate[1]:
+                if (
+                    len(cache) != 1
+                    or len(invalidate) != 2
+                    or len(proof) != 1
+                    or not cache[0] < invalidate[0] < proof[0] < invalidate[1]
+                ):
                     errors.append("Linux compilation cache requires application invalidation before full QA")
                 if any("if" in steps[i] or steps[i].get("continue-on-error", False) for i in invalidate + proof):
                     errors.append("Linux cache invalidation and full QA must be unconditional and blocking")
@@ -444,7 +564,6 @@ def validate_hosted_qa_policy(errors: list[str]) -> None:
             errors.append("alpha compilation must invalidate current package in the exact release target")
     else:
         errors.append("alpha packaging source missing")
-
 
 
 def validate_git_attributes(errors: list[str]) -> None:
@@ -498,7 +617,17 @@ def validate_secret_audit(errors: list[str]) -> None:
             if not isinstance(entry, dict):
                 errors.append("Gitleaks baseline entries must be objects")
                 continue
-            required = {"RuleID", "StartLine", "File", "Commit", "Fingerprint", "Secret", "SniptaleScope", "SniptaleEnabled", "SniptaleRationale"}
+            required = {
+                "RuleID",
+                "StartLine",
+                "File",
+                "Commit",
+                "Fingerprint",
+                "Secret",
+                "SniptaleScope",
+                "SniptaleEnabled",
+                "SniptaleRationale",
+            }
             missing = required - set(entry)
             if missing:
                 errors.append("Gitleaks baseline entry is missing fields: " + ", ".join(sorted(missing)))
@@ -508,7 +637,10 @@ def validate_secret_audit(errors: list[str]) -> None:
                 errors.append("Gitleaks baseline entry contains forbidden fields: " + ", ".join(sorted(extra)))
             if entry["Secret"] != "REDACTED":
                 errors.append("Gitleaks baseline must not contain raw secret values")
-            if entry["SniptaleScope"] not in {"worktree", "history", "both"} or not str(entry["SniptaleRationale"]).strip():
+            if (
+                entry["SniptaleScope"] not in {"worktree", "history", "both"}
+                or not str(entry["SniptaleRationale"]).strip()
+            ):
                 errors.append("Gitleaks baseline requires an exact scope and rationale")
             if not isinstance(entry["SniptaleEnabled"], bool):
                 errors.append("Gitleaks baseline requires an explicit boolean enabled state")
@@ -525,7 +657,9 @@ def validate_secret_audit(errors: list[str]) -> None:
     linux = gitleaks.get("linuxX64", {})
     if not isinstance(version, str) or not re.fullmatch(r"\d+\.\d+\.\d+", version):
         errors.append("Gitleaks version must be exact")
-    if not isinstance(linux.get("url"), str) or f"/v{version}/gitleaks_{version}_linux_x64.tar.gz" not in linux.get("url", ""):
+    if not isinstance(linux.get("url"), str) or f"/v{version}/gitleaks_{version}_linux_x64.tar.gz" not in linux.get(
+        "url", ""
+    ):
         errors.append("Gitleaks Linux URL must match the exact version")
     if not isinstance(linux.get("sha256"), str) or not re.fullmatch(r"[0-9a-f]{64}", linux.get("sha256", "")):
         errors.append("Gitleaks Linux archive requires an exact SHA-256")
@@ -535,7 +669,15 @@ def validate_secret_audit(errors: list[str]) -> None:
         errors.append("Gitleaks audit and release wrappers are required")
         return
     wrapper_text = wrapper.read_text(encoding="utf-8")
-    for marker in ("elif [[ -x \"$managed_bin\" ]]", "scan_scope dir", "scan_scope git", "--redact=100", "--exit-code 0", "verify_gitleaks.py", "--is-shallow-repository"):
+    for marker in (
+        'elif [[ -x "$managed_bin" ]]',
+        "scan_scope dir",
+        "scan_scope git",
+        "--redact=100",
+        "--exit-code 0",
+        "verify_gitleaks.py",
+        "--is-shallow-repository",
+    ):
         if marker not in wrapper_text:
             errors.append(f"Gitleaks audit wrapper is missing {marker}")
     if 'qa_step "secret audit" tooling/qa/wrappers/audit.sh' not in release.read_text(encoding="utf-8"):
@@ -565,6 +707,7 @@ def main() -> int:
     validate_hosted_qa_policy(errors)
     sys.path.insert(0, str(ROOT / "tooling/qa/runtime"))
     import toolchain
+
     try:
         toolchain.check(ROOT)
     except (toolchain.ToolchainError, OSError, ValueError, KeyError, TypeError) as exc:

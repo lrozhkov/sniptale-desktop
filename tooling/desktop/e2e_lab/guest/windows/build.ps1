@@ -1,12 +1,11 @@
 param(
   [Parameter(Mandatory = $true)][string] $SourceBundle,
   [Parameter(Mandatory = $true)][string] $SourceSha256,
-  [ValidateSet("dev", "release")][string] $Profile = "release",
+  [ValidateSet("dev", "release")][Alias("Profile")][string] $BuildProfile = "release",
   [string] $Output = "out",
   [ValidateSet("", "warm")][string] $WorkspaceMode = "",
   [string] $VendorBundle = "",
   [string] $VendorSha256 = "",
-  [string] $WixUiSha256 = "",
   [string] $RustcSha256 = "",
   [string] $CargoSha256 = ""
 )
@@ -94,10 +93,10 @@ foreach ($line in $environment) {
 }
 $toolsTimer = [Diagnostics.Stopwatch]::StartNew()
 . (Join-Path $work "tooling/release/windows/toolchain.ps1")
-$windowsTools = Initialize-SniptaleWindowsTools $work "C:\SniptaleLab\build-tools" -Offline:($WorkspaceMode -eq "warm")
+$windowsTools = Initialize-SniptaleWindowsTool $work "C:\SniptaleLab\build-tools" -Offline:($WorkspaceMode -eq "warm")
 $toolsTimer.Stop()
 Write-Output "[build-progress] windows-tools status=ready"
-$cargoProfile = if ($Profile -eq "release") { "--release" } else { "" }
+$cargoProfile = if ($BuildProfile -eq "release") { "--release" } else { "" }
 $pinnedRust = (Get-Content (Join-Path $work "tooling/configs/qa/tool-versions.json") -Raw | ConvertFrom-Json).rust.channel
 if ($WorkspaceMode -eq "warm") {
   $compilerRoot = "C:\SniptaleLab\rust-toolchain"
@@ -127,18 +126,18 @@ $compileTimer = [Diagnostics.Stopwatch]::StartNew()
 $compileTimer.Stop()
 if ($LASTEXITCODE -ne 0) { throw "Windows cargo build failed" }
 
-$profileDir = if ($Profile -eq "release") { "release" } else { "debug" }
+$profileDir = if ($BuildProfile -eq "release") { "release" } else { "debug" }
 $targetRoot = if ($WorkspaceMode -eq "warm") { $env:CARGO_TARGET_DIR } else { Join-Path $work "target" }
 $exe = Join-Path $targetRoot "x86_64-pc-windows-msvc\$profileDir\sniptale-native-agent.exe"
 if (-not (Test-Path -LiteralPath $exe)) { throw "Windows executable is missing" }
-Copy-Item -LiteralPath $exe -Destination (Join-Path $outputPath "sniptale-native-agent-$Profile.exe")
+Copy-Item -LiteralPath $exe -Destination (Join-Path $outputPath "sniptale-native-agent-$BuildProfile.exe")
 $pdb = Get-ChildItem -LiteralPath (Join-Path $targetRoot "x86_64-pc-windows-msvc\$profileDir") `
   -File -Filter "*sniptale*.pdb" -ErrorAction SilentlyContinue | Select-Object -First 1
 if ($pdb) {
-  Copy-Item -LiteralPath $pdb.FullName -Destination (Join-Path $outputPath "sniptale-native-agent-$Profile.pdb")
+  Copy-Item -LiteralPath $pdb.FullName -Destination (Join-Path $outputPath "sniptale-native-agent-$BuildProfile.pdb")
 }
-$exe = Join-Path $outputPath "sniptale-native-agent-$Profile.exe"
-$baselineExe = Join-Path $outputPath "sniptale-native-agent-baseline-$Profile.exe"
+$exe = Join-Path $outputPath "sniptale-native-agent-$BuildProfile.exe"
+$baselineExe = Join-Path $outputPath "sniptale-native-agent-baseline-$BuildProfile.exe"
 Copy-Item -LiteralPath $exe -Destination $baselineExe
 $baselineMarker = [Text.Encoding]::ASCII.GetBytes("SNIPTALE-E2E-BASELINE-0.0.1")
 $baselineStream = [IO.File]::Open($baselineExe, [IO.FileMode]::Append, [IO.FileAccess]::Write, [IO.FileShare]::None)
@@ -147,7 +146,7 @@ try { $baselineStream.Write($baselineMarker, 0, $baselineMarker.Length) } finall
 . (Join-Path $work "tooling/desktop/e2e_lab/guest/windows/lab-signing.ps1")
 $labCertificate = New-LabSigningIdentity
 $labCertificatePath = Join-Path $outputPath "lab-signing.cer"
-[IO.File]::WriteAllBytes($labCertificatePath, $labCertificate.Export([Security.Cryptography.X509Certificates.X509ContentType]::Cert))
+[IO.File]::WriteAllBytes($labCertificatePath, $labCertificate.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::Cert))
 Sign-LabArtifact $exe $labCertificate
 Sign-LabArtifact $baselineExe $labCertificate
 
@@ -163,7 +162,7 @@ $currentWixPath = Join-Path $work "installer\wix\SniptaleNativeAgent.wxs"
 $identityVerifier = Join-Path $work "tooling\release\windows\verify_msi_identity.ps1"
 $packageTimer = [Diagnostics.Stopwatch]::StartNew()
 foreach ($productVersion in @("0.0.1", "0.1.0")) {
-  $msi = Join-Path $outputPath "SniptaleNativeAgent-dev-$productVersion-$Profile.msi"
+  $msi = Join-Path $outputPath "SniptaleNativeAgent-dev-$productVersion-$BuildProfile.msi"
   $payloadExe = if ($productVersion -eq "0.0.1") { $baselineExe } else { $exe }
   & $wix build $currentWixPath `
     -ext $wixExtension `
@@ -189,7 +188,7 @@ $entries = Get-ChildItem -LiteralPath $outputPath -File | ForEach-Object {
 }
 $os = Get-CimInstance Win32_OperatingSystem
 $value = [ordered]@{
-  schema_version = 1; profile = $Profile; artifacts = @($entries)
+  schema_version = 1; profile = $BuildProfile; artifacts = @($entries)
   timings_ms = [ordered]@{ tools = $toolsTimer.ElapsedMilliseconds; compile = $compileTimer.ElapsedMilliseconds; package = $packageTimer.ElapsedMilliseconds }
   environment = [ordered]@{
     os_version = $os.Version; os_build = $os.BuildNumber

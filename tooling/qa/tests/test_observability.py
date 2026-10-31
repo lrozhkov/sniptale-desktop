@@ -6,7 +6,7 @@ import os
 import tempfile
 import unittest
 from contextlib import redirect_stderr
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, UTC
 from pathlib import Path
 from unittest import mock
 
@@ -67,9 +67,7 @@ class StorageTests(unittest.TestCase):
         self.assertNotIn("api-private", value)
 
     def test_sanitizes_security_redaction_corpus_from_qa_logs(self) -> None:
-        corpus_path = (
-            Path(__file__).resolve().parents[3] / "contracts/security/redaction-corpus.json"
-        )
+        corpus_path = Path(__file__).resolve().parents[3] / "contracts/security/redaction-corpus.json"
         corpus = json.loads(corpus_path.read_text(encoding="utf-8"))
         value = storage.sanitize_text(
             "\n".join(sample["value"] for sample in corpus["samples"]),
@@ -122,32 +120,38 @@ class StorageTests(unittest.TestCase):
     def test_retention_recovers_stale_runs_and_bounds_invalid_and_orphan_files(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            now = datetime(2026, 7, 17, 12, tzinfo=timezone.utc)
+            now = datetime(2026, 7, 17, 12, tzinfo=UTC)
             day = "2026-07-17"
             stale_path = root / f".tmp/qa-observability/runs/{day}/stale.json"
             stale_log = root / f".tmp/qa-logs/{day}/stale.log"
             storage.append_bounded_log(stale_log, "started\n", root)
-            storage.atomic_write_json(stale_path, {
-                "schemaVersion": 1,
-                "runId": "stale",
-                "status": "running",
-                "startedAt": (now - timedelta(hours=7)).isoformat().replace("+00:00", "Z"),
-                "finishedAt": None,
-                "durationMs": None,
-                "exitCode": None,
-                "problemIds": [],
-                "log": {"path": f".tmp/qa-logs/{day}/stale.log"},
-            })
+            storage.atomic_write_json(
+                stale_path,
+                {
+                    "schemaVersion": 1,
+                    "runId": "stale",
+                    "status": "running",
+                    "startedAt": (now - timedelta(hours=7)).isoformat().replace("+00:00", "Z"),
+                    "finishedAt": None,
+                    "durationMs": None,
+                    "exitCode": None,
+                    "problemIds": [],
+                    "log": {"path": f".tmp/qa-logs/{day}/stale.log"},
+                },
+            )
             old_path = root / ".tmp/qa-observability/runs/2026-05-01/old.json"
             old_log = root / ".tmp/qa-logs/2026-05-01/old.log"
             storage.append_bounded_log(old_log, "old\n", root)
-            storage.atomic_write_json(old_path, {
-                "schemaVersion": 1,
-                "runId": "old",
-                "status": "all-passed",
-                "startedAt": (now - timedelta(days=31)).isoformat().replace("+00:00", "Z"),
-                "log": {"path": ".tmp/qa-logs/2026-05-01/old.log"},
-            })
+            storage.atomic_write_json(
+                old_path,
+                {
+                    "schemaVersion": 1,
+                    "runId": "old",
+                    "status": "all-passed",
+                    "startedAt": (now - timedelta(days=31)).isoformat().replace("+00:00", "Z"),
+                    "log": {"path": ".tmp/qa-logs/2026-05-01/old.log"},
+                },
+            )
             invalid_root = root / ".tmp/qa-observability/runs/invalid"
             invalid_root.mkdir(parents=True)
             for index in range(30):
@@ -183,9 +187,7 @@ class LockTests(unittest.TestCase):
                     {"SNIPTALE_QA_LOCK_TOKEN": token},
                     clear=True,
                 ):
-                    inherited, child_owner = lock.acquire(
-                        root, "qa:build", "child-run", "root-run"
-                    )
+                    inherited, child_owner = lock.acquire(root, "qa:build", "child-run", "root-run")
                 self.assertEqual(inherited, token)
                 self.assertFalse(child_owner)
                 lock.release(root, "child-run")
@@ -219,10 +221,13 @@ class RunTests(unittest.TestCase):
             root = Path(directory)
             record_path = root / "record.json"
             log_path = root / ".tmp/qa-logs/2026-07-17/run.log"
-            storage.atomic_write_json(record_path, {
-                "steps": [],
-                "log": {"path": ".tmp/qa-logs/2026-07-17/run.log"},
-            })
+            storage.atomic_write_json(
+                record_path,
+                {
+                    "steps": [],
+                    "log": {"path": ".tmp/qa-logs/2026-07-17/run.log"},
+                },
+            )
             streamed = io.StringIO()
             with mock.patch.object(run, "ROOT", root), redirect_stderr(streamed):
                 code = run.run_step(
@@ -244,16 +249,26 @@ class RunTests(unittest.TestCase):
             record_path = root / "record.json"
             log_path = root / ".tmp/qa-logs/2026-07-17/run.log"
             output_path = root / "shell.raw"
-            storage.atomic_write_json(record_path, {
-                "steps": [],
-                "log": {"path": ".tmp/qa-logs/2026-07-17/run.log"},
-            })
+            storage.atomic_write_json(
+                record_path,
+                {
+                    "steps": [],
+                    "log": {"path": ".tmp/qa-logs/2026-07-17/run.log"},
+                },
+            )
             output_path.write_text("TOKEN=private-value\n", encoding="utf-8")
             with mock.patch.object(run, "ROOT", root):
                 started_at, started_ns = run.begin_shell_step(log_path, "shell", "shell")
                 code = run.finish_shell_step(
-                    record_path, log_path, "shell", "shell", started_at, started_ns,
-                    7, output_path, ["private-value"],
+                    record_path,
+                    log_path,
+                    "shell",
+                    "shell",
+                    started_at,
+                    started_ns,
+                    7,
+                    output_path,
+                    ["private-value"],
                 )
             self.assertEqual(code, 7)
             self.assertFalse(output_path.exists())
@@ -287,16 +302,14 @@ class RunTests(unittest.TestCase):
                     ["private-value"],
                 )
                 self.assertEqual(code, 3)
-                record = run.finish(
-                    Path(session["run_path"]), Path(session["log_path"]), 3
-                )
+                record = run.finish(Path(session["run_path"]), Path(session["log_path"]), 3)
             self.assertEqual(record["rootRunId"], "root")
             self.assertEqual(record["parentRunId"], "parent")
             self.assertEqual(record["status"], "problems-found")
-            self.assertEqual(record["steps"][0]["exitCode"], 3)
-            self.assertNotIn(
-                "private-value", Path(session["log_path"]).read_text(encoding="utf-8")
-            )
+            steps = record["steps"]
+            assert isinstance(steps, list)
+            self.assertEqual(steps[0]["exitCode"], 3)
+            self.assertNotIn("private-value", Path(session["log_path"]).read_text(encoding="utf-8"))
             json.loads(Path(session["run_path"]).read_text(encoding="utf-8"))
 
 

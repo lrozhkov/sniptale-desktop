@@ -1,4 +1,5 @@
 """Trusted dispatch admission and draft-first publication of an existing alpha build."""
+
 from __future__ import annotations
 
 import base64
@@ -9,7 +10,7 @@ import subprocess
 import zipfile
 from pathlib import Path
 
-from alpha_artifacts import digest, read_json, verify_bundle, version_tag, write_json
+from alpha_artifacts import digest, verify_bundle, version_tag, write_json
 
 REPO = "lrozhkov/sniptale-desktop"
 RELEASE_CASES = {"network-isolation", "clean-install", "first-run", "capture", "recording", "restart", "uninstall"}
@@ -28,25 +29,44 @@ def api(path: str, body: dict | None = None) -> dict:
 
 def admit(run: dict, artifact: dict, receipt: dict, commit: str, tag: str) -> None:
     version_tag(tag)
-    if (run.get("head_sha") != commit or run.get("head_branch") != "main"
-            or run.get("event") != "workflow_dispatch" or run.get("conclusion") != "success"
-            or run.get("status") != "completed" or run.get("path") != ".github/workflows/alpha.yml"
-            or run.get("repository", {}).get("full_name") != REPO
-            or run.get("head_repository", {}).get("full_name") != REPO):
+    if (
+        run.get("head_sha") != commit
+        or run.get("head_branch") != "main"
+        or run.get("event") != "workflow_dispatch"
+        or run.get("conclusion") != "success"
+        or run.get("status") != "completed"
+        or run.get("path") != ".github/workflows/alpha.yml"
+        or run.get("repository", {}).get("full_name") != REPO
+        or run.get("head_repository", {}).get("full_name") != REPO
+    ):
         raise ValueError("untrusted or unsuccessful source run")
-    if (artifact.get("expired") is not False
-            or artifact.get("name") != f"alpha-{commit}-{run['id']}-{run['run_attempt']}"
-            or not re.fullmatch(r"sha256:[0-9a-f]{64}", artifact.get("digest", ""))):
+    if (
+        artifact.get("expired") is not False
+        or artifact.get("name") != f"alpha-{commit}-{run['id']}-{run['run_attempt']}"
+        or not re.fullmatch(r"sha256:[0-9a-f]{64}", artifact.get("digest", ""))
+    ):
         raise ValueError("source artifact identity or digest invalid")
-    expected = {"schemaVersion": 1, "kind": "sniptale-alpha-windows-acceptance", "commit": commit,
-                "tag": tag, "runId": str(run["id"]), "runAttempt": str(run["run_attempt"]),
-                "artifactId": artifact["id"], "artifactDigest": artifact["digest"],
-                "result": "pass", "verified": True, "cleanTeardown": True, "devLocalTrust": False}
+    expected = {
+        "schemaVersion": 1,
+        "kind": "sniptale-alpha-windows-acceptance",
+        "commit": commit,
+        "tag": tag,
+        "runId": str(run["id"]),
+        "runAttempt": str(run["run_attempt"]),
+        "artifactId": artifact["id"],
+        "artifactDigest": artifact["digest"],
+        "result": "pass",
+        "verified": True,
+        "cleanTeardown": True,
+        "devLocalTrust": False,
+    }
     if any(receipt.get(key) != value for key, value in expected.items()):
         raise ValueError("Windows acceptance identity mismatch")
-    if (receipt.get("tests") != {name: "pass" for name in sorted(RELEASE_CASES)}
-            or not re.fullmatch(r"[0-9a-f]{64}", receipt.get("checksumsSha256", ""))
-            or not re.fullmatch(r"[0-9a-f]{64}", receipt.get("receiptSha256", ""))):
+    if (
+        receipt.get("tests") != {name: "pass" for name in sorted(RELEASE_CASES)}
+        or not re.fullmatch(r"[0-9a-f]{64}", receipt.get("checksumsSha256", ""))
+        or not re.fullmatch(r"[0-9a-f]{64}", receipt.get("receiptSha256", ""))
+    ):
         raise ValueError("incomplete or malformed Windows acceptance")
 
 
@@ -56,6 +76,8 @@ def main() -> None:
     run_id = os.environ["ALPHA_RUN_ID"]
     artifact_id = os.environ["ALPHA_ARTIFACT_ID"]
     commit = os.environ["ALPHA_COMMIT"]
+    if os.environ.get("GITHUB_SHA") != commit:
+        raise ValueError("candidate must match the workflow commit whose environment was audited")
     tag = os.environ["ALPHA_TAG"]
     encoded = os.environ["ALPHA_ACCEPTANCE"]
     if not re.fullmatch(r"[1-9][0-9]*", run_id) or not re.fullmatch(r"[1-9][0-9]*", artifact_id):
@@ -98,8 +120,11 @@ def main() -> None:
                 raise ValueError("duplicate candidate archive entry")
             target.write_bytes(zipped.read(item))
     provenance = verify_bundle(bundle, commit, tag)
-    if (provenance["runId"] != run_id or provenance["runAttempt"] != str(run["run_attempt"])
-            or digest(bundle / "SHA256SUMS") != receipt["checksumsSha256"]):
+    if (
+        provenance["runId"] != run_id
+        or provenance["runAttempt"] != str(run["run_attempt"])
+        or digest(bundle / "SHA256SUMS") != receipt["checksumsSha256"]
+    ):
         raise ValueError("candidate and tested artifact mismatch")
     assets = directory / "assets"
     assets.mkdir()
@@ -115,23 +140,41 @@ def main() -> None:
                 entry.compress_type = zipfile.ZIP_DEFLATED
                 zipped.writestr(entry, path.read_bytes())
     notes = directory / "notes.txt"
-    notes.write_text(f"""First Windows alpha for Manual settings, screenshots and local MP4 recording.
+    notes.write_text(
+        f"""First Windows alpha for Manual settings, screenshots and local MP4 recording.
 
 Install `{msi_name}`. For the first launch, run `%LOCALAPPDATA%\\Sniptale\\NativeAgent\\sniptale-native-agent.exe`; later Windows sign-ins use the registered autostart. In the tray menu choose Mode > Manual, select a local output folder, and choose Save and switch to Manual. Capture and recording controls are in the tray menu. This is an unsigned development-channel build; Windows can display an unknown-publisher warning. Trusted browser-extension integration is unsupported in this alpha. No development trust bypass is shipped.
 
 Tested on the Windows 11 laboratory image identified in windows-acceptance.json; Windows 10 compatibility is not certified. Development/beta/stable packages currently share the install location: uninstall any existing Sniptale Desktop package before this alpha. Side-by-side installation is unsupported. Future releases must advance the numeric MSI version before distribution.
 
-The ZIP contains the exact EXE/MSI, manifest, licenses, SBOM, supply-chain reports, source/run provenance and SHA256SUMS. Verify SHA256SUMS after extracting it. Source: {commit}. Actions run: https://github.com/{REPO}/actions/runs/{run_id} (attempt {run['run_attempt']}).
-""", encoding="utf-8")
+The ZIP contains the exact EXE/MSI, manifest, licenses, SBOM, supply-chain reports, source/run provenance and SHA256SUMS. Verify SHA256SUMS after extracting it. Source: {commit}. Actions run: https://github.com/{REPO}/actions/runs/{run_id} (attempt {run["run_attempt"]}).
+""",
+        encoding="utf-8",
+    )
     # Existing tags/releases are never overwritten, even after a partially failed publication.
     if subprocess.run(["gh", "api", f"repos/{REPO}/git/ref/tags/{tag}"], capture_output=True).returncode == 0:
         raise ValueError("release tag already exists; inspect partial publication before retry")
     api("git/refs", {"ref": "refs/tags/" + tag, "sha": commit})
-    gh("release", "create", tag, "--repo", REPO, "--verify-tag", "--draft", "--prerelease",
-       "--title", "Sniptale Desktop " + tag, "--notes-file", str(notes), *[str(path) for path in sorted(assets.iterdir())])
+    gh(
+        "release",
+        "create",
+        tag,
+        "--repo",
+        REPO,
+        "--verify-tag",
+        "--draft",
+        "--prerelease",
+        "--title",
+        "Sniptale Desktop " + tag,
+        "--notes-file",
+        str(notes),
+        *[str(path) for path in sorted(assets.iterdir())],
+    )
     downloaded = directory / "uploaded"
     gh("release", "download", tag, "--repo", REPO, "--dir", str(downloaded))
-    if {path.name: digest(path) for path in downloaded.iterdir()} != {path.name: digest(path) for path in assets.iterdir()}:
+    if {path.name: digest(path) for path in downloaded.iterdir()} != {
+        path.name: digest(path) for path in assets.iterdir()
+    }:
         raise ValueError("draft upload verification failed; draft retained for inspection")
     gh("release", "edit", tag, "--repo", REPO, "--draft=false", "--prerelease", "--latest=false")
     print(f"Published https://github.com/{REPO}/releases/tag/{tag}")

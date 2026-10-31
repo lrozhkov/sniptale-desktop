@@ -17,7 +17,8 @@ while read -r name version; do
     printf 'Pinned release tool is missing or has the wrong version: %s\n' "$name" >&2
     exit 1
   fi
-done < <(python3 - <<'PY'
+done < <(
+  python3 - <<'PY'
 import json
 with open('tooling/configs/qa/tool-versions.json') as stream:
     for name, version in json.load(stream)['cargoSubcommands'].items():

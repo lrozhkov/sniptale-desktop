@@ -83,10 +83,7 @@ def require_files(errors: list[str]) -> None:
         IDENTITY_SOURCE,
         REGISTRATION_FACTS_SOURCE,
     ]
-    required.extend(
-        ROOT / f"installer/native-host/{channel}.json.template"
-        for channel in MANIFEST_TEMPLATES
-    )
+    required.extend(ROOT / f"installer/native-host/{channel}.json.template" for channel in MANIFEST_TEMPLATES)
     missing = [rel(path) for path in required if not path.is_file()]
     if missing:
         errors.append("missing release artifact files: " + ", ".join(missing))
@@ -120,9 +117,7 @@ def check_wix(errors: list[str]) -> None:
     if major_upgrade is None:
         errors.append("WiX Package must define MajorUpgrade")
     elif major_upgrade.attrib.get("AllowSameVersionUpgrades") != "yes":
-        errors.append(
-            "WiX MajorUpgrade must allow same-version upgrades for rebuilt package payloads"
-        )
+        errors.append("WiX MajorUpgrade must allow same-version upgrades for rebuilt package payloads")
 
     files = {file.attrib.get("Id"): file.attrib for file in root.findall(".//w:File", WIX_NS)}
     if files.get("NativeAgentExe", {}).get("Source") != "$(var.NativeAgentExe)":
@@ -139,8 +134,7 @@ def check_wix(errors: list[str]) -> None:
         if files.get(file_id, {}).get("Source") != source or files.get(file_id, {}).get("Name") != name:
             errors.append(f"WiX must install {name} from {source}")
     components = {
-        component.attrib.get("Id"): component.attrib.get("Guid")
-        for component in root.findall(".//w:Component", WIX_NS)
+        component.attrib.get("Id"): component.attrib.get("Guid") for component in root.findall(".//w:Component", WIX_NS)
     }
     if components != EXPECTED_COMPONENT_GUIDS:
         errors.append("WiX component identities must match all ten pinned Sniptale GUIDs")
@@ -172,11 +166,7 @@ def check_wix(errors: list[str]) -> None:
     if checkbox is None or checkbox.attrib.get("Property") != "SNIPTALE_START_WITH_WINDOWS":
         errors.append("WiX must expose a StartWithWindowsCheckBox bound to SNIPTALE_START_WITH_WINDOWS")
     autostart_component = root.find(".//w:Component[@Id='AutostartRegistration']", WIX_NS)
-    autostart_condition = (
-        autostart_component.attrib.get("Condition", "")
-        if autostart_component is not None
-        else ""
-    )
+    autostart_condition = autostart_component.attrib.get("Condition", "") if autostart_component is not None else ""
     if 'SNIPTALE_START_WITH_WINDOWS = "1"' not in autostart_condition:
         errors.append("WiX autostart component must be conditioned on SNIPTALE_START_WITH_WINDOWS")
     if REGISTRATION_FACTS_SOURCE.is_file():
@@ -255,10 +245,10 @@ def check_clean_break_identity_guards(errors: list[str]) -> None:
     if WINDOWS_MSI_IDENTITY_VERIFIER.is_file():
         text = WINDOWS_MSI_IDENTITY_VERIFIER.read_text(encoding="utf-8")
         for term in (
-            "Get-RetiredProductRoots",
+            "Get-RetiredProductRoot",
             "Assert-CleanIdentityValue",
             "SELECT * FROM",
-            'SELECT `UpgradeCode` FROM `Upgrade`',
+            "SELECT `UpgradeCode` FROM `Upgrade`",
             EXPECTED_UPGRADE_CODE,
             "SniptaleNativeAgent-(stable|beta|dev)",
         ):
@@ -348,16 +338,15 @@ def check_package_wrapper(errors: list[str]) -> None:
 
     forbidden_terms = [
         "--native-agent-exe",
-        "native_agent_exe=\"\"",
-        "[[ -z \"$native_agent_exe\" ]]",
-        "[[ ! -f \"$native_agent_exe\" ]]",
+        'native_agent_exe=""',
+        '[[ -z "$native_agent_exe" ]]',
+        '[[ ! -f "$native_agent_exe" ]]',
         "existing executable",
     ]
     present_forbidden = [term for term in forbidden_terms if term in text]
     if present_forbidden:
         errors.append(
-            "package-windows wrapper must not allow prebuilt executable bypass: "
-            + ", ".join(present_forbidden)
+            "package-windows wrapper must not allow prebuilt executable bypass: " + ", ".join(present_forbidden)
         )
 
     if REGISTRY_SOURCE.is_file():
@@ -368,14 +357,9 @@ def check_package_wrapper(errors: list[str]) -> None:
             "expected_install_channel",
             "expected_allowed_extension_origins",
         ]
-        missing_registry_terms = [
-            term for term in required_registry_terms if term not in registry_text
-        ]
+        missing_registry_terms = [term for term in required_registry_terms if term not in registry_text]
         if missing_registry_terms:
-            errors.append(
-                "install registry runtime config missing terms: "
-                + ", ".join(missing_registry_terms)
-            )
+            errors.append("install registry runtime config missing terms: " + ", ".join(missing_registry_terms))
 
     if REGISTRY_MANIFEST_SOURCE.is_file():
         manifest_text = REGISTRY_MANIFEST_SOURCE.read_text(encoding="utf-8")
@@ -383,14 +367,9 @@ def check_package_wrapper(errors: list[str]) -> None:
             "path == expected_executable_file_name(expected_path)",
             "(b'a'..=b'p').contains(&byte)",
         ]
-        missing_manifest_terms = [
-            term for term in required_manifest_terms if term not in manifest_text
-        ]
+        missing_manifest_terms = [term for term in required_manifest_terms if term not in manifest_text]
         if missing_manifest_terms:
-            errors.append(
-                "install registry manifest validation missing terms: "
-                + ", ".join(missing_manifest_terms)
-            )
+            errors.append("install registry manifest validation missing terms: " + ", ".join(missing_manifest_terms))
 
     if "env -u SNIPTALE_DEV_LOCAL_BROWSER_TRUST" not in text:
         errors.append("package-windows wrapper must explicitly unset dev-local browser trust")
@@ -405,14 +384,9 @@ def check_package_wrapper(errors: list[str]) -> None:
             "expected_install_id(channel)",
             "expected_host_name(channel)",
         ]
-        missing_identity_terms = [
-            term for term in required_identity_terms if term not in identity_text
-        ]
+        missing_identity_terms = [term for term in required_identity_terms if term not in identity_text]
         if missing_identity_terms:
-            errors.append(
-                "install identity runtime config missing terms: "
-                + ", ".join(missing_identity_terms)
-            )
+            errors.append("install identity runtime config missing terms: " + ", ".join(missing_identity_terms))
 
     invalid_origins = [
         "chrome-extension://*/",
@@ -488,10 +462,7 @@ def check_package_wrapper(errors: list[str]) -> None:
         text=True,
     )
     stable_missing_qa_output = result.stdout + result.stderr
-    if (
-        result.returncode == 0
-        or "Production signing requires --manual-qa-evidence" not in stable_missing_qa_output
-    ):
+    if result.returncode == 0 or "Production signing requires --manual-qa-evidence" not in stable_missing_qa_output:
         errors.append("package-windows wrapper must require manual QA evidence for production packages")
 
 
@@ -509,7 +480,7 @@ def check_windows_smoke_wrappers(errors: list[str]) -> None:
         required_terms = [
             "Ensure-WixUiExtension",
             'Join-Path $PSScriptRoot "..\\..\\..\\.."',
-            "Initialize-SniptaleWindowsTools",
+            "Initialize-SniptaleWindowsTool",
             "../toolchain.ps1",
             "tooling/configs/qa/tool-versions.json",
             "custom WiX version differs from canonical policy",
@@ -517,12 +488,12 @@ def check_windows_smoke_wrappers(errors: list[str]) -> None:
             '"/qn"',
             '"REBOOT=ReallySuppress"',
             "Invoke-NativeAgentJsonMode",
-            "Assert-SupportModeOutputs",
+            "Assert-SupportModeOutput",
             "Assert-RuntimeDirectoryAccessFailClosed",
             "Assert-PipeSecretProvisioned",
-            "Invoke-TopologyFailureProbes",
+            "Invoke-TopologyFailureProbe",
             "Assert-NativeHostOriginGate",
-            "Assert-NativeHostSessionProbes",
+            "Assert-NativeHostSessionProbe",
             "installed project license",
             "installed project notice",
             "installed third-party notices",
@@ -533,7 +504,7 @@ def check_windows_smoke_wrappers(errors: list[str]) -> None:
             "ThirdPartyDependencies=",
             "Invoke-NativeHostProbe",
             "New-NativeMessageFrame",
-            "Read-NativeMessageFrames",
+            "Read-NativeMessageFrame",
             "installed repeated native-host session probes",
             "app.hello/controller probe",
             "Assert-CollectDiagnosticsBundle",
@@ -573,6 +544,7 @@ def check_windows_smoke_wrappers(errors: list[str]) -> None:
         missing = [term for term in required_terms if term not in text]
         if missing:
             errors.append("windows-smoke wrapper missing terms: " + ", ".join(missing))
+
 
 def check_docs(errors: list[str]) -> None:
     if not INSTALLER_README.is_file():
@@ -660,8 +632,7 @@ def check_docs(errors: list[str]) -> None:
         )
         if result.returncode != 0:
             errors.append(
-                "windows release evidence template must satisfy validator: "
-                + (result.stdout + result.stderr)
+                "windows release evidence template must satisfy validator: " + (result.stdout + result.stderr)
             )
 
 
@@ -772,7 +743,9 @@ def check_windows_release_evidence_validator(errors: list[str]) -> None:
             "provenance.json",
         )
         if valid_result.returncode != 0:
-            errors.append("filled windows release evidence sample must pass: " + valid_result.stdout + valid_result.stderr)
+            errors.append(
+                "filled windows release evidence sample must pass: " + valid_result.stdout + valid_result.stderr
+            )
 
         invalid_cases = [
             (("formatVersion",), True, "boolean format version"),

@@ -1,5 +1,25 @@
 {
   "schema_version": 1,
+  "browserAutomation": {
+    "node": {
+      "version": "24.22.1",
+      "url": "https://nodejs.org/dist/v24.22.1/win-x64/node.exe",
+      "sha256": "d702daa815eabbff763c7d3808e235cf031cf2ca70211b56847bc72f51e240e5",
+      "publishedAt": "2026-10-20T23:59:59Z",
+      "source": "https://nodejs.org/dist/index.json",
+      "linuxX64": {
+        "url": "https://nodejs.org/dist/v24.22.1/node-v24.22.1-linux-x64.tar.xz",
+        "sha256": "6c172a9ab6718f7b801fb5a7bd486af2ee5e32758086a04b84fcce2aa77095e6"
+      }
+    },
+    "playwrightCore": {
+      "version": "1.64.1",
+      "url": "https://registry.npmjs.org/playwright-core/-/playwright-core-1.64.1.tgz",
+      "sha256": "3af03703c967c95037454f2283f709d53ce804a4776d4219d319f5bbcc2a0185",
+      "publishedAt": "2026-10-14T11:51:33Z",
+      "source": "https://github.com/microsoft/playwright/releases/tag/v1.64.1"
+    }
+  },
   "cargo": [
     {
       "name": "aead",
@@ -909,6 +929,13 @@
     "windows": {
       "url": "https://www.python.org/ftp/python/3.15.2/python-3.15.2-embed-amd64.zip",
       "sha256": "d012f3aa29cf07436dae8aea1fec0fd195c2612a0b059b1f915ae0afb9ad1f62"
+    },
+    "linuxX64": {
+      "tag": "3.15.2-40340363276",
+      "publishedAt": "2026-10-26T14:51:09Z",
+      "source": "https://api.github.com/repos/actions/python-versions/releases/tags/3.15.2-40340363276",
+      "url": "https://github.com/actions/python-versions/releases/download/3.15.2-40340363276/python-3.15.2-linux-24.04-x64.tar.gz",
+      "sha256": "a945ca657bf4efeac7483c0c82381448d3b651a8d0e49be421c71fd53085cd01"
     }
   },
   "rust": {
@@ -970,9 +997,9 @@
   },
   "tools": {
     "cargo-nextest": {
-      "version": "0.9.149",
-      "publishedAt": "2026-10-20T23:55:15Z",
-      "source": "https://github.com/nextest-rs/nextest/releases/tag/cargo-nextest-0.9.149"
+      "version": "0.9.150",
+      "publishedAt": "2026-10-26T18:31:35Z",
+      "source": "https://github.com/nextest-rs/nextest/releases/tag/cargo-nextest-0.9.150"
     },
     "cargo-llvm-cov": {
       "version": "0.9.1",
@@ -1003,20 +1030,1059 @@
   "policy": {
     "minimumReleaseAgeDays": 7
   },
-  "browserAutomation": {
-    "node": {
-      "version": "24.22.1",
-      "url": "https://nodejs.org/dist/v24.22.1/win-x64/node.exe",
-      "sha256": "d702daa815eabbff763c7d3808e235cf031cf2ca70211b56847bc72f51e240e5",
-      "publishedAt": "2026-10-20T23:59:59Z",
-      "source": "https://nodejs.org/dist/index.json"
+  "scriptTools": {
+    "ruff": {
+      "version": "0.17.2",
+      "manager": "pypi",
+      "package": "ruff",
+      "source": "https://pypi.org/pypi/ruff/0.17.2/json",
+      "publishedAt": "2026-10-22T18:37:14.956985Z"
     },
-    "playwrightCore": {
-      "version": "1.64.1",
-      "url": "https://registry.npmjs.org/playwright-core/-/playwright-core-1.64.1.tgz",
-      "sha256": "3af03703c967c95037454f2283f709d53ce804a4776d4219d319f5bbcc2a0185",
-      "publishedAt": "2026-10-14T11:51:33Z",
-      "source": "https://github.com/microsoft/playwright/releases/tag/v1.64.1"
+    "yamllint": {
+      "version": "1.38.0",
+      "manager": "pypi",
+      "package": "yamllint",
+      "source": "https://pypi.org/pypi/yamllint/1.38.0/json",
+      "publishedAt": "2026-01-13T07:47:51.343950Z"
+    },
+    "jsonschema": {
+      "version": "4.26.0",
+      "manager": "pypi",
+      "package": "jsonschema",
+      "source": "https://pypi.org/pypi/jsonschema/4.26.0/json",
+      "publishedAt": "2026-01-07T13:41:05.306692Z"
+    },
+    "zizmor": {
+      "version": "1.31.1",
+      "manager": "pypi",
+      "package": "zizmor",
+      "source": "https://pypi.org/pypi/zizmor/1.31.1/json",
+      "publishedAt": "2026-10-15T23:12:56.864104Z"
+    },
+    "pyright": {
+      "version": "1.1.414",
+      "manager": "npm",
+      "package": "pyright",
+      "source": "https://registry.npmjs.org/pyright/1.1.414",
+      "publishedAt": "2026-09-09T20:42:01.701Z"
+    },
+    "eslint": {
+      "version": "10.13.0",
+      "manager": "npm",
+      "package": "eslint",
+      "source": "https://registry.npmjs.org/eslint/10.13.0",
+      "publishedAt": "2026-10-16T14:24:10.765Z"
+    },
+    "typescript-eslint": {
+      "version": "8.72.0",
+      "manager": "npm",
+      "package": "typescript-eslint",
+      "source": "https://registry.npmjs.org/typescript-eslint/8.72.0",
+      "publishedAt": "2026-10-19T17:08:09.147Z"
+    },
+    "eslint-plugin-promise": {
+      "version": "7.3.0",
+      "manager": "npm",
+      "package": "eslint-plugin-promise",
+      "source": "https://registry.npmjs.org/eslint-plugin-promise/7.3.0",
+      "publishedAt": "2026-04-27T05:06:55.629Z"
+    },
+    "eslint-plugin-security": {
+      "version": "4.2.0",
+      "manager": "npm",
+      "package": "eslint-plugin-security",
+      "source": "https://registry.npmjs.org/eslint-plugin-security/4.2.0",
+      "publishedAt": "2026-10-01T06:51:12.579Z"
+    },
+    "globals": {
+      "version": "17.13.0",
+      "manager": "npm",
+      "package": "globals",
+      "source": "https://registry.npmjs.org/globals/17.13.0",
+      "publishedAt": "2026-10-01T03:57:11.938Z"
+    },
+    "shellcheck": {
+      "version": "0.11.0",
+      "manager": "github",
+      "repository": "koalaman/shellcheck",
+      "publishedAt": "2025-08-04T00:27:19Z",
+      "source": "https://github.com/koalaman/shellcheck/releases/tag/v0.11.0",
+      "tag": "v0.11.0",
+      "linuxX64": {
+        "url": "https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.linux.x86_64.tar.xz",
+        "sha256": "8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198"
+      }
+    },
+    "shfmt": {
+      "version": "3.14.1",
+      "manager": "github",
+      "repository": "mvdan/sh",
+      "publishedAt": "2026-09-06T15:02:21Z",
+      "source": "https://github.com/mvdan/sh/releases/tag/v3.14.1",
+      "tag": "v3.14.1",
+      "linuxX64": {
+        "url": "https://github.com/mvdan/sh/releases/download/v3.14.1/shfmt_v3.14.1_linux_amd64",
+        "sha256": "76e77641faa025814b77f153b29796b8e6fa2fca03e0c76a691608b86c7ea7bf"
+      }
+    },
+    "actionlint": {
+      "version": "1.7.12",
+      "manager": "github",
+      "repository": "rhysd/actionlint",
+      "publishedAt": "2026-03-30T17:49:21Z",
+      "source": "https://github.com/rhysd/actionlint/releases/tag/v1.7.12",
+      "tag": "v1.7.12",
+      "linuxX64": {
+        "url": "https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz",
+        "sha256": "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8"
+      }
+    },
+    "taplo": {
+      "version": "0.10.0",
+      "manager": "github",
+      "repository": "tamasfe/taplo",
+      "publishedAt": "2025-05-23T04:06:45Z",
+      "source": "https://github.com/tamasfe/taplo/releases/tag/0.10.0",
+      "tag": "0.10.0",
+      "linuxX64": {
+        "url": "https://github.com/tamasfe/taplo/releases/download/0.10.0/taplo-linux-x86_64.gz",
+        "sha256": "8fe196b894ccf9072f98d4e1013a180306e17d244830b03986ee5e8eabeb6156"
+      }
+    },
+    "pwsh": {
+      "version": "7.6.8",
+      "manager": "github",
+      "repository": "PowerShell/PowerShell",
+      "publishedAt": "2026-10-22T17:06:53Z",
+      "source": "https://github.com/PowerShell/PowerShell/releases/tag/v7.6.8",
+      "tag": "v7.6.8",
+      "linuxX64": {
+        "url": "https://github.com/PowerShell/PowerShell/releases/download/v7.6.8/powershell-7.6.8-linux-x64.tar.gz",
+        "sha256": "59112e38ad83350e4f6dc0195953c66b5926792f300ca2e7691b8242e7a16e7f"
+      }
+    },
+    "PSScriptAnalyzer": {
+      "version": "1.25.0",
+      "manager": "github",
+      "repository": "PowerShell/PSScriptAnalyzer",
+      "publishedAt": "2026-03-20T19:39:32Z",
+      "source": "https://github.com/PowerShell/PSScriptAnalyzer/releases/tag/1.25.0",
+      "tag": "1.25.0",
+      "linuxX64": {
+        "url": "https://github.com/PowerShell/PSScriptAnalyzer/releases/download/1.25.0/PSScriptAnalyzer.1.25.0.nupkg",
+        "sha256": "14e634c828eb98efb9f40b2918ba90f139ed5eccdf663a2a747736d996995d60"
+      }
+    },
+    "renovate": {
+      "version": "44.181.0",
+      "manager": "npm",
+      "package": "renovate",
+      "usage": "configuration-schema-only",
+      "publishedAt": "2026-10-23T14:21:05Z",
+      "source": "https://github.com/renovatebot/renovate/releases/tag/44.181.0",
+      "schemaAsset": {
+        "url": "https://registry.npmjs.org/renovate/-/renovate-44.181.0.tgz",
+        "sha256": "ff6f32c4f370718854d2d5a2bd0c854f6830acf3b01ffba805c28025b1bc6fc6",
+        "schemaSha256": "ac07ea3f989a9d4dcd803a9cbcd9dd169531f4d638fa051418359d4f5524e9d1"
+      }
+    },
+    "setuptools": {
+      "version": "84.2.1",
+      "manager": "pypi",
+      "package": "setuptools",
+      "source": "https://pypi.org/pypi/setuptools/84.2.1/json",
+      "publishedAt": "2026-10-20T19:01:35.678013Z"
+    },
+    "wheel": {
+      "version": "0.48.0",
+      "manager": "pypi",
+      "package": "wheel",
+      "source": "https://pypi.org/pypi/wheel/0.48.0/json",
+      "publishedAt": "2026-08-11T22:02:26.100721Z"
+    },
+    "Cython": {
+      "version": "3.3.0",
+      "manager": "pypi",
+      "package": "Cython",
+      "source": "https://pypi.org/pypi/Cython/3.3.0/json",
+      "publishedAt": "2026-08-22T05:16:36.741632Z"
+    },
+    "@eslint/js": {
+      "version": "10.0.1",
+      "manager": "npm",
+      "package": "@eslint/js",
+      "source": "https://registry.npmjs.org/@eslint/js/10.0.1",
+      "publishedAt": "2026-02-06T22:34:56.290Z"
+    },
+    "typescript": {
+      "version": "6.0.3",
+      "manager": "npm",
+      "package": "typescript",
+      "publishedAt": "2026-04-16T23:43:08Z",
+      "source": "https://github.com/microsoft/TypeScript/releases/tag/v6.0.3"
+    },
+    "minimatch": {
+      "version": "11.0.1",
+      "manager": "npm",
+      "package": "minimatch",
+      "source": "https://registry.npmjs.org/minimatch/11.0.1",
+      "publishedAt": "2026-10-27T22:26:03.755Z"
+    },
+    "jsonata": {
+      "version": "2.2.2",
+      "manager": "npm",
+      "package": "jsonata",
+      "source": "https://registry.npmjs.org/jsonata/2.2.2",
+      "publishedAt": "2026-07-16T12:13:32.256Z"
+    },
+    "@isaacs/nonrecursive-glob-match": {
+      "version": "1.0.1",
+      "manager": "npm",
+      "package": "@isaacs/nonrecursive-glob-match",
+      "source": "https://registry.npmjs.org/@isaacs/nonrecursive-glob-match/1.0.1",
+      "publishedAt": "2026-10-27T04:24:52.559Z"
+    },
+    "@types/estree": {
+      "version": "1.0.9",
+      "manager": "npm",
+      "package": "@types/estree",
+      "source": "https://registry.npmjs.org/@types/estree/1.0.9",
+      "publishedAt": "2026-05-06T21:01:00.975Z"
     }
-  }
+  },
+  "checkingDependencies": [
+    {
+      "ecosystem": "PyPI",
+      "name": "attrs",
+      "version": "26.1.0",
+      "source": "https://pypi.org/pypi/attrs/26.1.0/json",
+      "publishedAt": "2026-03-19T14:22:23.645947Z"
+    },
+    {
+      "ecosystem": "PyPI",
+      "name": "cython",
+      "version": "3.3.0",
+      "source": "https://pypi.org/pypi/Cython/3.3.0/json",
+      "publishedAt": "2026-08-22T05:16:36.741632Z"
+    },
+    {
+      "ecosystem": "PyPI",
+      "name": "jsonschema",
+      "version": "4.26.0",
+      "source": "https://pypi.org/pypi/jsonschema/4.26.0/json",
+      "publishedAt": "2026-01-07T13:41:05.306692Z"
+    },
+    {
+      "ecosystem": "PyPI",
+      "name": "jsonschema-specifications",
+      "version": "2025.9.1",
+      "source": "https://pypi.org/pypi/jsonschema-specifications/2025.9.1/json",
+      "publishedAt": "2025-09-08T01:34:57.871954Z"
+    },
+    {
+      "ecosystem": "PyPI",
+      "name": "packaging",
+      "version": "26.3",
+      "source": "https://pypi.org/pypi/packaging/26.3/json",
+      "publishedAt": "2026-08-04T18:15:27.159957Z"
+    },
+    {
+      "ecosystem": "PyPI",
+      "name": "pathspec",
+      "version": "1.1.1",
+      "source": "https://pypi.org/pypi/pathspec/1.1.1/json",
+      "publishedAt": "2026-04-27T01:46:07.060850Z"
+    },
+    {
+      "ecosystem": "PyPI",
+      "name": "pyyaml",
+      "version": "6.0.3",
+      "source": "https://pypi.org/pypi/pyyaml/6.0.3/json",
+      "publishedAt": "2025-09-25T21:31:46.040932Z"
+    },
+    {
+      "ecosystem": "PyPI",
+      "name": "referencing",
+      "version": "0.37.0",
+      "source": "https://pypi.org/pypi/referencing/0.37.0/json",
+      "publishedAt": "2025-10-13T15:30:47.625937Z"
+    },
+    {
+      "ecosystem": "PyPI",
+      "name": "rpds-py",
+      "version": "2026.9.1",
+      "source": "https://pypi.org/pypi/rpds-py/2026.9.1/json",
+      "publishedAt": "2026-10-04T16:28:55.207354Z"
+    },
+    {
+      "ecosystem": "PyPI",
+      "name": "ruff",
+      "version": "0.17.2",
+      "source": "https://pypi.org/pypi/ruff/0.17.2/json",
+      "publishedAt": "2026-10-22T18:37:14.956985Z"
+    },
+    {
+      "ecosystem": "PyPI",
+      "name": "setuptools",
+      "version": "84.2.1",
+      "source": "https://pypi.org/pypi/setuptools/84.2.1/json",
+      "publishedAt": "2026-10-20T19:01:35.678013Z"
+    },
+    {
+      "ecosystem": "PyPI",
+      "name": "wheel",
+      "version": "0.48.0",
+      "source": "https://pypi.org/pypi/wheel/0.48.0/json",
+      "publishedAt": "2026-08-11T22:02:26.100721Z"
+    },
+    {
+      "ecosystem": "PyPI",
+      "name": "yamllint",
+      "version": "1.38.0",
+      "source": "https://pypi.org/pypi/yamllint/1.38.0/json",
+      "publishedAt": "2026-01-13T07:47:51.343950Z"
+    },
+    {
+      "ecosystem": "PyPI",
+      "name": "zizmor",
+      "version": "1.31.1",
+      "source": "https://pypi.org/pypi/zizmor/1.31.1/json",
+      "publishedAt": "2026-10-15T23:12:56.864104Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@cacheable/memory",
+      "version": "2.2.0",
+      "source": "https://registry.npmjs.org/@cacheable/memory",
+      "publishedAt": "2026-06-27T18:19:57.669Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@cacheable/utils",
+      "version": "2.5.0",
+      "source": "https://registry.npmjs.org/@cacheable/utils",
+      "publishedAt": "2026-06-27T18:19:51.509Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@eslint-community/eslint-utils",
+      "version": "4.10.1",
+      "source": "https://registry.npmjs.org/@eslint-community/eslint-utils",
+      "publishedAt": "2026-07-22T13:06:59.259Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@eslint-community/regexpp",
+      "version": "4.12.2",
+      "source": "https://registry.npmjs.org/@eslint-community/regexpp",
+      "publishedAt": "2025-10-22T11:56:00.818Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@eslint/config-array",
+      "version": "0.23.5",
+      "source": "https://registry.npmjs.org/@eslint/config-array",
+      "publishedAt": "2026-04-08T09:22:37.796Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@eslint/config-helpers",
+      "version": "0.7.0",
+      "source": "https://registry.npmjs.org/@eslint/config-helpers",
+      "publishedAt": "2026-07-21T08:10:35.250Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@eslint/core",
+      "version": "1.2.1",
+      "source": "https://registry.npmjs.org/@eslint/core",
+      "publishedAt": "2026-04-08T09:22:28.287Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@eslint/js",
+      "version": "10.0.1",
+      "source": "https://registry.npmjs.org/@eslint/js/10.0.1",
+      "publishedAt": "2026-02-06T22:34:56.290Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@eslint/object-schema",
+      "version": "3.0.5",
+      "source": "https://registry.npmjs.org/@eslint/object-schema",
+      "publishedAt": "2026-04-08T09:22:34.549Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@eslint/plugin-kit",
+      "version": "0.7.3",
+      "source": "https://registry.npmjs.org/@eslint/plugin-kit",
+      "publishedAt": "2026-09-03T18:10:03.592Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@humanfs/core",
+      "version": "0.19.2",
+      "source": "https://registry.npmjs.org/@humanfs/core",
+      "publishedAt": "2026-04-17T20:51:11.882Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@humanfs/node",
+      "version": "0.16.8",
+      "source": "https://registry.npmjs.org/@humanfs/node",
+      "publishedAt": "2026-04-17T20:51:26.959Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@humanfs/types",
+      "version": "0.15.0",
+      "source": "https://registry.npmjs.org/@humanfs/types",
+      "publishedAt": "2024-09-09T19:44:08.000Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@humanwhocodes/module-importer",
+      "version": "1.0.1",
+      "source": "https://registry.npmjs.org/@humanwhocodes/module-importer",
+      "publishedAt": "2022-08-18T17:55:51.038Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@humanwhocodes/retry",
+      "version": "0.4.3",
+      "source": "https://registry.npmjs.org/@humanwhocodes/retry",
+      "publishedAt": "2025-05-07T14:25:57.372Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@isaacs/nonrecursive-glob-match",
+      "version": "1.0.1",
+      "source": "https://registry.npmjs.org/@isaacs/nonrecursive-glob-match/1.0.1",
+      "publishedAt": "2026-10-27T04:24:52.559Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@keyv/bigmap",
+      "version": "1.3.1",
+      "source": "https://registry.npmjs.org/@keyv/bigmap",
+      "publishedAt": "2026-01-21T00:47:42.392Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@keyv/serialize",
+      "version": "1.1.1",
+      "source": "https://registry.npmjs.org/@keyv/serialize",
+      "publishedAt": "2025-09-10T16:09:07.731Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@types/esrecurse",
+      "version": "4.3.1",
+      "source": "https://registry.npmjs.org/@types/esrecurse",
+      "publishedAt": "2025-07-19T03:47:09.775Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@types/estree",
+      "version": "1.0.9",
+      "source": "https://registry.npmjs.org/@types/estree/1.0.9",
+      "publishedAt": "2026-05-06T21:01:00.975Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@types/json-schema",
+      "version": "7.0.15",
+      "source": "https://registry.npmjs.org/@types/json-schema",
+      "publishedAt": "2023-11-07T08:49:23.527Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@typescript-eslint/eslint-plugin",
+      "version": "8.72.0",
+      "source": "https://registry.npmjs.org/@typescript-eslint/eslint-plugin",
+      "publishedAt": "2026-10-19T17:11:19.840Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@typescript-eslint/parser",
+      "version": "8.72.0",
+      "source": "https://registry.npmjs.org/@typescript-eslint/parser",
+      "publishedAt": "2026-10-19T17:11:48.266Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@typescript-eslint/project-service",
+      "version": "8.72.0",
+      "source": "https://registry.npmjs.org/@typescript-eslint/project-service",
+      "publishedAt": "2026-10-19T17:10:18.937Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@typescript-eslint/scope-manager",
+      "version": "8.72.0",
+      "source": "https://registry.npmjs.org/@typescript-eslint/scope-manager",
+      "publishedAt": "2026-10-19T17:07:24.395Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@typescript-eslint/tsconfig-utils",
+      "version": "8.72.0",
+      "source": "https://registry.npmjs.org/@typescript-eslint/tsconfig-utils",
+      "publishedAt": "2026-10-19T17:07:36.708Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@typescript-eslint/type-utils",
+      "version": "8.72.0",
+      "source": "https://registry.npmjs.org/@typescript-eslint/type-utils",
+      "publishedAt": "2026-10-19T17:13:58.892Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@typescript-eslint/types",
+      "version": "8.72.0",
+      "source": "https://registry.npmjs.org/@typescript-eslint/types",
+      "publishedAt": "2026-10-19T17:07:35.499Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@typescript-eslint/typescript-estree",
+      "version": "8.72.0",
+      "source": "https://registry.npmjs.org/@typescript-eslint/typescript-estree",
+      "publishedAt": "2026-10-19T17:10:29.340Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@typescript-eslint/utils",
+      "version": "8.72.0",
+      "source": "https://registry.npmjs.org/@typescript-eslint/utils",
+      "publishedAt": "2026-10-19T17:10:44.476Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "@typescript-eslint/visitor-keys",
+      "version": "8.72.0",
+      "source": "https://registry.npmjs.org/@typescript-eslint/visitor-keys",
+      "publishedAt": "2026-10-19T17:08:15.774Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "acorn",
+      "version": "8.19.0",
+      "source": "https://registry.npmjs.org/acorn",
+      "publishedAt": "2026-10-05T12:51:20.979Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "acorn-jsx",
+      "version": "5.3.2",
+      "source": "https://registry.npmjs.org/acorn-jsx",
+      "publishedAt": "2021-07-09T01:15:57.512Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "ajv",
+      "version": "6.15.0",
+      "source": "https://registry.npmjs.org/ajv",
+      "publishedAt": "2026-04-23T14:59:24.089Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "balanced-match",
+      "version": "4.0.4",
+      "source": "https://registry.npmjs.org/balanced-match",
+      "publishedAt": "2026-02-22T11:38:25.951Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "brace-expansion",
+      "version": "5.0.12",
+      "source": "https://registry.npmjs.org/brace-expansion",
+      "publishedAt": "2026-09-14T21:59:00.288Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "cacheable",
+      "version": "2.5.0",
+      "source": "https://registry.npmjs.org/cacheable",
+      "publishedAt": "2026-06-27T18:20:16.235Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "cross-spawn",
+      "version": "7.0.6",
+      "source": "https://registry.npmjs.org/cross-spawn",
+      "publishedAt": "2024-11-18T13:59:52.129Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "debug",
+      "version": "4.4.3",
+      "source": "https://registry.npmjs.org/debug",
+      "publishedAt": "2025-09-13T17:25:19.732Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "deep-is",
+      "version": "0.1.4",
+      "source": "https://registry.npmjs.org/deep-is",
+      "publishedAt": "2021-09-04T16:55:20.731Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "escape-string-regexp",
+      "version": "4.0.0",
+      "source": "https://registry.npmjs.org/escape-string-regexp",
+      "publishedAt": "2020-04-23T07:31:25.491Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "eslint",
+      "version": "10.13.0",
+      "source": "https://registry.npmjs.org/eslint/10.13.0",
+      "publishedAt": "2026-10-16T14:24:10.765Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "eslint-plugin-promise",
+      "version": "7.3.0",
+      "source": "https://registry.npmjs.org/eslint-plugin-promise/7.3.0",
+      "publishedAt": "2026-04-27T05:06:55.629Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "eslint-plugin-security",
+      "version": "4.2.0",
+      "source": "https://registry.npmjs.org/eslint-plugin-security/4.2.0",
+      "publishedAt": "2026-10-01T06:51:12.579Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "eslint-scope",
+      "version": "9.1.2",
+      "source": "https://registry.npmjs.org/eslint-scope",
+      "publishedAt": "2026-03-06T22:32:49.946Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "eslint-visitor-keys",
+      "version": "3.4.3",
+      "source": "https://registry.npmjs.org/eslint-visitor-keys",
+      "publishedAt": "2023-08-11T14:49:54.383Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "eslint-visitor-keys",
+      "version": "5.0.1",
+      "source": "https://registry.npmjs.org/eslint-visitor-keys",
+      "publishedAt": "2026-02-20T14:40:47.824Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "espree",
+      "version": "11.2.0",
+      "source": "https://registry.npmjs.org/espree",
+      "publishedAt": "2026-03-06T22:32:40.951Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "esquery",
+      "version": "1.7.0",
+      "source": "https://registry.npmjs.org/esquery",
+      "publishedAt": "2025-12-31T15:44:57.664Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "esrecurse",
+      "version": "4.3.0",
+      "source": "https://registry.npmjs.org/esrecurse",
+      "publishedAt": "2020-08-31T18:21:44.794Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "estraverse",
+      "version": "5.3.0",
+      "source": "https://registry.npmjs.org/estraverse",
+      "publishedAt": "2021-10-25T12:18:17.722Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "esutils",
+      "version": "2.0.3",
+      "source": "https://registry.npmjs.org/esutils",
+      "publishedAt": "2019-07-31T01:10:54.228Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "fast-deep-equal",
+      "version": "3.1.3",
+      "source": "https://registry.npmjs.org/fast-deep-equal",
+      "publishedAt": "2020-06-08T07:27:28.474Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "fast-json-stable-stringify",
+      "version": "2.1.0",
+      "source": "https://registry.npmjs.org/fast-json-stable-stringify",
+      "publishedAt": "2019-12-14T16:17:57.583Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "fast-levenshtein",
+      "version": "2.0.6",
+      "source": "https://registry.npmjs.org/fast-levenshtein",
+      "publishedAt": "2016-12-27T21:15:07.820Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "fdir",
+      "version": "6.5.0",
+      "source": "https://registry.npmjs.org/fdir",
+      "publishedAt": "2025-08-14T16:56:03.948Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "file-entry-cache",
+      "version": "11.1.5",
+      "source": "https://registry.npmjs.org/file-entry-cache",
+      "publishedAt": "2026-06-27T18:20:33.507Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "find-up",
+      "version": "5.0.0",
+      "source": "https://registry.npmjs.org/find-up",
+      "publishedAt": "2020-08-11T18:44:24.748Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "flat-cache",
+      "version": "6.1.23",
+      "source": "https://registry.npmjs.org/flat-cache",
+      "publishedAt": "2026-06-27T18:20:27.613Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "flatted",
+      "version": "3.4.4",
+      "source": "https://registry.npmjs.org/flatted",
+      "publishedAt": "2026-07-30T09:53:10.155Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "fsevents",
+      "version": "2.3.3",
+      "source": "https://registry.npmjs.org/fsevents",
+      "publishedAt": "2023-08-21T16:24:22.854Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "glob-parent",
+      "version": "6.0.2",
+      "source": "https://registry.npmjs.org/glob-parent",
+      "publishedAt": "2021-09-29T22:14:24.467Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "globals",
+      "version": "17.13.0",
+      "source": "https://registry.npmjs.org/globals/17.13.0",
+      "publishedAt": "2026-10-01T03:57:11.938Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "hashery",
+      "version": "1.5.1",
+      "source": "https://registry.npmjs.org/hashery",
+      "publishedAt": "2026-03-21T18:01:50.476Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "hookified",
+      "version": "1.15.1",
+      "source": "https://registry.npmjs.org/hookified",
+      "publishedAt": "2026-01-31T20:19:44.222Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "hookified",
+      "version": "2.2.0",
+      "source": "https://registry.npmjs.org/hookified",
+      "publishedAt": "2026-04-26T22:05:22.580Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "ignore",
+      "version": "5.3.2",
+      "source": "https://registry.npmjs.org/ignore",
+      "publishedAt": "2024-08-12T08:51:00.065Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "ignore",
+      "version": "7.0.14",
+      "source": "https://registry.npmjs.org/ignore",
+      "publishedAt": "2026-10-23T23:24:50.714Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "imurmurhash",
+      "version": "0.1.4",
+      "source": "https://registry.npmjs.org/imurmurhash",
+      "publishedAt": "2013-08-24T20:45:23.169Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "is-extglob",
+      "version": "2.1.1",
+      "source": "https://registry.npmjs.org/is-extglob",
+      "publishedAt": "2016-12-11T04:04:24.390Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "is-glob",
+      "version": "4.0.3",
+      "source": "https://registry.npmjs.org/is-glob",
+      "publishedAt": "2021-09-29T16:52:47.977Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "isexe",
+      "version": "2.0.0",
+      "source": "https://registry.npmjs.org/isexe",
+      "publishedAt": "2017-03-23T00:53:16.356Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "json-schema-traverse",
+      "version": "0.4.1",
+      "source": "https://registry.npmjs.org/json-schema-traverse",
+      "publishedAt": "2018-06-10T08:42:05.056Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "json-stable-stringify-without-jsonify",
+      "version": "1.0.1",
+      "source": "https://registry.npmjs.org/json-stable-stringify-without-jsonify",
+      "publishedAt": "2016-12-15T22:00:35.805Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "jsonata",
+      "version": "2.2.2",
+      "source": "https://registry.npmjs.org/jsonata/2.2.2",
+      "publishedAt": "2026-07-16T12:13:32.256Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "keyv",
+      "version": "5.6.0",
+      "source": "https://registry.npmjs.org/keyv",
+      "publishedAt": "2026-01-21T00:39:26.982Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "levn",
+      "version": "0.4.1",
+      "source": "https://registry.npmjs.org/levn",
+      "publishedAt": "2020-04-04T02:05:31.527Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "locate-path",
+      "version": "6.0.0",
+      "source": "https://registry.npmjs.org/locate-path",
+      "publishedAt": "2020-08-10T17:49:10.766Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "minimatch",
+      "version": "11.0.1",
+      "source": "https://registry.npmjs.org/minimatch/11.0.1",
+      "publishedAt": "2026-10-27T22:26:03.755Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "ms",
+      "version": "2.1.3",
+      "source": "https://registry.npmjs.org/ms",
+      "publishedAt": "2020-12-08T13:54:35.223Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "natural-compare",
+      "version": "1.4.0",
+      "source": "https://registry.npmjs.org/natural-compare",
+      "publishedAt": "2016-07-22T20:48:12.217Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "optionator",
+      "version": "0.9.4",
+      "source": "https://registry.npmjs.org/optionator",
+      "publishedAt": "2024-04-26T22:17:51.408Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "p-limit",
+      "version": "3.1.0",
+      "source": "https://registry.npmjs.org/p-limit",
+      "publishedAt": "2020-11-25T07:42:37.364Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "p-locate",
+      "version": "5.0.0",
+      "source": "https://registry.npmjs.org/p-locate",
+      "publishedAt": "2020-08-10T17:42:34.692Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "path-exists",
+      "version": "4.0.0",
+      "source": "https://registry.npmjs.org/path-exists",
+      "publishedAt": "2019-04-04T03:29:16.887Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "path-key",
+      "version": "3.1.1",
+      "source": "https://registry.npmjs.org/path-key",
+      "publishedAt": "2019-11-22T16:47:18.153Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "picomatch",
+      "version": "4.0.7",
+      "source": "https://registry.npmjs.org/picomatch",
+      "publishedAt": "2026-08-24T14:36:23.690Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "prelude-ls",
+      "version": "1.2.1",
+      "source": "https://registry.npmjs.org/prelude-ls",
+      "publishedAt": "2020-04-02T22:53:40.710Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "punycode",
+      "version": "2.3.1",
+      "source": "https://registry.npmjs.org/punycode",
+      "publishedAt": "2023-10-30T18:28:32.512Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "pyright",
+      "version": "1.1.414",
+      "source": "https://registry.npmjs.org/pyright/1.1.414",
+      "publishedAt": "2026-09-09T20:42:01.701Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "qified",
+      "version": "0.10.1",
+      "source": "https://registry.npmjs.org/qified",
+      "publishedAt": "2026-04-24T22:37:10.101Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "regexp-tree",
+      "version": "0.1.27",
+      "source": "https://registry.npmjs.org/regexp-tree",
+      "publishedAt": "2023-04-30T02:19:09.884Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "safe-regex",
+      "version": "2.1.1",
+      "source": "https://registry.npmjs.org/safe-regex",
+      "publishedAt": "2019-10-21T19:45:01.945Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "semver",
+      "version": "7.8.5",
+      "source": "https://registry.npmjs.org/semver",
+      "publishedAt": "2026-06-19T18:32:48.972Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "shebang-command",
+      "version": "2.0.0",
+      "source": "https://registry.npmjs.org/shebang-command",
+      "publishedAt": "2019-09-06T14:53:25.901Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "shebang-regex",
+      "version": "3.0.0",
+      "source": "https://registry.npmjs.org/shebang-regex",
+      "publishedAt": "2019-04-27T10:46:19.256Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "tinyglobby",
+      "version": "0.2.17",
+      "source": "https://registry.npmjs.org/tinyglobby",
+      "publishedAt": "2026-05-30T19:57:21.717Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "ts-api-utils",
+      "version": "2.5.0",
+      "source": "https://registry.npmjs.org/ts-api-utils",
+      "publishedAt": "2026-03-19T02:50:49.789Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "type-check",
+      "version": "0.4.0",
+      "source": "https://registry.npmjs.org/type-check",
+      "publishedAt": "2020-04-03T03:02:37.249Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "typescript",
+      "version": "6.0.3",
+      "source": "https://github.com/microsoft/TypeScript/releases/tag/v6.0.3",
+      "publishedAt": "2026-04-16T23:43:08Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "typescript-eslint",
+      "version": "8.72.0",
+      "source": "https://registry.npmjs.org/typescript-eslint/8.72.0",
+      "publishedAt": "2026-10-19T17:08:09.147Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "uri-js",
+      "version": "4.4.1",
+      "source": "https://registry.npmjs.org/uri-js",
+      "publishedAt": "2021-01-10T00:43:12.666Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "which",
+      "version": "2.0.2",
+      "source": "https://registry.npmjs.org/which",
+      "publishedAt": "2019-11-18T22:26:15.325Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "word-wrap",
+      "version": "1.2.5",
+      "source": "https://registry.npmjs.org/word-wrap",
+      "publishedAt": "2023-07-22T14:37:38.795Z"
+    },
+    {
+      "ecosystem": "npm",
+      "name": "yocto-queue",
+      "version": "0.1.0",
+      "source": "https://registry.npmjs.org/yocto-queue",
+      "publishedAt": "2020-11-24T06:05:35.875Z"
+    }
+  ]
 }

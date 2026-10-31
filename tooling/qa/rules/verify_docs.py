@@ -24,11 +24,7 @@ def git_paths(*args: str) -> list[str]:
 
 
 def visible_markdown() -> set[str]:
-    return {
-        path
-        for path in git_paths("ls-files", "-co", "--exclude-standard", "*.md")
-        if (ROOT / path).is_file()
-    }
+    return {path for path in git_paths("ls-files", "-co", "--exclude-standard", "*.md") if (ROOT / path).is_file()}
 
 
 def prose_errors(path: Path) -> list[str]:
@@ -128,7 +124,9 @@ def validate() -> list[str]:
     expected = active | set(policy["repositoryMarkdown"])
     actual = visible_markdown()
     if expected != actual:
-        errors.append(f"Markdown topology drift: unclassified={sorted(actual - expected)} stale={sorted(expected - actual)}")
+        errors.append(
+            f"Markdown topology drift: unclassified={sorted(actual - expected)} stale={sorted(expected - actual)}"
+        )
     for relative in sorted(expected):
         path = ROOT / relative
         errors.extend(prose_errors(path))

@@ -39,6 +39,34 @@
     "cancel-in-progress": false
   },
   "jobs": {
+    "environment-audit": {
+      "name": "Fresh build environment advisories",
+      "if": "github.ref == 'refs/heads/main'",
+      "runs-on": "ubuntu-24.04",
+      "timeout-minutes": 10,
+      "env": {
+        "GH_TOKEN": "${{ github.token }}"
+      },
+      "steps": [
+        {
+          "uses": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "with": {
+            "fetch-depth": 0,
+            "persist-credentials": false
+          }
+        },
+        {
+          "uses": "actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0",
+          "with": {
+            "python-version": "3.15.2"
+          }
+        },
+        {
+          "name": "Fresh environment audit before publication",
+          "run": "tooling/qa/wrappers/environment-audit.sh"
+        }
+      ]
+    },
     "publish": {
       "if": "github.ref == 'refs/heads/main'",
       "runs-on": "ubuntu-24.04",
@@ -73,7 +101,8 @@
           },
           "run": "python3 tooling/release/windows/alpha_publish.py"
         }
-      ]
+      ],
+      "needs": "environment-audit"
     }
   }
 }

@@ -1,4 +1,5 @@
 """Exact alpha package acceptance using the existing isolated guest lifecycle."""
+
 from __future__ import annotations
 
 import json
@@ -29,8 +30,10 @@ def test_release(runner, lane_name: str, artifact: Path, run_dir: Path):
         raise LabError("invalid release provenance shape")
     commit = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=runner.paths.root, text=True).strip()
     verifier = runner.paths.root / "tooling/release/windows/alpha_artifacts.py"
-    checked = subprocess.run([sys.executable, str(verifier), "verify", str(bundle), "--commit", commit,
-                              "--tag", provenance.get("tag", "")], capture_output=True)
+    checked = subprocess.run(
+        [sys.executable, str(verifier), "verify", str(bundle), "--commit", commit, "--tag", provenance.get("tag", "")],
+        capture_output=True,
+    )
     if checked.returncode:
         raise LabError("release bundle identity or checksum verification failed")
     if artifact.name != f"SniptaleNativeAgent-dev-{provenance['productVersion']}.msi":
@@ -44,28 +47,50 @@ def test_release(runner, lane_name: str, artifact: Path, run_dir: Path):
         runner.vms.start(lane_name, windows_audio_capture=True, host_reserve_mib=1024)
         runner._assert_windows_audio_backend(lane_name, require_capture=True)
         ssh = GuestSsh(runner.paths, runner.config.lanes[lane_name].ssh_port, "lab")
-        health_check = lambda: runner.vms.assert_running(lane_name)
-        ssh.wait(runner.config.timeouts.boot, probe=["cmd.exe", "/d", "/c", "exit", "0"],
-                 health_check=health_check)
+
+        def health_check():
+            runner.vms.assert_running(lane_name)
+
+        ssh.wait(runner.config.timeouts.boot, probe=["cmd.exe", "/d", "/c", "exit", "0"], health_check=health_check)
         prepare_console(ssh, runner.config.timeouts.boot, health_check=health_check)
         ssh.upload(artifact, artifact.name, timeout=600)
         for name in ("release-run.ps1", "launch-release.ps1"):
             ssh.upload(runner.paths.root / "tooling/desktop/e2e_lab/guest/windows" / name, name, timeout=120)
-        command = ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "launch-release.ps1",
-                   "-Msi", artifact.name, "-MsiSha256", sha256_file(artifact),
-                   "-ExpectedExeSha256", sha256_file(bundle / "sniptale-native-agent.exe"),
-                   "-ExpectedManifestSha256", sha256_file(bundle / "native-host.json"),
-                   "-ProductVersion", provenance["productVersion"], "-TimeoutSeconds", "1200"]
+        command = [
+            "powershell.exe",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            "launch-release.ps1",
+            "-Msi",
+            artifact.name,
+            "-MsiSha256",
+            sha256_file(artifact),
+            "-ExpectedExeSha256",
+            sha256_file(bundle / "sniptale-native-agent.exe"),
+            "-ExpectedManifestSha256",
+            sha256_file(bundle / "native-host.json"),
+            "-TimeoutSeconds",
+            "1200",
+        ]
         try:
-            ssh.command(command, timeout=1260, log=run_dir / "logs" / f"{lane_name}.log", stream=True,
-                        health_check=health_check)
+            ssh.command(
+                command, timeout=1260, log=run_dir / "logs" / f"{lane_name}.log", stream=True, health_check=health_check
+            )
         except LabError as exc:
             error = exc
         health_check()
         runner._assert_windows_audio_backend(lane_name, require_capture=True)
         runner._enforce_remote_evidence_limit(ssh, windows=True)
-        ssh.download("e2e-out/", output, recursive=True, timeout=600,
-                     max_bytes=runner._evidence_transfer_maximum(), max_files=2048)
+        ssh.download(
+            "e2e-out/",
+            output,
+            recursive=True,
+            timeout=600,
+            max_bytes=runner._evidence_transfer_maximum(),
+            max_files=2048,
+        )
     finally:
         runner._collect_qemu_log(lane_name, run_dir)
         runner._finish_vm(lane_name, "test", pre_forced)

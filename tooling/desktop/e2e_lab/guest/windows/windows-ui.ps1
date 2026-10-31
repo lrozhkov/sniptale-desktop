@@ -9,13 +9,13 @@ function Provision-DevRuntimeTrust {
   $directory = [IO.Path]::GetDirectoryName($installed)
   $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
   $secretBytes = [byte[]]::new(32)
-  $rng = [Security.Cryptography.RandomNumberGenerator]::Create()
+  $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
   try { $rng.GetBytes($secretBytes) } finally { $rng.Dispose() }
   $plain = [Text.Encoding]::UTF8.GetBytes((ConvertTo-LowerHex $secretBytes))
-  $protected = [Security.Cryptography.ProtectedData]::Protect(
+  $protected = [System.Security.Cryptography.ProtectedData]::Protect(
     $plain,
     $null,
-    [Security.Cryptography.DataProtectionScope]::CurrentUser
+    [System.Security.Cryptography.DataProtectionScope]::CurrentUser
   )
   $secret = [ordered]@{
     installId = "install-dev"
@@ -46,7 +46,7 @@ function Provision-DevRuntimeTrust {
 function Save-Desktop([string] $Name) {
   Add-Type -AssemblyName System.Drawing
   Add-Type -AssemblyName System.Windows.Forms
-  $bounds = [Windows.Forms.SystemInformation]::VirtualScreen
+  $bounds = [System.Windows.Forms.SystemInformation]::VirtualScreen
   $bitmap = [Drawing.Bitmap]::new($bounds.Width, $bounds.Height)
   $graphics = [Drawing.Graphics]::FromImage($bitmap)
   try { $graphics.CopyFromScreen($bounds.Left, $bounds.Top, 0, 0, $bounds.Size); $bitmap.Save((Join-Path $outputPath "screenshots\$Name.png"), [Drawing.Imaging.ImageFormat]::Png) }
@@ -57,9 +57,9 @@ function Save-Desktop([string] $Name) {
 function Find-Ui([string] $Name, [int] $Seconds = 20) {
   Add-Type -AssemblyName UIAutomationClient
   $deadline = [DateTime]::UtcNow.AddSeconds($Seconds)
-  $condition = [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty, $Name)
+  $condition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, $Name)
   while ([DateTime]::UtcNow -lt $deadline) {
-    $item = [Windows.Automation.AutomationElement]::RootElement.FindFirst([Windows.Automation.TreeScope]::Descendants, $condition)
+    $item = [System.Windows.Automation.AutomationElement]::RootElement.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $condition)
     if ($item) { return $item }
     Start-Sleep -Milliseconds 500
   }
@@ -86,13 +86,13 @@ function Restart-AgentWithMode([ValidateSet("manual", "extension-managed")][stri
   } while ([DateTime]::UtcNow -lt $deadline)
   if ($remaining.Count -ne 0) { throw "resident process did not stop before mode restart" }
   $profilePath = Join-Path $env:LOCALAPPDATA "Sniptale\NativeAgent\local-profile.json"
-  $profile = Get-Content -Raw -LiteralPath $profilePath | ConvertFrom-Json
-  $profile.revision = [uint64]$profile.revision + 1
-  $profile.operatingMode = $Mode
-  if ($Mode -eq "manual" -and $null -eq $profile.manualProfile) {
-    $profile.manualProfile = $script:manualProfileTemplate
+  $browserProfile = Get-Content -Raw -LiteralPath $profilePath | ConvertFrom-Json
+  $browserProfile.revision = [uint64]$browserProfile.revision + 1
+  $browserProfile.operatingMode = $Mode
+  if ($Mode -eq "manual" -and $null -eq $browserProfile.manualProfile) {
+    $browserProfile.manualProfile = $script:manualProfileTemplate
   }
-  [IO.File]::WriteAllText($profilePath, ($profile | ConvertTo-Json -Depth 8 -Compress), [Text.UTF8Encoding]::new($false))
+  [IO.File]::WriteAllText($profilePath, ($browserProfile | ConvertTo-Json -Depth 8 -Compress), [Text.UTF8Encoding]::new($false))
   $script:agent = Start-Process -FilePath $installed -PassThru
   Start-Sleep -Seconds 4
   if ($script:agent.HasExited) {
@@ -118,7 +118,7 @@ function Install-UnpackedBrowserExtension([string] $Name, [IntPtr] $Window, [str
   Add-Type -AssemblyName System.Windows.Forms
   Add-Type -AssemblyName UIAutomationClient
   $loadUnpacked = $null
-  try { $loadUnpacked = Find-Ui "Load unpacked" 1 } catch { }
+  try { $loadUnpacked = Find-Ui "Load unpacked" 1 } catch { $loadUnpacked = $null }
   if (-not $loadUnpacked) {
   if ($Name -eq "edge") {
     $edgeBounds = [SniptaleBrowserFocus+Rect]::new()
@@ -164,8 +164,8 @@ function Install-UnpackedBrowserExtension([string] $Name, [IntPtr] $Window, [str
   [SniptaleBrowserFocus]::mouse_event(2, 0, 0, 0, [UIntPtr]::Zero)
   [SniptaleBrowserFocus]::mouse_event(4, 0, 0, 0, [UIntPtr]::Zero)
   Start-Sleep -Milliseconds 300
-  [Windows.Forms.SendKeys]::SendWait("^a")
-  [Windows.Forms.SendKeys]::SendWait($ExtensionPath)
+  [System.Windows.Forms.SendKeys]::SendWait("^a")
+  [System.Windows.Forms.SendKeys]::SendWait($ExtensionPath)
   Start-Sleep -Milliseconds 500
   $selectFolder = Find-Ui "Select Folder" 10
   Click-UiElement $selectFolder
@@ -225,21 +225,21 @@ public static class SniptaleBrowserFocus {
 function Set-BrowserLocation([IntPtr] $Window, [string] $Url) {
   Add-Type -AssemblyName UIAutomationClient
   Add-Type -AssemblyName System.Windows.Forms
-  $root = [Windows.Automation.AutomationElement]::FromHandle($Window)
-  $nameCondition = [Windows.Automation.PropertyCondition]::new(
-    [Windows.Automation.AutomationElement]::NameProperty,
+  $root = [System.Windows.Automation.AutomationElement]::FromHandle($Window)
+  $nameCondition = [System.Windows.Automation.PropertyCondition]::new(
+    [System.Windows.Automation.AutomationElement]::NameProperty,
     "Address and search bar"
   )
-  $address = $root.FindFirst([Windows.Automation.TreeScope]::Descendants, $nameCondition)
-  $editCondition = [Windows.Automation.PropertyCondition]::new(
-    [Windows.Automation.AutomationElement]::ControlTypeProperty,
-    [Windows.Automation.ControlType]::Edit
+  $address = $root.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $nameCondition)
+  $editCondition = [System.Windows.Automation.PropertyCondition]::new(
+    [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
+    [System.Windows.Automation.ControlType]::Edit
   )
-  if (-not $address) { $address = $root.FindFirst([Windows.Automation.TreeScope]::Descendants, $editCondition) }
+  if (-not $address) { $address = $root.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $editCondition) }
   if ($address) {
     try {
       $address.SetFocus()
-      $value = $address.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern)
+      $value = $address.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
       $value.SetValue($Url)
     } catch {
       $address = $null
@@ -248,10 +248,10 @@ function Set-BrowserLocation([IntPtr] $Window, [string] $Url) {
   if (-not $address) {
     [SniptaleBrowserFocus]::ShowWindowAsync($Window, 9) | Out-Null
     if (-not [SniptaleBrowserFocus]::SetForegroundWindow($Window)) { throw "browser location fallback could not focus the window" }
-    [Windows.Forms.SendKeys]::SendWait("^l")
-    [Windows.Forms.SendKeys]::SendWait($Url)
+    [System.Windows.Forms.SendKeys]::SendWait("^l")
+    [System.Windows.Forms.SendKeys]::SendWait($Url)
   }
-  [Windows.Forms.SendKeys]::SendWait("{ENTER}")
+  [System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
 }
 
 
@@ -275,7 +275,7 @@ function Click-UiElement([object] $Element, [int] $OffsetX = 0) {
 }
 
 
-function Stop-ProbeBrowsers {
+function Stop-ProbeBrowser {
   $deadline = [DateTime]::UtcNow.AddSeconds(30)
   do {
     $processes = @(Get-Process chrome, msedge -ErrorAction SilentlyContinue)
@@ -324,7 +324,7 @@ function Add-BrowserConnectionTrust([string] $ProcessName, [string] $Origin = "c
       "recognized-browser-parent"
     }
     $value = "$category|$label|$normalized"
-    $sha = [Security.Cryptography.SHA256]::Create()
+    $sha = [System.Security.Cryptography.SHA256]::Create()
     try {
       $fingerprint = ConvertTo-LowerHex ($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($value)))
     } finally {

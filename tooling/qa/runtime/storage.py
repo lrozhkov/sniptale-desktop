@@ -6,8 +6,10 @@ import os
 import re
 import stat
 import tempfile
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, UTC
 from pathlib import Path
+from typing import Any
+import contextlib
 
 
 MAX_LOG_BYTES = 256 * 1024
@@ -26,20 +28,14 @@ SENSITIVE_ASSIGNMENT = re.compile(
     r"(?:RECORDING|SCREENSHOT|CAPTURE|OPERATION|MEDIA|DESTINATION)[_-]?ID|ASSET[_-]?JOB[_-]?ID"
     r")[\"']?\s*[:=]\s*(\"[^\"\r\n]*\"|'[^'\r\n]*'|[^\s,;]+)"
 )
-WINDOWS_USER_PATH = re.compile(
-    r"(?i)\b[A-Z]:\\Users\\[^\\\s\"']+(?:\\[^\s\"']*)?"
-)
+WINDOWS_USER_PATH = re.compile(r"(?i)\b[A-Z]:\\Users\\[^\\\s\"']+(?:\\[^\s\"']*)?")
 MEDIA_DATA_URI = re.compile(
     r"(?i)\bdata:(?:image|audio|video|application/octet-stream)/?[^\s,;]*;base64,"
     r"[A-Z0-9+/=_-]+"
 )
 SENSITIVE_URL = re.compile(r"(?i)\b(?:https?|chrome-extension)://[^\s\"']+")
-NATIVE_MESSAGE_PAYLOAD = re.compile(
-    r"(?im)^[^\r\n]*\{[^\r\n]*[\"']type[\"']\s*:\s*[\"']extension\.[^\r\n]*$"
-)
-AUTHORIZATION_CREDENTIAL = re.compile(
-    r"(?i)\b(authorization)\s*[:=]\s*(?:bearer|basic)\s+[^\s,;]+"
-)
+NATIVE_MESSAGE_PAYLOAD = re.compile(r"(?im)^[^\r\n]*\{[^\r\n]*[\"']type[\"']\s*:\s*[\"']extension\.[^\r\n]*$")
+AUTHORIZATION_CREDENTIAL = re.compile(r"(?i)\b(authorization)\s*[:=]\s*(?:bearer|basic)\s+[^\s,;]+")
 TYPED_OR_CLIPBOARD = re.compile(
     r"(?im)\b(typed(?:\s+text)?|clipboard)\s*[:=]\s*[^\r\n]*?"
     r"(?=\s+\b(?:typed(?:\s+text)?|clipboard)\s*[:=]|$)"
@@ -51,7 +47,7 @@ GENERATED_MEDIA_ID = re.compile(
 
 
 def utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def iso_now() -> str:
@@ -72,10 +68,8 @@ def ensure_private_directory(path: Path) -> None:
     _reject_symlink_ancestors(path)
     path.mkdir(parents=True, exist_ok=True, mode=0o700)
     _reject_symlink_ancestors(path)
-    try:
+    with contextlib.suppress(OSError):
         path.chmod(0o700)
-    except OSError:
-        pass
 
 
 def atomic_write_json(path: Path, value: object) -> None:
@@ -89,20 +83,14 @@ def atomic_write_json(path: Path, value: object) -> None:
             handle.write("\n")
             handle.flush()
             os.fsync(handle.fileno())
-        try:
+        with contextlib.suppress(OSError):
             os.chmod(temporary, 0o600)
-        except OSError:
-            pass
         os.replace(temporary, path)
-        try:
+        with contextlib.suppress(OSError):
             path.chmod(0o600)
-        except OSError:
-            pass
     finally:
-        try:
+        with contextlib.suppress(FileNotFoundError):
             os.unlink(temporary)
-        except FileNotFoundError:
-            pass
 
 
 def _read_private_bytes(path: Path, maximum: int) -> bytes:
@@ -119,7 +107,7 @@ def _read_private_bytes(path: Path, maximum: int) -> bytes:
         os.close(descriptor)
 
 
-def read_json(path: Path) -> dict[str, object]:
+def read_json(path: Path) -> dict[str, Any]:
     value = json.loads(_read_private_bytes(path, MAX_JSON_BYTES).decode("utf-8"))
     if not isinstance(value, dict):
         raise ValueError(f"expected JSON object: {path}")
@@ -135,9 +123,7 @@ def sanitize_text(text: str, repository_root: Path, sensitive_values: list[str] 
     sanitized = NATIVE_MESSAGE_PAYLOAD.sub("<native-messaging-payload>", sanitized)
     sanitized = MEDIA_DATA_URI.sub("<media-payload>", sanitized)
     sanitized = SENSITIVE_URL.sub("<url>", sanitized)
-    sanitized = AUTHORIZATION_CREDENTIAL.sub(
-        lambda match: f"{match.group(1)}=<redacted>", sanitized
-    )
+    sanitized = AUTHORIZATION_CREDENTIAL.sub(lambda match: f"{match.group(1)}=<redacted>", sanitized)
     sanitized = TYPED_OR_CLIPBOARD.sub(lambda match: f"{match.group(1)}=<redacted>", sanitized)
     sanitized = GENERATED_MEDIA_ID.sub("<media-id>", sanitized)
     for value in sensitive_values or []:
@@ -155,10 +141,7 @@ def append_bounded_log(
     ensure_private_directory(path.parent)
     payload = sanitize_text(text, repository_root, sensitive_values).encode("utf-8", errors="replace")
     _reject_symlink_ancestors(path)
-    flags = (
-        os.O_APPEND | os.O_WRONLY | os.O_CREAT | getattr(os, "O_CLOEXEC", 0)
-        | getattr(os, "O_NOFOLLOW", 0)
-    )
+    flags = os.O_APPEND | os.O_WRONLY | os.O_CREAT | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
     descriptor = os.open(path, flags, 0o600)
     try:
         metadata = os.fstat(descriptor)
@@ -166,10 +149,8 @@ def append_bounded_log(
             raise OSError(f"private QA log is not a regular file: {path}")
         fchmod = getattr(os, "fchmod", None)
         if fchmod is not None:
-            try:
+            with contextlib.suppress(OSError):
                 fchmod(descriptor, 0o600)
-            except OSError:
-                pass
         current_size = metadata.st_size
         content_limit = MAX_LOG_BYTES - len(TRUNCATION_MARKER)
         if current_size > content_limit:
@@ -189,18 +170,12 @@ def append_bounded_log(
             remaining_payload = remaining_payload[written:]
     finally:
         os.close(descriptor)
-    try:
+    with contextlib.suppress(OSError):
         path.chmod(0o600)
-    except OSError:
-        pass
 
 
-def log_metadata(path: Path, relative: str) -> dict[str, object]:
-    payload = (
-        _read_private_bytes(path, MAX_LOG_BYTES)
-        if path.exists() or path.is_symlink()
-        else b""
-    )
+def log_metadata(path: Path, relative: str) -> dict[str, Any]:
+    payload = _read_private_bytes(path, MAX_LOG_BYTES) if path.exists() or path.is_symlink() else b""
     return {
         "path": relative,
         "digest": hashlib.sha256(payload).hexdigest(),
@@ -231,7 +206,7 @@ def maintain_storage(root: Path) -> None:
     runs_root = root / ".tmp/qa-observability/runs"
     logs_root = root / ".tmp/qa-logs"
     now = utc_now()
-    valid: list[tuple[datetime, Path, dict[str, object]]] = []
+    valid: list[tuple[datetime, Path, dict[str, Any]]] = []
     invalid: list[tuple[float, Path]] = []
     referenced_logs: set[str] = set()
     for path in runs_root.glob("**/*.json") if runs_root.exists() else []:
@@ -258,12 +233,10 @@ def maintain_storage(root: Path) -> None:
                 atomic_write_json(path, record)
             valid.append((started, path, record))
         except (OSError, ValueError, json.JSONDecodeError):
-            try:
+            with contextlib.suppress(OSError):
                 invalid.append((path.lstat().st_mtime, path))
-            except OSError:
-                pass
     valid.sort(key=lambda item: item[0], reverse=True)
-    kept: list[tuple[datetime, Path, dict[str, object]]] = []
+    kept: list[tuple[datetime, Path, dict[str, Any]]] = []
     for index, (started, path, record) in enumerate(valid):
         if index >= MAX_RUNS or now - started > RETENTION_AGE:
             path.unlink(missing_ok=True)
@@ -280,14 +253,18 @@ def maintain_storage(root: Path) -> None:
     for index, (mtime, path) in enumerate(invalid):
         if index >= MAX_INVALID or now.timestamp() - mtime > RETENTION_AGE.total_seconds():
             path.unlink(missing_ok=True)
-    orphans = sorted(
-        (
-            (path.lstat().st_mtime, path)
-            for path in logs_root.glob("**/*.log")
-            if path.relative_to(root).as_posix() not in referenced_logs
-        ),
-        reverse=True,
-    ) if logs_root.exists() else []
+    orphans = (
+        sorted(
+            (
+                (path.lstat().st_mtime, path)
+                for path in logs_root.glob("**/*.log")
+                if path.relative_to(root).as_posix() not in referenced_logs
+            ),
+            reverse=True,
+        )
+        if logs_root.exists()
+        else []
+    )
     for index, (mtime, path) in enumerate(orphans):
         if index >= MAX_ORPHAN_LOGS or now.timestamp() - mtime > RETENTION_AGE.total_seconds():
             path.unlink(missing_ok=True)

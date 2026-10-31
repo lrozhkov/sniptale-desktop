@@ -35,15 +35,18 @@ def _step(args: argparse.Namespace) -> int:
     if not command:
         raise SystemExit("step command is required")
     return run_step(
-        Path(args.record), Path(args.log), args.step_id, args.label, command, args.sensitive,
+        Path(args.record),
+        Path(args.log),
+        args.step_id,
+        args.label,
+        command,
+        args.sensitive,
         args.stream_output,
     )
 
 
 def _begin_step(args: argparse.Namespace) -> int:
-    started_at, started_ns = begin_shell_step(
-        Path(args.log), args.step_id, args.label, args.sensitive
-    )
+    started_at, started_ns = begin_shell_step(Path(args.log), args.step_id, args.label, args.sensitive)
     print(f"{started_at}|{started_ns}")
     return 0
 

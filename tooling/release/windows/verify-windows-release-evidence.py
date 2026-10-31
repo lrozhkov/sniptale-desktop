@@ -2,10 +2,12 @@
 from __future__ import annotations
 
 import argparse
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 import json
 import math
 from pathlib import Path
+from typing import Any
+import contextlib
 
 
 REQUIRED_PATHS = [
@@ -99,7 +101,7 @@ VALID_CHANNELS = {"stable", "beta", "dev"}
 
 
 def get_path(payload: dict, path: tuple[str, ...]):
-    value = payload
+    value: Any = payload
     for part in path:
         if not isinstance(value, dict) or part not in value:
             raise KeyError(".".join(path))
@@ -137,7 +139,7 @@ def validate_completed_at_utc(errors: list[str], value) -> None:
     except ValueError:
         errors.append("review.completedAtUtc must be ISO-8601 UTC")
         return
-    if parsed.tzinfo is None or parsed.utcoffset() != timezone.utc.utcoffset(parsed):
+    if parsed.tzinfo is None or parsed.utcoffset() != UTC.utcoffset(parsed):
         errors.append("review.completedAtUtc must be UTC")
 
 
@@ -237,10 +239,8 @@ def validate(
     except KeyError:
         pass
 
-    try:
+    with contextlib.suppress(KeyError):
         validate_completed_at_utc(errors, get_path(payload, ("review", "completedAtUtc")))
-    except KeyError:
-        pass
 
     expected_files = [
         (expected_msi_file, ("releaseCandidate", "installerEvidence", "msiFileName")),
@@ -280,6 +280,7 @@ def main() -> int:
     parser.add_argument("--expected-provenance-file")
     args = parser.parse_args()
     path = Path(args.path)
+
     def reject_invalid_constant(value: str):
         raise ValueError(f"invalid JSON constant: {value}")
 

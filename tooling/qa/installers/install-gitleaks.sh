@@ -11,7 +11,7 @@ while [[ $# -gt 0 ]]; do
       destination="${2:-}"
       shift 2
       ;;
-    -h|--help)
+    -h | --help)
       printf 'Usage: tooling/qa/installers/install-gitleaks.sh [--destination <file>]\n'
       printf 'Installs the pinned Linux x64 Gitleaks binary after SHA-256 verification.\n'
       exit 0
@@ -28,7 +28,8 @@ if [[ "$(uname -s)" != "Linux" || "$(uname -m)" != "x86_64" ]]; then
   exit 1
 fi
 
-mapfile -t metadata < <(python3 - <<'PY'
+mapfile -t metadata < <(
+  python3 - <<'PY'
 import json
 from pathlib import Path
 

@@ -20,7 +20,16 @@ def spdx_id(value: str) -> str:
 
 def cargo_metadata() -> dict:
     result = subprocess.run(
-        ["cargo", "metadata", "--format-version", "1", "--locked", "--filter-platform", "x86_64-pc-windows-msvc", "--all-features"],
+        [
+            "cargo",
+            "metadata",
+            "--format-version",
+            "1",
+            "--locked",
+            "--filter-platform",
+            "x86_64-pc-windows-msvc",
+            "--all-features",
+        ],
         cwd=ROOT,
         check=True,
         capture_output=True,
@@ -138,16 +147,22 @@ def build_sbom(metadata: dict, legal_manifest: dict, manifest_digest: str, revis
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Generate an SPDX SBOM for the collected Windows runtime dependency closure")
+    parser = argparse.ArgumentParser(
+        description="Generate an SPDX SBOM for the collected Windows runtime dependency closure"
+    )
     parser.add_argument("--out", default=".tmp/release/sbom.spdx.json", help="SBOM output path")
-    parser.add_argument("--legal-manifest", default="THIRD_PARTY_DEPENDENCIES.json", help="Tracked dependency legal manifest")
+    parser.add_argument(
+        "--legal-manifest", default="THIRD_PARTY_DEPENDENCIES.json", help="Tracked dependency legal manifest"
+    )
     args = parser.parse_args()
     manifest_path = ROOT / args.legal_manifest
     manifest_bytes = manifest_path.read_bytes()
     legal_manifest = json.loads(manifest_bytes)
     output = ROOT / args.out
     output.parent.mkdir(parents=True, exist_ok=True)
-    sbom = build_sbom(cargo_metadata(), legal_manifest, hashlib.sha256(manifest_bytes).hexdigest(), source_revision(), created_at())
+    sbom = build_sbom(
+        cargo_metadata(), legal_manifest, hashlib.sha256(manifest_bytes).hexdigest(), source_revision(), created_at()
+    )
     output.write_text(json.dumps(sbom, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(f"SBOM written: {output.relative_to(ROOT).as_posix()}")
     return 0

@@ -39,16 +39,8 @@ def module_name(path: str) -> str:
 
 
 def role_modules(owner_dir: Path) -> set[str]:
-    file_modules = {
-        module_name(path.name)
-        for path in owner_dir.glob("*.rs")
-        if path.name != "mod.rs"
-    }
-    directory_modules = {
-        path.name
-        for path in owner_dir.iterdir()
-        if path.is_dir() and (path / "mod.rs").is_file()
-    }
+    file_modules = {module_name(path.name) for path in owner_dir.glob("*.rs") if path.name != "mod.rs"}
+    directory_modules = {path.name for path in owner_dir.iterdir() if path.is_dir() and (path / "mod.rs").is_file()}
     return file_modules | directory_modules
 
 
@@ -80,19 +72,11 @@ def main() -> int:
         declared = declared_modules(text)
         roles = role_modules(owner_dir)
         missing_declarations = sorted(roles - declared)
-        stale_declarations = sorted(
-            module for module in declared if not role_module_exists(owner_dir, module)
-        )
+        stale_declarations = sorted(module for module in declared if not role_module_exists(owner_dir, module))
         if missing_declarations:
-            errors.append(
-                f"src/{owner}/mod.rs must declare existing role file(s): "
-                + ", ".join(missing_declarations)
-            )
+            errors.append(f"src/{owner}/mod.rs must declare existing role file(s): " + ", ".join(missing_declarations))
         if stale_declarations:
-            errors.append(
-                f"src/{owner}/mod.rs declares missing role file(s): "
-                + ", ".join(stale_declarations)
-            )
+            errors.append(f"src/{owner}/mod.rs declares missing role file(s): " + ", ".join(stale_declarations))
 
     if errors:
         fail(errors)

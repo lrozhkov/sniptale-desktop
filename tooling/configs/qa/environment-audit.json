@@ -1,0 +1,226 @@
+{
+  "schemaVersion": 1,
+  "coverageLimit": "Queries cover exact cataloged versions and the locked npm/Python checker dependency closures in the declared sources. Queries cover not all bundled or statically linked binary dependencies. An empty response does not prove absence of vulnerabilities. Unsupported platforms require separate vendor review. Source failures fail closed; reports are never reused as admission authority.",
+  "tools": {
+    "python": {
+      "provider": "cpython"
+    },
+    "node": {
+      "provider": "nvd",
+      "vendor": "nodejs",
+      "product": "node.js"
+    },
+    "rust": {
+      "provider": "nvd",
+      "vendor": "rust-lang",
+      "product": "rust"
+    },
+    "playwright-core": {
+      "provider": "osv",
+      "ecosystem": "npm",
+      "package": "playwright-core"
+    },
+    "wix": {
+      "provider": "osv",
+      "ecosystem": "NuGet",
+      "package": "wix"
+    },
+    "windows-sdk": {
+      "provider": "osv",
+      "ecosystem": "NuGet",
+      "package": "Microsoft.Windows.SDK.CPP"
+    },
+    "gitleaks": {
+      "provider": "osv",
+      "ecosystem": "Go",
+      "package": "github.com/gitleaks/gitleaks/v8"
+    },
+    "cargo-nextest": {
+      "provider": "osv",
+      "ecosystem": "crates.io",
+      "package": "cargo-nextest"
+    },
+    "cargo-llvm-cov": {
+      "provider": "osv",
+      "ecosystem": "crates.io",
+      "package": "cargo-llvm-cov"
+    },
+    "cargo-audit": {
+      "provider": "osv",
+      "ecosystem": "crates.io",
+      "package": "cargo-audit"
+    },
+    "cargo-deny": {
+      "provider": "osv",
+      "ecosystem": "crates.io",
+      "package": "cargo-deny"
+    },
+    "cargo-about": {
+      "provider": "osv",
+      "ecosystem": "crates.io",
+      "package": "cargo-about"
+    },
+    "actions/checkout": {
+      "provider": "osv",
+      "ecosystem": "GitHub Actions",
+      "package": "actions/checkout"
+    },
+    "actions/cache": {
+      "provider": "osv",
+      "ecosystem": "GitHub Actions",
+      "package": "actions/cache"
+    },
+    "actions/setup-python": {
+      "provider": "osv",
+      "ecosystem": "GitHub Actions",
+      "package": "actions/setup-python"
+    },
+    "actions/upload-artifact": {
+      "provider": "osv",
+      "ecosystem": "GitHub Actions",
+      "package": "actions/upload-artifact"
+    },
+    "actions/download-artifact": {
+      "provider": "osv",
+      "ecosystem": "GitHub Actions",
+      "package": "actions/download-artifact"
+    },
+    "ruff": {
+      "provider": "osv",
+      "ecosystem": "PyPI",
+      "package": "ruff"
+    },
+    "yamllint": {
+      "provider": "osv",
+      "ecosystem": "PyPI",
+      "package": "yamllint"
+    },
+    "jsonschema": {
+      "provider": "osv",
+      "ecosystem": "PyPI",
+      "package": "jsonschema"
+    },
+    "zizmor": {
+      "provider": "osv",
+      "ecosystem": "PyPI",
+      "package": "zizmor"
+    },
+    "pyright": {
+      "provider": "osv",
+      "ecosystem": "npm",
+      "package": "pyright"
+    },
+    "eslint": {
+      "provider": "osv",
+      "ecosystem": "npm",
+      "package": "eslint"
+    },
+    "typescript-eslint": {
+      "provider": "osv",
+      "ecosystem": "npm",
+      "package": "typescript-eslint"
+    },
+    "eslint-plugin-promise": {
+      "provider": "osv",
+      "ecosystem": "npm",
+      "package": "eslint-plugin-promise"
+    },
+    "eslint-plugin-security": {
+      "provider": "osv",
+      "ecosystem": "npm",
+      "package": "eslint-plugin-security"
+    },
+    "globals": {
+      "provider": "osv",
+      "ecosystem": "npm",
+      "package": "globals"
+    },
+    "shellcheck": {
+      "provider": "unavailable",
+      "reason": "Haskell binaries have no complete OSV package mapping; review upstream security advisories.",
+      "reviewSource": "https://github.com/koalaman/shellcheck/security/advisories"
+    },
+    "shfmt": {
+      "provider": "osv",
+      "ecosystem": "Go",
+      "package": "mvdan.cc/sh/v3"
+    },
+    "actionlint": {
+      "provider": "osv",
+      "ecosystem": "Go",
+      "package": "github.com/rhysd/actionlint"
+    },
+    "taplo": {
+      "provider": "osv",
+      "ecosystem": "crates.io",
+      "package": "taplo-cli"
+    },
+    "pwsh": {
+      "provider": "unavailable",
+      "reason": "Portable PowerShell bundles .NET; no complete automatic version-to-MSRC mapping.",
+      "reviewSource": "https://github.com/PowerShell/PowerShell/security/advisories"
+    },
+    "PSScriptAnalyzer": {
+      "provider": "unavailable",
+      "reason": "PowerShell Gallery packages have no supported OSV ecosystem mapping.",
+      "reviewSource": "https://github.com/PowerShell/PSScriptAnalyzer/security/advisories"
+    },
+    "renovate": {
+      "provider": "osv",
+      "ecosystem": "npm",
+      "package": "renovate"
+    },
+    "setuptools": {
+      "provider": "osv",
+      "ecosystem": "PyPI",
+      "package": "setuptools"
+    },
+    "wheel": {
+      "provider": "osv",
+      "ecosystem": "PyPI",
+      "package": "wheel"
+    },
+    "Cython": {
+      "provider": "osv",
+      "ecosystem": "PyPI",
+      "package": "Cython"
+    },
+    "@eslint/js": {
+      "provider": "osv",
+      "ecosystem": "npm",
+      "package": "@eslint/js"
+    },
+    "typescript": {
+      "provider": "osv",
+      "ecosystem": "npm",
+      "package": "typescript"
+    },
+    "minimatch": {
+      "provider": "osv",
+      "ecosystem": "npm",
+      "package": "minimatch"
+    },
+    "jsonata": {
+      "provider": "osv",
+      "ecosystem": "npm",
+      "package": "jsonata"
+    },
+    "@isaacs/nonrecursive-glob-match": {
+      "provider": "osv",
+      "ecosystem": "npm",
+      "package": "@isaacs/nonrecursive-glob-match"
+    },
+    "@types/estree": {
+      "provider": "osv",
+      "ecosystem": "npm",
+      "package": "@types/estree"
+    }
+  },
+  "platformGaps": [
+    "MSVC and static CRT: hosted image inventory and Microsoft servicing; no complete automatic package mapping.",
+    ".NET host, Windows PowerShell 5.1, Windows OS and browser servicing: platform inventory, not a cataloged portable package closure.",
+    "QEMU/KVM, Bash, Git, tar and host libraries: host distribution servicing; not covered by the application Cargo advisory audit.",
+    "Mend-hosted Renovate runtime and its dependencies are serviced by the vendor. Local checks consume only the pinned official configuration schema; the Renovate npm dependency graph is not executed.",
+    "The Actions Python binary distribution and system shared libraries require vendor/distribution servicing; Python language advisories are checked by exact upstream version and commit."
+  ]
+}

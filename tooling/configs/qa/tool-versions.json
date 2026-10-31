@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "cargoSubcommands": {
-    "cargo-nextest": "0.9.149",
+    "cargo-nextest": "0.9.150",
     "cargo-llvm-cov": "0.9.1",
     "cargo-audit": "0.22.2",
     "cargo-deny": "0.20.2",
@@ -43,10 +43,158 @@
       "advisory": "https://www.cve.org/CVERecord?id=CVE-2026-115557",
       "reason": "Python security release distrusts compromised eMudhra CA keys and fixes tarfile link replacement (CVE-2026-114583). Official confirmation: https://blog.python.org/2026/10/python-3152-31410-31318-31216-31118/",
       "fixedVersion": "3.15.2"
+    },
+    "cargo-nextest": {
+      "advisory": "https://rustsec.org/advisories/RUSTSEC-2026-0412.html",
+      "reason": "Fixes arbitrary code execution through unvalidated Cargo arguments in portable rerun recordings; upstream patched range is >=0.9.150.",
+      "fixedVersion": "0.9.150"
+    },
+    "minimatch": {
+      "advisory": "https://github.com/isaacs/minimatch/security/advisories/GHSA-g3hv-75wg-m249",
+      "reason": "Fixes globparts pattern amplification denial of service affecting the previously locked 10.2.6; upstream affected range is <11.0.1.",
+      "fixedVersion": "11.0.1"
+    },
+    "@isaacs/nonrecursive-glob-match": {
+      "advisory": "https://github.com/isaacs/minimatch/security/advisories/GHSA-g3hv-75wg-m249",
+      "fixedVersion": "1.0.1",
+      "reason": "Required minimum dependency of minimatch 11.0.1 fixing GHSA-g3hv-75wg-m249; no compatible release has completed seven days. The independent policy verifies the published parent dependency range and absence of aged compatible alternatives."
     }
   },
   "browserAutomation": {
     "node": "24.22.1",
     "playwrightCore": "1.64.1"
+  },
+  "scriptTools": {
+    "ruff": {
+      "version": "0.17.2",
+      "manager": "pypi",
+      "package": "ruff"
+    },
+    "yamllint": {
+      "version": "1.38.0",
+      "manager": "pypi",
+      "package": "yamllint"
+    },
+    "jsonschema": {
+      "version": "4.26.0",
+      "manager": "pypi",
+      "package": "jsonschema"
+    },
+    "zizmor": {
+      "version": "1.31.1",
+      "manager": "pypi",
+      "package": "zizmor"
+    },
+    "pyright": {
+      "version": "1.1.414",
+      "manager": "npm",
+      "package": "pyright"
+    },
+    "eslint": {
+      "version": "10.13.0",
+      "manager": "npm",
+      "package": "eslint"
+    },
+    "typescript-eslint": {
+      "version": "8.72.0",
+      "manager": "npm",
+      "package": "typescript-eslint"
+    },
+    "eslint-plugin-promise": {
+      "version": "7.3.0",
+      "manager": "npm",
+      "package": "eslint-plugin-promise"
+    },
+    "eslint-plugin-security": {
+      "version": "4.2.0",
+      "manager": "npm",
+      "package": "eslint-plugin-security"
+    },
+    "globals": {
+      "version": "17.13.0",
+      "manager": "npm",
+      "package": "globals"
+    },
+    "shellcheck": {
+      "version": "0.11.0",
+      "manager": "github",
+      "repository": "koalaman/shellcheck"
+    },
+    "shfmt": {
+      "version": "3.14.1",
+      "manager": "github",
+      "repository": "mvdan/sh"
+    },
+    "actionlint": {
+      "version": "1.7.12",
+      "manager": "github",
+      "repository": "rhysd/actionlint"
+    },
+    "taplo": {
+      "version": "0.10.0",
+      "manager": "github",
+      "repository": "tamasfe/taplo"
+    },
+    "pwsh": {
+      "version": "7.6.8",
+      "manager": "github",
+      "repository": "PowerShell/PowerShell"
+    },
+    "PSScriptAnalyzer": {
+      "version": "1.25.0",
+      "manager": "github",
+      "repository": "PowerShell/PSScriptAnalyzer"
+    },
+    "renovate": {
+      "version": "44.181.0",
+      "manager": "npm",
+      "package": "renovate",
+      "usage": "configuration-schema-only"
+    },
+    "setuptools": {
+      "version": "84.2.1",
+      "manager": "pypi",
+      "package": "setuptools"
+    },
+    "wheel": {
+      "version": "0.48.0",
+      "manager": "pypi",
+      "package": "wheel"
+    },
+    "Cython": {
+      "version": "3.3.0",
+      "manager": "pypi",
+      "package": "Cython"
+    },
+    "@eslint/js": {
+      "version": "10.0.1",
+      "manager": "npm",
+      "package": "@eslint/js"
+    },
+    "typescript": {
+      "version": "6.0.3",
+      "manager": "npm",
+      "package": "typescript"
+    },
+    "minimatch": {
+      "version": "11.0.1",
+      "manager": "npm",
+      "package": "minimatch"
+    },
+    "jsonata": {
+      "version": "2.2.2",
+      "manager": "npm",
+      "package": "jsonata"
+    },
+    "@isaacs/nonrecursive-glob-match": {
+      "version": "1.0.1",
+      "manager": "npm",
+      "package": "@isaacs/nonrecursive-glob-match"
+    },
+    "@types/estree": {
+      "version": "1.0.9",
+      "manager": "npm",
+      "package": "@types/estree"
+    }
   }
 }

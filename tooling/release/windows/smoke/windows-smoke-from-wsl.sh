@@ -100,7 +100,7 @@ while [[ $# -gt 0 ]]; do
       ps_args+=("-KeepLogs")
       shift
       ;;
-    -h|--help)
+    -h | --help)
       usage
       exit 0
       ;;

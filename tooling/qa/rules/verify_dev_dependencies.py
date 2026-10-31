@@ -87,9 +87,7 @@ def main() -> int:
     dev_deps = dependency_names(block)
     extra_dev_deps = sorted(set(dev_deps) - set(REQUIRED_DEV_DEPENDENCIES))
     for dep in extra_dev_deps:
-        errors.append(
-            f"untracked dev-dependency {dep}: add a deterministic QA justification before using it"
-        )
+        errors.append(f"untracked dev-dependency {dep}: add a deterministic QA justification before using it")
     deps = dependency_block(text)
     runtime_deps = dependency_names(deps) | dependency_names(target_windows_dependency_block(text))
     for dep, reason in DISALLOWED_RUNTIME_DEPENDENCIES.items():

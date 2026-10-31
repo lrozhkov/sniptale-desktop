@@ -92,7 +92,9 @@ def sanitize(report: list[dict], scope: str) -> list[dict]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Validate a fully redacted Gitleaks report against exact reviewed fingerprints.")
+    parser = argparse.ArgumentParser(
+        description="Validate a fully redacted Gitleaks report against exact reviewed fingerprints."
+    )
     parser.add_argument("--scope", choices=("worktree", "history"), required=True)
     parser.add_argument("--report", type=Path, required=True)
     parser.add_argument("--baseline", type=Path, required=True)

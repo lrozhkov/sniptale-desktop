@@ -88,10 +88,14 @@ def write_junit(path: Path, results: list[GuestResult]) -> None:
     tests = sum(len(result.cases) for result in results)
     failures = sum(case.status == "fail" for result in results for case in result.cases)
     skipped = sum(case.status == "skip" for result in results for case in result.cases)
-    suite = ET.Element("testsuite", name="desktop-e2e-lab", tests=str(tests), failures=str(failures), skipped=str(skipped))
+    suite = ET.Element(
+        "testsuite", name="desktop-e2e-lab", tests=str(tests), failures=str(failures), skipped=str(skipped)
+    )
     for result in results:
         for case in result.cases:
-            node = ET.SubElement(suite, "testcase", classname=result.lane, name=case.name, time=f"{case.duration_ms / 1000:.3f}")
+            node = ET.SubElement(
+                suite, "testcase", classname=result.lane, name=case.name, time=f"{case.duration_ms / 1000:.3f}"
+            )
             if case.status == "fail":
                 ET.SubElement(node, "failure", message=_xml_safe(redact(case.detail or "guest assertion failed")))
             elif case.status == "skip":

@@ -6,7 +6,7 @@ import signal
 import subprocess
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from pathlib import Path
 
 from . import lock
@@ -27,12 +27,12 @@ MAX_STREAM_LINE_BYTES = min(64 * 1024, MAX_LOG_BYTES)
 
 
 def _run_id() -> str:
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
+    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S.%fZ")
     return f"{stamp}-{secrets.token_hex(6)}"
 
 
 def _paths(run_id: str) -> tuple[Path, Path, str, str]:
-    day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    day = datetime.now(UTC).strftime("%Y-%m-%d")
     run_relative = f".tmp/qa-observability/runs/{day}/{run_id}.json"
     log_relative = f".tmp/qa-logs/{day}/{run_id}.log"
     return ROOT / run_relative, ROOT / log_relative, run_relative, log_relative
@@ -123,9 +123,7 @@ def run_step(
                 decoded = "[qa-observability: overlong output line redacted]\n"
             else:
                 decoded = line.decode("utf-8", errors="replace")
-            append_bounded_log(
-                log_path, decoded, ROOT, sensitive
-            )
+            append_bounded_log(log_path, decoded, ROOT, sensitive)
             if stream_output:
                 sys.stderr.write(sanitize_text(decoded, ROOT, sensitive))
                 sys.stderr.flush()
@@ -136,9 +134,7 @@ def run_step(
         exit_code = 127
     duration_ms = int((time.monotonic() - started) * 1000)
     outcome = "passed" if exit_code == 0 else "problems-found"
-    append_bounded_log(
-        log_path, f"[{step_id}] {outcome.upper()} exit={exit_code}\n", ROOT, sensitive
-    )
+    append_bounded_log(log_path, f"[{step_id}] {outcome.upper()} exit={exit_code}\n", ROOT, sensitive)
     _record_step(run_path, log_path, step_id, label, started_at, duration_ms, exit_code)
     return exit_code
 
@@ -176,9 +172,7 @@ def finish_shell_step(
         output_path.unlink(missing_ok=True)
     duration_ms = max(0, int((time.time_ns() - started_ns) / 1_000_000))
     outcome = "passed" if exit_code == 0 else "problems-found"
-    append_bounded_log(
-        log_path, f"[{step_id}] {outcome.upper()} exit={exit_code}\n", ROOT, sensitive
-    )
+    append_bounded_log(log_path, f"[{step_id}] {outcome.upper()} exit={exit_code}\n", ROOT, sensitive)
     _record_step(run_path, log_path, step_id, label, started_at, duration_ms, exit_code)
     return exit_code
 
@@ -218,7 +212,7 @@ def finish(run_path: Path, log_path: Path, exit_code: int) -> dict[str, object]:
     if record.get("status") != "running":
         return record
     append_bounded_log(log_path, f"\n[{record.get('wrapperId')}] finished exit={exit_code}\n", ROOT)
-    finished = datetime.now(timezone.utc)
+    finished = datetime.now(UTC)
     started_text = str(record.get("startedAt", "")).replace("Z", "+00:00")
     try:
         started = datetime.fromisoformat(started_text)
@@ -228,8 +222,10 @@ def finish(run_path: Path, log_path: Path, exit_code: int) -> dict[str, object]:
     record["finishedAt"] = finished.isoformat().replace("+00:00", "Z")
     record["durationMs"] = max(0, duration_ms)
     record["exitCode"] = exit_code
-    record["status"] = "all-passed" if exit_code == 0 else (
-        "interrupted" if exit_code in {128 + signal.SIGINT, 128 + signal.SIGTERM} else "problems-found"
+    record["status"] = (
+        "all-passed"
+        if exit_code == 0
+        else ("interrupted" if exit_code in {128 + signal.SIGINT, 128 + signal.SIGTERM} else "problems-found")
     )
     if exit_code != 0 and not record.get("problemIds"):
         record["problemIds"] = ["wrapper.nonzero-exit"]

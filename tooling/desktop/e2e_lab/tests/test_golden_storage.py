@@ -62,7 +62,7 @@ class GoldenStorageTests(unittest.TestCase):
             _write_wrapper(prefix, "qemu-img")
 
             wrapper = (prefix / "bin/qemu-img").read_text(encoding="utf-8")
-            self.assertIn('${BASH_SOURCE[0]}', wrapper)
+            self.assertIn("${BASH_SOURCE[0]}", wrapper)
             self.assertNotIn(str(prefix), wrapper)
 
     def test_bootstrap_repairs_relocated_qemu_data_symlink(self) -> None:
@@ -78,8 +78,10 @@ class GoldenStorageTests(unittest.TestCase):
             link = qemu_data / firmware.name
             link.symlink_to("/old/temporary/prefix/efi-e1000e.rom")
 
-            with mock.patch("host._host_tool", return_value="/usr/bin/tool"), \
-                 mock.patch("host._installed", return_value=True):
+            with (
+                mock.patch("host._host_tool", return_value="/usr/bin/tool"),
+                mock.patch("host._installed", return_value=True),
+            ):
                 bootstrap(paths)
 
             self.assertEqual(link.resolve(strict=False), firmware.resolve(strict=False))

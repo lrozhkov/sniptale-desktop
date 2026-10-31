@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
-# shellcheck disable=SC1091
+# shellcheck source=../../qa/runtime/lib.sh
 source "$ROOT/tooling/qa/runtime/lib.sh"
 ensure_rust_env
 cd "$ROOT"
@@ -117,7 +117,7 @@ while [[ $# -gt 0 ]]; do
       wix_cmd="${1#*=}"
       shift
       ;;
-    -h|--help)
+    -h | --help)
       usage
       exit 0
       ;;
@@ -163,7 +163,7 @@ if [[ -z "$signing_mode" ]]; then
 fi
 
 case "$signing_mode" in
-  unsigned|production)
+  unsigned | production)
     ;;
   *)
     printf 'Unknown signing mode: %s\n' "$signing_mode" >&2
@@ -315,6 +315,8 @@ ensure_wix_ui_extension() {
 
 sign_authenticode_artifact() {
   local artifact="$1"
+  # PowerShell expands its variables after Bash passes this literal command.
+  # shellcheck disable=SC2016
   "$powershell_cmd" -NoProfile -ExecutionPolicy Bypass -Command \
     '& {
       param([string]$Path, [string]$Thumbprint, [string]$TimestampUrl)
@@ -336,6 +338,8 @@ sign_authenticode_artifact() {
 verify_authenticode_artifact() {
   local artifact="$1"
   local evidence_path="$2"
+  # PowerShell expands its variables after Bash passes this literal command.
+  # shellcheck disable=SC2016
   "$powershell_cmd" -NoProfile -ExecutionPolicy Bypass -Command \
     '& {
       param([string]$Path, [string]$Thumbprint, [string]$EvidencePath)
@@ -564,7 +568,7 @@ PY
     if [[ -n "$manual_qa_evidence" ]]; then
       write_named_sha256 "$manual_evidence_path" "$(basename "$manual_evidence_path")"
     fi
-  } > "$sha_path"
+  } >"$sha_path"
   qa_step "write release evidence" \
     python3 - "$evidence_path" "$channel" "$signing_mode" "$timestamp_url" "$signing_cert_thumbprint" "$current_dependency_fingerprint" "$native_agent_exe" "$manifest_path" "$msi_path" "$provenance_path" "$sha_path" "$sbom_path" "$cargo_audit_path" "$cargo_deny_path" "$manual_evidence_path" "$out_dir/signature-exe.json" "$out_dir/signature-msi.json" "$project_license_path" "$project_notice_path" "$third_party_notices_path" "$third_party_dependencies_path" <<'PY'
 import json
@@ -650,7 +654,7 @@ payload = {
 }
 evidence_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 PY
-  write_named_sha256 "$evidence_path" "$(basename "$evidence_path")" >> "$sha_path"
+  write_named_sha256 "$evidence_path" "$(basename "$evidence_path")" >>"$sha_path"
 }
 
 qa_step "validate manual windows release evidence" validate_manual_qa_evidence
@@ -661,8 +665,8 @@ ensure_wix_ui_extension
 
 qa_step "build windows-msvc release executable" \
   env -u SNIPTALE_DEV_LOCAL_BROWSER_TRUST \
-    SNIPTALE_INSTALL_CHANNEL="$channel" SNIPTALE_ALLOWED_EXTENSION_ORIGIN="$extension_origin" SNIPTALE_WINDOWS_RESOURCES=require \
-    cargo build --locked --release --target x86_64-pc-windows-msvc --bin sniptale-native-agent --all-features
+  SNIPTALE_INSTALL_CHANNEL="$channel" SNIPTALE_ALLOWED_EXTENSION_ORIGIN="$extension_origin" SNIPTALE_WINDOWS_RESOURCES=require \
+  cargo build --locked --release --target x86_64-pc-windows-msvc --bin sniptale-native-agent --all-features
 native_agent_exe="target/x86_64-pc-windows-msvc/release/sniptale-native-agent.exe"
 
 if [[ ! -s "$native_agent_exe" ]]; then
@@ -703,17 +707,17 @@ PY
 
 qa_step "build windows msi" \
   "$wix_cmd" build installer/wix/SniptaleNativeAgent.wxs \
-    -ext WixToolset.UI.wixext \
-    -d "NativeAgentExe=$native_agent_exe" \
-    -d "NativeHostManifest=$manifest_path" \
-    -d "ProjectLicense=$project_license_path" \
-    -d "ProjectNotice=$project_notice_path" \
-    -d "ThirdPartyNotices=$third_party_notices_path" \
-    -d "ThirdPartyDependencies=$third_party_dependencies_path" \
-    -d "AppIcon=resources/windows/icons/sniptale.ico" \
-    -d "NativeHostName=$native_host_name" \
-    -d "ProductVersion=$product_version" \
-    -o "$msi_path"
+  -ext WixToolset.UI.wixext \
+  -d "NativeAgentExe=$native_agent_exe" \
+  -d "NativeHostManifest=$manifest_path" \
+  -d "ProjectLicense=$project_license_path" \
+  -d "ProjectNotice=$project_notice_path" \
+  -d "ThirdPartyNotices=$third_party_notices_path" \
+  -d "ThirdPartyDependencies=$third_party_dependencies_path" \
+  -d "AppIcon=resources/windows/icons/sniptale.ico" \
+  -d "NativeHostName=$native_host_name" \
+  -d "ProductVersion=$product_version" \
+  -o "$msi_path"
 
 if [[ ! -s "$msi_path" ]]; then
   printf 'MSI is missing or empty: %s\n' "$msi_path" >&2

@@ -11,8 +11,16 @@ qa_init() {
   umask 077
   local wrapper_id="${1:-qa:$(basename "$0" .sh)}"
   local blocking="${2:-non-blocking}"
+  local root
+  root="$(repo_root)"
+  # Metadata bootstrap and diagnostics must work before tools are installed.
+  if [[ "$wrapper_id" != qa:toolchain && "$wrapper_id" != qa:preflight && -f "$root/tooling/qa/runtime/script-tools-env.sh" ]]; then
+    # shellcheck source=script-tools-env.sh
+    source "$root/tooling/qa/runtime/script-tools-env.sh"
+    script_tools_env "$root"
+  fi
   local mode="${3:-default}"
-  shift "$(( $# < 3 ? $# : 3 ))" || true
+  shift "$(($# < 3 ? $# : 3))" || true
   QA_SENSITIVE_VALUES=("$@")
   local command=(python3 -m tooling.qa.runtime.cli start --wrapper "$wrapper_id" --mode "$mode")
   if [[ "$blocking" == "blocking" ]]; then
@@ -71,9 +79,9 @@ qa_step() {
     QA_ACTIVE_RAW_LOG="$(mktemp "$report_dir/${step_id}.XXXXXX.raw")"
     chmod 600 "$QA_ACTIVE_RAW_LOG" 2>/dev/null || true
 
-    local begin_command=(python3 -m tooling.qa.runtime.cli begin-step \
-      --log "$SNIPTALE_QA_RUN_LOG" \
-      --step-id "$step_id" \
+    local begin_command=(python3 -m tooling.qa.runtime.cli begin-step
+      --log "$SNIPTALE_QA_RUN_LOG"
+      --step-id "$step_id"
       --label "$name")
     local sensitive
     for sensitive in "${QA_SENSITIVE_VALUES[@]:-}"; do
@@ -90,14 +98,14 @@ qa_step() {
 
     local started_at="${started_data%%|*}"
     local started_ns="${started_data##*|}"
-    local finish_command=(python3 -m tooling.qa.runtime.cli finish-step \
-      --record "$SNIPTALE_QA_RUN_RECORD" \
-      --log "$SNIPTALE_QA_RUN_LOG" \
-      --step-id "$step_id" \
-      --label "$name" \
-      --started-at "$started_at" \
-      --started-ns "$started_ns" \
-      --exit-code "$status" \
+    local finish_command=(python3 -m tooling.qa.runtime.cli finish-step
+      --record "$SNIPTALE_QA_RUN_RECORD"
+      --log "$SNIPTALE_QA_RUN_LOG"
+      --step-id "$step_id"
+      --label "$name"
+      --started-at "$started_at"
+      --started-ns "$started_ns"
+      --exit-code "$status"
       --output "$QA_ACTIVE_RAW_LOG")
     for sensitive in "${QA_SENSITIVE_VALUES[@]:-}"; do
       finish_command+=(--sensitive "$sensitive")
@@ -109,7 +117,7 @@ qa_step() {
     QA_ACTIVE_RAW_LOG=""
 
     local elapsed
-    elapsed="$(( $(date +%s) - start ))"
+    elapsed="$(($(date +%s) - start))"
     if [[ "$status" == 0 ]]; then
       printf 'OK %s (%ss)\n' "$name" "$elapsed"
       QA_STEP_SUMMARY+=("OK $name (${elapsed}s)")
@@ -123,10 +131,10 @@ qa_step() {
     return 0
   fi
 
-  local runtime_command=(python3 -m tooling.qa.runtime.cli step \
-    --record "$SNIPTALE_QA_RUN_RECORD" \
-    --log "$SNIPTALE_QA_RUN_LOG" \
-    --step-id "$step_id" \
+  local runtime_command=(python3 -m tooling.qa.runtime.cli step
+    --record "$SNIPTALE_QA_RUN_RECORD"
+    --log "$SNIPTALE_QA_RUN_LOG"
+    --step-id "$step_id"
     --label "$name")
   local sensitive
   for sensitive in "${QA_SENSITIVE_VALUES[@]:-}"; do
@@ -138,14 +146,14 @@ qa_step() {
   runtime_command+=(-- "$@")
   if "${runtime_command[@]}"; then
     local elapsed
-    elapsed="$(( $(date +%s) - start ))"
+    elapsed="$(($(date +%s) - start))"
     printf 'OK %s (%ss)\n' "$name" "$elapsed"
     QA_STEP_SUMMARY+=("OK $name (${elapsed}s)")
     return 0
   else
     status=$?
     local elapsed
-    elapsed="$(( $(date +%s) - start ))"
+    elapsed="$(($(date +%s) - start))"
     printf 'FAIL %s (%ss) log=%s\n' "$name" "$elapsed" "$SNIPTALE_QA_RUN_LOG_RELATIVE" >&2
     tail -80 "$SNIPTALE_QA_RUN_LOG" >&2 || true
     QA_STEP_SUMMARY+=("FAIL $name (${elapsed}s)")
@@ -176,7 +184,8 @@ qa_fail_if_any() {
 
 ensure_rust_env() {
   if [[ -f "$HOME/.cargo/env" ]]; then
-    # shellcheck disable=SC1091
+    # Rustup owns this user-environment fragment; it is outside the repository script inventory.
+    # shellcheck source=/dev/null
     source "$HOME/.cargo/env"
   fi
   # Local edit loops reuse each profile's own incremental cache. Release proof and CI keep the

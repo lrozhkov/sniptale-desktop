@@ -26,18 +26,36 @@ from results import GuestResult, parse_guest_result
 from ssh import GuestSsh, powershell_encoded
 from system import sha256_file
 from vm import VmManager
+import contextlib
 
 LINUX_CASES = {
-    "session", "network-isolation", "portal", "tray", "audio-loopback", "capture",
-    "browsers", "at-spi", "package-lifecycle",
+    "session",
+    "network-isolation",
+    "portal",
+    "tray",
+    "audio-loopback",
+    "capture",
+    "browsers",
+    "at-spi",
+    "package-lifecycle",
 }
 TEXT_EVIDENCE_SUFFIXES = {".json", ".jsonl", ".log", ".txt", ".xml", ".html", ".csv"}
 BINARY_EVIDENCE_SUFFIXES = {".png", ".jpg", ".jpeg", ".raw", ".wav", ".mp4", ".webm"}
 MAX_TEXT_EVIDENCE_BYTES = 4 * 1024 * 1024
 WINDOWS_CASES = {
-    "network-isolation", "install", "upgrade", "repair", "resident", "tray", "settings",
-    "native-messaging", "capture", "recording-system-audio", "recording-microphone",
-    "reconnect-recovery", "uninstall",
+    "network-isolation",
+    "install",
+    "upgrade",
+    "repair",
+    "resident",
+    "tray",
+    "settings",
+    "native-messaging",
+    "capture",
+    "recording-system-audio",
+    "recording-microphone",
+    "reconnect-recovery",
+    "uninstall",
 }
 WINDOWS_CASE_DEPENDENCIES = {
     "install": {"network-isolation"},
@@ -109,12 +127,9 @@ class LaneRunner:
         lane = self.config.lanes[lane_name]
         ssh = GuestSsh(self.paths, lane.ssh_port, "lab")
         command = ["sudo", "systemctl", "poweroff"] if lane.os == "linux" else ["shutdown.exe", "/s", "/t", "0", "/f"]
-        try:
+        # Shutdown can close SSH before its response; VmManager still proves process exit.
+        with contextlib.suppress(LabError):
             ssh.command(command, timeout=20)
-        except LabError:
-            # A successful shutdown commonly closes SSH before it can return a
-            # status. VmManager still verifies exit and enforces its timeout.
-            pass
 
     def _finish_vm(self, lane_name: str, phase: str, pre_forced: bool) -> None:
         if self.work_session:
@@ -142,33 +157,41 @@ class LaneRunner:
         output.mkdir(parents=True, exist_ok=True, mode=0o700)
         if lane.os == "linux":
             artifacts = build_current_linux_artifact(
-                self.paths.root, profile=profile, source_archive=source.archive, output=output,
+                self.paths.root,
+                profile=profile,
+                source_archive=source.archive,
+                output=output,
             )
             self._record_teardown(lane_name, "build", False, False)
             return artifacts
-        cached = restore_build_cache(
-            self.paths, lane_name, profile, source.sha256, output
-        )
+        cached = restore_build_cache(self.paths, lane_name, profile, source.sha256, output)
         if cached is not None:
             self.build_caches[lane_name] = "hit"
             emit_progress(
-                "build-cache", lane=lane_name, profile=profile, status="hit",
+                "build-cache",
+                lane=lane_name,
+                profile=profile,
+                status="hit",
                 sourceSha256=source.sha256,
             )
-            (output / "build.log").write_text(
-                f"content-addressed build cache hit: {source.sha256}\n", encoding="utf-8"
-            )
+            (output / "build.log").write_text(f"content-addressed build cache hit: {source.sha256}\n", encoding="utf-8")
             self._record_teardown(lane_name, "build", False, False)
             return cached
         emit_progress(
-            "build-cache", lane=lane_name, profile=profile, status="miss",
+            "build-cache",
+            lane=lane_name,
+            profile=profile,
+            status="miss",
             sourceSha256=source.sha256,
         )
         built = self._build_windows(lane_name, profile, source, output)
         store_build_cache(self.paths, lane_name, profile, source.sha256, output)
         self.build_caches[lane_name] = "miss-stored"
         emit_progress(
-            "build-cache", lane=lane_name, profile=profile, status="stored",
+            "build-cache",
+            lane=lane_name,
+            profile=profile,
+            status="stored",
             sourceSha256=source.sha256,
         )
         return built
@@ -176,8 +199,9 @@ class LaneRunner:
     def _build_windows(self, lane_name: str, profile: str, source: SourceFingerprint, output: Path) -> list[Path]:
         pre_forced = False if self.work_session else self.vms.reset(lane_name)
         try:
-            self.vms.start(lane_name, allow_guest_network=not self.work_session,
-                           windows_audio_capture=self.work_session)
+            self.vms.start(
+                lane_name, allow_guest_network=not self.work_session, windows_audio_capture=self.work_session
+            )
             ssh = GuestSsh(self.paths, self.config.lanes[lane_name].ssh_port, "lab")
             ssh.wait(
                 self.config.timeouts.boot,
@@ -186,26 +210,47 @@ class LaneRunner:
             )
             if not self.work_session:
                 from windows_session import require_license
+
                 require_license(ssh, 7200)
             self._assert_windows_audio_backend(lane_name)
             ssh.upload(source.archive, "source.tar.gz", timeout=600)
             script = self.paths.root / "tooling/desktop/e2e_lab/guest/windows/build.ps1"
             ssh.upload(script, "build.ps1", timeout=120)
             command = [
-                "powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "build.ps1",
-                "-SourceBundle", "source.tar.gz", "-SourceSha256", source.sha256,
-                "-Profile", profile, "-Output", "out",
+                "powershell.exe",
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                "build.ps1",
+                "-SourceBundle",
+                "source.tar.gz",
+                "-SourceSha256",
+                source.sha256,
+                "-Profile",
+                profile,
+                "-Output",
+                "out",
             ]
             if self.work_session:
                 from session_dependencies import upload_wix_ui
                 from session_toolchain import upload_toolchain
+
                 compiler = upload_toolchain(self.paths, ssh)
                 if self.vendor_bundle is not None:
                     ssh.upload(self.vendor_bundle, "vendor.tar.gz", timeout=300)
                     command.extend(("-VendorBundle", "vendor.tar.gz", "-VendorSha256", sha256_file(self.vendor_bundle)))
-                wix_hash = upload_wix_ui(self.paths, ssh, output)
-                command.extend(("-WorkspaceMode", "warm", "-WixUiSha256", wix_hash,
-                                "-RustcSha256", compiler["rustc_sha256"], "-CargoSha256", compiler["cargo_sha256"]))
+                upload_wix_ui(self.paths, ssh, output)
+                command.extend(
+                    (
+                        "-WorkspaceMode",
+                        "warm",
+                        "-RustcSha256",
+                        compiler["rustc_sha256"],
+                        "-CargoSha256",
+                        compiler["cargo_sha256"],
+                    )
+                )
             ssh.command(
                 command,
                 timeout=self.config.timeouts.test,
@@ -214,12 +259,18 @@ class LaneRunner:
             )
             self._enforce_remote_tree_limit(ssh, "out", windows=True, max_bytes=1024 * 1024 * 1024, max_files=512)
             ssh.download(
-                "out/", output, recursive=True, timeout=600,
-                max_bytes=(1024 + self.config.limits.max_log_mib) * 1024 * 1024, max_files=513,
+                "out/",
+                output,
+                recursive=True,
+                timeout=600,
+                max_bytes=(1024 + self.config.limits.max_log_mib) * 1024 * 1024,
+                max_files=513,
             )
         finally:
             self._finish_vm(lane_name, "build", pre_forced)
-        artifacts = sorted(path for path in output.rglob("*") if path.is_file() and path.suffix.lower() in {".exe", ".msi"})
+        artifacts = sorted(
+            path for path in output.rglob("*") if path.is_file() and path.suffix.lower() in {".exe", ".msi"}
+        )
         if not artifacts:
             raise LabError("Windows guest build produced no EXE/MSI artifacts")
         return artifacts
@@ -240,6 +291,7 @@ class LaneRunner:
             if requested_cases is not None:
                 raise LabError("alpha release acceptance cannot select or skip cases")
             from release_acceptance import test_release
+
             return test_release(self, lane_name, artifact, run_dir)
         return self._test_windows(lane_name, artifact, run_dir, requested_cases)
 
@@ -251,7 +303,6 @@ class LaneRunner:
         try:
             self.vms.start(
                 lane_name,
-                windows_audio_capture=microphone_required,
                 host_reserve_mib=1024,
             )
             ssh = GuestSsh(self.paths, self.config.lanes[lane_name].ssh_port, "lab")
@@ -262,20 +313,27 @@ class LaneRunner:
             ssh.upload(artifact, plan.remote_name, timeout=600)
             session_exec = self.paths.root / "tooling/desktop/e2e_lab/guest/linux-session-exec.sh"
             ssh.upload(session_exec, "sniptale-session-exec", timeout=120)
-            ssh.command(["sudo", "install", "-m", "0755", "sniptale-session-exec", "/usr/local/bin/sniptale-session-exec"], timeout=120)
+            ssh.command(
+                ["sudo", "install", "-m", "0755", "sniptale-session-exec", "/usr/local/bin/sniptale-session-exec"],
+                timeout=120,
+            )
             script = self.paths.root / "tooling/desktop/e2e_lab/guest/linux-run.sh"
             ssh.upload(script, "linux-run.sh", timeout=120)
-            try:
+            with contextlib.suppress(LabError):
                 ssh.command(
                     [
-                        "bash", "linux-run.sh", lane_name, plan.remote_name,
-                        sha256_file(artifact), plan.kind, plan.package_name, plan.executable,
+                        "bash",
+                        "linux-run.sh",
+                        lane_name,
+                        plan.remote_name,
+                        sha256_file(artifact),
+                        plan.kind,
+                        plan.package_name,
+                        plan.executable,
                     ],
                     timeout=self.config.timeouts.test,
                     log=run_dir / "logs" / f"{lane_name}.log",
                 )
-            except LabError:
-                pass
             self._enforce_remote_evidence_limit(ssh, windows=False)
             maximum = self._evidence_transfer_maximum()
             ssh.download("e2e-out/", lane_dir, recursive=True, timeout=600, max_bytes=maximum, max_files=2048)
@@ -323,8 +381,16 @@ class LaneRunner:
         requested_cases: set[str] | None = None,
     ) -> GuestResult:
         artifact_set = self._windows_test_artifacts(artifact)
-        real_extension_requested = self.work_session and self.real_extension is not None and (requested_cases is None or "real-extension" in requested_cases)
-        runtime_requested = requested_cases - {"real-extension"} if self.work_session and requested_cases is not None else requested_cases
+        real_extension_requested = (
+            self.work_session
+            and self.real_extension is not None
+            and (requested_cases is None or "real-extension" in requested_cases)
+        )
+        runtime_requested = (
+            requested_cases - {"real-extension"}
+            if self.work_session and requested_cases is not None
+            else requested_cases
+        )
         if real_extension_requested and runtime_requested is not None:
             runtime_requested = runtime_requested | {"resident"}
         selected_cases = expand_windows_cases(runtime_requested)
@@ -350,13 +416,13 @@ class LaneRunner:
             )
             if not self.work_session:
                 from windows_session import require_license
+
                 require_license(ssh, 7200)
             self._assert_windows_audio_backend(
                 lane_name,
                 require_capture=microphone_required,
             )
             current_remote_name = artifact_set.current_msi.name
-            profile = artifact_set.profile
             previous_msi = artifact_set.previous_msi
             previous_remote_name = previous_msi.name
             baseline_exe = artifact_set.baseline_exe
@@ -368,16 +434,22 @@ class LaneRunner:
             probe_nonce = secrets.token_hex(32)
             if real_extension_requested:
                 from browser_automation import prepare
+
                 prepare(self.paths, ssh)
             browser_probe = build_browser_probe(self.paths.root, run_dir / ".browser-probe.zip", nonce=probe_nonce)
             browser_probe_sha256 = sha256_file(browser_probe)
             script = self.paths.root / "tooling/desktop/e2e_lab/guest/windows/run.ps1"
             identity_verifier = self.paths.root / "tooling/release/windows/verify_msi_identity.ps1"
             launcher = script.with_name("launch-interactive.ps1")
-            uploads = {current_remote_name: artifact_set.current_msi, previous_remote_name: previous_msi,
-                       "browser-probe.zip": browser_probe, "run.ps1": script,
-                       "windows-ui.ps1": script.with_name("windows-ui.ps1"),
-                       "verify_msi_identity.ps1": identity_verifier, "launch-interactive.ps1": launcher}
+            uploads = {
+                current_remote_name: artifact_set.current_msi,
+                previous_remote_name: previous_msi,
+                "browser-probe.zip": browser_probe,
+                "run.ps1": script,
+                "windows-ui.ps1": script.with_name("windows-ui.ps1"),
+                "verify_msi_identity.ps1": identity_verifier,
+                "launch-interactive.ps1": launcher,
+            }
             certificate = artifact.parent / "lab-signing.cer"
             if certificate.is_file():
                 if certificate.is_symlink() or certificate.stat().st_size > 16384:
@@ -386,8 +458,15 @@ class LaneRunner:
                 uploads["lab-signing.ps1"] = script.with_name("lab-signing.ps1")
                 self.consumed_artifacts.append(certificate)
             if real_extension_requested:
+                if self.real_extension is None:
+                    raise LabError("real extension artifact is missing")
                 uploads["real-extension.zip"] = self.real_extension
-                for name in ("real-extension.ps1", "browser-playwright.ps1", "browser-playwright.cjs", "real-extension.js"):
+                for name in (
+                    "real-extension.ps1",
+                    "browser-playwright.ps1",
+                    "browser-playwright.cjs",
+                    "real-extension.js",
+                ):
                     uploads[name] = script.with_name(name)
             try:
                 ssh.upload_many(uploads, timeout=600)
@@ -397,27 +476,57 @@ class LaneRunner:
                 # Trust preparation uses the SSH administrator context; the UI task stays limited.
                 # Prove denied egress before changing any trust or installer state.
                 digest = sha256_file(certificate)
-                ssh.command(powershell_encoded(
-                    "$ErrorActionPreference='Stop'; $ProgressPreference='SilentlyContinue'; "
-                    "$client=[Net.Sockets.TcpClient]::new(); try {$attempt=$client.ConnectAsync('1.1.1.1',443); "
-                    "try {$null=$attempt.Wait(3000)} catch [AggregateException] {}; "
-                    "if($client.Connected){throw 'runtime egress must be denied before laboratory trust'}} finally {$client.Dispose()}; "
-                    ". ./lab-signing.ps1; "
-                    f"$null=Import-LabSigningIdentity (Join-Path $PWD 'lab-signing.cer') '{digest}'; "
-                    "Write-Output 'isolated-laboratory-certificate-ready'",
-                    allow_lab_scripts=True,
-                ), timeout=60, log=run_dir / "logs/laboratory-trust.log")
+                ssh.command(
+                    powershell_encoded(
+                        "$ErrorActionPreference='Stop'; $ProgressPreference='SilentlyContinue'; "
+                        "$client=[Net.Sockets.TcpClient]::new(); try {$attempt=$client.ConnectAsync('1.1.1.1',443); "
+                        "try {$null=$attempt.Wait(3000)} catch [AggregateException] {}; "
+                        "if($client.Connected){throw 'runtime egress must be denied before laboratory trust'}} finally {$client.Dispose()}; "
+                        ". ./lab-signing.ps1; "
+                        f"$null=Import-LabSigningIdentity (Join-Path $PWD 'lab-signing.cer') '{digest}'; "
+                        "Write-Output 'isolated-laboratory-certificate-ready'",
+                        allow_lab_scripts=True,
+                    ),
+                    timeout=60,
+                    log=run_dir / "logs/laboratory-trust.log",
+                )
             remote_command = [
-                "powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "launch-interactive.ps1",
-                "-Runner", "run.ps1", "-Msi", current_remote_name, "-MsiSha256", sha256_file(artifact),
-                "-PreviousMsi", previous_remote_name, "-PreviousMsiSha256", sha256_file(previous_msi),
-                "-PreviousExeSha256", previous_exe_sha256,
-                "-ExpectedExeSha256", expected_exe_sha256,
-                "-ExpectedNativeHostManifestSha256", sha256_file(native_manifest),
-                "-IdentityVerifier", "verify_msi_identity.ps1", "-IdentityVerifierSha256", sha256_file(identity_verifier),
-                "-BrowserProbe", "browser-probe.zip", "-BrowserProbeSha256", browser_probe_sha256,
-                "-ProbeNonce", probe_nonce, "-Output", "e2e-out",
-                "-TimeoutSeconds", str(self.config.timeouts.test),
+                "powershell.exe",
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+                "launch-interactive.ps1",
+                "-Runner",
+                "run.ps1",
+                "-Msi",
+                current_remote_name,
+                "-MsiSha256",
+                sha256_file(artifact),
+                "-PreviousMsi",
+                previous_remote_name,
+                "-PreviousMsiSha256",
+                sha256_file(previous_msi),
+                "-PreviousExeSha256",
+                previous_exe_sha256,
+                "-ExpectedExeSha256",
+                expected_exe_sha256,
+                "-ExpectedNativeHostManifestSha256",
+                sha256_file(native_manifest),
+                "-IdentityVerifier",
+                "verify_msi_identity.ps1",
+                "-IdentityVerifierSha256",
+                sha256_file(identity_verifier),
+                "-BrowserProbe",
+                "browser-probe.zip",
+                "-BrowserProbeSha256",
+                browser_probe_sha256,
+                "-ProbeNonce",
+                probe_nonce,
+                "-Output",
+                "e2e-out",
+                "-TimeoutSeconds",
+                str(self.config.timeouts.test),
             ]
             if certificate.is_file():
                 remote_command.extend(("-LabCertificateSha256", sha256_file(certificate)))
@@ -426,6 +535,8 @@ class LaneRunner:
             if self.work_session:
                 remote_command.extend(("-WorkspaceMode", "warm"))
             if real_extension_requested:
+                if self.real_extension is None:
+                    raise LabError("real extension artifact is missing")
                 remote_command.extend(("-RealExtensionSha256", sha256_file(self.real_extension)))
             runner_error: LabError | None = None
             try:
@@ -445,7 +556,7 @@ class LaneRunner:
                 self._enforce_remote_evidence_limit(ssh, windows=True)
             except LabError:
                 if runner_error is not None:
-                    raise runner_error
+                    raise runner_error from None
                 raise
             maximum = self._evidence_transfer_maximum()
             ssh.download("e2e-out/", lane_dir, recursive=True, timeout=600, max_bytes=maximum, max_files=2048)
@@ -501,9 +612,7 @@ class LaneRunner:
                 if failure in text:
                     matched.add(failure)
         if matched:
-            raise LabError(
-                "QEMU audio backend is unhealthy: " + ", ".join(sorted(matched))
-            )
+            raise LabError("QEMU audio backend is unhealthy: " + ", ".join(sorted(matched)))
 
     @staticmethod
     def _windows_test_artifacts(artifact: Path) -> WindowsTestArtifacts:
@@ -512,7 +621,9 @@ class LaneRunner:
             raise LabError("Windows E2E requires an MSI artifact")
         if "0.1.0" not in current.name:
             raise LabError("Windows E2E current MSI must identify version 0.1.0 in its filename")
-        profile = "release" if current.name.endswith("-release.msi") else "dev" if current.name.endswith("-dev.msi") else ""
+        profile = (
+            "release" if current.name.endswith("-release.msi") else "dev" if current.name.endswith("-dev.msi") else ""
+        )
         if not profile:
             raise LabError("Windows E2E MSI filename must identify its dev or release profile")
         previous = next(iter(sorted(current.parent.glob(f"*0.0.1-{profile}.msi"))), None)
@@ -534,8 +645,11 @@ class LaneRunner:
 
     def _enforce_remote_evidence_limit(self, ssh: GuestSsh, *, windows: bool) -> None:
         self._enforce_remote_tree_limit(
-            ssh, "e2e-out", windows=windows,
-            max_bytes=self._evidence_transfer_maximum(), max_files=2048,
+            ssh,
+            "e2e-out",
+            windows=windows,
+            max_bytes=self._evidence_transfer_maximum(),
+            max_files=2048,
         )
 
     def _evidence_transfer_maximum(self) -> int:
@@ -559,7 +673,7 @@ class LaneRunner:
                 "if($bad.Count -gt 0){throw 'guest evidence contains a reparse point'}; "
                 "$files=@($items | Where-Object {-not $_.PSIsContainer}); "
                 "$n=($files | Measure-Object -Property Length -Sum).Sum; "
-                "if($null -eq $n){$n=0}; Write-Output \"$($files.Count) $n\""
+                'if($null -eq $n){$n=0}; Write-Output "$($files.Count) $n"'
             )
         else:
             unsafe = ssh.command(
@@ -569,7 +683,8 @@ class LaneRunner:
             if unsafe:
                 raise LabError("guest evidence contains an unsafe file type or link")
             command = [
-                "bash", "-lc",
+                "bash",
+                "-lc",
                 f"set -euo pipefail; printf '%s ' \"$(find {remote} -xdev -type f -printf . | wc -c)\"; du -sb {remote} | cut -f1",
             ]
         output = ssh.command(command, timeout=60).stdout.strip().split()
@@ -626,6 +741,7 @@ class LaneRunner:
                         sanitized_value = LaneRunner._sanitize_guest_result(json.loads(payload))
                     elif path.name == "real-extension-result.json":
                         from session_evidence import sanitize_real_extension
+
                         sanitized_value = sanitize_real_extension(json.loads(payload))
                     else:
                         raise LabError("guest evidence contains an unsupported JSON file")
@@ -691,22 +807,21 @@ class LaneRunner:
                 or not isinstance(detail, str)
             ):
                 raise LabError("guest result test fields are invalid")
-            sanitized_tests.append({
-                "name": name,
-                "status": status,
-                "duration_ms": duration,
-                "detail": redact_text(detail, max_length=4096),
-            })
+            sanitized_tests.append(
+                {
+                    "name": name,
+                    "status": status,
+                    "duration_ms": duration,
+                    "detail": redact_text(detail, max_length=4096),
+                }
+            )
         environment = value.get("environment")
         artifacts = value.get("artifacts", [])
         if (
             not isinstance(environment, dict)
             or not isinstance(artifacts, list)
             or len(artifacts) > 256
-            or not all(
-                isinstance(item, str) and 0 < len(item) <= 255 and Path(item).name == item
-                for item in artifacts
-            )
+            or not all(isinstance(item, str) and 0 < len(item) <= 255 and Path(item).name == item for item in artifacts)
         ):
             raise LabError("guest result environment or artifact inventory is invalid")
         return {

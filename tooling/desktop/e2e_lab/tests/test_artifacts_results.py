@@ -20,6 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from artifacts import create_source_bundle, evidence_manifest
 from build_cache import restore as restore_build_cache, store as store_build_cache
 from browser_probe import build as build_browser_probe
+from config import LabConfig
 from errors import IntegrityError, LabError
 from evidence import _required_evidence_directories, verify_run_evidence
 import main as lab_main
@@ -34,9 +35,34 @@ from system import sha256_file
 
 
 class ArtifactResultTests(unittest.TestCase):
+    def test_linux_runner_starts_without_a_windows_audio_backend(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            runner = object.__new__(LaneRunner)
+            runner.paths = LabPaths.discover(root)
+            runner.vms = mock.Mock()
+            runner._collect_qemu_log = mock.Mock()
+            runner.config = mock.Mock(spec=LabConfig, lanes={"linux-x11": mock.Mock(ssh_port=22)})
+            runner._finish_vm = mock.Mock()
+            with (
+                mock.patch("runner.inspect_linux_artifact"),
+                mock.patch("runner.GuestSsh", side_effect=LabError("stop after start")),
+                self.assertRaisesRegex(LabError, "stop after start"),
+            ):
+                runner._test_linux("linux-x11", root / "probe.deb", root / "run")
+            runner.vms.start.assert_called_once_with("linux-x11", host_reserve_mib=1024)
+            runner._finish_vm.assert_called_once_with("linux-x11", "test", runner.vms.reset.return_value)
+
     def test_extension_inventory_rejects_windows_path_aliases(self):
         from extension_artifact import artifact_files
-        for names in (("asset\\..\\outside.js",), ("file.js:stream",), ("file.js.",), ("file.js ",), ("File.js", "file.js")):
+
+        for names in (
+            ("asset\\..\\outside.js",),
+            ("file.js:stream",),
+            ("file.js.",),
+            ("file.js ",),
+            ("File.js", "file.js"),
+        ):
             with self.subTest(names=names), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
                 for name in names:
@@ -58,11 +84,13 @@ class ArtifactResultTests(unittest.TestCase):
             cached.parent.mkdir(parents=True)
             cached.write_bytes(b"receipt-bound-msi")
             receipt = {
-                "artifacts": [{
-                    "name": cached.name,
-                    "sha256": sha256_file(cached),
-                    "bytes": cached.stat().st_size,
-                }],
+                "artifacts": [
+                    {
+                        "name": cached.name,
+                        "sha256": sha256_file(cached),
+                        "bytes": cached.stat().st_size,
+                    }
+                ],
             }
 
             self.assertEqual(
@@ -103,16 +131,22 @@ class ArtifactResultTests(unittest.TestCase):
                 receipt = {"run_mode": mode, "result": "fail"}
                 self.assertEqual(_required_evidence_directories(receipt, expected), {"logs"})
                 receipt["result"] = "pass"
-                self.assertEqual(_required_evidence_directories(receipt, expected),
-                                 {"logs", "screenshots", "recordings"})
+                self.assertEqual(
+                    _required_evidence_directories(receipt, expected), {"logs", "screenshots", "recordings"}
+                )
 
     def test_windows_case_expansion_keeps_focused_rerun_prerequisites(self) -> None:
         expanded = expand_windows_cases({"recording-system-audio"})
         self.assertEqual(
             expanded,
             {
-                "network-isolation", "install", "upgrade", "repair", "resident",
-                "recording-system-audio", "uninstall",
+                "network-isolation",
+                "install",
+                "upgrade",
+                "repair",
+                "resident",
+                "recording-system-audio",
+                "uninstall",
             },
         )
         self.assertEqual(
@@ -122,8 +156,14 @@ class ArtifactResultTests(unittest.TestCase):
         self.assertEqual(
             expand_windows_cases({"capture"}),
             {
-                "network-isolation", "install", "upgrade", "repair", "resident", "tray",
-                "capture", "uninstall",
+                "network-isolation",
+                "install",
+                "upgrade",
+                "repair",
+                "resident",
+                "tray",
+                "capture",
+                "uninstall",
             },
         )
         with self.assertRaisesRegex(LabError, "unknown Windows E2E"):
@@ -140,22 +180,31 @@ class ArtifactResultTests(unittest.TestCase):
             artifacts.mkdir(parents=True)
             current = artifacts / "SniptaleNativeAgent-dev-0.1.0-release.msi"
             current.write_bytes(b"msi")
-            (previous / "receipt.json").write_text(json.dumps({
-                "artifacts": [{
-                    "name": current.name,
-                    "sha256": sha256_file(current),
-                    "bytes": current.stat().st_size,
-                }],
-                "test_matrix": [{
-                    "lane": "windows-11",
-                    "tests": [{"name": "recording-system-audio", "status": "fail"}],
-                }],
-            }), encoding="utf-8")
+            (previous / "receipt.json").write_text(
+                json.dumps(
+                    {
+                        "artifacts": [
+                            {
+                                "name": current.name,
+                                "sha256": sha256_file(current),
+                                "bytes": current.stat().st_size,
+                            }
+                        ],
+                        "test_matrix": [
+                            {
+                                "lane": "windows-11",
+                                "tests": [{"name": "recording-system-audio", "status": "fail"}],
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
             with (
                 mock.patch.object(lab_main, "verify_run_evidence"),
                 mock.patch.object(lab_main, "execute_run", return_value="focused") as execute,
             ):
-                result = lab_main.failed_windows_rerun(paths, SimpleNamespace(), run_id)
+                result = lab_main.failed_windows_rerun(paths, mock.Mock(spec=LabConfig), run_id)
             self.assertEqual(result, "focused")
             self.assertEqual(execute.call_args.args[4], current)
             self.assertEqual(execute.call_args.args[5], {"recording-system-audio"})
@@ -179,26 +228,14 @@ class ArtifactResultTests(unittest.TestCase):
             fingerprint = "a" * 64
             store_build_cache(paths, "windows-11", "release", fingerprint, source)
             restored = root / "restored"
-            artifacts = restore_build_cache(
-                paths, "windows-11", "release", fingerprint, restored
-            )
+            artifacts = restore_build_cache(paths, "windows-11", "release", fingerprint, restored)
             self.assertIsNotNone(artifacts)
             self.assertEqual((restored / "native-host.json").read_bytes(), b"{}")
-            self.assertIsNone(
-                restore_build_cache(
-                    paths, "windows-11", "release", "b" * 64, root / "miss"
-                )
-            )
-            cache_file = (
-                paths.cache / "builds/windows-11/release" / fingerprint /
-                "sniptale-native-agent-release.exe"
-            )
+            self.assertIsNone(restore_build_cache(paths, "windows-11", "release", "b" * 64, root / "miss"))
+            cache_file = paths.cache / "builds/windows-11/release" / fingerprint / "sniptale-native-agent-release.exe"
             cache_file.write_bytes(b"tampered")
-            self.assertIsNone(
-                restore_build_cache(
-                    paths, "windows-11", "release", fingerprint, root / "tampered"
-                )
-            )
+            self.assertIsNone(restore_build_cache(paths, "windows-11", "release", fingerprint, root / "tampered"))
+
     def test_execute_run_records_every_requested_lane_after_first_failure(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory).resolve()
@@ -231,7 +268,7 @@ class ArtifactResultTests(unittest.TestCase):
                 mock.patch.object(lab_main, "gc"),
                 self.assertRaisesRegex(LabError, "windows-11 failed"),
             ):
-                lab_main.execute_run(paths, SimpleNamespace(), lanes, "release", artifact)
+                lab_main.execute_run(paths, mock.Mock(spec=LabConfig), lanes, "release", artifact)
             run_dir = next(path for path in paths.runs.iterdir() if path.name[:8].isdigit())
             receipt = json.loads((run_dir / "receipt.json").read_text(encoding="utf-8"))
             self.assertEqual([item["lane"] for item in receipt["test_matrix"]], lanes)
@@ -246,21 +283,37 @@ class ArtifactResultTests(unittest.TestCase):
                 "Authorization: Bearer super-secret-token C:\\Users\\lab\\private.txt",
                 encoding="utf-8",
             )
-            (guest / "agent.jsonl").write_text(json.dumps({
-                "operation": "recording-start",
-                "recordingId": "recording-secret-1",
-                "token": "super-secret-token",
-            }) + "\n", encoding="utf-8")
-            (guest / "result.json").write_text(json.dumps({
-                "schema_version": 1,
-                "lane": "windows-11",
-                "tests": [
-                    {"name": "recording-system-audio", "status": "pass", "duration_ms": 1, "detail": "token=super-secret-token"},
-                    {"name": "recording-microphone", "status": "pass", "duration_ms": 2, "detail": "ok"},
-                ],
-                "environment": {"token": "super-secret-token", "display": "win32"},
-                "artifacts": ["capture.png"],
-            }), encoding="utf-8")
+            (guest / "agent.jsonl").write_text(
+                json.dumps(
+                    {
+                        "operation": "recording-start",
+                        "recordingId": "recording-secret-1",
+                        "token": "super-secret-token",
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            (guest / "result.json").write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "lane": "windows-11",
+                        "tests": [
+                            {
+                                "name": "recording-system-audio",
+                                "status": "pass",
+                                "duration_ms": 1,
+                                "detail": "token=super-secret-token",
+                            },
+                            {"name": "recording-microphone", "status": "pass", "duration_ms": 2, "detail": "ok"},
+                        ],
+                        "environment": {"token": "super-secret-token", "display": "win32"},
+                        "artifacts": ["capture.png"],
+                    }
+                ),
+                encoding="utf-8",
+            )
             binary = b"\x00super-secret-token\xff"
             (guest / "capture.png").write_bytes(binary)
             LaneRunner._sanitize_guest_text_tree(guest)
@@ -270,7 +323,9 @@ class ArtifactResultTests(unittest.TestCase):
             self.assertEqual(agent["recordingId"], "[redacted]")
             self.assertEqual(agent["token"], "[redacted]")
             result = json.loads((guest / "result.json").read_text(encoding="utf-8"))
-            self.assertEqual([case["name"] for case in result["tests"]], ["recording-system-audio", "recording-microphone"])
+            self.assertEqual(
+                [case["name"] for case in result["tests"]], ["recording-system-audio", "recording-microphone"]
+            )
             self.assertEqual(result["environment"]["token"], "[redacted]")
             self.assertNotIn("super-secret-token", json.dumps(result))
             self.assertEqual((guest / "capture.png").read_bytes(), binary)
@@ -278,13 +333,33 @@ class ArtifactResultTests(unittest.TestCase):
     def test_real_extension_evidence_requires_both_browsers_and_only_typed_facts(self):
         import copy
         from session_evidence import sanitize_real_extension
+
         automation = {"node": "24.22.1", "playwrightCore": "1.64.1"}
-        connection = {"passed": True, "connectionState": "connected", "settingsApplied": True,
-                      "browserVersion": ["Chrome/156.0.0.0"], "automation": automation}
-        media = {"passed": True, "sha256": "a" * 64, "bytes": 1234, "width": 1280, "height": 800,
-                 "mimeType": "image/png", "automation": automation}
-        chrome = {"browser": "chrome", "profile_reused": True, "capture_trigger": "native-tray-current-screen",
-                  "connection": connection, "reconnect": connection, "resident_restart": connection, "media": media}
+        connection = {
+            "passed": True,
+            "connectionState": "connected",
+            "settingsApplied": True,
+            "browserVersion": ["Chrome/156.0.0.0"],
+            "automation": automation,
+        }
+        media = {
+            "passed": True,
+            "sha256": "a" * 64,
+            "bytes": 1234,
+            "width": 1280,
+            "height": 800,
+            "mimeType": "image/png",
+            "automation": automation,
+        }
+        chrome = {
+            "browser": "chrome",
+            "profile_reused": True,
+            "capture_trigger": "native-tray-current-screen",
+            "connection": connection,
+            "reconnect": connection,
+            "resident_restart": connection,
+            "media": media,
+        }
         edge = copy.deepcopy(chrome)
         edge["browser"] = "edge"
         for name in ("connection", "reconnect", "resident_restart"):
@@ -292,10 +367,17 @@ class ArtifactResultTests(unittest.TestCase):
         valid = [chrome, edge]
         self.assertEqual(sanitize_real_extension(valid), valid)
         rejected = [valid[:1], [chrome, chrome], {"browsers": valid}]
-        for path, bad in [(('media', 'bytes'), True), (('media', 'width'), 0), (('media', 'sha256'), 'invalid'),
-                          (('media', 'mimeType'), 'text/plain'), (('connection', 'settingsApplied'), False),
-                          (('reconnect', 'passed'), False), (('resident_restart', 'browserVersion'), ['https://private.invalid/']),
-                          (('media', 'secret'), 'private'), (('connection', 'automation'), {'node': 'private'})]:
+        for path, bad in [
+            (("media", "bytes"), True),
+            (("media", "width"), 0),
+            (("media", "sha256"), "invalid"),
+            (("media", "mimeType"), "text/plain"),
+            (("connection", "settingsApplied"), False),
+            (("reconnect", "passed"), False),
+            (("resident_restart", "browserVersion"), ["https://private.invalid/"]),
+            (("media", "secret"), "private"),
+            (("connection", "automation"), {"node": "private"}),
+        ]:
             candidate = copy.deepcopy(valid)
             candidate[0][path[0]][path[1]] = bad
             rejected.append(candidate)
@@ -347,21 +429,43 @@ class ArtifactResultTests(unittest.TestCase):
                 json.dumps(evidence_manifest(run), sort_keys=True) + "\n", encoding="utf-8"
             )
             snapshot = {"linux-wayland": {"disk_sha256": "d" * 64}}
-            (run / "environment.json").write_text(json.dumps({
-                "schema_version": 1, "lanes": snapshot, "host": {}, "guests": {},
-            }), encoding="utf-8")
+            (run / "environment.json").write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "lanes": snapshot,
+                        "host": {},
+                        "guests": {},
+                    }
+                ),
+                encoding="utf-8",
+            )
             case = TestCase("session", "pass", 1, "ok")
             write_junit(run / "junit.xml", [GuestResult("linux-wayland", (case,), {}, ())])
             receipt = {
-                "schema_version": 1, "run_id": run.name,
+                "schema_version": 1,
+                "run_id": run.name,
                 "source": {"sha256": "a" * 64, "file_count": 1},
-                "commit_sha": "b" * 40, "dirty_state_sha256": "c" * 64,
+                "commit_sha": "b" * 40,
+                "dirty_state_sha256": "c" * 64,
                 "artifact_manifest_sha256": sha256_file(manifest_path),
-                "evidence_manifest_sha256": sha256_file(evidence_manifest_path), "artifacts": [],
-                "lanes": ["linux-wayland"], "snapshots": snapshot,
-                "test_matrix": [{"lane": "linux-wayland", "tests": [{
-                    "name": "session", "status": "pass", "duration_ms": 1, "detail": "ok",
-                }]}],
+                "evidence_manifest_sha256": sha256_file(evidence_manifest_path),
+                "artifacts": [],
+                "lanes": ["linux-wayland"],
+                "snapshots": snapshot,
+                "test_matrix": [
+                    {
+                        "lane": "linux-wayland",
+                        "tests": [
+                            {
+                                "name": "session",
+                                "status": "pass",
+                                "duration_ms": 1,
+                                "detail": "ok",
+                            }
+                        ],
+                    }
+                ],
                 "durations_ms": {"linux-wayland": 1, "total": 1},
                 "teardown": {"linux-wayland": {"test_pre_forced": False, "test_post_forced": False}},
                 "result": "pass",
@@ -390,9 +494,14 @@ class ArtifactResultTests(unittest.TestCase):
             with self.assertRaisesRegex(IntegrityError, "receipt-bound manifest"):
                 verify_run_evidence(run)
             log_file.write_text("synthetic", encoding="utf-8")
-            receipt["test_matrix"][0]["tests"].append({
-                "name": "session", "status": "fail", "duration_ms": 2, "detail": "duplicate",
-            })
+            receipt["test_matrix"][0]["tests"].append(
+                {
+                    "name": "session",
+                    "status": "fail",
+                    "duration_ms": 2,
+                    "detail": "duplicate",
+                }
+            )
             (run / "receipt.json").write_text(json.dumps(receipt), encoding="utf-8")
             with self.assertRaisesRegex(IntegrityError, "duplicate case identities"):
                 verify_run_evidence(run)
@@ -424,10 +533,19 @@ class ArtifactResultTests(unittest.TestCase):
 
     def test_receipt_rejects_duplicate_requested_lanes(self) -> None:
         value = {
-            "schema_version": 1, "result": "fail", "lanes": ["linux-x11", "linux-x11"],
-            "artifacts": [], "snapshots": {},
-            "run_id": "unused", "source": {}, "commit_sha": "", "dirty_state_sha256": "",
-            "artifact_manifest_sha256": "", "test_matrix": [], "durations_ms": {}, "teardown": {},
+            "schema_version": 1,
+            "result": "fail",
+            "lanes": ["linux-x11", "linux-x11"],
+            "artifacts": [],
+            "snapshots": {},
+            "run_id": "unused",
+            "source": {},
+            "commit_sha": "",
+            "dirty_state_sha256": "",
+            "artifact_manifest_sha256": "",
+            "test_matrix": [],
+            "durations_ms": {},
+            "teardown": {},
             "evidence_manifest_sha256": "",
         }
         with self.assertRaisesRegex(IntegrityError, "at least one lane"):
@@ -456,7 +574,8 @@ class ArtifactResultTests(unittest.TestCase):
             with zipfile.ZipFile(first) as archive:
                 manifest = json.loads(archive.read("manifest.json"))
                 self.assertEqual(
-                    set(archive.namelist()), {"manifest.json", "probe.html", "probe.js"},
+                    set(archive.namelist()),
+                    {"manifest.json", "probe.html", "probe.js"},
                 )
                 probe = archive.read("probe.js")
                 self.assertIn(b"0" * 64, probe)
@@ -475,11 +594,11 @@ class ArtifactResultTests(unittest.TestCase):
             offset = 8
             members: dict[str, bytes] = {}
             while offset < len(content):
-                header = content[offset:offset + 60]
+                header = content[offset : offset + 60]
                 name = header[:16].decode("ascii").strip().rstrip("/")
                 size = int(header[48:58].decode("ascii").strip())
                 start = offset + 60
-                members[name] = content[start:start + size]
+                members[name] = content[start : start + size]
                 offset = start + size + (size % 2)
             with tarfile.open(fileobj=io.BytesIO(members["data.tar.gz"]), mode="r:gz") as data:
                 self.assertTrue(data.getmember("./usr/lib/sniptale-e2e-probe").isdir())
@@ -492,9 +611,11 @@ class ArtifactResultTests(unittest.TestCase):
                 "SNIPTALE_E2E_WINDOWS_ISO": "/does/not/matter.iso",
                 "SNIPTALE_E2E_WINDOWS_ISO_SHA256": "../outside",
             }
-            with mock.patch.dict(os.environ, environment, clear=False):
-                with self.assertRaisesRegex(IntegrityError, "64 hexadecimal"):
-                    Provisioner(paths, mock.Mock())._windows(mock.Mock())
+            with (
+                mock.patch.dict(os.environ, environment, clear=False),
+                self.assertRaisesRegex(IntegrityError, "64 hexadecimal"),
+            ):
+                Provisioner(paths, mock.Mock())._windows(mock.Mock())
             self.assertEqual(list(paths.images.iterdir()), [])
 
     def test_source_bundle_includes_dirty_files_and_excludes_state_secrets_and_media(self) -> None:
@@ -513,7 +634,9 @@ class ArtifactResultTests(unittest.TestCase):
             (root / "opaque.bin").write_bytes(b"private-media")
             subprocess.run(["git", "init", "-q"], cwd=root, check=True)
             subprocess.run(
-                ["git", "add", "tracked.rs", "src/install/pipe_secret.rs"], cwd=root, check=True,
+                ["git", "add", "tracked.rs", "src/install/pipe_secret.rs"],
+                cwd=root,
+                check=True,
             )
             (root / ".tmp").mkdir()
             (root / ".tmp/state.json").write_text("state", encoding="utf-8")
@@ -528,12 +651,23 @@ class ArtifactResultTests(unittest.TestCase):
             create_source_bundle(root, second)
             with tarfile.open(archive, "r:gz") as bundle:
                 names = set(bundle.getnames())
-            self.assertEqual(names, {"LICENSE", "NOTICE", "dirty-new.txt", "resources/icon.png", "src/install/pipe_secret.rs", "tracked.rs"})
+            self.assertEqual(
+                names,
+                {
+                    "LICENSE",
+                    "NOTICE",
+                    "dirty-new.txt",
+                    "resources/icon.png",
+                    "src/install/pipe_secret.rs",
+                    "tracked.rs",
+                },
+            )
             self.assertEqual(fingerprint.file_count, 6)
             self.assertEqual(archive.read_bytes(), second.read_bytes())
 
     def test_source_fingerprint_ignores_generated_files_and_binds_new_typescript(self):
         from artifacts import source_tree_fingerprint
+
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "repo"
             root.mkdir()
@@ -573,14 +707,18 @@ class ArtifactResultTests(unittest.TestCase):
             (root / "oversize.rs").write_text("too large", encoding="utf-8")
             archive = Path(directory) / "source.tar.gz"
             archive.write_bytes(b"previous verified archive")
-            with mock.patch("artifacts.MAX_SOURCE_FILE_BYTES", 1):
-                with self.assertRaisesRegex(IntegrityError, "source file exceeds"):
-                    create_source_bundle(root, archive)
+            with (
+                mock.patch("artifacts.MAX_SOURCE_FILE_BYTES", 1),
+                self.assertRaisesRegex(IntegrityError, "source file exceeds"),
+            ):
+                create_source_bundle(root, archive)
             self.assertEqual(archive.read_bytes(), b"previous verified archive")
             self.assertFalse(list(Path(directory).glob("*.partial")))
 
     def test_redaction_filters_token_extension_and_sensitive_path(self) -> None:
-        value = "Bearer abc.def token=hunter2 chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/ /home/alice/private/file"
+        value = (
+            "Bearer abc.def token=hunter2 chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/ /home/alice/private/file"
+        )
         redacted = redact(value)
         self.assertNotIn("hunter2", redacted)
         self.assertNotIn("chrome-extension", redacted)
@@ -590,19 +728,28 @@ class ArtifactResultTests(unittest.TestCase):
         self.assertEqual(structured["nested"]["safe"], "ok")
 
     def test_redaction_preserves_safe_scenario_enums_but_not_recording_ids(self) -> None:
-        safe = '\"scenario\":\"recording-system-audio\" recording-microphone'
+        safe = '"scenario":"recording-system-audio" recording-microphone'
         self.assertEqual(redact(safe), safe)
         self.assertEqual(redact("recording-system-audio-secret"), "[redacted]")
         self.assertEqual(redact("recording-secret-9"), "[redacted]")
 
     def test_redaction_covers_repository_security_corpus(self) -> None:
         corpus = json.loads(
-            (Path(__file__).resolve().parents[4] / "contracts/security/redaction-corpus.json").read_text(encoding="utf-8")
+            (Path(__file__).resolve().parents[4] / "contracts/security/redaction-corpus.json").read_text(
+                encoding="utf-8"
+            )
         )
         forbidden = (
-            "secret-token", "example.invalid", "AAAA_SECRET_MEDIA_BYTES", "password123",
-            "copied-secret", "session=secret", "Alice", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-            "recording-secret-9", "capture-secret-9",
+            "secret-token",
+            "example.invalid",
+            "AAAA_SECRET_MEDIA_BYTES",
+            "password123",
+            "copied-secret",
+            "session=secret",
+            "Alice",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "recording-secret-9",
+            "capture-secret-9",
         )
         for sample in corpus["samples"]:
             value = redact(sample["value"])
@@ -623,9 +770,14 @@ class ArtifactResultTests(unittest.TestCase):
         ssh = mock.Mock()
         ssh.command.return_value = SimpleNamespace(stdout="e2e-out/escape-link\n")
         runner = object.__new__(LaneRunner)
-        runner.config = SimpleNamespace(limits=SimpleNamespace(
-            max_log_mib=1, max_screenshot_mib=1, max_recording_mib=1,
-        ))
+        runner.config = mock.Mock(
+            spec=LabConfig,
+            limits=SimpleNamespace(
+                max_log_mib=1,
+                max_screenshot_mib=1,
+                max_recording_mib=1,
+            ),
+        )
         with self.assertRaisesRegex(Exception, "unsafe file"):
             runner._enforce_remote_evidence_limit(ssh, windows=False)
 
@@ -645,13 +797,17 @@ class ArtifactResultTests(unittest.TestCase):
         runner.paths = mock.Mock()
         runner.vms = mock.Mock()
         runner.vms.current.return_value = mock.Mock()
-        runner.config = SimpleNamespace(lanes={
-            "linux-wayland": SimpleNamespace(os="linux", ssh_port=22421),
-        })
+        runner.config = mock.Mock(
+            spec=LabConfig,
+            lanes={
+                "linux-wayland": SimpleNamespace(os="linux", ssh_port=22421),
+            },
+        )
         with mock.patch("runner.GuestSsh") as guest_ssh:
             runner._request_guest_shutdown("linux-wayland")
         guest_ssh.return_value.command.assert_called_once_with(
-            ["sudo", "systemctl", "poweroff"], timeout=20,
+            ["sudo", "systemctl", "poweroff"],
+            timeout=20,
         )
 
     def test_evidence_classification_keeps_lane_names_distinct(self) -> None:

@@ -8,9 +8,9 @@ function Assert-LabCertificate($Certificate) {
 }
 function Trust-LabCertificate($Certificate) {
   Assert-LabCertificate $Certificate
-  $public = [Security.Cryptography.X509Certificates.X509Certificate2]::new($Certificate.Export([Security.Cryptography.X509Certificates.X509ContentType]::Cert))
+  $public = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($Certificate.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::Cert))
   foreach ($pair in @(@('Root', 'LocalMachine'), @('TrustedPublisher', 'CurrentUser'))) {
-    $store = [Security.Cryptography.X509Certificates.X509Store]::new($pair[0], $pair[1])
+    $store = [System.Security.Cryptography.X509Certificates.X509Store]::new($pair[0], $pair[1])
     try {
       $store.Open('ReadOnly')
       $present = @($store.Certificates | Where-Object { [Convert]::ToBase64String($_.RawData) -ceq [Convert]::ToBase64String($public.RawData) }).Count -eq 1
@@ -31,7 +31,7 @@ function New-LabSigningIdentity {
 function Import-LabSigningIdentity([string] $Path, [string] $ExpectedSha256) {
   if ($ExpectedSha256 -notmatch '^[0-9a-f]{64}$' -or (Get-Item -LiteralPath $Path).Length -gt 16384 -or
       (Get-FileHash -LiteralPath $Path).Hash.ToLowerInvariant() -ne $ExpectedSha256) { throw "laboratory certificate provenance mismatch" }
-  $cert = [Security.Cryptography.X509Certificates.X509Certificate2]::new($Path)
+  $cert = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($Path)
   Trust-LabCertificate $cert
   return $cert
 }

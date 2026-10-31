@@ -95,8 +95,7 @@ REQUIRED_COVERAGE_MARKERS = {
     "malformed-json": "src/protocol/tests/contract/fixtures.rs::malformed_json_is_rejected",
     "unsupported-protocol-version": "src/protocol/tests/contract/fixtures.rs::unsupported_protocol_version_is_rejected",
     "unsupported-settings-version": (
-        "src/app/responses/settings_sync/tests/mod.rs::"
-        "settings_sync_rejects_unsupported_schema_version_without_commit"
+        "src/app/responses/settings_sync/tests/mod.rs::settings_sync_rejects_unsupported_schema_version_without_commit"
     ),
     "oversized-extension-to-host-json": (
         "src/protocol/tests/contract/fixtures.rs::oversized_message_is_rejected_before_json_parse"
@@ -119,12 +118,8 @@ REQUIRED_COVERAGE_MARKERS = {
     "out-of-bounds-chunk-index": (
         "src/capture/tests/transfer_service.rs::screenshot_transfer_message_rejects_out_of_bounds_chunk"
     ),
-    "malformed-identifiers": (
-        "src/protocol/tests/contract/validation.rs::invalid_identifier_is_rejected"
-    ),
-    "malformed-filenames": (
-        "src/protocol/tests/contract/media_limits.rs::invalid_filename_is_rejected"
-    ),
+    "malformed-identifiers": ("src/protocol/tests/contract/validation.rs::invalid_identifier_is_rejected"),
+    "malformed-filenames": ("src/protocol/tests/contract/media_limits.rs::invalid_filename_is_rejected"),
     "settings-accepted": (
         "src/protocol/tests/contract/validation.rs::settings_accepted_effective_settings_requires_settings_shape"
     ),

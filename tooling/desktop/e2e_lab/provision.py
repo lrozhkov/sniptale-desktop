@@ -67,7 +67,8 @@ class Provisioner:
 
     def _ubuntu_image(self) -> tuple[Path, str]:
         request = urllib.request.Request(
-            f"{UBUNTU_BASE}/SHA256SUMS", headers={"User-Agent": "SniptaleDesktopE2ELab/1"},
+            f"{UBUNTU_BASE}/SHA256SUMS",
+            headers={"User-Agent": "SniptaleDesktopE2ELab/1"},
         )
         with urllib.request.urlopen(request, timeout=120) as response:
             final = urllib.parse.urlparse(response.geturl())
@@ -136,7 +137,18 @@ class Provisioner:
             encoding="utf-8",
         )
         run(
-            [self.tool("genisoimage"), "-quiet", "-output", str(destination), "-volid", "cidata", "-joliet", "-rock", str(seed / "user-data"), str(seed / "meta-data")],
+            [
+                self.tool("genisoimage"),
+                "-quiet",
+                "-output",
+                str(destination),
+                "-volid",
+                "cidata",
+                "-joliet",
+                "-rock",
+                str(seed / "user-data"),
+                str(seed / "meta-data"),
+            ],
             timeout=120,
         )
 
@@ -154,14 +166,28 @@ class Provisioner:
         disk = temporary_dir / "disk.qcow2"
         seed = temporary_dir / "seed.iso"
         run(
-            [self.tool("qemu-img"), "create", "-q", "-f", "qcow2", "-F", "qcow2", "-b", str(image), str(disk), f"{lane.disk_gib}G"],
+            [
+                self.tool("qemu-img"),
+                "create",
+                "-q",
+                "-f",
+                "qcow2",
+                "-F",
+                "qcow2",
+                "-b",
+                str(image),
+                str(disk),
+                f"{lane.disk_gib}G",
+            ],
             timeout=120,
         )
         self._seed_iso(lane, seed)
         process, log, acceleration = self._launch_linux(lane, disk, seed, temporary_dir)
         time.sleep(1)
         if process.poll() is not None:
-            raise LabError(f"Linux provisioning QEMU failed to start: {log.read_text(encoding='utf-8', errors='replace')[-4096:]}")
+            raise LabError(
+                f"Linux provisioning QEMU failed to start: {log.read_text(encoding='utf-8', errors='replace')[-4096:]}"
+            )
         ssh = GuestSsh(self.paths, lane.ssh_port, "lab")
         ssh.forget_host_key()
         try:
@@ -172,8 +198,19 @@ class Provisioner:
                 if process.poll() is not None:
                     break
                 result = subprocess.run(
-                    ["ssh", *ssh.options(), "lab@127.0.0.1", "--", "sudo", "test", "-f", "/var/lib/sniptale-e2e/provisioned"],
-                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False,
+                    [
+                        "ssh",
+                        *ssh.options(),
+                        "lab@127.0.0.1",
+                        "--",
+                        "sudo",
+                        "test",
+                        "-f",
+                        "/var/lib/sniptale-e2e/provisioned",
+                    ],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    check=False,
                 )
                 if result.returncode == 0:
                     sentinel_seen = True
@@ -224,7 +261,11 @@ class Provisioner:
         if not source_disk.is_file() or not source_identity_path.is_file():
             return None
         identity = read_json(source_identity_path)
-        if identity.get("lane") != "linux-wayland" or identity.get("disk_sha256") != sha256_file(source_disk):
+        if (
+            identity is None
+            or identity.get("lane") != "linux-wayland"
+            or identity.get("disk_sha256") != sha256_file(source_disk)
+        ):
             raise IntegrityError("Wayland golden identity is invalid; refusing X11 derivation")
         target_dir = self.paths.golden / lane.name
         temporary_dir = self.paths.golden / f".{lane.name}.provisioning"
@@ -236,7 +277,9 @@ class Provisioner:
         process, log, acceleration = self._launch_linux(lane, disk, None, temporary_dir)
         time.sleep(1)
         if process.poll() is not None:
-            raise LabError(f"X11 derivation QEMU failed to start: {log.read_text(encoding='utf-8', errors='replace')[-4096:]}")
+            raise LabError(
+                f"X11 derivation QEMU failed to start: {log.read_text(encoding='utf-8', errors='replace')[-4096:]}"
+            )
         ssh = GuestSsh(self.paths, lane.ssh_port, "lab")
         ssh.forget_host_key()
         try:
@@ -283,23 +326,54 @@ class Provisioner:
         log = runtime / "qemu-provision.log"
         stream = log.open("ab", buffering=0)
         command = [
-            self.tool("qemu-system-x86_64"), "-name", f"sniptale-lab-{lane.name},process=sniptale-{lane.name}",
-            "-machine", "q35", "-accel", acceleration if acceleration == "kvm" else "tcg,thread=multi", "-cpu", cpu_model(lane, acceleration),
-            "-smp", str(lane.vcpus), "-m", str(lane.memory_mib), "-no-reboot",
-            "-drive", f"if=none,id=system,file={disk},format=qcow2,cache=none,discard=unmap",
-            "-device", "virtio-blk-pci,drive=system,addr=0x2",
-            "-netdev", f"user,id=net0,hostfwd=tcp:127.0.0.1:{lane.ssh_port}-:22",
-            "-device", "virtio-net-pci,netdev=net0,mac=52:54:00:12:34:56,addr=0x1", "-device", "virtio-vga,addr=0x3",
-            "-device", "qemu-xhci", "-device", "usb-kbd", "-device", "usb-tablet",
-            "-display", "none", "-vnc", f"127.0.0.1:{lane.vnc_display}",
-            "-serial", f"file:{runtime / 'serial.log'}",
+            self.tool("qemu-system-x86_64"),
+            "-name",
+            f"sniptale-lab-{lane.name},process=sniptale-{lane.name}",
+            "-machine",
+            "q35",
+            "-accel",
+            acceleration if acceleration == "kvm" else "tcg,thread=multi",
+            "-cpu",
+            cpu_model(lane, acceleration),
+            "-smp",
+            str(lane.vcpus),
+            "-m",
+            str(lane.memory_mib),
+            "-no-reboot",
+            "-drive",
+            f"if=none,id=system,file={disk},format=qcow2,cache=none,discard=unmap",
+            "-device",
+            "virtio-blk-pci,drive=system,addr=0x2",
+            "-netdev",
+            f"user,id=net0,hostfwd=tcp:127.0.0.1:{lane.ssh_port}-:22",
+            "-device",
+            "virtio-net-pci,netdev=net0,mac=52:54:00:12:34:56,addr=0x1",
+            "-device",
+            "virtio-vga,addr=0x3",
+            "-device",
+            "qemu-xhci",
+            "-device",
+            "usb-kbd",
+            "-device",
+            "usb-tablet",
+            "-display",
+            "none",
+            "-vnc",
+            f"127.0.0.1:{lane.vnc_display}",
+            "-serial",
+            f"file:{runtime / 'serial.log'}",
         ]
         if seed is not None:
-            command[command.index("-netdev"):command.index("-netdev")] = [
-                "-drive", f"file={seed},format=raw,media=cdrom,readonly=on",
+            command[command.index("-netdev") : command.index("-netdev")] = [
+                "-drive",
+                f"file={seed},format=raw,media=cdrom,readonly=on",
             ]
         process = subprocess.Popen(
-            command, stdin=subprocess.DEVNULL, stdout=stream, stderr=subprocess.STDOUT, start_new_session=True,
+            command,
+            stdin=subprocess.DEVNULL,
+            stdout=stream,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
         )
         stream.close()
         return process, log, acceleration
@@ -322,7 +396,8 @@ class Provisioner:
         parsed = urllib.parse.urlparse(iso_value)
         if parsed.scheme:
             if parsed.scheme != "https" or parsed.hostname not in {
-                "download.microsoft.com", "software-download.microsoft.com",
+                "download.microsoft.com",
+                "software-download.microsoft.com",
                 "software-static.download.prss.microsoft.com",
             }:
                 raise IntegrityError("Windows ISO URL must use an official Microsoft HTTPS download host")
@@ -359,12 +434,19 @@ class Provisioner:
         process, log, acceleration = self._launch_windows(lane, disk, iso, answer_iso, temporary_dir)
         time.sleep(1)
         if process.poll() is not None:
-            raise LabError(f"Windows provisioning QEMU failed to start: {log.read_text(encoding='utf-8', errors='replace')[-4096:]}")
+            raise LabError(
+                f"Windows provisioning QEMU failed to start: {log.read_text(encoding='utf-8', errors='replace')[-4096:]}"
+            )
         guest_identity: dict[str, object] | None = None
         try:
             boot_vm = RunningVm(
-                lane.name, process.pid, disk, temporary_dir / "qmp.sock", int(time.time()),
-                checksum, True,
+                lane.name,
+                process.pid,
+                disk,
+                temporary_dir / "qmp.sock",
+                int(time.time()),
+                checksum,
+                True,
             )
             manager = VmManager(self.paths, self.config)
             serial_log = temporary_dir / "serial.log"
@@ -373,8 +455,7 @@ class Provisioner:
                 if process.poll() is not None:
                     raise LabError("Windows provisioning QEMU exited before DVD boot")
                 serial_tail = (
-                    serial_log.read_text(encoding="utf-8", errors="replace")[-4096:]
-                    if serial_log.exists() else ""
+                    serial_log.read_text(encoding="utf-8", errors="replace")[-4096:] if serial_log.exists() else ""
                 )
                 if 'starting Boot0001 "UEFI QEMU DVD-ROM' in serial_tail:
                     break
@@ -400,8 +481,18 @@ class Provisioner:
                 if process.poll() is not None:
                     break
                 result = subprocess.run(
-                    ["ssh", *ssh.options(), "lab@127.0.0.1", "--", "cmd.exe", "/c", "if exist C:\\SniptaleLab\\provisioned (exit 0) else (exit 1)"],
-                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False,
+                    [
+                        "ssh",
+                        *ssh.options(),
+                        "lab@127.0.0.1",
+                        "--",
+                        "cmd.exe",
+                        "/c",
+                        "if exist C:\\SniptaleLab\\provisioned (exit 0) else (exit 1)",
+                    ],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    check=False,
                 )
                 if result.returncode == 0:
                     sentinel_seen = True
@@ -410,12 +501,16 @@ class Provisioner:
             if not sentinel_seen and process.poll() is None:
                 raise TimeoutExpired("Windows provisioning timed out")
             from windows_session import require_license
+
             require_license(ssh, 14400)
-            identity_output = ssh.command(powershell_encoded(
-                "$p=Get-ItemProperty 'HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion'; "
-                "$e=(Get-WindowsEdition -Online).Edition; "
-                "[ordered]@{edition=$e;display_version=$p.DisplayVersion;build=[int]$p.CurrentBuildNumber} | ConvertTo-Json -Compress"
-            ), timeout=60).stdout.strip()
+            identity_output = ssh.command(
+                powershell_encoded(
+                    "$p=Get-ItemProperty 'HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion'; "
+                    "$e=(Get-WindowsEdition -Online).Edition; "
+                    "[ordered]@{edition=$e;display_version=$p.DisplayVersion;build=[int]$p.CurrentBuildNumber} | ConvertTo-Json -Compress"
+                ),
+                timeout=60,
+            ).stdout.strip()
             try:
                 candidate_identity = json.loads(identity_output)
             except json.JSONDecodeError as exc:
@@ -485,13 +580,29 @@ class Provisioner:
         shutil.copy2(source / "Autounattend.xml", seed / "Autounattend.xml")
         script = (source / "provision.ps1").read_text(encoding="utf-8").replace("{{SSH_PUBLIC_KEY}}", public_key)
         versions = read_json(self.paths.root / "tooling/configs/qa/tool-versions.json")
-        for token, version in {"RUST_VERSION": versions["rust"]["channel"], "WIX_VERSION": versions["windows"]["wix"]}.items():
+        if versions is None:
+            raise IntegrityError("canonical provisioning tool versions are missing")
+        for token, version in {
+            "RUST_VERSION": versions["rust"]["channel"],
+            "WIX_VERSION": versions["windows"]["wix"],
+        }.items():
             if not isinstance(version, str) or re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version) is None:
                 raise IntegrityError("invalid provisioned build tool version")
             script = script.replace("{{" + token + "}}", version)
         (seed / "provision.ps1").write_text(script, encoding="utf-8-sig")
         run(
-            [self.tool("genisoimage"), "-quiet", "-output", str(destination), "-volid", "SNIPTALE_E2E", "-joliet", "-rock", str(seed / "Autounattend.xml"), str(seed / "provision.ps1")],
+            [
+                self.tool("genisoimage"),
+                "-quiet",
+                "-output",
+                str(destination),
+                "-volid",
+                "SNIPTALE_E2E",
+                "-joliet",
+                "-rock",
+                str(seed / "Autounattend.xml"),
+                str(seed / "provision.ps1"),
+            ],
             timeout=120,
         )
 
@@ -499,23 +610,60 @@ class Provisioner:
         acceleration = "kvm" if os.access("/dev/kvm", os.R_OK | os.W_OK) else "tcg"
         log = runtime / "qemu-provision.log"
         command = [
-            self.tool("qemu-system-x86_64"), "-name", f"sniptale-lab-{lane.name},process=sniptale-{lane.name}",
-            "-machine", "q35", "-accel", acceleration if acceleration == "kvm" else "tcg,thread=multi", "-cpu", cpu_model(lane, acceleration),
-            "-smp", str(lane.vcpus), "-m", str(lane.memory_mib), "-boot", "order=d,once=d",
-            "-drive", f"if=none,id=system,file={disk},format=qcow2,cache=none,discard=unmap",
-            "-device", "nvme,drive=system,serial=sniptalelab,addr=0x2",
-            "-drive", f"file={install_iso},media=cdrom,readonly=on",
-            "-drive", f"file={answer_iso},format=raw,media=cdrom,readonly=on",
-            "-netdev", f"user,id=net0,hostfwd=tcp:127.0.0.1:{lane.ssh_port}-:22",
-            "-device", "e1000e,netdev=net0,mac=52:54:00:12:34:56,addr=0x1", "-device", "VGA,addr=0x3", "-device", "qemu-xhci",
-            "-device", "usb-kbd", "-device", "usb-tablet", "-audiodev", "driver=none,id=audio0",
-            "-device", "ich9-intel-hda", "-device", "hda-duplex,audiodev=audio0",
-            "-display", "none", "-vnc", f"127.0.0.1:{lane.vnc_display}",
-            "-qmp", f"unix:{runtime / 'qmp.sock'},server=on,wait=off",
-            "-serial", f"file:{runtime / 'serial.log'}",
+            self.tool("qemu-system-x86_64"),
+            "-name",
+            f"sniptale-lab-{lane.name},process=sniptale-{lane.name}",
+            "-machine",
+            "q35",
+            "-accel",
+            acceleration if acceleration == "kvm" else "tcg,thread=multi",
+            "-cpu",
+            cpu_model(lane, acceleration),
+            "-smp",
+            str(lane.vcpus),
+            "-m",
+            str(lane.memory_mib),
+            "-boot",
+            "order=d,once=d",
+            "-drive",
+            f"if=none,id=system,file={disk},format=qcow2,cache=none,discard=unmap",
+            "-device",
+            "nvme,drive=system,serial=sniptalelab,addr=0x2",
+            "-drive",
+            f"file={install_iso},media=cdrom,readonly=on",
+            "-drive",
+            f"file={answer_iso},format=raw,media=cdrom,readonly=on",
+            "-netdev",
+            f"user,id=net0,hostfwd=tcp:127.0.0.1:{lane.ssh_port}-:22",
+            "-device",
+            "e1000e,netdev=net0,mac=52:54:00:12:34:56,addr=0x1",
+            "-device",
+            "VGA,addr=0x3",
+            "-device",
+            "qemu-xhci",
+            "-device",
+            "usb-kbd",
+            "-device",
+            "usb-tablet",
+            "-audiodev",
+            "driver=none,id=audio0",
+            "-device",
+            "ich9-intel-hda",
+            "-device",
+            "hda-duplex,audiodev=audio0",
+            "-display",
+            "none",
+            "-vnc",
+            f"127.0.0.1:{lane.vnc_display}",
+            "-qmp",
+            f"unix:{runtime / 'qmp.sock'},server=on,wait=off",
+            "-serial",
+            f"file:{runtime / 'serial.log'}",
         ]
         VmManager(self.paths, self.config)._append_windows_firmware(command, runtime)
         stream = log.open("ab", buffering=0)
-        process = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=stream, stderr=subprocess.STDOUT, start_new_session=True)
+        process = subprocess.Popen(
+            command, stdin=subprocess.DEVNULL, stdout=stream, stderr=subprocess.STDOUT, start_new_session=True
+        )
         stream.close()
         return process, log, acceleration

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
-# shellcheck disable=SC1091
+# shellcheck source=../runtime/lib.sh
 source "$ROOT/tooling/qa/runtime/lib.sh"
 ensure_rust_env
 cd "$ROOT"
@@ -18,7 +18,7 @@ while [[ $# -gt 0 ]]; do
       mode="write"
       shift
       ;;
-    -h|--help)
+    -h | --help)
       printf 'Usage: tooling/qa/wrappers/licenses.sh [--check|--write]\n'
       printf 'Validates or explicitly regenerates tracked dependency legal outputs.\n'
       exit 0

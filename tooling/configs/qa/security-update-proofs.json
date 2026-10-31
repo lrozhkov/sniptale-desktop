@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "exceptions": {
+    "python": {
+      "advisoryId": "CVE-2026-115557",
+      "affectedVersion": "3.15.1"
+    },
+    "cargo-nextest": {
+      "advisoryId": "RUSTSEC-2026-0412",
+      "affectedVersion": "0.9.149"
+    },
+    "minimatch": {
+      "advisoryId": "GHSA-g3hv-75wg-m249",
+      "affectedVersion": "10.2.6"
+    },
+    "@isaacs/nonrecursive-glob-match": {
+      "advisoryId": "GHSA-g3hv-75wg-m249",
+      "affectedVersion": "10.2.6",
+      "requiredBy": "minimatch"
+    }
+  }
+}

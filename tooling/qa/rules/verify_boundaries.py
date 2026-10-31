@@ -45,8 +45,7 @@ MAX_FUNCTION_LINES = 50
 FILE_LEVEL_DEAD_CODE_BASELINE = 0
 PLATFORM_CFG_DEAD_CODE_BASELINE = 0
 ALLOWLISTED_COMPAT_FACADES: dict[str, str] = {
-    path: "reviewed canonical role facade"
-    for path in exact_paths("architecture.compatibility-facade")
+    path: "reviewed canonical role facade" for path in exact_paths("architecture.compatibility-facade")
 }
 ALLOWLISTED_WILDCARD_REEXPORTS: dict[str, str] = {}
 
@@ -144,11 +143,7 @@ def fail(messages: list[str]) -> None:
 def rust_files() -> list[Path]:
     if not SRC.exists():
         return []
-    return [
-        path
-        for path in SRC.rglob("*.rs")
-        if "/tests/" not in path.as_posix() and path.name != "tests.rs"
-    ]
+    return [path for path in SRC.rglob("*.rs") if "/tests/" not in path.as_posix() and path.name != "tests.rs"]
 
 
 def read(path: Path) -> str:
@@ -175,12 +170,7 @@ def facade_statements(path: Path) -> list[str]:
     current: list[str] = []
     for raw in read(path).splitlines():
         stripped = raw.strip()
-        if (
-            not stripped
-            or stripped.startswith("//")
-            or stripped.startswith("#[")
-            or stripped.startswith("#![doc")
-        ):
+        if not stripped or stripped.startswith("//") or stripped.startswith("#[") or stripped.startswith("#![doc"):
             continue
         current.append(stripped)
         if stripped.endswith(";"):
@@ -318,8 +308,7 @@ def facade_file_errors(
         for target in reexport_targets(path, statement, src):
             if target in facade_like:
                 errors.append(
-                    f"{relative} re-exports facade-like file {path_label(target, root)}; "
-                    "facade chains are forbidden"
+                    f"{relative} re-exports facade-like file {path_label(target, root)}; facade chains are forbidden"
                 )
 
     return errors
@@ -343,9 +332,7 @@ def check_file_sizes(errors: list[str]) -> None:
             errors.append(f"{relative} has {lines} lines; main.rs limit is {MAX_MAIN_LINES}")
             continue
         if path.name == "mod.rs" and path.parent.parent == SRC and lines > MAX_ROOT_MOD_LINES:
-            errors.append(
-                f"{relative} has {lines} lines; root owner mod.rs limit is {MAX_ROOT_MOD_LINES}"
-            )
+            errors.append(f"{relative} has {lines} lines; root owner mod.rs limit is {MAX_ROOT_MOD_LINES}")
             continue
         if lines > MAX_RUST_FILE_LINES:
             errors.append(f"{relative} has {lines} lines; file limit is {MAX_RUST_FILE_LINES}")
@@ -398,7 +385,6 @@ def check_file_level_dead_code_ratchet(errors: list[str]) -> None:
     ]:
         if error:
             errors.append(error)
-
 
 
 def check_root_facades(errors: list[str]) -> None:
@@ -469,9 +455,7 @@ def check_import_direction(errors: list[str]) -> None:
         graph[owner].update(imported_owner for imported_owner in imports if imported_owner != owner)
         denied = OWNER_IMPORT_DENY.get(owner, set())
         bad = sorted(
-            imported
-            for imported in imports & denied
-            if (rel(path), owner, imported) not in OWNER_IMPORT_ALLOW
+            imported for imported in imports & denied if (rel(path), owner, imported) not in OWNER_IMPORT_ALLOW
         )
         if bad:
             errors.append(f"{rel(path)} imports forbidden owner(s): {', '.join(bad)}")
@@ -497,33 +481,17 @@ def check_directory_shape(errors: list[str]) -> None:
         owner_dir = SRC / owner
         if not owner_dir.exists():
             continue
-        direct_files = [
-            path
-            for path in owner_dir.glob("*.rs")
-            if path.name != "mod.rs"
-        ]
-        all_files = [
-            path
-            for path in owner_dir.rglob("*.rs")
-            if "/tests/" not in path.as_posix()
-        ]
-        sub_owner_dirs = sorted({
-            path.relative_to(owner_dir).parts[0]
-            for path in all_files
-            if len(path.relative_to(owner_dir).parts) > 1
-        })
+        direct_files = [path for path in owner_dir.glob("*.rs") if path.name != "mod.rs"]
+        all_files = [path for path in owner_dir.rglob("*.rs") if "/tests/" not in path.as_posix()]
+        sub_owner_dirs = sorted(
+            {path.relative_to(owner_dir).parts[0] for path in all_files if len(path.relative_to(owner_dir).parts) > 1}
+        )
         if len(direct_files) > MAX_DIRECT_OWNER_FILES:
-            errors.append(
-                f"src/{owner} has {len(direct_files)} direct Rust files; split into sub-owners"
-            )
+            errors.append(f"src/{owner} has {len(direct_files)} direct Rust files; split into sub-owners")
         if len(all_files) > MAX_OWNER_FILES and len(sub_owner_dirs) < 2:
             errors.append(f"src/{owner} has {len(all_files)} Rust files; split owner directory")
         for sub_owner in sub_owner_dirs:
-            sub_owner_files = [
-                path
-                for path in all_files
-                if path.relative_to(owner_dir).parts[0] == sub_owner
-            ]
+            sub_owner_files = [path for path in all_files if path.relative_to(owner_dir).parts[0] == sub_owner]
             nested_sub_owners = {
                 path.relative_to(owner_dir).parts[1]
                 for path in sub_owner_files
@@ -531,19 +499,14 @@ def check_directory_shape(errors: list[str]) -> None:
             }
             if len(sub_owner_files) > MAX_OWNER_FILES and len(nested_sub_owners) < 2:
                 errors.append(
-                    f"src/{owner}/{sub_owner} has {len(sub_owner_files)} Rust files; "
-                    "split sub-owner directory"
+                    f"src/{owner}/{sub_owner} has {len(sub_owner_files)} Rust files; split sub-owner directory"
                 )
 
         repeated_prefix = [
-            rel(path)
-            for path in all_files
-            if path.stem.startswith(f"{owner}_") or path.stem.startswith(f"{owner}-")
+            rel(path) for path in all_files if path.stem.startswith(f"{owner}_") or path.stem.startswith(f"{owner}-")
         ]
         if repeated_prefix:
-            errors.append(
-                f"src/{owner} repeats owner name in file names: " + ", ".join(repeated_prefix)
-            )
+            errors.append(f"src/{owner} repeats owner name in file names: " + ", ".join(repeated_prefix))
 
 
 def check_lifecycle_smells(errors: list[str]) -> None:
@@ -573,8 +536,7 @@ def check_function_sizes(errors: list[str]) -> None:
                     length = index - start_line + 1
                     if length > MAX_FUNCTION_LINES:
                         errors.append(
-                            f"{rel(path)}:{start_line} function has {length} lines; "
-                            f"limit is {MAX_FUNCTION_LINES}"
+                            f"{rel(path)}:{start_line} function has {length} lines; limit is {MAX_FUNCTION_LINES}"
                         )
                     start_line = None
 
@@ -627,18 +589,14 @@ def check_resident_state_authority(errors: list[str]) -> None:
     if "let shared_state = NativeHostSharedState::default();" not in server_text:
         errors.append("src/app/resident/pipe_broker.rs must create one shared native-host state per server loop")
     if "run_agent_pipe_session_with_effects_and_state" not in server_text:
-        errors.append(
-            "src/app/resident/pipe_broker.rs must pass shared native-host state into blocking pipe sessions"
-        )
+        errors.append("src/app/resident/pipe_broker.rs must pass shared native-host state into blocking pipe sessions")
     duplex_server_text = read(duplex_server_path) if duplex_server_path.exists() else ""
     if "let shared_state = NativeHostSharedState::default();" not in duplex_server_text:
         errors.append(
             "src/app/resident/pipe_broker/duplex.rs must create one shared native-host state per concurrent server loop"
         )
     if "run_agent_pipe_session_with_effects_events_shared_auth_state" not in duplex_server_text:
-        errors.append(
-            "src/app/resident/pipe_broker/duplex.rs must pass shared auth/state into duplex pipe sessions"
-        )
+        errors.append("src/app/resident/pipe_broker/duplex.rs must pass shared auth/state into duplex pipe sessions")
 
 
 def write_selftest_file(path: Path, content: str) -> None:
@@ -699,20 +657,14 @@ def run_self_tests() -> int:
             owner / "platform.rs",
             "#![cfg_attr(not(any(windows, test)), allow(dead_code))]\npub(crate) fn helper() {}",
         )
-        dead_code_files = file_level_dead_code_files(
-            [owner / "allowed.rs", owner / "allowed_too.rs", owner / "wgc.rs"]
-        )
+        dead_code_files = file_level_dead_code_files([owner / "allowed.rs", owner / "allowed_too.rs", owner / "wgc.rs"])
         assert len(dead_code_files) == 2
         assert file_level_dead_code_ratchet_error(dead_code_files, 2) is None
         assert "above baseline 1" in (file_level_dead_code_ratchet_error(dead_code_files, 1) or "")
-        platform_files = platform_cfg_dead_code_files(
-            [owner / "platform.rs", owner / "allowed.rs"]
-        )
+        platform_files = platform_cfg_dead_code_files([owner / "platform.rs", owner / "allowed.rs"])
         assert len(platform_files) == 1
         assert platform_cfg_dead_code_ratchet_error(platform_files, 1) is None
-        assert "above baseline 0" in (
-            platform_cfg_dead_code_ratchet_error(platform_files, 0) or ""
-        )
+        assert "above baseline 0" in (platform_cfg_dead_code_ratchet_error(platform_files, 0) or "")
         hotkeys = src / "hotkeys"
         write_selftest_file(
             hotkeys / "bad.rs",

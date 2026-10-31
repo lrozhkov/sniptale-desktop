@@ -12,28 +12,87 @@ import tarfile
 import shutil
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import Iterable
+from collections.abc import Iterable
 
 from errors import IntegrityError
 from system import sha256_file
 
 EXCLUDED_PARTS = {
-    ".git", ".tmp", ".artifacts", "target", "node_modules", ".cache", "cache", "vm-state",
-    "desktop-e2e-lab", "__pycache__", ".pytest_cache", ".idea", ".vscode",
+    ".git",
+    ".tmp",
+    ".artifacts",
+    "target",
+    "node_modules",
+    ".cache",
+    "cache",
+    "vm-state",
+    "desktop-e2e-lab",
+    "__pycache__",
+    ".pytest_cache",
+    ".idea",
+    ".vscode",
 }
 EXCLUDED_SUFFIXES = {
-    ".pem", ".key", ".pfx", ".p12", ".jks", ".keystore", ".iso", ".qcow2",
-    ".vhd", ".vhdx", ".vmdk", ".mp3", ".wav", ".flac", ".aac", ".mp4",
-    ".mkv", ".mov", ".webm", ".avi",
+    ".pem",
+    ".key",
+    ".pfx",
+    ".p12",
+    ".jks",
+    ".keystore",
+    ".iso",
+    ".qcow2",
+    ".vhd",
+    ".vhdx",
+    ".vmdk",
+    ".mp3",
+    ".wav",
+    ".flac",
+    ".aac",
+    ".mp4",
+    ".mkv",
+    ".mov",
+    ".webm",
+    ".avi",
 }
 SENSITIVE_NAMES = {
-    ".env", ".netrc", ".npmrc", ".pypirc", ".git-credentials", "credentials",
-    "credentials.json", "secrets.json", "auth.json", "id_rsa", "id_ed25519",
+    ".env",
+    ".netrc",
+    ".npmrc",
+    ".pypirc",
+    ".git-credentials",
+    "credentials",
+    "credentials.json",
+    "secrets.json",
+    "auth.json",
+    "id_rsa",
+    "id_ed25519",
 }
 UNTRACKED_MEDIA_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}
 UNTRACKED_SOURCE_SUFFIXES = {
-    ".css", ".html", ".js", ".jsx", ".ts", ".tsx", ".mjs", ".cjs", ".mts", ".cts", ".json", ".lock", ".md", ".ps1", ".py", ".rs",
-    ".sh", ".svg", ".toml", ".txt", ".wxs", ".xml", ".yaml", ".yml",
+    ".css",
+    ".html",
+    ".js",
+    ".jsx",
+    ".ts",
+    ".tsx",
+    ".mjs",
+    ".cjs",
+    ".mts",
+    ".cts",
+    ".json",
+    ".lock",
+    ".md",
+    ".ps1",
+    ".py",
+    ".rs",
+    ".sh",
+    ".svg",
+    ".toml",
+    ".txt",
+    ".wxs",
+    ".xml",
+    ".yaml",
+    ".yml",
 }
 UNTRACKED_ROOT_TEXT_NAMES = {"LICENSE", "NOTICE"}
 MAX_SOURCE_FILES = 20_000
@@ -92,7 +151,11 @@ def source_files(root: Path) -> Iterable[tuple[Path, PurePosixPath]]:
         for name in sorted(directories):
             path = current_path / name
             relative = PurePosixPath((relative_dir / name).as_posix())
-            if visible is not None and relative.as_posix() not in visible and relative.as_posix() not in visible_directories:
+            if (
+                visible is not None
+                and relative.as_posix() not in visible
+                and relative.as_posix() not in visible_directories
+            ):
                 continue
             tracked_path = relative.as_posix() in tracked_directories
             if excluded(relative, tracked=tracked_path):
@@ -124,10 +187,10 @@ def source_files(root: Path) -> Iterable[tuple[Path, PurePosixPath]]:
                     and path.is_file()
                     and path.stat().st_mode & stat.S_IXUSR
                 )
-                synthetic_resource = (
-                    relative.suffix.lower() in UNTRACKED_MEDIA_SUFFIXES
-                    and relative.parts[0] in {"resources", "contracts"}
-                )
+                synthetic_resource = relative.suffix.lower() in UNTRACKED_MEDIA_SUFFIXES and relative.parts[0] in {
+                    "resources",
+                    "contracts",
+                }
                 if not executable_script and not synthetic_resource:
                     continue
             if (
@@ -150,8 +213,12 @@ def source_files(root: Path) -> Iterable[tuple[Path, PurePosixPath]]:
 
 def _git(root: Path, *args: str) -> str:
     result = subprocess.run(
-        ["git", *args], cwd=root, text=True, stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL, check=False,
+        ["git", *args],
+        cwd=root,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        check=False,
     )
     return result.stdout.strip() if result.returncode == 0 else "unavailable"
 
@@ -187,9 +254,15 @@ def source_tree_fingerprint(root: Path) -> dict:
         entries.append(entry)
         if len(entries) > MAX_SOURCE_FILES:
             raise IntegrityError("source fingerprint exceeds file count limit")
-    digest = hashlib.sha256(json.dumps(sorted(entries, key=lambda entry: entry["name"]), sort_keys=True, separators=(",", ":")).encode()).hexdigest()
-    return {"source_tree_sha256": digest, "commit_sha": _git(root, "rev-parse", "HEAD"),
-            "dirty_state_sha256": dirty_fingerprint(root), "file_count": len(entries)}
+    digest = hashlib.sha256(
+        json.dumps(sorted(entries, key=lambda entry: entry["name"]), sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    return {
+        "source_tree_sha256": digest,
+        "commit_sha": _git(root, "rev-parse", "HEAD"),
+        "dirty_state_sha256": dirty_fingerprint(root),
+        "file_count": len(entries),
+    }
 
 
 def create_source_bundle(root: Path, destination: Path) -> SourceFingerprint:
@@ -221,9 +294,12 @@ def create_source_bundle(root: Path, destination: Path) -> SourceFingerprint:
                         archive.addfile(info, stream)
                 else:
                     archive.addfile(info)
-        with raw_tar.open("rb") as source, temporary.open("wb") as target:
-            with gzip.GzipFile(filename="", mode="wb", fileobj=target, mtime=0) as compressed:
-                shutil.copyfileobj(source, compressed, length=1024 * 1024)
+        with (
+            raw_tar.open("rb") as source,
+            temporary.open("wb") as target,
+            gzip.GzipFile(filename="", mode="wb", fileobj=target, mtime=0) as compressed,
+        ):
+            shutil.copyfileobj(source, compressed, length=1024 * 1024)
         raw_tar.unlink()
         os.replace(temporary, destination)
     finally:
@@ -263,12 +339,14 @@ def evidence_manifest(run_dir: Path) -> dict[str, object]:
             if not path.is_file():
                 raise IntegrityError("evidence manifest contains a special file")
             relative = path.relative_to(run_dir).as_posix()
-            entries.append({
-                "relative_path": relative,
-                "category": category,
-                "bytes": path.stat().st_size,
-                "sha256": sha256_file(path),
-            })
+            entries.append(
+                {
+                    "relative_path": relative,
+                    "category": category,
+                    "bytes": path.stat().st_size,
+                    "sha256": sha256_file(path),
+                }
+            )
     entries.sort(key=lambda item: str(item["relative_path"]))
     if len(entries) > 4096:
         raise IntegrityError("evidence manifest exceeds the file-count limit")

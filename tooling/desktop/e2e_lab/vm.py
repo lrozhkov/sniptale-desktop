@@ -19,6 +19,7 @@ from paths import LabPaths
 from qmp import QmpReader
 from state import process_matches, read_json, write_json
 from system import run, sha256_file, terminate_process, wait_for_resources
+import contextlib
 
 
 def cpu_model(lane: Lane, acceleration: str) -> str:
@@ -58,25 +59,41 @@ class VmManager:
         if state is None:
             return None
         required = {
-            "lane", "pid", "overlay", "qmp_socket", "started_epoch", "golden_sha256",
-            "guest_network", "windows_audio_capture",
+            "lane",
+            "pid",
+            "overlay",
+            "qmp_socket",
+            "started_epoch",
+            "golden_sha256",
+            "guest_network",
+            "windows_audio_capture",
         }
         if set(state) != required or state["lane"] != lane:
             raise IntegrityError(f"corrupted VM state for {lane}")
         if (
-            not isinstance(state["pid"], int) or isinstance(state["pid"], bool) or state["pid"] <= 1
-            or not isinstance(state["started_epoch"], int) or isinstance(state["started_epoch"], bool)
+            not isinstance(state["pid"], int)
+            or isinstance(state["pid"], bool)
+            or state["pid"] <= 1
+            or not isinstance(state["started_epoch"], int)
+            or isinstance(state["started_epoch"], bool)
             or not isinstance(state["guest_network"], bool)
             or not isinstance(state["windows_audio_capture"], bool)
-            or not isinstance(state["overlay"], str) or Path(state["overlay"]) != runtime / "overlay.qcow2"
-            or not isinstance(state["qmp_socket"], str) or Path(state["qmp_socket"]) != runtime / "qmp.sock"
-            or not isinstance(state["golden_sha256"], str) or not re.fullmatch(r"[0-9a-f]{64}", state["golden_sha256"])
+            or not isinstance(state["overlay"], str)
+            or Path(state["overlay"]) != runtime / "overlay.qcow2"
+            or not isinstance(state["qmp_socket"], str)
+            or Path(state["qmp_socket"]) != runtime / "qmp.sock"
+            or not isinstance(state["golden_sha256"], str)
+            or not re.fullmatch(r"[0-9a-f]{64}", state["golden_sha256"])
         ):
             raise IntegrityError(f"corrupted VM state types or paths for {lane}")
         vm = RunningVm(
-            lane=lane, pid=int(state["pid"]), overlay=Path(state["overlay"]),
-            qmp_socket=Path(state["qmp_socket"]), started_epoch=int(state["started_epoch"]),
-            golden_sha256=str(state["golden_sha256"]), guest_network=bool(state["guest_network"]),
+            lane=lane,
+            pid=int(state["pid"]),
+            overlay=Path(state["overlay"]),
+            qmp_socket=Path(state["qmp_socket"]),
+            started_epoch=int(state["started_epoch"]),
+            golden_sha256=str(state["golden_sha256"]),
+            guest_network=bool(state["guest_network"]),
             windows_audio_capture=bool(state["windows_audio_capture"]),
         )
         marker = f"sniptale-lab-{lane}"
@@ -131,10 +148,7 @@ class VmManager:
     ) -> RunningVm:
         existing = self.current(lane_name)
         if existing:
-            if (
-                existing.guest_network != allow_guest_network
-                or existing.windows_audio_capture != windows_audio_capture
-            ):
+            if existing.guest_network != allow_guest_network or existing.windows_audio_capture != windows_audio_capture:
                 raise LabError(f"{lane_name} is already running with a different VM policy")
             return existing
         if self.orphan_pids(lane_name):
@@ -145,12 +159,15 @@ class VmManager:
             if lane.os != "windows" or type(memory_mib) is not int or memory_mib not in (4096, 6144, 8192):
                 raise IntegrityError("invalid Windows development VM memory budget")
             lane = replace(lane, memory_mib=memory_mib)
-        if reuse_work_cache and (lane.os != "windows" or memory_mib is None or allow_guest_network or not windows_audio_capture):
+        if reuse_work_cache and (
+            lane.os != "windows" or memory_mib is None or allow_guest_network or not windows_audio_capture
+        ):
             raise IntegrityError("work image cache requires an isolated development Windows VM")
         if host_reserve_mib < 1024 or host_reserve_mib > 4096:
             raise IntegrityError("VM host memory reserve must be 1024..4096 MiB")
         wait_for_resources(
-            self.paths.lab, min_free_gib=self.config.limits.min_free_gib,
+            self.paths.lab,
+            min_free_gib=self.config.limits.min_free_gib,
             min_memory_mib=max(
                 self.config.limits.min_available_memory_mib,
                 lane.memory_mib + host_reserve_mib,
@@ -166,20 +183,33 @@ class VmManager:
             raise LabError(f"golden image is missing for {lane_name}; run provision {lane_name}")
         identity_value = read_json(identity)
         base_fields = {
-            "schema_version", "lane", "os", "display_server", "provision_acceleration",
-            "source_sha256", "disk_sha256", "created_epoch",
+            "schema_version",
+            "lane",
+            "os",
+            "display_server",
+            "provision_acceleration",
+            "source_sha256",
+            "disk_sha256",
+            "created_epoch",
         }
         expected_fields = base_fields | ({"derived_from_disk_sha256"} if lane_name == "linux-x11" else set())
         if identity_value is not None and "storage_format" in identity_value:
             expected_fields.add("storage_format")
         if lane.os == "windows":
             expected_fields |= {
-                "firmware_code_sha256", "firmware_vars_sha256", "guest_edition",
-                "guest_display_version", "guest_build", "source_release", "source_provenance",
+                "firmware_code_sha256",
+                "firmware_vars_sha256",
+                "guest_edition",
+                "guest_display_version",
+                "guest_build",
+                "source_release",
+                "source_provenance",
             }
         expected_os = "windows-11-enterprise-evaluation" if lane.os == "windows" else "ubuntu-24.04"
+
         def valid_hash(value: object) -> bool:
             return isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value) is not None
+
         if (
             identity_value is None
             or set(identity_value) != expected_fields
@@ -188,8 +218,10 @@ class VmManager:
             or identity_value.get("os") != expected_os
             or identity_value.get("display_server") != lane.display_server
             or identity_value.get("provision_acceleration") not in {"kvm", "tcg"}
-            or identity_value.get("storage_format", "qcow2-legacy-v1") not in {
-                "qcow2-legacy-v1", "qcow2-zlib-v1",
+            or identity_value.get("storage_format", "qcow2-legacy-v1")
+            not in {
+                "qcow2-legacy-v1",
+                "qcow2-zlib-v1",
             }
             or not valid_hash(identity_value.get("source_sha256"))
             or not valid_hash(identity_value.get("disk_sha256"))
@@ -213,14 +245,16 @@ class VmManager:
             firmware_vars = self.paths.golden / lane_name / "OVMF_VARS.fd"
             firmware_code = self.paths.golden / lane_name / "OVMF_CODE.fd"
             if (
-                firmware_vars.is_symlink() or not firmware_vars.is_file()
+                firmware_vars.is_symlink()
+                or not firmware_vars.is_file()
                 or not valid_hash(identity_value.get("firmware_vars_sha256"))
                 or identity_value.get("firmware_vars_sha256") != sha256_file(firmware_vars)
                 or firmware_vars.stat().st_mode & (stat.S_IWUSR | stat.S_IWGRP | stat.S_IWOTH)
             ):
                 raise IntegrityError(f"golden firmware identity mismatch for {lane_name}")
             if (
-                firmware_code.is_symlink() or not firmware_code.is_file()
+                firmware_code.is_symlink()
+                or not firmware_code.is_file()
                 or not valid_hash(identity_value.get("firmware_code_sha256"))
                 or identity_value.get("firmware_code_sha256") != sha256_file(firmware_code)
                 or firmware_code.stat().st_mode & (stat.S_IWUSR | stat.S_IWGRP | stat.S_IWOTH)
@@ -240,13 +274,17 @@ class VmManager:
         restored = None
         if reuse_work_cache:
             from session_cache import restore
+
             restored = restore(self.paths, qemu_img, golden, identity_value["disk_sha256"], overlay, lane.disk_gib)
         if restored is None:
             run([qemu_img, "create", "-q", "-f", "qcow2", "-F", "qcow2", "-b", str(golden), str(overlay)], timeout=60)
         else:
             write_json(runtime / "development-base.json", restored)
         command = self._command(
-            lane, overlay, qmp, runtime,
+            lane,
+            overlay,
+            qmp,
+            runtime,
             allow_guest_network=allow_guest_network,
             windows_audio_capture=windows_audio_capture,
         )
@@ -256,8 +294,12 @@ class VmManager:
         if lane.os == "windows" and windows_audio_capture and not allow_guest_network:
             environment["ALSA_CONFIG_PATH"] = str(self._prepare_windows_microphone(runtime))
         process = subprocess.Popen(
-            command, stdin=subprocess.DEVNULL, stdout=log_stream, stderr=subprocess.STDOUT,
-            start_new_session=True, env=environment,
+            command,
+            stdin=subprocess.DEVNULL,
+            stdout=log_stream,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+            env=environment,
         )
         log_stream.close()
         time.sleep(1)
@@ -266,16 +308,29 @@ class VmManager:
             self._remove_runtime(lane_name)
             raise LabError(f"QEMU failed to start for {lane_name}: {tail}")
         state = RunningVm(
-            lane_name, process.pid, overlay, qmp, int(time.time()),
-            identity_value["disk_sha256"], allow_guest_network, windows_audio_capture,
+            lane_name,
+            process.pid,
+            overlay,
+            qmp,
+            int(time.time()),
+            identity_value["disk_sha256"],
+            allow_guest_network,
+            windows_audio_capture,
         )
         try:
-            write_json(self.state_path(lane_name), {
-                "lane": state.lane, "pid": state.pid, "overlay": str(state.overlay),
-                "qmp_socket": str(state.qmp_socket), "started_epoch": state.started_epoch,
-                "golden_sha256": state.golden_sha256, "guest_network": state.guest_network,
-                "windows_audio_capture": state.windows_audio_capture,
-            })
+            write_json(
+                self.state_path(lane_name),
+                {
+                    "lane": state.lane,
+                    "pid": state.pid,
+                    "overlay": str(state.overlay),
+                    "qmp_socket": str(state.qmp_socket),
+                    "started_epoch": state.started_epoch,
+                    "golden_sha256": state.golden_sha256,
+                    "guest_network": state.guest_network,
+                    "windows_audio_capture": state.windows_audio_capture,
+                },
+            )
         except Exception:
             terminate_process(process.pid, timeout=5)
             self._remove_runtime(lane_name)
@@ -303,52 +358,100 @@ class VmManager:
     ) -> list[str]:
         acceleration = "kvm" if os.access("/dev/kvm", os.R_OK | os.W_OK) else "tcg"
         command = [
-            self._qemu(), "-name", f"sniptale-lab-{lane.name},process=sniptale-{lane.name}",
-            "-machine", "q35", "-accel", acceleration if acceleration == "kvm" else "tcg,thread=multi", "-cpu", cpu_model(lane, acceleration),
-            "-smp", str(lane.vcpus), "-m", str(lane.memory_mib), "-monitor", "none",
-            "-drive", f"if=none,id=system,file={overlay},format=qcow2,cache=none,discard=unmap",
-            "-device", "virtio-blk-pci,drive=system,addr=0x2",
-            "-netdev", f"user,id=net0,restrict={'off' if allow_guest_network else 'on'},hostfwd=tcp:127.0.0.1:{lane.ssh_port}-:22",
-            "-device", "virtio-net-pci,netdev=net0,mac=52:54:00:12:34:56,addr=0x1", "-device", "virtio-vga,addr=0x3",
-            "-device", "qemu-xhci", "-device", "usb-kbd", "-device", "usb-tablet",
-            "-display", "none", "-vnc", f"127.0.0.1:{lane.vnc_display}",
-            "-qmp", f"unix:{qmp},server=on,wait=off", "-serial", f"file:{runtime / 'serial.log'}",
+            self._qemu(),
+            "-name",
+            f"sniptale-lab-{lane.name},process=sniptale-{lane.name}",
+            "-machine",
+            "q35",
+            "-accel",
+            acceleration if acceleration == "kvm" else "tcg,thread=multi",
+            "-cpu",
+            cpu_model(lane, acceleration),
+            "-smp",
+            str(lane.vcpus),
+            "-m",
+            str(lane.memory_mib),
+            "-monitor",
+            "none",
+            "-drive",
+            f"if=none,id=system,file={overlay},format=qcow2,cache=none,discard=unmap",
+            "-device",
+            "virtio-blk-pci,drive=system,addr=0x2",
+            "-netdev",
+            f"user,id=net0,restrict={'off' if allow_guest_network else 'on'},hostfwd=tcp:127.0.0.1:{lane.ssh_port}-:22",
+            "-device",
+            "virtio-net-pci,netdev=net0,mac=52:54:00:12:34:56,addr=0x1",
+            "-device",
+            "virtio-vga,addr=0x3",
+            "-device",
+            "qemu-xhci",
+            "-device",
+            "usb-kbd",
+            "-device",
+            "usb-tablet",
+            "-display",
+            "none",
+            "-vnc",
+            f"127.0.0.1:{lane.vnc_display}",
+            "-qmp",
+            f"unix:{qmp},server=on,wait=off",
+            "-serial",
+            f"file:{runtime / 'serial.log'}",
         ]
         # Windows console preparation reboots once inside this disposable overlay.
         # Boot/test deadlines still bound the run; Linux keeps its existing reboot policy.
         if lane.os != "windows":
             command.append("-no-reboot")
         if lane.os == "windows":
-            command[command.index("virtio-blk-pci,drive=system,addr=0x2")] = "nvme,drive=system,serial=sniptalelab,addr=0x2"
-            command[command.index("virtio-net-pci,netdev=net0,mac=52:54:00:12:34:56,addr=0x1")] = "e1000e,netdev=net0,mac=52:54:00:12:34:56,addr=0x1"
+            command[command.index("virtio-blk-pci,drive=system,addr=0x2")] = (
+                "nvme,drive=system,serial=sniptalelab,addr=0x2"
+            )
+            command[command.index("virtio-net-pci,netdev=net0,mac=52:54:00:12:34:56,addr=0x1")] = (
+                "e1000e,netdev=net0,mac=52:54:00:12:34:56,addr=0x1"
+            )
             command[command.index("virtio-vga,addr=0x3")] = "VGA,addr=0x3"
             if allow_guest_network:
-                command.extend([
-                    "-audiodev", "driver=none,id=audio0",
-                    "-device", "ich9-intel-hda",
-                    "-device", "hda-duplex,audiodev=audio0",
-                ])
+                command.extend(
+                    [
+                        "-audiodev",
+                        "driver=none,id=audio0",
+                        "-device",
+                        "ich9-intel-hda",
+                        "-device",
+                        "hda-duplex,audiodev=audio0",
+                    ]
+                )
             elif windows_audio_capture:
-                command.extend([
-                    "-audiodev",
-                    # The synthetic ALSA file/null devices are always ready. Poll-driven voices
-                    # otherwise run ahead of time and return repeated microphone positions.
-                    "driver=alsa,id=audio0,in.dev=sniptale_e2e_mic,out.dev=sniptale_e2e_speaker,"
-                    "in.try-poll=off,out.try-poll=off,timer-period=10000",
-                    "-device", "ich9-intel-hda",
-                    "-device", "hda-duplex,audiodev=audio0",
-                ])
+                command.extend(
+                    [
+                        "-audiodev",
+                        # The synthetic ALSA file/null devices are always ready. Poll-driven voices
+                        # otherwise run ahead of time and return repeated microphone positions.
+                        "driver=alsa,id=audio0,in.dev=sniptale_e2e_mic,out.dev=sniptale_e2e_speaker,"
+                        "in.try-poll=off,out.try-poll=off,timer-period=10000",
+                        "-device",
+                        "ich9-intel-hda",
+                        "-device",
+                        "hda-duplex,audiodev=audio0",
+                    ]
+                )
             else:
                 # System-loopback acceptance needs a timer-paced render sink. The duplex
                 # codec is intentional: Windows loopback capture did not receive packets
                 # from QEMU's output-only codec, while the WAV backend keeps render paced.
-                command.extend([
-                    "-audiodev", f"driver=wav,id=audio0,path={runtime / 'system-audio-output.wav'}",
-                    "-device", "ich9-intel-hda",
-                    "-device", "hda-duplex,audiodev=audio0",
-                ])
+                command.extend(
+                    [
+                        "-audiodev",
+                        f"driver=wav,id=audio0,path={runtime / 'system-audio-output.wav'}",
+                        "-device",
+                        "ich9-intel-hda",
+                        "-device",
+                        "hda-duplex,audiodev=audio0",
+                    ]
+                )
             self._append_windows_firmware(
-                command, runtime,
+                command,
+                runtime,
                 persistent_code=self.paths.golden / f"{lane.name}/OVMF_CODE.fd",
                 persistent_vars=self.paths.golden / f"{lane.name}/OVMF_VARS.fd",
             )
@@ -362,12 +465,12 @@ class VmManager:
             "pcm.sniptale_e2e_mic {\n"
             "  type file\n"
             "  slave.pcm null\n"
-            "  file \"/dev/null\"\n"
+            '  file "/dev/null"\n'
             # QEMU can open and consume its capture backend long before the microphone case. An
             # on-disk tone therefore has a hidden time limit and previously reached EOF late in a
             # full run. /dev/urandom is an infinite synthetic, non-user source and avoids a large
             # short-lived raw fixture while still proving that the captured PCM is non-silent.
-            "  infile \"/dev/urandom\"\n"
+            '  infile "/dev/urandom"\n'
             "  format raw\n"
             "}\n"
             "pcm.sniptale_e2e_speaker {\n"
@@ -375,7 +478,7 @@ class VmManager:
             "  slave.pcm null\n"
             # Guest MP4 decoding proves loopback audio. An unused host PCM dump grows for the
             # entire VM lifetime and makes a warm development session unbounded.
-            "  file \"/dev/null\"\n"
+            '  file "/dev/null"\n'
             "  format raw\n"
             "}\n",
             encoding="utf-8",
@@ -394,14 +497,21 @@ class VmManager:
         bundled = self.paths.cache / "host-tools/usr/share/OVMF"
         bundled_legacy = self.paths.cache / "host-tools/usr/share/ovmf"
         code_candidates = tuple(path for path in (persistent_code,) if path is not None) + (
-            Path("/usr/share/OVMF/OVMF_CODE_4M.ms.fd"), Path("/usr/share/OVMF/OVMF_CODE_4M.secboot.fd"),
-            Path("/usr/share/OVMF/OVMF_CODE_4M.fd"), Path("/usr/share/OVMF/OVMF_CODE.fd"),
-            bundled / "OVMF_CODE_4M.ms.fd", bundled / "OVMF_CODE_4M.secboot.fd",
-            bundled / "OVMF_CODE_4M.fd", bundled / "OVMF_CODE.fd", bundled_legacy / "OVMF.fd",
+            Path("/usr/share/OVMF/OVMF_CODE_4M.ms.fd"),
+            Path("/usr/share/OVMF/OVMF_CODE_4M.secboot.fd"),
+            Path("/usr/share/OVMF/OVMF_CODE_4M.fd"),
+            Path("/usr/share/OVMF/OVMF_CODE.fd"),
+            bundled / "OVMF_CODE_4M.ms.fd",
+            bundled / "OVMF_CODE_4M.secboot.fd",
+            bundled / "OVMF_CODE_4M.fd",
+            bundled / "OVMF_CODE.fd",
+            bundled_legacy / "OVMF.fd",
         )
         vars_candidates = tuple(path for path in (persistent_vars,) if path is not None) + (
-            Path("/usr/share/OVMF/OVMF_VARS_4M.ms.fd"), Path("/usr/share/OVMF/OVMF_VARS.fd"),
-            bundled / "OVMF_VARS_4M.ms.fd", bundled / "OVMF_VARS.fd",
+            Path("/usr/share/OVMF/OVMF_VARS_4M.ms.fd"),
+            Path("/usr/share/OVMF/OVMF_VARS.fd"),
+            bundled / "OVMF_VARS_4M.ms.fd",
+            bundled / "OVMF_VARS.fd",
         )
         code = next((path for path in code_candidates if path.exists()), None)
         template = next((path for path in vars_candidates if path.exists()), None)
@@ -415,7 +525,14 @@ class VmManager:
         if not vars_path.exists():
             shutil.copy2(template, vars_path)
         vars_path.chmod(0o600)
-        command.extend(["-drive", f"if=pflash,format=raw,readonly=on,file={code}", "-drive", f"if=pflash,format=raw,file={vars_path}"])
+        command.extend(
+            [
+                "-drive",
+                f"if=pflash,format=raw,readonly=on,file={code}",
+                "-drive",
+                f"if=pflash,format=raw,file={vars_path}",
+            ]
+        )
 
     def qmp(self, vm: RunningVm, execute: str, arguments: dict[str, object] | None = None):
         deadline = time.monotonic() + 10
@@ -465,10 +582,8 @@ class VmManager:
                 forced = terminate_process(pid, timeout=5) or forced
             return forced
         forced = False
-        try:
+        with contextlib.suppress(LabError):
             self.qmp(vm, "system_powerdown")
-        except LabError:
-            pass
         deadline = time.monotonic() + self.config.timeouts.shutdown
         while process_matches(vm.pid, f"sniptale-lab-{lane_name}", str(self.paths.lab)) and time.monotonic() < deadline:
             time.sleep(0.5)

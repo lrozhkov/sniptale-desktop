@@ -32,7 +32,9 @@ class RegistryTests(unittest.TestCase):
     ) -> tuple[dict[str, str], Path]:
         trace = directory / "trace.log"
         marker = directory / "drift.marker"
-        git = self._executable(directory / "git", r'''
+        git = self._executable(
+            directory / "git",
+            r"""
 case "${1:-}" in
   rev-parse)
     if [[ "$*" == *"--is-inside-work-tree"* ]]; then
@@ -62,41 +64,42 @@ case "${1:-}" in
     printf '%s\n' "$*"
     ;;
 esac
-''')
-        checkpoint = self._executable(directory / "checkpoint", f'''
+""",
+        )
+        checkpoint = self._executable(
+            directory / "checkpoint",
+            f"""
 printf 'checkpoint\n' >> "$TRACE_FILE"
 if [[ "${{FAKE_DRIFT:-0}}" == 1 ]]; then touch "$DRIFT_MARKER"; fi
 exit {checkpoint_exit}
-''')
-        coverage = self._executable(
-            directory / "coverage", 'printf \'coverage\\n\' >> "$TRACE_FILE"\n'
+""",
         )
-        supply = self._executable(
-            directory / "supply-chain", 'printf \'supply-chain\\n\' >> "$TRACE_FILE"\n'
-        )
-        build = self._executable(
-            directory / "build", 'printf \'build\\n\' >> "$TRACE_FILE"\n'
-        )
+        coverage = self._executable(directory / "coverage", "printf 'coverage\\n' >> \"$TRACE_FILE\"\n")
+        supply = self._executable(directory / "supply-chain", "printf 'supply-chain\\n' >> \"$TRACE_FILE\"\n")
+        build = self._executable(directory / "build", "printf 'build\\n' >> \"$TRACE_FILE\"\n")
         environment = os.environ.copy()
-        environment.update({
-            "PATH": f"{directory}:{environment['PATH']}",
-            "TRACE_FILE": str(trace),
-            "DRIFT_MARKER": str(marker),
-            "FAKE_HIGH_RISK": "1" if high_risk else "0",
-            "FAKE_DEPENDENCY": "1" if dependency else "0",
-            "FAKE_DRIFT": "1" if drift else "0",
-            "FAKE_STAGED_STATUS": staged_status,
-            "SNIPTALE_QA_CHECKPOINT_WRAPPER": str(checkpoint),
-            "SNIPTALE_QA_COVERAGE_WRAPPER": str(coverage),
-            "SNIPTALE_QA_SUPPLY_CHAIN_WRAPPER": str(supply),
-            "SNIPTALE_QA_BUILD_WRAPPER": str(build),
-        })
+        environment.update(
+            {
+                "PATH": f"{directory}:{environment['PATH']}",
+                "TRACE_FILE": str(trace),
+                "DRIFT_MARKER": str(marker),
+                "FAKE_HIGH_RISK": "1" if high_risk else "0",
+                "FAKE_DEPENDENCY": "1" if dependency else "0",
+                "FAKE_DRIFT": "1" if drift else "0",
+                "FAKE_STAGED_STATUS": staged_status,
+                "SNIPTALE_QA_CHECKPOINT_WRAPPER": str(checkpoint),
+                "SNIPTALE_QA_COVERAGE_WRAPPER": str(coverage),
+                "SNIPTALE_QA_SUPPLY_CHAIN_WRAPPER": str(supply),
+                "SNIPTALE_QA_BUILD_WRAPPER": str(build),
+            }
+        )
         self.assertTrue(git.is_file())
         return environment, trace
 
     def test_registry_and_topology_guard_are_green(self) -> None:
         path = ROOT / "tooling/qa/rules/verify_tooling.py"
         spec = importlib.util.spec_from_file_location("verify_tooling_test", path)
+        assert spec is not None and spec.loader is not None
         assert spec is not None and spec.loader is not None
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
@@ -109,6 +112,7 @@ exit {checkpoint_exit}
     def test_clean_break_identity_detector_rejects_every_retired_root_and_case(self) -> None:
         path = ROOT / "tooling/qa/rules/verify_tooling.py"
         spec = importlib.util.spec_from_file_location("verify_tooling_identity_test", path)
+        assert spec is not None and spec.loader is not None
         assert spec is not None and spec.loader is not None
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
@@ -123,6 +127,7 @@ exit {checkpoint_exit}
         path = ROOT / "tooling/qa/rules/verify_tooling.py"
         spec = importlib.util.spec_from_file_location("verify_tooling_publication_test", path)
         assert spec is not None and spec.loader is not None
+        assert spec is not None and spec.loader is not None
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         errors: list[str] = []
@@ -135,9 +140,11 @@ exit {checkpoint_exit}
     def test_hosted_qa_policy_rejects_unknown_workflow_and_permission_drift(self) -> None:
         path = ROOT / "tooling/qa/rules/verify_tooling.py"
         spec = importlib.util.spec_from_file_location("hosted_policy_negative", path)
+        assert spec is not None and spec.loader is not None
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         import shutil
+
         for mutation in ("unknown", "permissions", "action", "trigger", "rebuild"):
             with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
@@ -166,9 +173,11 @@ exit {checkpoint_exit}
     def test_windows_compilation_cache_rejects_unsafe_reuse(self) -> None:
         path = ROOT / "tooling/qa/rules/verify_tooling.py"
         spec = importlib.util.spec_from_file_location("cache_policy_negative", path)
+        assert spec is not None and spec.loader is not None
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         import shutil
+
         for mutation in ("key", "restore-keys", "path"):
             with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
@@ -178,8 +187,11 @@ exit {checkpoint_exit}
                 shutil.copyfile(ROOT / "tooling/configs/qa/toolchain-lock.json", config / "toolchain-lock.json")
                 workflow = root / ".github/workflows/alpha.yml"
                 value = json.loads(workflow.read_text())
-                cache = next(step for step in value["jobs"]["package"]["steps"]
-                             if step.get("name") == "Cache compiled Windows dependencies")
+                cache = next(
+                    step
+                    for step in value["jobs"]["package"]["steps"]
+                    if step.get("name") == "Cache compiled Windows dependencies"
+                )
                 cache["with"][mutation] = "unscoped"
                 workflow.write_text(json.dumps(value))
                 errors = []
@@ -190,9 +202,11 @@ exit {checkpoint_exit}
     def test_alpha_cache_requires_release_target_invalidation_before_build(self) -> None:
         path = ROOT / "tooling/qa/rules/verify_tooling.py"
         spec = importlib.util.spec_from_file_location("cache_invalidation_negative", path)
+        assert spec is not None and spec.loader is not None
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         import shutil
+
         for mutation in ("profile", "target", "directory", "order"):
             with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
@@ -224,24 +238,32 @@ exit {checkpoint_exit}
         path = ROOT / "tooling/qa/rules/verify_tooling.py"
         spec = importlib.util.spec_from_file_location("verify_tooling_debt_test", path)
         assert spec is not None and spec.loader is not None
+        assert spec is not None and spec.loader is not None
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         with tempfile.TemporaryDirectory() as directory:
             registry = Path(directory) / "exceptions.json"
-            registry.write_text(json.dumps({
-                "schemaVersion": 1,
-                "technicalDebt": [],
-                "exceptions": [{
-                    "id": "debt.example",
-                    "ruleId": "test.example",
-                    "classification": "temporary-debt",
-                    "owner": "qa-owner",
-                    "exactScope": {"exactPaths": ["AGENTS.md"]},
-                    "rationale": "schema test",
-                    "risk": "schema test risk",
-                    "proofReferences": ["AGENTS.md"],
-                }],
-            }), encoding="utf-8")
+            registry.write_text(
+                json.dumps(
+                    {
+                        "schemaVersion": 1,
+                        "technicalDebt": [],
+                        "exceptions": [
+                            {
+                                "id": "debt.example",
+                                "ruleId": "test.example",
+                                "classification": "temporary-debt",
+                                "owner": "qa-owner",
+                                "exactScope": {"exactPaths": ["AGENTS.md"]},
+                                "rationale": "schema test",
+                                "risk": "schema test risk",
+                                "proofReferences": ["AGENTS.md"],
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
             errors: list[str] = []
             with mock.patch.object(module, "REGISTRY", registry):
                 module.validate_registry(errors)
@@ -251,6 +273,7 @@ exit {checkpoint_exit}
     def test_retired_path_guard_ignores_policy_and_historical_evidence(self) -> None:
         path = ROOT / "tooling/qa/rules/verify_tooling.py"
         spec = importlib.util.spec_from_file_location("verify_tooling_retired_path_test", path)
+        assert spec is not None and spec.loader is not None
         assert spec is not None and spec.loader is not None
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
@@ -271,6 +294,39 @@ exit {checkpoint_exit}
             module.validate_retired_scripts(errors)
         self.assertEqual(errors, [])
 
+    def test_coverage_cannot_compile_without_checkpoint_admission(self) -> None:
+        import shutil
+
+        for admitted in (False, True):
+            with self.subTest(admitted=admitted), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                wrapper = root / "tooling/qa/wrappers/coverage.sh"
+                runtime = root / "tooling/qa/runtime/lib.sh"
+                wrapper.parent.mkdir(parents=True)
+                runtime.parent.mkdir(parents=True)
+                shutil.copyfile(ROOT / "tooling/qa/wrappers/coverage.sh", wrapper)
+                runtime.write_text(
+                    "ensure_rust_env() { :; }\nrequire_command() { :; }\nqa_init() { :; }\nqa_require_harness() { :; }\nqa_assert_state() { return "
+                    + ("0" if admitted else "9")
+                    + '; }\nqa_step() { shift; "$@"; }\n'
+                )
+                binaries = root / "bin"
+                binaries.mkdir()
+                self._executable(binaries / "cargo-llvm-cov", "exit 0\n")
+                self._executable(binaries / "cargo", 'touch "$COMPILATION_SENTINEL"; exit 19\n')
+                marker = root / "compiled"
+                environment = {
+                    **os.environ,
+                    "PATH": str(binaries) + os.pathsep + os.environ["PATH"],
+                    "COVERAGE_MIN_LINES": "1",
+                    "COMPILATION_SENTINEL": str(marker),
+                }
+                result = subprocess.run(
+                    ["bash", str(wrapper)], env=environment, capture_output=True, text=True, timeout=20
+                )
+                self.assertEqual(result.returncode, 19 if admitted else 9, result.stderr)
+                self.assertEqual(marker.exists(), admitted)
+
     def test_closeout_orders_proof_before_staging_and_commit(self) -> None:
         text = (ROOT / "tooling/qa/wrappers/closeout.sh").read_text(encoding="utf-8")
         proof = text.index('qa_step "build"')
@@ -284,9 +340,7 @@ exit {checkpoint_exit}
 
     def test_closeout_fake_commands_run_conditional_coverage_in_order(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            environment, trace = self._fake_closeout_environment(
-                Path(directory), high_risk=True
-            )
+            environment, trace = self._fake_closeout_environment(Path(directory), high_risk=True)
             completed = subprocess.run(
                 ["tooling/qa/wrappers/closeout.sh", "--no-commit"],
                 cwd=ROOT,
@@ -302,9 +356,7 @@ exit {checkpoint_exit}
 
     def test_closeout_fake_commands_run_conditional_supply_chain(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            environment, trace = self._fake_closeout_environment(
-                Path(directory), dependency=True
-            )
+            environment, trace = self._fake_closeout_environment(Path(directory), dependency=True)
             completed = subprocess.run(
                 ["tooling/qa/wrappers/closeout.sh", "--no-commit"],
                 cwd=ROOT,
@@ -320,9 +372,7 @@ exit {checkpoint_exit}
 
     def test_closeout_propagates_failure_and_never_commits_after_error(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            environment, trace = self._fake_closeout_environment(
-                Path(directory), checkpoint_exit=9
-            )
+            environment, trace = self._fake_closeout_environment(Path(directory), checkpoint_exit=9)
             completed = subprocess.run(
                 ["tooling/qa/wrappers/closeout.sh", "-m", "must not commit"],
                 cwd=ROOT,
@@ -336,9 +386,7 @@ exit {checkpoint_exit}
 
     def test_closeout_rejects_diff_drift_after_proof(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            environment, _trace = self._fake_closeout_environment(
-                Path(directory), drift=True
-            )
+            environment, _trace = self._fake_closeout_environment(Path(directory), drift=True)
             completed = subprocess.run(
                 ["tooling/qa/wrappers/closeout.sh", "--no-commit"],
                 cwd=ROOT,
@@ -395,7 +443,8 @@ exit {checkpoint_exit}
             self.assertEqual(completed.returncode, 0, completed.stderr)
             after = set((ROOT / ".tmp/qa-observability/runs").glob("**/*.json"))
             records = [
-                path for path in after - before
+                path
+                for path in after - before
                 if json.loads(path.read_text(encoding="utf-8")).get("wrapperId") == "qa:closeout"
             ]
             self.assertEqual(len(records), 1)
