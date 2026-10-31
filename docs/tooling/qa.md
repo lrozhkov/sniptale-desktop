@@ -18,7 +18,7 @@ Windows CI and guest builds use `tooling/release/windows/toolchain.ps1` to verif
 - `audit.sh` runs pinned Gitleaks against the current tree and complete Git history. A shallow checkout, unavailable or wrong tool version, finding, malformed baseline, or incomplete report fails the audit.
 - `release-harness.sh` validates tooling topology, registries, docs policy, hosted-workflow policy, Python tests, desktop-lab controller tests, and guardrail self-tests. Tooling, hosted-workflow policy, docs-policy, or repo-skill changes require fresh harness state.
 - `checkpoint.sh` is the in-progress product gate: format, docs/legal policy, static guardrails, Windows-target compilation, clippy, owner tests, and QA runtime tests.
-- `coverage.sh` writes aggregate and owner coverage evidence.
+- `coverage.sh` requires a fresh checkpoint before instrumented compilation and writes aggregate and owner coverage evidence.
 - `licenses.sh --check` validates root legal policy and the tracked dependency notice bundle; `licenses.sh --write` is the explicit regeneration path after reviewed dependency changes.
 - `supply-chain.sh` runs cargo advisory, source, ban, license-expression, and dependency-license collection checks.
 - `closeout.sh -m "message"` runs scoped proof, the dev build, stages the verified tree, and commits. `--no-commit` is diagnostic only.

@@ -294,6 +294,39 @@ exit {checkpoint_exit}
             module.validate_retired_scripts(errors)
         self.assertEqual(errors, [])
 
+    def test_coverage_cannot_compile_without_checkpoint_admission(self) -> None:
+        import shutil
+
+        for admitted in (False, True):
+            with self.subTest(admitted=admitted), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                wrapper = root / "tooling/qa/wrappers/coverage.sh"
+                runtime = root / "tooling/qa/runtime/lib.sh"
+                wrapper.parent.mkdir(parents=True)
+                runtime.parent.mkdir(parents=True)
+                shutil.copyfile(ROOT / "tooling/qa/wrappers/coverage.sh", wrapper)
+                runtime.write_text(
+                    "ensure_rust_env() { :; }\nrequire_command() { :; }\nqa_init() { :; }\nqa_require_harness() { :; }\nqa_assert_state() { return "
+                    + ("0" if admitted else "9")
+                    + '; }\nqa_step() { shift; "$@"; }\n'
+                )
+                binaries = root / "bin"
+                binaries.mkdir()
+                self._executable(binaries / "cargo-llvm-cov", "exit 0\n")
+                self._executable(binaries / "cargo", 'touch "$COMPILATION_SENTINEL"; exit 19\n')
+                marker = root / "compiled"
+                environment = {
+                    **os.environ,
+                    "PATH": str(binaries) + os.pathsep + os.environ["PATH"],
+                    "COVERAGE_MIN_LINES": "1",
+                    "COMPILATION_SENTINEL": str(marker),
+                }
+                result = subprocess.run(
+                    ["bash", str(wrapper)], env=environment, capture_output=True, text=True, timeout=20
+                )
+                self.assertEqual(result.returncode, 19 if admitted else 9, result.stderr)
+                self.assertEqual(marker.exists(), admitted)
+
     def test_closeout_orders_proof_before_staging_and_commit(self) -> None:
         text = (ROOT / "tooling/qa/wrappers/closeout.sh").read_text(encoding="utf-8")
         proof = text.index('qa_step "build"')

@@ -10,6 +10,8 @@ cd "$ROOT"
 require_command cargo
 require_command python3
 qa_init "qa:coverage" blocking
+qa_require_harness
+qa_assert_state checkpoint
 
 if ! command -v cargo-llvm-cov >/dev/null 2>&1; then
   printf 'Missing cargo-llvm-cov. Install with: cargo install --locked cargo-llvm-cov\n' >&2
