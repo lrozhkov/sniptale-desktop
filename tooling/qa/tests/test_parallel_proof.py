@@ -103,6 +103,7 @@ class ParallelProofTests(unittest.TestCase):
     def test_release_artifact_check_cannot_be_removed_from_the_catalog(self):
         root = Path(__file__).resolve().parents[3]
         spec = importlib.util.spec_from_file_location("catalog_guard", root / "tooling/qa/rules/verify_test_policy.py")
+        assert spec is not None and spec.loader is not None
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         for mutation in ("missing", "dynamic", "omitted"):

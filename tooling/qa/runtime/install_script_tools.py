@@ -26,6 +26,64 @@ def run(arguments: list[str], *, cwd: Path | None = None) -> None:
     subprocess.run(arguments, cwd=cwd or ROOT, check=True, timeout=900)
 
 
+def bounded_members(package: tarfile.TarFile, maximum: int) -> list[tarfile.TarInfo]:
+    members = []
+    total = 0
+    for member in package:
+        total += member.size
+        if len(members) >= 50000 or total > maximum:
+            raise ValueError("script tool extraction exceeds member or byte budget")
+        members.append(member)
+    return members
+
+
+def python_identity(root: Path) -> str:
+    config = root / "tooling/configs/qa"
+    return hashlib.sha256(
+        (config / "script-python-requirements.txt").read_bytes()
+        + (config / "script-python-build-requirements.txt").read_bytes()
+        + sys.version.encode()
+    ).hexdigest()
+
+
+def distribution_identity(spec: dict) -> str:
+    return hashlib.sha256(
+        json.dumps(
+            {key: spec[key] for key in ("version", "manager", "repository", "tag", "linuxX64")}, sort_keys=True
+        ).encode()
+    ).hexdigest()
+
+
+def verify_installed() -> None:
+    # Canonical metadata admission is a separate preceding wrapper step.
+    config = ROOT / "tooling/configs/qa"
+    lock = json.loads((config / "toolchain-lock.json").read_text())
+    expected = {
+        CACHE / "python/.identity": python_identity(ROOT),
+        CACHE / "npm/.identity": hashlib.sha256((config / "script-node/package-lock.json").read_bytes()).hexdigest(),
+    }
+    for name, spec in lock["scriptTools"].items():
+        if spec["manager"] == "github":
+            target = CACHE / (name + "-" + spec["version"])
+            expected[target / ".identity"] = distribution_identity(spec)
+            if not (target / ("PSScriptAnalyzer.psd1" if name == "PSScriptAnalyzer" else name)).is_file():
+                raise ValueError("installed checker is missing; run install-script-tools.sh")
+    for marker, identity in expected.items():
+        if not marker.is_file() or marker.read_text() != identity:
+            raise ValueError("installed checker inputs differ from catalog; run install-script-tools.sh")
+    for name in ("python", "ruff", "yamllint", "zizmor"):
+        if not (CACHE / "python/bin" / name).is_file():
+            raise ValueError("installed Python checker is missing; run install-script-tools.sh")
+    for name in ("eslint", "pyright"):
+        if not (CACHE / "npm/node_modules/.bin" / name).is_file():
+            raise ValueError("installed npm checker is missing; run install-script-tools.sh")
+    schema = lock["scriptTools"]["renovate"]
+    schema_path = CACHE / ("renovate-schema-" + schema["version"]) / "renovate-schema.json"
+    if hashlib.sha256(schema_path.read_bytes()).hexdigest() != schema["schemaAsset"]["schemaSha256"]:
+        raise ValueError("installed Renovate schema identity mismatch")
+    print("OK installed checker identities match cataloged artifacts and dependency locks")
+
+
 def install() -> None:
     catalog = check()
     lock = json.loads((ROOT / "tooling/configs/qa/toolchain-lock.json").read_text())
@@ -45,9 +103,8 @@ def install() -> None:
                 raise ValueError("Linux Node checksum mismatch")
             archive.write_bytes(body)
             with tarfile.open(archive) as package:
-                if sum(item.size for item in package.getmembers()) > 500 * 1024 * 1024:
-                    raise ValueError("Node extraction exceeds budget")
-                package.extractall(directory, filter="data")
+                members = bounded_members(package, 500 * 1024 * 1024)
+                package.extractall(directory, members=members, filter="data")
             (Path(directory) / f"node-v{node['version']}-linux-x64").rename(node_target)
     os.environ["PATH"] = str(node_target / "bin") + os.pathsep + os.environ["PATH"]
     if (
@@ -58,8 +115,9 @@ def install() -> None:
     for name, spec in catalog["scriptTools"].items():
         if spec["manager"] != "github":
             continue
+        spec = lock["scriptTools"][name]
         target = CACHE / (name + "-" + spec["version"])
-        identity = hashlib.sha256(json.dumps(spec, sort_keys=True).encode()).hexdigest()
+        identity = distribution_identity(spec)
         if (target / ".identity").is_file() and (target / ".identity").read_text() == identity:
             continue
         asset = spec["linuxX64"]
@@ -83,14 +141,16 @@ def install() -> None:
             destination.mkdir()
             if name in {"shellcheck", "actionlint", "pwsh"}:
                 with tarfile.open(archive) as package:
-                    if sum(item.size for item in package.getmembers()) > 700 * 1024 * 1024:
-                        raise ValueError("script tool extraction exceeds budget")
-                    package.extractall(destination, filter="data")
+                    members = bounded_members(package, 700 * 1024 * 1024)
+                    package.extractall(destination, members=members, filter="data")
                 if name == "shellcheck":
                     shutil.move(str(next(destination.glob("*/shellcheck"))), destination / "shellcheck")
             elif name == "PSScriptAnalyzer":
                 with zipfile.ZipFile(archive) as package:
-                    if sum(item.file_size for item in package.infolist()) > 500 * 1024 * 1024:
+                    if (
+                        len(package.infolist()) > 50000
+                        or sum(item.file_size for item in package.infolist()) > 500 * 1024 * 1024
+                    ):
                         raise ValueError("script module extraction exceeds budget")
                     for item in package.infolist():
                         if Path(item.filename).is_absolute() or ".." in Path(item.filename).parts:
@@ -112,10 +172,27 @@ def install() -> None:
             if target.exists():
                 shutil.rmtree(target)
             destination.rename(target)
+    schema = lock["scriptTools"]["renovate"]
+    schema_dir = CACHE / ("renovate-schema-" + schema["version"])
+    schema_path = schema_dir / "renovate-schema.json"
+    expected = schema["schemaAsset"]
+    if not schema_path.is_file() or hashlib.sha256(schema_path.read_bytes()).hexdigest() != expected["schemaSha256"]:
+        from .script_toolchain import schema_files
+
+        with urllib.request.urlopen(expected["url"], timeout=90) as response:
+            body = response.read(64 * 1024 * 1024 + 1)
+        if len(body) > 64 * 1024 * 1024 or hashlib.sha256(body).hexdigest() != expected["sha256"]:
+            raise ValueError("Renovate schema distribution checksum mismatch")
+        files = schema_files(body)
+        if hashlib.sha256(files["renovate-schema.json"]).hexdigest() != expected["schemaSha256"]:
+            raise ValueError("Renovate schema file checksum mismatch")
+        schema_dir.mkdir(exist_ok=True)
+        for name, content in files.items():
+            (schema_dir / name).write_bytes(content)
     python_dir = CACHE / "python"
     python_lock = ROOT / "tooling/configs/qa/script-python-requirements.txt"
     build_lock = ROOT / "tooling/configs/qa/script-python-build-requirements.txt"
-    python_id = hashlib.sha256(python_lock.read_bytes() + build_lock.read_bytes() + sys.version.encode()).hexdigest()
+    python_id = python_identity(ROOT)
     if not (python_dir / ".identity").is_file() or (python_dir / ".identity").read_text() != python_id:
         run([sys.executable, "-m", "venv", str(python_dir)])
         pip = [
@@ -142,4 +219,12 @@ def install() -> None:
 
 
 if __name__ == "__main__":
-    install()
+    import argparse
+
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--check-installed", action="store_true")
+    arguments = parser.parse_args()
+    if arguments.check_installed:
+        verify_installed()
+    else:
+        install()

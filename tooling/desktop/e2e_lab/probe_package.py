@@ -17,30 +17,32 @@ def _tar_gz(files: dict[str, tuple[bytes, int]]) -> bytes:
         parts = name.removeprefix("./").split("/")[:-1]
         for length in range(1, len(parts) + 1):
             directories.add("./" + "/".join(parts[:length]))
-    with gzip.GzipFile(fileobj=output, mode="wb", mtime=0, filename="") as compressed:
-        with tarfile.open(fileobj=compressed, mode="w", format=tarfile.GNU_FORMAT) as archive:
-            for name in sorted(directories | set(files)):
-                if name in directories:
-                    info = tarfile.TarInfo(name)
-                    info.type = tarfile.DIRTYPE
-                    info.mode = 0o755
-                    info.uid = 0
-                    info.gid = 0
-                    info.uname = "root"
-                    info.gname = "root"
-                    info.mtime = 0
-                    archive.addfile(info)
-                    continue
-                data, mode = files[name]
+    with (
+        gzip.GzipFile(fileobj=output, mode="wb", mtime=0, filename="") as compressed,
+        tarfile.open(fileobj=compressed, mode="w", format=tarfile.GNU_FORMAT) as archive,
+    ):
+        for name in sorted(directories | set(files)):
+            if name in directories:
                 info = tarfile.TarInfo(name)
-                info.size = len(data)
-                info.mode = mode
+                info.type = tarfile.DIRTYPE
+                info.mode = 0o755
                 info.uid = 0
                 info.gid = 0
                 info.uname = "root"
                 info.gname = "root"
                 info.mtime = 0
-                archive.addfile(info, io.BytesIO(data))
+                archive.addfile(info)
+                continue
+            data, mode = files[name]
+            info = tarfile.TarInfo(name)
+            info.size = len(data)
+            info.mode = mode
+            info.uid = 0
+            info.gid = 0
+            info.uname = "root"
+            info.gname = "root"
+            info.mtime = 0
+            archive.addfile(info, io.BytesIO(data))
     return output.getvalue()
 
 
@@ -55,15 +57,15 @@ def build(root: Path, destination: Path) -> Path:
     probe = (guest / "linux_probe.py").read_bytes()
     tray = (guest / "linux_tray.py").read_bytes()
     control = (
-        "Package: sniptale-e2e-probe\n"
-        "Version: 1.0.0\n"
-        "Section: utils\n"
-        "Priority: optional\n"
-        "Architecture: all\n"
-        "Maintainer: Sniptale QA\n"
-        "Depends: python3, python3-gi, gir1.2-gtk-3.0, gir1.2-appindicator3-0.1\n"
-        "Description: Deterministic Sniptale desktop E2E infrastructure probe\n"
-    ).encode()
+        b"Package: sniptale-e2e-probe\n"
+        b"Version: 1.0.0\n"
+        b"Section: utils\n"
+        b"Priority: optional\n"
+        b"Architecture: all\n"
+        b"Maintainer: Sniptale QA\n"
+        b"Depends: python3, python3-gi, gir1.2-gtk-3.0, gir1.2-appindicator3-0.1\n"
+        b"Description: Deterministic Sniptale desktop E2E infrastructure probe\n"
+    )
     control_tar = _tar_gz({"./control": (control, 0o644)})
     data_tar = _tar_gz(
         {

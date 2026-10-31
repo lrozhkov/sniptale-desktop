@@ -10,6 +10,7 @@ import sys
 import tarfile
 import time
 from pathlib import Path
+from typing import Any, Literal, TypedDict, cast
 
 from artifacts import create_source_bundle
 from errors import IntegrityError, LabError, UsageError
@@ -30,6 +31,20 @@ MAX_ITERATIONS = 50
 MAX_TTL_SECONDS = 14400
 
 
+class SessionState(TypedDict):
+    schema_version: Literal[1]
+    id: str
+    pid: int
+    started_epoch: int
+    expires_epoch: int
+    golden_sha256: str
+    boot_id: str
+    iterations: int
+    vendor_lock: str
+    last_artifact: str | None
+    health: Literal["ready", "failed"]
+
+
 def vendor_metadata(member):
     member.mtime = 0
     member.uid = member.gid = 0
@@ -41,7 +56,7 @@ def state_path(paths):
     return paths.scoped(paths.lab / "work-session.json")
 
 
-def load_session(paths):
+def load_session(paths) -> SessionState | None:
     value = read_json(state_path(paths))
     if value is None:
         return None
@@ -87,7 +102,7 @@ def load_session(paths):
         artifact = paths.scoped(paths.lab / value["last_artifact"])
         if not artifact.is_relative_to(paths.lab / "sessions" / value["id"]):
             raise IntegrityError("work session artifact escaped its session")
-    return value
+    return cast(SessionState, value)
 
 
 @contextlib.contextmanager
@@ -110,6 +125,7 @@ class WorkSessions:
         self.ssh = GuestSsh(paths, config.lanes[LANE].ssh_port, "lab")
 
     def boot_id(self):
+        boot = ""
         for attempt in range(3):
             self.vms.assert_running(LANE)
             try:
@@ -390,7 +406,7 @@ class WorkSessions:
         iteration, directory = create_run_dir(self.paths.lab / "sessions" / state["id"] / "iterations")
         runner = LaneRunner(self.paths, self.config)
         runner.work_session = True
-        receipt = dict(
+        receipt: dict[str, Any] = dict(
             schema_version=1,
             mode="development-session",
             release_admissible=False,
@@ -485,7 +501,8 @@ class WorkSessions:
                 )
                 build_receipt = read_json(build_dir / "development-receipt.json") if build_dir else None
                 if (
-                    build_receipt is None
+                    build_dir is None
+                    or build_receipt is None
                     or build_receipt.get("mode") != "development-session"
                     or build_receipt.get("result") != "pass"
                     or build_receipt.get("operation") != "build"
@@ -507,6 +524,8 @@ class WorkSessions:
                         raise IntegrityError("development build artifact inventory changed")
                 receipt["artifact_sha256"] = sha256_file(artifact)
                 if extension_artifact is not None:
+                    if extension_source is None:
+                        raise UsageError("extension source repository is required")
                     from extension_artifact import package_extension
 
                     with phase(timings, "extension-bundle"):

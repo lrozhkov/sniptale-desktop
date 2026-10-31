@@ -100,6 +100,7 @@ exit {checkpoint_exit}
         path = ROOT / "tooling/qa/rules/verify_tooling.py"
         spec = importlib.util.spec_from_file_location("verify_tooling_test", path)
         assert spec is not None and spec.loader is not None
+        assert spec is not None and spec.loader is not None
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         errors: list[str] = []
@@ -111,6 +112,7 @@ exit {checkpoint_exit}
     def test_clean_break_identity_detector_rejects_every_retired_root_and_case(self) -> None:
         path = ROOT / "tooling/qa/rules/verify_tooling.py"
         spec = importlib.util.spec_from_file_location("verify_tooling_identity_test", path)
+        assert spec is not None and spec.loader is not None
         assert spec is not None and spec.loader is not None
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
@@ -125,6 +127,7 @@ exit {checkpoint_exit}
         path = ROOT / "tooling/qa/rules/verify_tooling.py"
         spec = importlib.util.spec_from_file_location("verify_tooling_publication_test", path)
         assert spec is not None and spec.loader is not None
+        assert spec is not None and spec.loader is not None
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         errors: list[str] = []
@@ -137,6 +140,7 @@ exit {checkpoint_exit}
     def test_hosted_qa_policy_rejects_unknown_workflow_and_permission_drift(self) -> None:
         path = ROOT / "tooling/qa/rules/verify_tooling.py"
         spec = importlib.util.spec_from_file_location("hosted_policy_negative", path)
+        assert spec is not None and spec.loader is not None
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         import shutil
@@ -169,6 +173,7 @@ exit {checkpoint_exit}
     def test_windows_compilation_cache_rejects_unsafe_reuse(self) -> None:
         path = ROOT / "tooling/qa/rules/verify_tooling.py"
         spec = importlib.util.spec_from_file_location("cache_policy_negative", path)
+        assert spec is not None and spec.loader is not None
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         import shutil
@@ -197,6 +202,7 @@ exit {checkpoint_exit}
     def test_alpha_cache_requires_release_target_invalidation_before_build(self) -> None:
         path = ROOT / "tooling/qa/rules/verify_tooling.py"
         spec = importlib.util.spec_from_file_location("cache_invalidation_negative", path)
+        assert spec is not None and spec.loader is not None
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         import shutil
@@ -232,6 +238,7 @@ exit {checkpoint_exit}
         path = ROOT / "tooling/qa/rules/verify_tooling.py"
         spec = importlib.util.spec_from_file_location("verify_tooling_debt_test", path)
         assert spec is not None and spec.loader is not None
+        assert spec is not None and spec.loader is not None
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         with tempfile.TemporaryDirectory() as directory:
@@ -266,6 +273,7 @@ exit {checkpoint_exit}
     def test_retired_path_guard_ignores_policy_and_historical_evidence(self) -> None:
         path = ROOT / "tooling/qa/rules/verify_tooling.py"
         spec = importlib.util.spec_from_file_location("verify_tooling_retired_path_test", path)
+        assert spec is not None and spec.loader is not None
         assert spec is not None and spec.loader is not None
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)

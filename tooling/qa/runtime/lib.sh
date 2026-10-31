@@ -11,6 +11,14 @@ qa_init() {
   umask 077
   local wrapper_id="${1:-qa:$(basename "$0" .sh)}"
   local blocking="${2:-non-blocking}"
+  local root
+  root="$(repo_root)"
+  # Metadata bootstrap and diagnostics must work before tools are installed.
+  if [[ "$wrapper_id" != qa:toolchain && "$wrapper_id" != qa:preflight && -f "$root/tooling/qa/runtime/script-tools-env.sh" ]]; then
+    # shellcheck source=script-tools-env.sh
+    source "$root/tooling/qa/runtime/script-tools-env.sh"
+    script_tools_env "$root"
+  fi
   local mode="${3:-default}"
   shift "$(($# < 3 ? $# : 3))" || true
   QA_SENSITIVE_VALUES=("$@")
@@ -176,7 +184,8 @@ qa_fail_if_any() {
 
 ensure_rust_env() {
   if [[ -f "$HOME/.cargo/env" ]]; then
-    # shellcheck disable=SC1091
+    # Rustup owns this user-environment fragment; it is outside the repository script inventory.
+    # shellcheck source=/dev/null
     source "$HOME/.cargo/env"
   fi
   # Local edit loops reuse each profile's own incremental cache. Release proof and CI keep the

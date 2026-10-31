@@ -20,6 +20,23 @@ class AdvisoryError(ValueError):
     """A source or response cannot support an audit decision."""
 
 
+class ApprovedRedirects(urllib.request.HTTPRedirectHandler):
+    """Reject a changed authority before urllib forwards any authorization header."""
+
+    def __init__(self, source_url: str):
+        self.source = urllib.parse.urlsplit(source_url)
+        super().__init__()
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        target = urllib.parse.urlsplit(newurl)
+        hosts = {self.source.hostname}
+        if self.source.hostname == "github.com" and "/releases/download/" in self.source.path:
+            hosts.update({"release-assets.githubusercontent.com", "objects.githubusercontent.com"})
+        if target.scheme != "https" or target.hostname not in hosts or target.username or target.password:
+            raise AdvisoryError("source redirect changed approved authority")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
 def unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     result: dict[str, Any] = {}
     for key, value in pairs:
@@ -63,6 +80,7 @@ def request_json(url: str, payload: dict[str, Any] | None = None) -> dict[str, A
             "services.nvd.nist.gov",
             "api.github.com",
             "cveawg.mitre.org",
+            "registry.npmjs.org",
         }
         or parsed.username
         or parsed.password
@@ -78,9 +96,10 @@ def request_json(url: str, payload: dict[str, Any] | None = None) -> dict[str, A
     if parsed.hostname == "api.github.com" and token:
         headers["Authorization"] = "Bearer " + token
     request = urllib.request.Request(url, data=body, headers=headers)
+    opener = urllib.request.build_opener(ApprovedRedirects(url))
     for attempt in range(3):
         try:
-            with urllib.request.urlopen(request, timeout=25) as response:
+            with opener.open(request, timeout=25) as response:
                 if urllib.parse.urlsplit(response.geturl()).hostname != parsed.hostname:
                     raise AdvisoryError("advisory response changed authority")
                 return decode(response.read(8 * 1024 * 1024 + 1))
@@ -88,8 +107,10 @@ def request_json(url: str, payload: dict[str, Any] | None = None) -> dict[str, A
             if exc.code not in {429, 500, 502, 503, 504} or attempt == 2:
                 raise AdvisoryError(f"advisory HTTP source unavailable ({exc.code})") from None
             time.sleep(6 * (attempt + 1))
-        except (urllib.error.URLError, TimeoutError, OSError) as exc:
-            raise AdvisoryError("advisory transport unavailable") from exc
+        except (urllib.error.URLError, TimeoutError, OSError):
+            if attempt == 2:
+                raise AdvisoryError("advisory transport unavailable (" + str(parsed.hostname) + ")") from None
+            time.sleep(2 * (attempt + 1))
     raise AdvisoryError("advisory retry budget exhausted")
 
 
@@ -189,3 +210,27 @@ def nvd_query(vendor: str, product: str, version: str, fetch: Fetch = request_js
             raise AdvisoryError("incomplete NVD pagination")
         time.sleep(6)
     raise AdvisoryError("NVD pagination exceeds budget")
+
+
+def osv_batch(queries: list[dict[str, Any]], fetch: Fetch = request_json) -> list[list[str]]:
+    """Query locked package closures; preserve order and drain any partial batch result."""
+    if not queries or len(queries) > 2000:
+        raise AdvisoryError("dependency advisory query budget exceeded")
+    results: list[list[str]] = []
+    for start in range(0, len(queries), 100):
+        batch = queries[start : start + 100]
+        value = fetch("https://api.osv.dev/v1/querybatch", {"queries": batch})
+        rows = value.get("results")
+        if set(value) != {"results"} or not isinstance(rows, list) or len(rows) != len(batch):
+            raise AdvisoryError("incomplete dependency advisory batch")
+        for query, row in zip(batch, rows, strict=True):
+            if not isinstance(row, dict) or set(row) - {"vulns", "next_page_token"}:
+                raise AdvisoryError("invalid dependency advisory result")
+            records = row.get("vulns", [])
+            if not isinstance(records, list) or any(not isinstance(item, dict) for item in records):
+                raise AdvisoryError("invalid dependency advisory identifiers")
+            found = identifiers([item.get("id") for item in records])
+            if row.get("next_page_token"):
+                found = identifiers(found + osv_queries([query], fetch)[0])
+            results.append(found)
+    return results

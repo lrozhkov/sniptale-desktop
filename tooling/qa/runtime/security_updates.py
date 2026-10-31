@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import json
 import re
-from pathlib import Path
+import subprocess
+from datetime import datetime, timedelta, UTC
 from typing import Any
 
 from .advisories import AdvisoryError, Fetch, decode, request_json
@@ -109,8 +109,70 @@ def cpython_affected(record: dict[str, Any], advisory_id: str, version: str) -> 
     return affected
 
 
+def required_dependency(
+    catalog: dict[str, Any],
+    policy: dict[str, Any],
+    proofs: dict[str, Any],
+    name: str,
+    verified: list[str],
+    fetch: Fetch,
+) -> None:
+    proof = proofs["exceptions"][name]
+    if set(proof) != {"advisoryId", "affectedVersion", "requiredBy"}:
+        raise AdvisoryError("invalid required security dependency proof")
+    parent = proof["requiredBy"]
+    if parent not in verified or "requiredBy" in proofs["exceptions"][parent]:
+        raise AdvisoryError("security dependency requires an independently verified fixed parent")
+    parent_proof = proofs["exceptions"][parent]
+    exceptions = catalog["securityExceptions"]
+    if (
+        proof["advisoryId"] != parent_proof["advisoryId"]
+        or proof["affectedVersion"] != parent_proof["affectedVersion"]
+        or exceptions[name]["advisory"] != exceptions[parent]["advisory"]
+    ):
+        raise AdvisoryError("security dependency must bind the same confirmed parent advisory")
+    child_policy, parent_policy = policy["tools"][name], policy["tools"][parent]
+    if any(item.get("provider") != "osv" or item.get("ecosystem") != "npm" for item in (child_policy, parent_policy)):
+        raise AdvisoryError("required dependency proof supports npm parents only")
+    current = catalog_tools(catalog)[name]
+    parent_version = catalog_tools(catalog)[parent]
+    metadata = fetch("https://registry.npmjs.org/" + parent_policy["package"] + "/" + parent_version, None)
+    if (
+        metadata.get("name") != parent_policy["package"]
+        or metadata.get("version") != parent_version
+        or metadata.get("dependencies", {}).get(child_policy["package"]) != "^" + current
+        or version_key(current)[0] == 0
+    ):
+        raise AdvisoryError("fresh dependency must be the published minimum required by the verified fix")
+    releases = fetch("https://registry.npmjs.org/" + child_policy["package"], None)
+    if releases.get("name") != child_policy["package"] or current not in releases.get("versions", {}):
+        raise AdvisoryError("required dependency publisher identity mismatch")
+    now = datetime.now(UTC)
+
+    def aged(version: str) -> bool:
+        publication = datetime.fromisoformat(releases["time"][version].replace("Z", "+00:00"))
+        if publication.tzinfo is None or publication > now:
+            raise AdvisoryError("invalid required dependency publication timestamp")
+        return now - publication >= timedelta(days=7)
+
+    if not aged(current):
+        for version in releases["versions"]:
+            if (
+                re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version)
+                and version_key(current) <= version_key(version)
+                and version_key(version)[0] == version_key(current)[0]
+                and aged(version)
+            ):
+                raise AdvisoryError("an aged compatible dependency exists; a fresh exception is unnecessary")
+
+
 def verify(
-    catalog: dict[str, Any], policy: dict[str, Any], proofs: dict[str, Any], fetch: Fetch = request_json
+    catalog: dict[str, Any],
+    policy: dict[str, Any],
+    proofs: dict[str, Any],
+    fetch: Fetch = request_json,
+    *,
+    baseline: dict[str, str] | None = None,
 ) -> list[str]:
     exceptions = catalog.get("securityExceptions", {})
     if (
@@ -121,13 +183,25 @@ def verify(
         raise AdvisoryError("each age exception requires exactly one advisory-bound proof")
     selected = catalog_tools(catalog)
     verified: list[str] = []
-    for name, exception in exceptions.items():
+    for name in sorted(exceptions, key=lambda item: "requiredBy" in proofs["exceptions"][item]):
+        exception = exceptions[name]
         proof = proofs["exceptions"][name]
-        if set(proof) != {"advisoryId", "affectedVersion"}:
-            raise AdvisoryError("invalid security-exception proof fields")
         current = selected.get(name)
         if current is None or exception.get("fixedVersion") != current or not exception.get("reason", "").strip():
             raise AdvisoryError("security exception does not bind the selected tool version")
+        if "requiredBy" in proof:
+            required_dependency(catalog, policy, proofs, name, verified, fetch)
+            verified.append(name)
+            continue
+        if set(proof) != {"advisoryId", "affectedVersion"}:
+            raise AdvisoryError("invalid security-exception proof fields")
+        if (
+            baseline is not None
+            and name in baseline
+            and baseline[name] != current
+            and proof["affectedVersion"] != baseline[name]
+        ):
+            raise AdvisoryError("security exception affected version differs from the actual update baseline")
         advisory_id = proof["advisoryId"]
         coverage = policy["tools"][name]
         if coverage["provider"] == "cpython" and re.fullmatch(r"CVE-\d{4}-\d{4,}", advisory_id):
@@ -156,10 +230,12 @@ def main() -> int:
     try:
         paths = ["tool-versions.json", "environment-audit.json", "security-update-proofs.json"]
         values = [decode((ROOT / "tooling/configs/qa" / name).read_bytes()) for name in paths]
-        verified = verify(*values)
+        from .security_update_baseline import versions as baseline_versions
+
+        verified = verify(values[0], values[1], values[2], baseline=baseline_versions())
         print("OK advisory-bound security updates: " + ", ".join(verified))
         return 0
-    except (AdvisoryError, OSError, KeyError, TypeError, ValueError) as exc:
+    except (AdvisoryError, OSError, KeyError, TypeError, ValueError, subprocess.CalledProcessError) as exc:
         print("FAIL security update policy: " + str(exc))
         return 1
 

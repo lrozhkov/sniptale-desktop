@@ -6,6 +6,10 @@ import os
 import shutil
 import time
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from vm import VmManager
 
 from config import LANES, LabConfig
 from errors import IntegrityError, LabError
@@ -90,12 +94,12 @@ def _recover_interrupted_swap(directory: Path) -> None:
 def compact_existing_goldens(
     paths: LabPaths,
     _config: LabConfig,
-    manager: object,
+    manager: VmManager,
 ) -> dict[str, int]:
     """Compact legacy goldens once, under the controller lock and with rollback files."""
     for lane in LANES:
-        current = getattr(manager, "current")(lane, clean_stale=False)
-        orphans = getattr(manager, "orphan_pids")(lane)
+        current = manager.current(lane, clean_stale=False)
+        orphans = manager.orphan_pids(lane)
         if current is not None or orphans:
             return {"goldens_compacted": 0, "golden_bytes_reclaimed": 0, "goldens_skipped_running": 1}
 
@@ -152,7 +156,8 @@ def compact_existing_goldens(
             try:
                 os.replace(compacted_disk, disk)
                 os.replace(compacted_identity, identity_path)
-                if read_json(identity_path).get("disk_sha256") != sha256_file(disk):
+                verified = read_json(identity_path)
+                if verified is None or verified.get("disk_sha256") != sha256_file(disk):
                     raise IntegrityError(f"compacted golden verification failed for {lane}")
             except BaseException:
                 disk.unlink(missing_ok=True)

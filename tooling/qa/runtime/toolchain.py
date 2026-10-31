@@ -7,7 +7,6 @@ import concurrent.futures
 import hashlib
 import io
 import json
-import os
 import re
 import subprocess
 import sys
@@ -15,7 +14,7 @@ import tomllib
 import urllib.parse
 import urllib.request
 import zipfile
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, UTC
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -53,7 +52,7 @@ def released_at(value):
 
 
 def check_age(publication, policy, exception=None, *, now=None):
-    now = now or datetime.now(timezone.utc)
+    now = now or datetime.now(UTC)
     published = released_at(publication)
     if published > now:
         raise ToolchainError("release publication time is in the future")
@@ -90,17 +89,25 @@ def fetch(url, maximum=2 * 1024 * 1024):
         "nodejs.org",
         "registry.npmjs.org",
         "pypi.org",
+        "github.com",
     }:
         raise ToolchainError("unapproved toolchain metadata source")
     headers = {"User-Agent": "SniptaleToolchain/1"}
-    from tooling.qa.runtime.advisories import github_token
+    from tooling.qa.runtime.advisories import github_token, ApprovedRedirects
 
     token = github_token() if parsed.hostname == "api.github.com" else None
     if token:
         headers["Authorization"] = "Bearer " + token
     request = urllib.request.Request(url, headers=headers)
-    with urllib.request.urlopen(request, timeout=60) as response:
-        if urllib.parse.urlparse(response.geturl()).hostname != parsed.hostname:
+    opener = urllib.request.build_opener(ApprovedRedirects(url))
+    with opener.open(request, timeout=60) as response:
+        final_host = urllib.parse.urlparse(response.geturl()).hostname
+        asset_redirect = (
+            parsed.hostname == "github.com"
+            and "/releases/download/" in parsed.path
+            and final_host in {"release-assets.githubusercontent.com", "objects.githubusercontent.com"}
+        )
+        if final_host != parsed.hostname and not asset_redirect:
             raise ToolchainError("toolchain metadata redirected to another host")
         body = response.read(maximum + 1)
     if len(body) > maximum:
@@ -314,8 +321,17 @@ def resolve(root=ROOT):
         "windows": {"url": python_url, "sha256": python_hash},
     }
     check_age(python["publishedAt"], policy, versions.get("securityExceptions", {}).get("python"))
-    from tooling.qa.runtime import browser_toolchain, script_toolchain
+    previous = read_object(root / LOCK) if (root / LOCK).exists() else {}
+    from tooling.qa.runtime import browser_toolchain, script_toolchain, python_toolchain
 
+    python["linuxX64"] = python_toolchain.resolve(python_version, previous.get("python", {}), fetch)
+    check_age(python["linuxX64"]["publishedAt"], policy, versions.get("securityExceptions", {}).get("python"))
+    from tooling.qa.runtime import checking_dependency_ages
+
+    script_tools = script_toolchain.resolve(versions, fetch, github_release, check_age, previous)
+    checking_dependencies = checking_dependency_ages.resolve(
+        root, versions, script_tools, previous.get("checkingDependencies", []), fetch, check_age
+    )
     browser = browser_toolchain.resolve(versions, fetch, github_release, check_age)
     return {
         "schema_version": 1,
@@ -334,7 +350,8 @@ def resolve(root=ROOT):
         "nuget": packages,
         "tools": tools,
         "policy": policy,
-        "scriptTools": script_toolchain.resolve(versions, fetch, github_release, check_age),
+        "scriptTools": script_tools,
+        "checkingDependencies": checking_dependencies,
     }
 
 
@@ -355,7 +372,27 @@ def check(root=ROOT):
     browser_toolchain.check(versions, lock.get("browserAutomation"), check_age)
     from tooling.qa.runtime import script_toolchain
 
+    from tooling.qa.runtime import python_toolchain
+
+    python_distribution = lock.get("python", {}).get("linuxX64", {})
+    try:
+        python_toolchain.validate(versions["python"]["version"], python_distribution)
+        check_age(
+            python_distribution.get("publishedAt"),
+            versions["updatePolicy"],
+            versions.get("securityExceptions", {}).get("python"),
+        )
+    except ValueError as exc:
+        raise ToolchainError("Linux Python bootstrap distribution is missing or stale") from exc
     script_toolchain.check(versions, lock.get("scriptTools", {}), check_age)
+    from tooling.qa.runtime import checking_dependency_ages
+
+    try:
+        checking_dependency_ages.check(
+            root, versions, lock["scriptTools"], lock.get("checkingDependencies", []), check_age
+        )
+    except (OSError, ValueError) as exc:
+        raise ToolchainError("locked checker dependency age evidence is missing or invalid") from exc
     expected_tools = set(versions["cargoSubcommands"]) | {"gitleaks"}
     if (
         set(lock["tools"]) != expected_tools

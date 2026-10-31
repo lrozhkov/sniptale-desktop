@@ -381,6 +381,7 @@ def check_release_wrapper_contract() -> None:
         fail("coverage wrapper is missing required gate/artifact terms: " + ", ".join(missing_coverage_terms))
     if 'qa_step "checkpoint static proof" python3 -m tooling.qa.runtime.checkpoint_checks' not in checkpoint:
         fail("checkpoint wrapper must call the independent proof catalog")
+    checks = []
     try:
         catalog = ast.parse((ROOT / "tooling/qa/runtime/checkpoint_checks.py").read_text())
         checks = next(

@@ -8,7 +8,7 @@ import json
 import re
 import sys
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from pathlib import Path
 from typing import Any
 
@@ -28,10 +28,16 @@ def catalog_tools(value: dict[str, Any]) -> dict[str, str]:
         "wix": value["windows"]["wix"],
         "windows-sdk": value["windows"]["sdkPackage"],
     }
-    tools.update(value["cargoSubcommands"])
-    tools.update({name: item["version"] for name, item in value["externalTools"].items()})
-    tools.update(value["githubActions"])
-    tools.update({name: item["version"] for name, item in value.get("scriptTools", {}).items()})
+    inventories = [
+        value["cargoSubcommands"],
+        {name: item["version"] for name, item in value["externalTools"].items()},
+        value["githubActions"],
+        {name: item["version"] for name, item in value.get("scriptTools", {}).items()},
+    ]
+    for inventory in inventories:
+        if set(inventory) & set(tools):
+            raise AdvisoryError("catalog tool names collide across inventories")
+        tools.update(inventory)
     if any(
         not isinstance(version, str) or re.fullmatch(r"v?[0-9]+(?:\.[0-9]+){2,3}", version) is None
         for version in tools.values()
@@ -58,9 +64,10 @@ def audit_tool(name: str, version: str, policy: dict[str, Any], fetch: Fetch) ->
     elif provider == "osv":
         if set(policy) != {"provider", "ecosystem", "package"}:
             raise AdvisoryError("invalid OSV tool policy")
+        selected = "v" + version.lstrip("v") if policy["ecosystem"] == "Go" else version.lstrip("v")
         query = {
             "package": {"ecosystem": policy["ecosystem"], "name": policy["package"]},
-            "version": version.lstrip("v"),
+            "version": selected,
         }
         findings = osv_queries([query], fetch)[0]
     elif provider == "nvd":
@@ -96,7 +103,7 @@ def audit(catalog: dict[str, Any], policy: dict[str, Any], fetch: Fetch = reques
     results.sort(key=lambda item: item["tool"])
     return {
         "schemaVersion": 1,
-        "checkedAt": datetime.now(timezone.utc).isoformat(),
+        "checkedAt": datetime.now(UTC).isoformat(),
         "result": "fail" if any(item["advisories"] for item in results) else "pass",
         "coverageLimit": policy["coverageLimit"],
         "tools": results,
@@ -111,6 +118,11 @@ def main() -> int:
     try:
         catalog_bytes = CATALOG.read_bytes()
         report = audit(decode(catalog_bytes), decode(POLICY.read_bytes()))
+        from . import tool_dependencies
+
+        report["dependencies"] = tool_dependencies.audit()
+        if any(item["advisories"] for item in report["dependencies"]):
+            report["result"] = "fail"
         report["catalogSha256"] = hashlib.sha256(catalog_bytes).hexdigest()
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(report, indent=2) + "\n")
@@ -123,6 +135,17 @@ def main() -> int:
                 else "CHECKED"
             )
             print(f"{state} {item['tool']} {item['version']} " + ",".join(item["advisories"]))
+        for dependency in report["dependencies"]:
+            if dependency["advisories"]:
+                print(
+                    "VULNERABLE dependency "
+                    + dependency["package"]
+                    + " "
+                    + dependency["version"]
+                    + " "
+                    + ",".join(dependency["advisories"])
+                )
+        print(f"CHECKED {len(report['dependencies'])} locked checking dependencies")
         for gap in report["platformGaps"]:
             print("PLATFORM GAP " + gap)
         return 0 if report["result"] == "pass" else 1

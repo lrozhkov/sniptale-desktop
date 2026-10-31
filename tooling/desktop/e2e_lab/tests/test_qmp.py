@@ -35,14 +35,15 @@ class QmpTests(unittest.TestCase):
             (b'{"unknown":0}\n',),
             (b'{"event":"RESET"}\n' * 32,),
         ):
-            with self.subTest(blocks=tuple(len(block) for block in blocks)):
-                with self.assertRaises(LabError):
-                    self.reader(*blocks).reply()
+            with self.subTest(blocks=tuple(len(block) for block in blocks)), self.assertRaises(LabError):
+                self.reader(*blocks).reply()
 
     def test_deadline_cannot_be_extended_by_partial_reply(self):
-        with mock.patch("qmp.time.monotonic", side_effect=[0, 11]):
-            with self.assertRaisesRegex(LabError, "deadline"):
-                self.reader().message()
+        with (
+            mock.patch("qmp.time.monotonic", side_effect=[0, 11]),
+            self.assertRaisesRegex(LabError, "deadline"),
+        ):
+            self.reader().message()
 
     def test_halted_missing_and_malformed_status_cannot_pass_health_check(self):
         manager = VmManager(mock.Mock(), mock.Mock())
@@ -64,6 +65,8 @@ class QmpTests(unittest.TestCase):
                         manager.assert_running("windows-11")
             query.return_value = {"running": True, "status": "running"}
             manager.assert_running("windows-11")
-        with mock.patch.object(manager, "current", return_value=None):
-            with self.assertRaisesRegex(LabError, "unavailable"):
-                manager.assert_running("windows-11")
+        with (
+            mock.patch.object(manager, "current", return_value=None),
+            self.assertRaisesRegex(LabError, "unavailable"),
+        ):
+            manager.assert_running("windows-11")

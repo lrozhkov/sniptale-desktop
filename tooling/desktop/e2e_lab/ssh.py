@@ -11,7 +11,7 @@ import subprocess
 import tempfile
 import time
 from pathlib import Path
-from typing import Callable
+from collections.abc import Callable
 
 from errors import LabError, ResourceError, TimeoutExpired
 from paths import LabPaths
@@ -107,7 +107,7 @@ class GuestSsh:
             timeout=timeout,
             log=log,
             stream=stream,
-            **({"health_check": health_check} if health_check is not None else {}),
+            health_check=health_check,
         )
 
     def upload(self, source: Path, remote: str, *, timeout: int) -> None:

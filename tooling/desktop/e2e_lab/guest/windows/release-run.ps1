@@ -3,7 +3,6 @@ param(
   [Parameter(Mandatory = $true)][string] $MsiSha256,
   [Parameter(Mandatory = $true)][string] $ExpectedExeSha256,
   [Parameter(Mandatory = $true)][string] $ExpectedManifestSha256,
-  [Parameter(Mandatory = $true)][string] $ProductVersion,
   [string] $Output = "e2e-out"
 )
 $ErrorActionPreference = "Stop"
@@ -75,13 +74,13 @@ function Wait-For(
   throw "release condition timed out"
 }
 function Screenshot([string] $Name) {
-  $bounds = [Windows.Forms.SystemInformation]::VirtualScreen
+  $bounds = [System.Windows.Forms.SystemInformation]::VirtualScreen
   $bitmap = [Drawing.Bitmap]::new($bounds.Width,$bounds.Height)
   $graphics = [Drawing.Graphics]::FromImage($bitmap)
   try { $graphics.CopyFromScreen($bounds.Left,$bounds.Top,0,0,$bounds.Size); $bitmap.Save("$outputPath/screenshots/$Name.png") }
   finally { $graphics.Dispose(); $bitmap.Dispose() }
 }
-function Read-TrayMenuItems {
+function Read-TrayMenuItem {
   $popup = [AlphaUi]::RightmostMenu()
   if ($popup -eq [IntPtr]::Zero) { return }
   $menu = [AlphaUi]::MenuHandle($popup)
@@ -93,22 +92,22 @@ function Read-TrayMenuItems {
   }
 }
 function Wait-TrayMenuItem(
-  [string] $Label, [scriptblock] $Read = { Read-TrayMenuItems }, [int] $Seconds = 30,
+  [string] $Label, [scriptblock] $Read = { Read-TrayMenuItem }, [int] $Seconds = 30,
   [scriptblock] $Now = { [Diagnostics.Stopwatch]::GetTimestamp() / [Diagnostics.Stopwatch]::Frequency },
   [scriptblock] $Delay = { Start-Sleep -Milliseconds 500 }
 ) {
-  Wait-For {
+  Wait-For -Probe {
     $entries = @(& $Read | Where-Object { $_.Label -eq $Label })
     if ($entries.Count -gt 1) { throw "ambiguous tray menu item" }
     if ($entries.Count -eq 1) { $entries[0] }
-  } $Seconds $Now $Delay
+  } -Seconds $Seconds -Now $Now -Delay $Delay
 }
-function Close-TrayMenus {
-  [Windows.Forms.SendKeys]::SendWait("{ESC}{ESC}")
+function Close-TrayMenu {
+  [System.Windows.Forms.SendKeys]::SendWait("{ESC}{ESC}")
   Wait-For { [AlphaUi]::RightmostMenu() -eq [IntPtr]::Zero } | Out-Null
 }
 function Tray([string[]] $Labels, [switch] $ProbeOnly) {
-  Close-TrayMenus
+  Close-TrayMenu
   $window = Wait-For { [AlphaUi]::FindWindow("SniptaleTrayCommandSource",$null) -ne [IntPtr]::Zero }
   $window = [AlphaUi]::FindWindow("SniptaleTrayCommandSource",$null)
   [AlphaUi]::SetCursorPos(600,350) | Out-Null
@@ -121,7 +120,7 @@ function Tray([string[]] $Labels, [switch] $ProbeOnly) {
     [AlphaUi]::SetCursorPos([int](($rect.Left+$rect.Right)/2),[int](($rect.Top+$rect.Bottom)/2)) | Out-Null
     if ($label -eq $Labels[-1]) {
       $disabled = ([AlphaUi]::GetMenuState($entry.Menu,$entry.Index,0x400) -band 3) -ne 0
-      if ($ProbeOnly) { Close-TrayMenus; return (-not $disabled) }
+      if ($ProbeOnly) { Close-TrayMenu; return (-not $disabled) }
       if ($disabled) { Screenshot "disabled-menu"; throw "menu action disabled" }
       [AlphaUi]::mouse_event(2,0,0,0,[UIntPtr]::Zero)
       [AlphaUi]::mouse_event(4,0,0,0,[UIntPtr]::Zero)
@@ -131,30 +130,30 @@ function Tray([string[]] $Labels, [switch] $ProbeOnly) {
 }
 function Window([string] $Name) {
   Wait-For {
-    [Windows.Automation.AutomationElement]::RootElement.FindFirst(
-      [Windows.Automation.TreeScope]::Children,
-      [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty,$Name))
+    [System.Windows.Automation.AutomationElement]::RootElement.FindFirst(
+      [System.Windows.Automation.TreeScope]::Children,
+      [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty,$Name))
   }
 }
 function Button($Parent,[string] $Name) {
   $element=Wait-For {
-    $candidate=$Parent.FindFirst([Windows.Automation.TreeScope]::Descendants,[Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty,$Name))
+    $candidate=$Parent.FindFirst([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty,$Name))
     if ($candidate -and $candidate.Current.IsEnabled) { $candidate }
   }
-  $invoke=[Windows.Automation.InvokePattern]$element.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern)
+  $invoke=[System.Windows.Automation.InvokePattern]$element.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
   $invoke.Invoke()
 }
 function Folder-Selected($Picker,[string] $Leaf) {
-  $edits=$Picker.FindAll([Windows.Automation.TreeScope]::Descendants,[Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::ControlTypeProperty,[Windows.Automation.ControlType]::Edit))
+  $edits=$Picker.FindAll([System.Windows.Automation.TreeScope]::Descendants,[System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ControlTypeProperty,[System.Windows.Automation.ControlType]::Edit))
   foreach ($edit in $edits) {
     $pattern=$null
-    if ($edit.TryGetCurrentPattern([Windows.Automation.ValuePattern]::Pattern,[ref]$pattern) -and ([Windows.Automation.ValuePattern]$pattern).Current.Value -eq $Leaf) { return $true }
+    if ($edit.TryGetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern,[ref]$pattern) -and ([System.Windows.Automation.ValuePattern]$pattern).Current.Value -eq $Leaf) { return $true }
   }
   return $false
 }
 function Window-Hidden($Element) {
   try { return $Element.Current.IsOffscreen }
-  catch [Windows.Automation.ElementNotAvailableException] { return $true }
+  catch [System.Windows.Automation.ElementNotAvailableException] { return $true }
 }
 function Stop-Agent {
   Get-Process sniptale-native-agent -ErrorAction SilentlyContinue | Stop-Process -Force
@@ -185,12 +184,12 @@ function Test-RecordedAvTimelinePolicy {
   }
   foreach ($pair in @(@(4,5),@(5,4),@(15,16.01),@(50.97,30.19),@([double]::NaN,15),@(15,[double]::PositiveInfinity),@([double]::NegativeInfinity,15),@(15,[double]::NaN))) {
     $accepted=$false
-    try { Assert-RecordedAvTimeline @(@{codec_type="video";duration=$pair[0]},@{codec_type="audio";duration=$pair[1]}); $accepted=$true } catch { }
+    try { Assert-RecordedAvTimeline @(@{codec_type="video";duration=$pair[0]},@{codec_type="audio";duration=$pair[1]}); $accepted=$true } catch { $accepted = $false }
     if ($accepted) { throw "recording duration rejection proof failed" }
   }
   foreach ($streams in @(@(@{codec_type="video";duration=15}),@(@{codec_type="video";duration=15},@{codec_type="video";duration=15},@{codec_type="audio";duration=15}))) {
     $accepted=$false
-    try { Assert-RecordedAvTimeline $streams; $accepted=$true } catch { }
+    try { Assert-RecordedAvTimeline $streams; $accepted=$true } catch { $accepted = $false }
     if ($accepted) { throw "recording stream inventory rejection proof failed" }
   }
 }
@@ -205,19 +204,19 @@ function Test-TrayMenuPolicy {
     if ($attempt.Value -eq 2) { @{Label="Video";Menu=1;Index=0} }
     if ($attempt.Value -ge 3) { @{Label="Pause";Menu=2;Index=4} }
   }.GetNewClosure()
-  $entry = Wait-TrayMenuItem "Pause" $read 3 $now $delay
+  $entry = Wait-TrayMenuItem -Label "Pause" -Read $read -Seconds 3 -Now $now -Delay $delay
   if ($attempt.Value -ne 3 -or $entry.Menu -ne 2 -or $entry.Index -ne 4) { throw "delayed tray menu proof failed" }
   $rejected = $false
-  try { Wait-TrayMenuItem "Stop" { } 0 $now $delay | Out-Null } catch { $rejected = $_.Exception.Message -eq "release condition timed out" }
+  try { Wait-TrayMenuItem -Label "Stop" -Read { } -Seconds 0 -Now $now -Delay $delay | Out-Null } catch { $rejected = $_.Exception.Message -eq "release condition timed out" }
   if (-not $rejected) { throw "missing tray menu rejection proof failed" }
   $rejected = $false
-  try { Wait-TrayMenuItem "Stop" { @{Label="Stop"}; @{Label="Stop"} } 0 $now $delay | Out-Null } catch { $rejected = $_.Exception.Message -eq "ambiguous tray menu item" }
+  try { Wait-TrayMenuItem -Label "Stop" -Read { @{Label="Stop"}; @{Label="Stop"} } -Seconds 0 -Now $now -Delay $delay | Out-Null } catch { $rejected = $_.Exception.Message -eq "ambiguous tray menu item" }
   if (-not $rejected) { throw "ambiguous tray menu rejection proof failed" }
   $clock.Value = 0.0
   $attempt.Value = 0
   $neverReady = { $attempt.Value++; $false }.GetNewClosure()
   $rejected = $false
-  try { Wait-For $neverReady 3 $now $delay | Out-Null } catch { $rejected = $_.Exception.Message -eq "release condition timed out" }
+  try { Wait-For -Probe $neverReady -Seconds 3 -Now $now -Delay $delay | Out-Null } catch { $rejected = $_.Exception.Message -eq "release condition timed out" }
   if (-not $rejected -or $attempt.Value -ne 6 -or $clock.Value -ne 3) { throw "bounded wait timeout proof failed" }
 }
 
@@ -226,7 +225,7 @@ Test-RecordedAvTimelinePolicy
 
 Add-Test "network-isolation" {
   $client=[Net.Sockets.TcpClient]::new()
-  try { try { $null=$client.ConnectAsync("1.1.1.1",443).Wait(3000) } catch [AggregateException] { }; if ($client.Connected) { throw "guest egress available" } } finally { $client.Dispose() }
+  try { try { $null=$client.ConnectAsync("1.1.1.1",443).Wait(3000) } catch [AggregateException] { Write-Verbose 'Isolated guest refused the network probe.' }; if ($client.Connected) { throw "guest egress available" } } finally { $client.Dispose() }
 }
 Add-Test "clean-install" {
   if ((Test-Path $installed) -or (Test-Path "$directory/local-profile.json") -or (Test-Path "$directory/dev-local-browser-trust.json")) { throw "guest is not clean" }
@@ -253,22 +252,22 @@ Add-Test "first-run" {
   $picker = Window "Select Folder"
   [AlphaUi]::SetForegroundWindow([IntPtr]$picker.Current.NativeWindowHandle) | Out-Null
   $picker.SetFocus()
-  [Windows.Forms.SendKeys]::SendWait("%d")
-  [Windows.Forms.SendKeys]::SendWait($exports)
-  [Windows.Forms.SendKeys]::SendWait("{ENTER}")
+  [System.Windows.Forms.SendKeys]::SendWait("%d")
+  [System.Windows.Forms.SendKeys]::SendWait($exports)
+  [System.Windows.Forms.SendKeys]::SendWait("{ENTER}")
   Wait-For { Folder-Selected $picker ([IO.Path]::GetFileName($exports)) } | Out-Null
   Screenshot "manual-folder-entered"
   Button $picker "Select Folder"
   $settings=Window "Sniptale $([char]0x2014) Manual settings"
   Screenshot "first-run-settings"
   Button $settings "Save and switch to Manual"
-  $profile=Wait-For {
+  $browserProfile=Wait-For {
     if (Test-Path "$directory/local-profile.json") {
       $value = Get-Content "$directory/local-profile.json" -Raw | ConvertFrom-Json
       if ($value.operatingMode -eq "manual" -and $value.manualProfile.destination.path -eq $exports) { $value }
     }
   }
-  if ($profile.operatingMode -ne "manual" -or $profile.manualProfile.destination.path -ne $exports) { throw "first-run UI did not persist Manual destination" }
+  if ($browserProfile.operatingMode -ne "manual" -or $browserProfile.manualProfile.destination.path -ne $exports) { throw "first-run UI did not persist Manual destination" }
   Wait-For { Window-Hidden $settings } | Out-Null
 }
 Add-Test "capture" {
@@ -333,7 +332,7 @@ Add-Test "restart" {
   Screenshot "restarted-settings"
   [AlphaUi]::SetForegroundWindow([IntPtr]$restartedSettings.Current.NativeWindowHandle) | Out-Null
   $restartedSettings.SetFocus()
-  [Windows.Forms.SendKeys]::SendWait("{ESC}")
+  [System.Windows.Forms.SendKeys]::SendWait("{ESC}")
   Wait-For { Window-Hidden $restartedSettings } | Out-Null
   if ((Get-FileHash "$directory/local-profile.json" -Algorithm SHA256).Hash -ne $before) { throw "restart or Escape changed user settings" }
   if (Test-Path "$directory/dev-local-browser-trust.json") { throw "unexpected dev trust after restart" }

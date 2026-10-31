@@ -14,6 +14,7 @@ import subprocess
 import tempfile
 import time
 from pathlib import Path
+import contextlib
 
 
 class Probe:
@@ -323,18 +324,14 @@ class Probe:
         finally:
             for process in processes:
                 if process.poll() is None:
-                    try:
+                    with contextlib.suppress(ProcessLookupError):
                         os.killpg(process.pid, signal.SIGTERM)
-                    except ProcessLookupError:
-                        pass
             for process in processes:
                 try:
                     process.wait(timeout=10)
                 except subprocess.TimeoutExpired:
-                    try:
+                    with contextlib.suppress(ProcessLookupError):
                         os.killpg(process.pid, signal.SIGKILL)
-                    except ProcessLookupError:
-                        pass
             shutil.rmtree(profile_root, ignore_errors=True)
 
     def atspi(self) -> str:

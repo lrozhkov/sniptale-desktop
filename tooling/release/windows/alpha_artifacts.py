@@ -15,7 +15,17 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 ORIGIN = "chrome-extension://pcegkgbagkiagakmfjchgfgheepkllda/"
 PROOF_FILES = {"sbom.spdx.json", "cargo-audit.json", "cargo-deny.txt", "qa-proof.json"}
-GATES = {"qa:release-harness", "qa:checkpoint", "qa:coverage", "qa:supply-chain", "qa:audit", "qa:release"}
+GATES = {
+    "qa:release-harness",
+    "qa:checkpoint",
+    "qa:coverage",
+    "qa:supply-chain",
+    "qa:audit",
+    "qa:release",
+    "qa:fast",
+    "qa:script-lints",
+    "qa:environment-audit",
+}
 
 
 def git(*args: str) -> str:

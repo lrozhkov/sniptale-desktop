@@ -12,7 +12,7 @@ import tarfile
 import shutil
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import Iterable
+from collections.abc import Iterable
 
 from errors import IntegrityError
 from system import sha256_file
@@ -294,9 +294,12 @@ def create_source_bundle(root: Path, destination: Path) -> SourceFingerprint:
                         archive.addfile(info, stream)
                 else:
                     archive.addfile(info)
-        with raw_tar.open("rb") as source, temporary.open("wb") as target:
-            with gzip.GzipFile(filename="", mode="wb", fileobj=target, mtime=0) as compressed:
-                shutil.copyfileobj(source, compressed, length=1024 * 1024)
+        with (
+            raw_tar.open("rb") as source,
+            temporary.open("wb") as target,
+            gzip.GzipFile(filename="", mode="wb", fileobj=target, mtime=0) as compressed,
+        ):
+            shutil.copyfileobj(source, compressed, length=1024 * 1024)
         raw_tar.unlink()
         os.replace(temporary, destination)
     finally:

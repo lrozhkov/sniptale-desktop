@@ -1,11 +1,11 @@
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, UTC
 import unittest
 from tooling.qa.runtime.toolchain import ToolchainError, check_age
 
 
 class ToolchainAgeTests(unittest.TestCase):
     def setUp(self):
-        self.now = datetime(2026, 10, 30, 12, tzinfo=timezone.utc)
+        self.now = datetime(2026, 10, 30, 12, tzinfo=UTC)
         self.policy = {"minimumReleaseAgeDays": 7}
 
     def test_seven_full_days_required(self):
@@ -81,6 +81,8 @@ class ToolchainLockTests(unittest.TestCase):
             "custom-registry",
             "python-package-hash",
             "python-package-source",
+            "python-linux-source",
+            "python-linux-hash",
         ):
             with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
@@ -105,6 +107,10 @@ class ToolchainLockTests(unittest.TestCase):
                     lock["python"]["windows"]["sha256"] = "f" * 64
                 elif mutation == "python-package-source":
                     lock["python"]["windows"]["url"] = "https://example.com/python.zip"
+                elif mutation == "python-linux-source":
+                    lock["python"]["linuxX64"]["url"] = "https://example.com/python.tar.gz"
+                elif mutation == "python-linux-hash":
+                    lock["python"]["linuxX64"]["sha256"] = "invalid"
                 elif mutation == "custom-registry":
                     cargo = root / "Cargo.lock"
                     cargo.write_text(
@@ -117,7 +123,7 @@ class ToolchainLockTests(unittest.TestCase):
                 elif mutation == "missing-crate":
                     lock["cargo"].pop()
                 elif mutation == "young-crate":
-                    lock["cargo"][0]["publishedAt"] = datetime.now(timezone.utc).isoformat()
+                    lock["cargo"][0]["publishedAt"] = datetime.now(UTC).isoformat()
                 else:
                     (root / "rust-toolchain.toml").write_text('[toolchain]\nchannel="stable"\n')
                 (root / LOCK).write_text(json.dumps(lock))
@@ -141,7 +147,7 @@ class BrowserToolchainTests(unittest.TestCase):
             ("sha256", "bad"),
             ("version", "0.0.0"),
             ("source", "https://untrusted.invalid/release"),
-            ("publishedAt", datetime.now(timezone.utc).isoformat()),
+            ("publishedAt", datetime.now(UTC).isoformat()),
         ]:
             changed = copy.deepcopy(lock)
             changed["node"][field] = value

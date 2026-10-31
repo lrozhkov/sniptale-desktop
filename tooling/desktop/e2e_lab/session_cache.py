@@ -6,7 +6,6 @@ import json
 import os
 import re
 import time
-from pathlib import Path
 
 from errors import IntegrityError, LabError, ResourceError
 from limits import directory_allocated_bytes

@@ -148,7 +148,7 @@ def _apt_dependencies(packages: tuple[str, ...]) -> list[str]:
         "--no-enhances",
         *packages,
     ]
-    result = subprocess.run(command, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+    result = subprocess.run(command, text=True, capture_output=True, check=False)
     if result.returncode != 0:
         raise LabError(f"could not resolve host packages: {result.stderr.strip()}")
     names = set(packages)
@@ -174,8 +174,7 @@ def _download_deb(package: str, destination: Path) -> Path:
     result = subprocess.run(
         ["apt-get", "--print-uris", "download", package],
         text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         check=False,
     )
     if result.returncode != 0:
@@ -193,8 +192,7 @@ def _download_deb(package: str, destination: Path) -> Path:
     metadata = subprocess.run(
         ["apt-cache", "show", package],
         text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         check=False,
     )
     checksum = ""

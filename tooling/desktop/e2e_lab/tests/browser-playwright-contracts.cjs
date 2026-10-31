@@ -25,7 +25,9 @@ async function run(patch = {}) {
         return {contexts:() => patch.contexts ?? [{pages:() => [page]}], close:() => assert.fail('persistent browser must remain open')};
       }}};
       if (name.endsWith('/package/package.json')) return {version:'1.64.1'};
-      return require(name);
+      if (name === 'node:crypto') return require('node:crypto');
+      if (name === 'node:path') return require('node:path');
+      throw new Error('unexpected sandbox module');
     },
     Buffer, setTimeout:() => 1, clearTimeout:() => {},
     process:{argv:['node','driver',patch.port ?? '9223','request.json'], versions:{node:'24.22.1'},

@@ -6,10 +6,14 @@ script_tools_env() {
   read -r python_version node_version < <(
     python3 - "$root" <<'PY'
 import json
+import re
 import sys
 from pathlib import Path
 value = json.loads((Path(sys.argv[1]) / 'tooling/configs/qa/tool-versions.json').read_text())
-print(value['python']['version'], value['browserAutomation']['node'])
+versions = [value['python']['version'], value['browserAutomation']['node']]
+if any(not isinstance(version, str) or re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', version) is None for version in versions):
+    raise SystemExit('Invalid cataloged runtime version')
+print(*versions)
 PY
   )
   if [[ -x "$root/.tmp/qa-tools/python-$python_version/bin/python3" ]]; then
@@ -22,5 +26,9 @@ PY
   fi
   if [[ -x "$root/.tmp/qa-tools/node-$node_version/bin/node" ]]; then
     export PATH="$root/.tmp/qa-tools/node-$node_version/bin:$PATH"
+  fi
+  if [[ "${2:-}" == --require-node ]] && [[ "$(node --version)" != "v$node_version" ]]; then
+    printf 'Install the cataloged Node.js version before script checks: %s\n' "$node_version" >&2
+    return 1
   fi
 }

@@ -12,6 +12,7 @@ import signal
 import sys
 import time
 from pathlib import Path
+from typing import Any
 
 from artifacts import artifact_manifest, create_source_bundle, evidence_manifest, write_manifest
 from config import LANES, LabConfig
@@ -26,7 +27,7 @@ from receipt import create_run_dir, redact, redact_data, write_receipt
 from results import GuestResult, TestCase, write_junit
 from runner import LaneRunner
 from state import LabLock, read_json
-from system import sha256_file
+from system import run, sha256_file
 from vm import VmManager
 from work_sessions import WorkSessions, load_session, state_path as session_state_path
 
@@ -484,7 +485,7 @@ def failed_windows_rerun(
 def _resolve_rerun_windows_msi(
     paths: LabPaths,
     previous: Path,
-    receipt: dict[str, object],
+    receipt: dict[str, Any],
 ) -> Path:
     declared = [
         item
@@ -609,6 +610,19 @@ def gc(paths: LabPaths, config: LabConfig) -> dict[str, int]:
     }
 
 
+def requires_fast_sources(args: argparse.Namespace) -> bool:
+    return args.command in {"provision", "start", "build", "test", "run", "rerun-failed"} or (
+        args.command == "session" and args.session_command in {"open", "build", "test"}
+    )
+
+
+def source_stamp(paths: LabPaths) -> str:
+    value = run(["python3", "-m", "tooling.qa.runtime.cli", "fingerprint"], cwd=paths.root, timeout=30).stdout.strip()
+    if re.fullmatch(r"[0-9a-f]{64}", value) is None:
+        raise IntegrityError("invalid fast source fingerprint")
+    return value
+
+
 def main(argv: list[str] | None = None) -> int:
     signal.signal(signal.SIGTERM, _interrupt)
     args = parser().parse_args(argv)
@@ -630,8 +644,15 @@ def main(argv: list[str] | None = None) -> int:
             summary["path"] = run_dir.relative_to(paths.root).as_posix()
             print_json(summary)
             return 0
+        admission = None
+        if requires_fast_sources(args):
+            admission = source_stamp(paths)
+            # Acquire QA admission before the controller lock; cleanup commands remain available.
+            run([str(paths.root / "tooling/qa/wrappers/fast.sh")], cwd=paths.root, timeout=600, stream=True)
         paths.ensure()
         with LabLock(paths.locks / "controller.lock", args.command):
+            if admission is not None and source_stamp(paths) != admission:
+                raise IntegrityError("desktop sources changed while acquiring the controller lock; rerun the command")
             manager = VmManager(paths, config)
             if args.command == "session":
                 sessions = WorkSessions(paths, config)

@@ -3,7 +3,6 @@ param(
   [Parameter(Mandatory = $true)][string] $MsiSha256,
   [Parameter(Mandatory = $true)][string] $ExpectedExeSha256,
   [Parameter(Mandatory = $true)][string] $ExpectedManifestSha256,
-  [Parameter(Mandatory = $true)][string] $ProductVersion,
   [int] $TimeoutSeconds = 1200
 )
 $ErrorActionPreference = "Stop"
@@ -20,7 +19,7 @@ $entryConfig = [ordered]@{
   parameters = [ordered]@{
     Msi = [IO.Path]::GetFullPath((Join-Path $PWD $Msi)); MsiSha256 = $MsiSha256
     ExpectedExeSha256 = $ExpectedExeSha256; ExpectedManifestSha256 = $ExpectedManifestSha256
-    ProductVersion = $ProductVersion; Output = $outputPath
+    Output = $outputPath
   }
 }
 $entrySource = @'

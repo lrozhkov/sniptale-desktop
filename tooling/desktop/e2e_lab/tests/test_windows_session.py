@@ -89,9 +89,11 @@ class WindowsSessionTests(unittest.TestCase):
             SimpleNamespace(stdout=""),
         ]
         health = mock.Mock(side_effect=LabError("guest VM is not running"))
-        with mock.patch("windows_session.time.sleep") as sleep:
-            with self.assertRaisesRegex(LabError, "VM is not running"):
-                prepare_console(ssh, 360, health_check=health)
+        with (
+            mock.patch("windows_session.time.sleep") as sleep,
+            self.assertRaisesRegex(LabError, "VM is not running"),
+        ):
+            prepare_console(ssh, 360, health_check=health)
         self.assertEqual(ssh.command.call_count, 3)
         health.assert_called_once()
         sleep.assert_not_called()
@@ -116,9 +118,9 @@ class WindowsSessionTests(unittest.TestCase):
         with (
             mock.patch("windows_session.time.monotonic", side_effect=[0, 0, 0, 1, 1, 2]),
             mock.patch("windows_session.time.sleep"),
+            self.assertRaises(TimeoutExpired),
         ):
-            with self.assertRaises(TimeoutExpired):
-                prepare_console(ssh, 1)
+            prepare_console(ssh, 1)
 
 
 if __name__ == "__main__":

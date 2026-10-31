@@ -48,6 +48,16 @@
       "advisory": "https://rustsec.org/advisories/RUSTSEC-2026-0412.html",
       "reason": "Fixes arbitrary code execution through unvalidated Cargo arguments in portable rerun recordings; upstream patched range is >=0.9.150.",
       "fixedVersion": "0.9.150"
+    },
+    "minimatch": {
+      "advisory": "https://github.com/isaacs/minimatch/security/advisories/GHSA-g3hv-75wg-m249",
+      "reason": "Fixes globparts pattern amplification denial of service affecting the previously locked 10.2.6; upstream affected range is <11.0.1.",
+      "fixedVersion": "11.0.1"
+    },
+    "@isaacs/nonrecursive-glob-match": {
+      "advisory": "https://github.com/isaacs/minimatch/security/advisories/GHSA-g3hv-75wg-m249",
+      "fixedVersion": "1.0.1",
+      "reason": "Required minimum dependency of minimatch 11.0.1 fixing GHSA-g3hv-75wg-m249; no compatible release has completed seven days. The independent policy verifies the published parent dependency range and absence of aged compatible alternatives."
     }
   },
   "browserAutomation": {
@@ -108,67 +118,38 @@
     "shellcheck": {
       "version": "0.11.0",
       "manager": "github",
-      "repository": "koalaman/shellcheck",
-      "tag": "v0.11.0",
-      "linuxX64": {
-        "url": "https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.linux.x86_64.tar.xz",
-        "sha256": "8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198"
-      }
+      "repository": "koalaman/shellcheck"
     },
     "shfmt": {
       "version": "3.14.1",
       "manager": "github",
-      "repository": "mvdan/sh",
-      "tag": "v3.14.1",
-      "linuxX64": {
-        "url": "https://github.com/mvdan/sh/releases/download/v3.14.1/shfmt_v3.14.1_linux_amd64",
-        "sha256": "76e77641faa025814b77f153b29796b8e6fa2fca03e0c76a691608b86c7ea7bf"
-      }
+      "repository": "mvdan/sh"
     },
     "actionlint": {
       "version": "1.7.12",
       "manager": "github",
-      "repository": "rhysd/actionlint",
-      "tag": "v1.7.12",
-      "linuxX64": {
-        "url": "https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz",
-        "sha256": "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8"
-      }
+      "repository": "rhysd/actionlint"
     },
     "taplo": {
       "version": "0.10.0",
       "manager": "github",
-      "repository": "tamasfe/taplo",
-      "tag": "0.10.0",
-      "linuxX64": {
-        "url": "https://github.com/tamasfe/taplo/releases/download/0.10.0/taplo-linux-x86_64.gz",
-        "sha256": "8fe196b894ccf9072f98d4e1013a180306e17d244830b03986ee5e8eabeb6156"
-      }
+      "repository": "tamasfe/taplo"
     },
     "pwsh": {
       "version": "7.6.8",
       "manager": "github",
-      "repository": "PowerShell/PowerShell",
-      "tag": "v7.6.8",
-      "linuxX64": {
-        "url": "https://github.com/PowerShell/PowerShell/releases/download/v7.6.8/powershell-7.6.8-linux-x64.tar.gz",
-        "sha256": "59112e38ad83350e4f6dc0195953c66b5926792f300ca2e7691b8242e7a16e7f"
-      }
+      "repository": "PowerShell/PowerShell"
     },
     "PSScriptAnalyzer": {
       "version": "1.25.0",
       "manager": "github",
-      "repository": "PowerShell/PSScriptAnalyzer",
-      "tag": "1.25.0",
-      "linuxX64": {
-        "url": "https://github.com/PowerShell/PSScriptAnalyzer/releases/download/1.25.0/PSScriptAnalyzer.1.25.0.nupkg",
-        "sha256": "14e634c828eb98efb9f40b2918ba90f139ed5eccdf663a2a747736d996995d60"
-      }
+      "repository": "PowerShell/PSScriptAnalyzer"
     },
     "renovate": {
       "version": "44.181.0",
       "manager": "npm",
-      "package": "renovate"
+      "package": "renovate",
+      "usage": "configuration-schema-only"
     },
     "setuptools": {
       "version": "84.2.1",
@@ -184,6 +165,36 @@
       "version": "3.3.0",
       "manager": "pypi",
       "package": "Cython"
+    },
+    "@eslint/js": {
+      "version": "10.0.1",
+      "manager": "npm",
+      "package": "@eslint/js"
+    },
+    "typescript": {
+      "version": "6.0.3",
+      "manager": "npm",
+      "package": "typescript"
+    },
+    "minimatch": {
+      "version": "11.0.1",
+      "manager": "npm",
+      "package": "minimatch"
+    },
+    "jsonata": {
+      "version": "2.2.2",
+      "manager": "npm",
+      "package": "jsonata"
+    },
+    "@isaacs/nonrecursive-glob-match": {
+      "version": "1.0.1",
+      "manager": "npm",
+      "package": "@isaacs/nonrecursive-glob-match"
+    },
+    "@types/estree": {
+      "version": "1.0.9",
+      "manager": "npm",
+      "package": "@types/estree"
     }
   }
 }

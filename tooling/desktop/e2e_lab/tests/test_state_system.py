@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import json
 import io
-import os
 import subprocess
 import sys
 import tempfile
@@ -63,9 +61,12 @@ class StateSystemTests(unittest.TestCase):
     def test_ssh_wait_propagates_vm_failure_without_transport_probe_or_sleep(self):
         ssh = GuestSsh(LabPaths.discover(Path("/tmp/synthetic-lab")), 22423, "lab")
         health = mock.Mock(side_effect=LabError("guest VM is not running"))
-        with mock.patch.object(ssh, "command") as command, mock.patch("ssh.time.sleep") as sleep:
-            with self.assertRaisesRegex(LabError, "VM is not running"):
-                ssh.wait(360, health_check=health)
+        with (
+            mock.patch.object(ssh, "command") as command,
+            mock.patch("ssh.time.sleep") as sleep,
+            self.assertRaisesRegex(LabError, "VM is not running"),
+        ):
+            ssh.wait(360, health_check=health)
         command.assert_not_called()
         sleep.assert_not_called()
 
@@ -104,10 +105,12 @@ class StateSystemTests(unittest.TestCase):
     def test_exclusive_lock_blocks_concurrent_controller(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "controller.lock"
-            with LabLock(path, "outer"):
-                with self.assertRaisesRegex(ResourceError, "lab is busy"):
-                    with LabLock(path, "inner"):
-                        self.fail("nested lock unexpectedly acquired")
+            with (
+                LabLock(path, "outer"),
+                self.assertRaisesRegex(ResourceError, "lab is busy"),
+                LabLock(path, "inner"),
+            ):
+                self.fail("nested lock unexpectedly acquired")
 
     def test_file_execution_policy_is_an_explicit_process_only_opt_in(self):
         plain = powershell_encoded("Write-Output 'read-only'")
@@ -115,7 +118,7 @@ class StateSystemTests(unittest.TestCase):
         self.assertNotIn("-ExecutionPolicy", plain)
         self.assertEqual(trusted[trusted.index("-ExecutionPolicy") + 1], "Bypass")
         with self.assertRaises(TypeError):
-            powershell_encoded("read", allow_lab_scripts="Bypass")
+            powershell_encoded("read", allow_lab_scripts="Bypass")  # pyright: ignore[reportArgumentType] # Negative runtime validation of a non-boolean flag.
 
     def test_lock_rejects_symlink_without_touching_target(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -123,9 +126,11 @@ class StateSystemTests(unittest.TestCase):
             outside = root / "outside.txt"
             outside.write_text("preserve", encoding="utf-8")
             (root / "controller.lock").symlink_to(outside)
-            with self.assertRaisesRegex(IntegrityError, "lock is redirected"):
-                with LabLock(root / "controller.lock", "test"):
-                    self.fail("symlink lock unexpectedly acquired")
+            with (
+                self.assertRaisesRegex(IntegrityError, "lock is redirected"),
+                LabLock(root / "controller.lock", "test"),
+            ):
+                self.fail("symlink lock unexpectedly acquired")
             self.assertEqual(outside.read_text(encoding="utf-8"), "preserve")
 
     def test_health_failure_reaps_started_command_and_keeps_log(self):
@@ -140,9 +145,11 @@ class StateSystemTests(unittest.TestCase):
                 return process
 
             health = mock.Mock(side_effect=LabError("guest VM is not running"))
-            with mock.patch("system.subprocess.Popen", side_effect=launch):
-                with self.assertRaisesRegex(LabError, "VM is not running"):
-                    run([sys.executable, "-c", "import time; time.sleep(30)"], timeout=60, log=log, health_check=health)
+            with (
+                mock.patch("system.subprocess.Popen", side_effect=launch),
+                self.assertRaisesRegex(LabError, "VM is not running"),
+            ):
+                run([sys.executable, "-c", "import time; time.sleep(30)"], timeout=60, log=log, health_check=health)
             self.assertIsNotNone(started[0].poll())
             self.assertTrue(log.exists())
 
@@ -202,7 +209,6 @@ class StateSystemTests(unittest.TestCase):
                 require_sha256(path, "0" * 64)
 
     def test_resource_limits_fail_before_vm_start(self) -> None:
-        usage = os.statvfs("/")
         with (
             mock.patch("system.shutil.disk_usage") as disk,
             mock.patch("system.available_memory_mib", return_value=1024),

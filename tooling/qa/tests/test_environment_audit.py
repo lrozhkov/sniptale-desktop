@@ -2,12 +2,22 @@
 
 from __future__ import annotations
 
-import copy
 import json
 import unittest
+import urllib.request
+import urllib.error
+from unittest import mock
+from tooling.qa.runtime import advisories
 from pathlib import Path
 
-from tooling.qa.runtime.advisories import AdvisoryError, cpython_query, decode, nvd_query, osv_queries
+from tooling.qa.runtime.advisories import (
+    ApprovedRedirects,
+    AdvisoryError,
+    cpython_query,
+    decode,
+    nvd_query,
+    osv_queries,
+)
 from tooling.qa.runtime.environment_audit import audit
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -54,6 +64,11 @@ class EnvironmentAuditTests(unittest.TestCase):
         self.assertTrue(report["platformGaps"])
         self.assertIn("not all bundled", report["coverageLimit"])
 
+    def test_another_catalog_section_cannot_mask_vulnerable_python(self):
+        self.catalog["scriptTools"]["python"] = {"version": "3.15.2", "manager": "pypi", "package": "unrelated"}
+        with self.assertRaisesRegex(AdvisoryError, "collide"):
+            audit(self.catalog, self.policy, self.source)
+
     def test_missing_tool_mapping_is_not_silently_uncovered(self):
         del self.policy["tools"]["wix"]
         with self.assertRaisesRegex(AdvisoryError, "coverage declaration"):
@@ -86,6 +101,56 @@ class EnvironmentAuditTests(unittest.TestCase):
             )
         with self.assertRaisesRegex(AdvisoryError, "pagination"):
             osv_queries([{"commit": "a" * 40}], lambda *_: {"next_page_token": "repeated"})
+
+    def test_transport_retry_recovers_transient_failure_and_rejects_persistent_failure(self):
+        endpoint = "https://api.osv.dev/v1/vulns/fixture"
+        response = mock.MagicMock()
+        response.__enter__.return_value.geturl.return_value = endpoint
+        response.__enter__.return_value.read.return_value = b"{}"
+        for persistent in (False, True):
+            opener = mock.Mock()
+            opener.open.side_effect = [
+                urllib.error.URLError("injected"),
+                urllib.error.URLError("injected") if persistent else response,
+                urllib.error.URLError("injected"),
+            ]
+            with (
+                self.subTest(persistent=persistent),
+                mock.patch.object(advisories.urllib.request, "build_opener", return_value=opener),
+                mock.patch.object(advisories.time, "sleep") as pause,
+            ):
+                if persistent:
+                    with self.assertRaisesRegex(AdvisoryError, "transport unavailable"):
+                        advisories.request_json(endpoint)
+                    self.assertEqual(opener.open.call_count, 3)
+                    self.assertEqual(pause.call_count, 2)
+                else:
+                    self.assertEqual(advisories.request_json(endpoint), {})
+                    self.assertEqual(opener.open.call_count, 2)
+                    pause.assert_called_once_with(2)
+
+    def test_redirect_cannot_forward_api_authorization_to_another_authority(self):
+        from io import BytesIO
+        from http.client import HTTPMessage
+
+        request = urllib.request.Request(
+            "https://api.github.com/repos/owner/repository", headers={"Authorization": "Bearer fixture"}
+        )
+        handler = ApprovedRedirects(request.full_url)
+        headers = HTTPMessage()
+        with BytesIO() as response:
+            for destination in (
+                "https://untrusted.invalid/collect",
+                "http://api.github.com/collect",
+                "https://user:password@api.github.com/collect",
+                "https://release-assets.githubusercontent.com/collect",
+            ):
+                with self.subTest(destination=destination), self.assertRaises(AdvisoryError):
+                    handler.redirect_request(request, response, 302, "Found", headers, destination)
+            redirected = handler.redirect_request(
+                request, response, 302, "Found", headers, "https://api.github.com/repos/renamed/repository"
+            )
+            self.assertIsNotNone(redirected)
 
     def test_release_tag_cannot_redirect_commit_identity(self):
         with self.assertRaisesRegex(AdvisoryError, "reference"):

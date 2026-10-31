@@ -38,7 +38,7 @@ function Test-Command($Name) {
 function Ensure-WixUiExtension($WixCommand) {
   . (Join-Path $PSScriptRoot "../toolchain.ps1")
   $cache = if ($env:SNIPTALE_WINDOWS_TOOLS_CACHE) { $env:SNIPTALE_WINDOWS_TOOLS_CACHE } else { Join-Path $Repo ".tmp/windows-build-tools" }
-  $tools = Initialize-SniptaleWindowsTools $Repo $cache
+  $tools = Initialize-SniptaleWindowsTool $Repo $cache
   $null = Initialize-SniptaleWindowsPython $Repo $cache
   if ($WixCommand -ne "wix") {
     $expected = (Get-Content -Raw (Join-Path $Repo "tooling/configs/qa/tool-versions.json") | ConvertFrom-Json).windows.wix
@@ -300,16 +300,16 @@ function Assert-RegistryDefaultValue($Path, $ExpectedValue) {
   }
 }
 
-function Stop-NativeAgentProcesses {
+function Stop-NativeAgentProcess {
   Get-Process sniptale-native-agent -ErrorAction SilentlyContinue | Stop-Process -Force
 }
 
-function Archive-Logs($InstallDir) {
+function Archive-Log($InstallDir, [switch] $PreserveLogs) {
   $logDir = Join-Path $InstallDir "logs"
   if (-not (Test-Path -LiteralPath $logDir)) {
     return
   }
-  if ($KeepLogs) {
+  if ($PreserveLogs) {
     return
   }
   $archiveRoot = Join-Path (Get-NativePath ".tmp") "windows-smoke-logs"
@@ -321,7 +321,7 @@ function Archive-Logs($InstallDir) {
   Write-Host "archived old logs: $archiveDir"
 }
 
-function Show-SmokeDiagnostics($InstallDir, $Exe) {
+function Show-SmokeDiagnostic($InstallDir, $Exe) {
   Write-Host "diagnostics:"
   if (Test-Path -LiteralPath $Exe) {
     $item = Get-Item -LiteralPath $Exe
@@ -394,10 +394,10 @@ function Invoke-CargoExactTest($Category, $TestName) {
   finally {
     [Environment]::SetEnvironmentVariable("CARGO_INCREMENTAL", $previousIncremental, "Process")
   }
-  Add-SmokeEvidence $Category "cargo test --exact" $TestName
+  Add-SmokeEvidence -Category $Category -Probe "cargo test --exact" -Evidence $TestName
 }
 
-function Invoke-TopologyFailureProbes {
+function Invoke-TopologyFailureProbe {
   $probes = @(
     @{
       Category = "worker-startup-shutdown"
@@ -468,6 +468,7 @@ function Invoke-ProcessCapture($Exe, [string[]] $Arguments, [byte[]] $InputBytes
       $process.Kill()
     }
     catch {
+      if (-not $process.HasExited) { throw "Timed-out process could not be terminated" }
     }
     throw "Timed out waiting for process: $Exe $($Arguments -join ' ')"
   }
@@ -480,7 +481,7 @@ function Invoke-ProcessCapture($Exe, [string[]] $Arguments, [byte[]] $InputBytes
 
 function Assert-NativeHostOriginGate($Exe, $TimeoutMs) {
   $wrongOrigin = "chrome-extension://bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/"
-  $result = Invoke-ProcessCapture $Exe @($wrongOrigin) $null $TimeoutMs
+  $result = Invoke-ProcessCapture -Exe $Exe -Arguments @($wrongOrigin) -InputBytes $null -TimeoutMs $TimeoutMs
   if ($result.exitCode -ne 64) {
     throw "native-host wrong-origin probe expected exit 64, got $($result.exitCode)"
   }
@@ -490,7 +491,7 @@ function Assert-NativeHostOriginGate($Exe, $TimeoutMs) {
   if ($result.stdout.Trim().Length -ne 0) {
     throw "native-host wrong-origin probe wrote stdout unexpectedly: $($result.stdout)"
   }
-  Add-SmokeEvidence "native-host-origin-gate" "installed executable wrong-origin probe" "unsupported argument before bridge startup"
+  Add-SmokeEvidence -Category "native-host-origin-gate" -Probe "installed executable wrong-origin probe" -Evidence "unsupported argument before bridge startup"
 }
 
 function New-NativeMessageFrame($Message) {
@@ -510,7 +511,7 @@ function New-NativeMessageFrame($Message) {
   }
 }
 
-function Read-NativeMessageFrames([byte[]] $Payload) {
+function Read-NativeMessageFrame([byte[]] $Payload) {
   $frames = [System.Collections.Generic.List[object]]::new()
   $offset = 0
   while ($offset -lt $Payload.Length) {
@@ -554,6 +555,7 @@ function Invoke-NativeHostProbe($Exe, [string[]] $Arguments, [byte[]] $InputByte
       $process.Kill()
     }
     catch {
+      if (-not $process.HasExited) { throw "Timed-out process could not be terminated" }
     }
     throw "Timed out waiting for native-host probe"
   }
@@ -573,7 +575,7 @@ function Invoke-NativeHostProbe($Exe, [string[]] $Arguments, [byte[]] $InputByte
   }
 }
 
-function Assert-NativeHostSessionProbes($Exe, $ExtensionOrigin, $ExtensionVersion, $Count, $TimeoutMs) {
+function Assert-NativeHostSessionProbe($Exe, $ExtensionOrigin, $ExtensionVersion, $Count, $TimeoutMs) {
   $originMatch = [regex]::Match($ExtensionOrigin, '^chrome-extension://([a-p]{32})/$')
   if (-not $originMatch.Success) {
     throw "Native-host session probe requires a validated extension origin"
@@ -601,21 +603,21 @@ function Assert-NativeHostSessionProbes($Exe, $ExtensionOrigin, $ExtensionVersio
       requestedAtEpochMs = 1000 + $index
       reason = "initial-connect"
     }
-    $input = [System.IO.MemoryStream]::new()
+    $nativeInputBuffer = [System.IO.MemoryStream]::new()
     try {
       foreach ($message in @($hello, $acquire)) {
         $frame = New-NativeMessageFrame $message
-        $input.Write($frame, 0, $frame.Length)
+        $nativeInputBuffer.Write($frame, 0, $frame.Length)
       }
-      $result = Invoke-NativeHostProbe $Exe @("--native-host", $ExtensionOrigin) $input.ToArray() $TimeoutMs
+      $result = Invoke-NativeHostProbe -Exe $Exe -Arguments @("--native-host", $ExtensionOrigin) -InputBytes $nativeInputBuffer.ToArray() -TimeoutMs $TimeoutMs
     }
     finally {
-      $input.Dispose()
+      $nativeInputBuffer.Dispose()
     }
     if ($result.exitCode -ne 0 -or -not [string]::IsNullOrWhiteSpace($result.stderr)) {
       throw "native-host probe $index failed without a clean stdio session"
     }
-    $frames = @(Read-NativeMessageFrames $result.stdout)
+    $frames = @(Read-NativeMessageFrame $result.stdout)
     if (@($frames | Where-Object { $_.type -eq "app.hello" }).Count -ne 1) {
       throw "native-host probe $index did not return exactly one app.hello"
     }
@@ -623,7 +625,7 @@ function Assert-NativeHostSessionProbes($Exe, $ExtensionOrigin, $ExtensionVersio
     if ($leases.Count -ne 1 -or [string]::IsNullOrWhiteSpace([string] $leases[0].controllerLeaseId)) {
       throw "native-host probe $index did not return a controller lease"
     }
-    Add-SmokeEvidence "native-host-session" "installed app.hello/controller probe $index" "framed session completed"
+    Add-SmokeEvidence -Category "native-host-session" -Probe "installed app.hello/controller probe $index" -Evidence "framed session completed"
   }
 }
 
@@ -654,6 +656,7 @@ function Invoke-NativeAgentJsonMode($Exe, $Flag, $ExpectedMode, $TimeoutMs, $Env
       $process.Kill()
     }
     catch {
+      if (-not $process.HasExited) { throw "Timed-out process could not be terminated" }
     }
     throw "Timed out waiting for native agent support mode: $Flag"
   }
@@ -680,7 +683,7 @@ function Invoke-NativeAgentJsonMode($Exe, $Flag, $ExpectedMode, $TimeoutMs, $Env
 
 function Assert-CollectDiagnosticsBundle($Exe, $TimeoutMs) {
   Add-Type -AssemblyName System.IO.Compression.FileSystem
-  $bundle = Invoke-NativeAgentJsonMode $Exe "--collect-diagnostics" "collect-diagnostics" $TimeoutMs
+  $bundle = Invoke-NativeAgentJsonMode -Exe $Exe -Flag "--collect-diagnostics" -ExpectedMode "collect-diagnostics" -TimeoutMs $TimeoutMs
   if ($bundle.status -ne "bundle-written") {
     throw "collect-diagnostics status mismatch: expected bundle-written, got $($bundle.status)"
   }
@@ -709,17 +712,17 @@ function Assert-CollectDiagnosticsBundle($Exe, $TimeoutMs) {
       throw "collect-diagnostics bundle missing entry: $required"
     }
   }
-  Add-SmokeEvidence "support-bundle-recent-errors" "installed --collect-diagnostics" "bundle contains recent-errors.json and observability.json"
+  Add-SmokeEvidence -Category "support-bundle-recent-errors" -Probe "installed --collect-diagnostics" -Evidence "bundle contains recent-errors.json and observability.json"
 }
 
-function Assert-SupportModeOutputs($Exe, $TimeoutMs) {
-  $version = Invoke-NativeAgentJsonMode $Exe "--version-json" "version-json" $TimeoutMs
+function Assert-SupportModeOutput($Exe, $TimeoutMs) {
+  $version = Invoke-NativeAgentJsonMode -Exe $Exe -Flag "--version-json" -ExpectedMode "version-json" -TimeoutMs $TimeoutMs
   if ($version.platformKind -ne "windows") {
     throw "version-json platformKind mismatch: expected windows, got $($version.platformKind)"
   }
-  Assert-ContainsNumber @($version.protocolVersion) 1 "version-json protocolVersion"
-  Assert-ContainsNumber @($version.settingsSchemaVersion) 1 "version-json settingsSchemaVersion"
-  Assert-ContainsNumber @($version.appCacheSchemaVersion) 1 "version-json appCacheSchemaVersion"
+  Assert-ContainsNumber -Values @($version.protocolVersion) -Expected 1 -Description "version-json protocolVersion"
+  Assert-ContainsNumber -Values @($version.settingsSchemaVersion) -Expected 1 -Description "version-json settingsSchemaVersion"
+  Assert-ContainsNumber -Values @($version.appCacheSchemaVersion) -Expected 1 -Description "version-json appCacheSchemaVersion"
   if (-not $version.appVersion) {
     throw "version-json appVersion is missing"
   }
@@ -730,7 +733,7 @@ function Assert-SupportModeOutputs($Exe, $TimeoutMs) {
     throw "version-json nativeHostManifestVersion is missing"
   }
 
-  $doctor = Invoke-NativeAgentJsonMode $Exe "--doctor-json" "doctor-json" $TimeoutMs
+  $doctor = Invoke-NativeAgentJsonMode -Exe $Exe -Flag "--doctor-json" -ExpectedMode "doctor-json" -TimeoutMs $TimeoutMs
   if ($doctor.status -notin @("pass", "fail")) {
     throw "doctor-json status mismatch: $($doctor.status)"
   }
@@ -763,8 +766,8 @@ function Assert-SupportModeOutputs($Exe, $TimeoutMs) {
 }
 
 function Assert-RuntimeDirectoryAccessFailClosed($Exe, $TimeoutMs) {
-  Assert-TempMediaAclStatus $Exe $TimeoutMs "M" "broad-write-access"
-  Assert-TempMediaAclStatus $Exe $TimeoutMs "RX" "broad-read-access"
+  Assert-TempMediaAclStatus -Exe $Exe -TimeoutMs $TimeoutMs -Grant "M" -ExpectedStatus "broad-write-access"
+  Assert-TempMediaAclStatus -Exe $Exe -TimeoutMs $TimeoutMs -Grant "RX" -ExpectedStatus "broad-read-access"
 }
 
 function Set-TempMediaBroadAcl($Path, $Grant) {
@@ -794,11 +797,11 @@ function Assert-TempMediaAclStatus($Exe, $TimeoutMs, $Grant, $ExpectedStatus) {
     Set-TempMediaBroadAcl $tempMedia $Grant
 
     $doctor = Invoke-NativeAgentJsonMode `
-      $Exe `
-      "--doctor-json" `
-      "doctor-json" `
-      $TimeoutMs `
-      @{ LOCALAPPDATA = $localAppData }
+      -Exe $Exe `
+      -Flag "--doctor-json" `
+      -ExpectedMode "doctor-json" `
+      -TimeoutMs $TimeoutMs `
+      -Environment @{ LOCALAPPDATA = $localAppData }
     if ($doctor.repairRequired -ne $true) {
       throw "doctor-json must require repair for broad temp-media ACL"
     }
@@ -865,9 +868,9 @@ try {
   }
 
   Invoke-Step "stop native agent processes" {
-    Stop-NativeAgentProcesses
+    Stop-NativeAgentProcess
   }
-  Archive-Logs $installDir
+  Archive-Log -InstallDir $installDir -PreserveLogs:$KeepLogs
 
   $env:SNIPTALE_INSTALL_CHANNEL = $Channel
   $env:SNIPTALE_ALLOWED_EXTENSION_ORIGIN = $ExtensionOrigin
@@ -888,7 +891,7 @@ try {
   $outDir = ".tmp\release\windows-$Channel"
   New-Item -ItemType Directory -Force $outDir | Out-Null
   Invoke-Step "windows topology failure probes" {
-    Invoke-TopologyFailureProbes
+    Invoke-TopologyFailureProbe
   }
   $manifestPath = Join-Path $outDir "native-host.json"
   $manifest = Get-Content "installer\native-host\$Channel.json.template" -Raw
@@ -959,12 +962,12 @@ try {
     }
   }
 
-  Assert-SameFileHash $installedExe $stageExe "installed executable"
-  Assert-SameFileHash $installedManifest $stageManifest "installed native-host manifest"
-  Assert-SameFileHash $installedLicense $stageLicense "installed project license"
-  Assert-SameFileHash $installedNotice $stageNotice "installed project notice"
-  Assert-SameFileHash $installedThirdPartyNotices $stageThirdPartyNotices "installed third-party notices"
-  Assert-SameFileHash $installedThirdPartyDependencies $stageThirdPartyDependencies "installed third-party dependency manifest"
+  Assert-SameFileHash -ActualPath $installedExe -ExpectedPath $stageExe -Description "installed executable"
+  Assert-SameFileHash -ActualPath $installedManifest -ExpectedPath $stageManifest -Description "installed native-host manifest"
+  Assert-SameFileHash -ActualPath $installedLicense -ExpectedPath $stageLicense -Description "installed project license"
+  Assert-SameFileHash -ActualPath $installedNotice -ExpectedPath $stageNotice -Description "installed project notice"
+  Assert-SameFileHash -ActualPath $installedThirdPartyNotices -ExpectedPath $stageThirdPartyNotices -Description "installed third-party notices"
+  Assert-SameFileHash -ActualPath $installedThirdPartyDependencies -ExpectedPath $stageThirdPartyDependencies -Description "installed third-party dependency manifest"
   Invoke-Step "verify installed executable resources" {
     python tooling/release/windows/verify_windows_pe_resources.py $installedExe
   }
@@ -988,7 +991,7 @@ try {
   Assert-RegistryDefaultValue "HKCU:\Software\Chromium\NativeMessagingHosts\$($hostNames[$Channel])" $installedManifest
 
   Invoke-Step "installed support mode probes" {
-    Assert-SupportModeOutputs $installedExe $TimeoutMs
+    Assert-SupportModeOutput $installedExe $TimeoutMs
     Assert-RuntimeDirectoryAccessFailClosed $installedExe $TimeoutMs
   }
 
@@ -1002,7 +1005,7 @@ try {
   }
 
   Invoke-Step "installed repeated native-host session probes" {
-    Assert-NativeHostSessionProbes $installedExe $ExtensionOrigin $ExtensionVersion $ProbeCount $TimeoutMs
+    Assert-NativeHostSessionProbe -Exe $installedExe -ExtensionOrigin $ExtensionOrigin -ExtensionVersion $ExtensionVersion -Count $ProbeCount -TimeoutMs $TimeoutMs
   }
 
   $evidencePath = Write-SmokeEvidenceArtifact $outDir
@@ -1021,7 +1024,7 @@ try {
   Write-Host "evidence:   $evidencePath"
 }
 catch {
-  Show-SmokeDiagnostics $installDir $installedExe
+  Show-SmokeDiagnostic $installDir $installedExe
   throw
 }
 finally {

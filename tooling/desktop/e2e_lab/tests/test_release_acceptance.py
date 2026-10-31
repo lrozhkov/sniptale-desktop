@@ -9,6 +9,7 @@ from types import SimpleNamespace
 from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from config import LabConfig
 from errors import IntegrityError, LabError, ResourceError
 from paths import LabPaths
 from release_acceptance import CASES, collect_release_result, test_release
@@ -113,10 +114,10 @@ class ReleaseAcceptanceTests(unittest.TestCase):
                         self.teardowns = {}
                         self.consumed_artifacts = []
 
-                    def test(self, lane, _artifact, run_dir):
+                    def test(self, lane, _artifact, run_dir, recording=include_recording):
                         (run_dir / "logs/guest.log").write_text("synthetic status")
                         (run_dir / "screenshots/product.png").write_bytes(b"synthetic png")
-                        if include_recording:
+                        if recording:
                             (run_dir / "recordings/product.mp4").write_bytes(b"synthetic mp4")
                         return GuestResult(
                             lane, tuple(TestCase(case, "pass", 1, "ok") for case in sorted(CASES)), {}, ()
@@ -131,10 +132,10 @@ class ReleaseAcceptanceTests(unittest.TestCase):
                     mock.patch.object(lab_main, "gc"),
                 ):
                     if include_recording:
-                        lab_main.execute_run(paths, SimpleNamespace(), ["windows-11"], "release", artifact)
+                        lab_main.execute_run(paths, mock.Mock(spec=LabConfig), ["windows-11"], "release", artifact)
                     else:
                         with self.assertRaisesRegex(LabError, "recordings evidence"):
-                            lab_main.execute_run(paths, SimpleNamespace(), ["windows-11"], "release", artifact)
+                            lab_main.execute_run(paths, mock.Mock(spec=LabConfig), ["windows-11"], "release", artifact)
                 run = next(path for path in paths.runs.iterdir() if path.name[:8].isdigit())
                 self.assertEqual(
                     json.loads((run / "receipt.json").read_text())["result"], "pass" if include_recording else "fail"
@@ -171,9 +172,9 @@ class ReleaseAcceptanceTests(unittest.TestCase):
                 mock.patch("release_acceptance.subprocess.check_output", return_value="a" * 40),
                 mock.patch("release_acceptance.subprocess.run", return_value=SimpleNamespace(returncode=0)),
                 mock.patch("release_acceptance.GuestSsh") as ssh,
+                self.assertRaisesRegex(LabError, "capture backend unavailable"),
             ):
-                with self.assertRaisesRegex(LabError, "capture backend unavailable"):
-                    test_release(runner, "windows-11", artifact, root)
+                test_release(runner, "windows-11", artifact, root)
             runner.vms.start.assert_called_once_with("windows-11", windows_audio_capture=True, host_reserve_mib=1024)
             runner._assert_windows_audio_backend.assert_called_once_with("windows-11", require_capture=True)
             ssh.assert_not_called()
@@ -185,7 +186,7 @@ class ReleaseAcceptanceTests(unittest.TestCase):
         self.assertIn("[Diagnostics.Stopwatch]::GetTimestamp()", wait)
         self.assertNotIn("[DateTime]::UtcNow", wait)
         policy = script.split("function Test-TrayMenuPolicy", 1)[1].split("Test-TrayMenuPolicy\n", 1)[0]
-        self.assertIn('Wait-TrayMenuItem "Pause" $read 3 $now $delay', policy)
+        self.assertIn('Wait-TrayMenuItem -Label "Pause" -Read $read -Seconds 3 -Now $now -Delay $delay', policy)
         self.assertIn("$attempt.Value -ne 6 -or $clock.Value -ne 3", policy)
 
     def test_interrupted_launcher_retains_log_without_extending_sealed_inventory(self):
@@ -212,7 +213,7 @@ class ReleaseAcceptanceTests(unittest.TestCase):
         self.assertIn("Wait-For { Window-Hidden $settings }", script)
         self.assertIn("Wait-For { Window-Hidden $restartedSettings }", script)
         self.assertIn("restart or Escape changed user settings", script)
-        self.assertIn("[Windows.Automation.ValuePattern]$pattern).Current.Value -eq $Leaf", script)
+        self.assertIn("[System.Windows.Automation.ValuePattern]$pattern).Current.Value -eq $Leaf", script)
         self.assertIn('Wait-For { Tray @("Video","Pause") -ProbeOnly } 90', script)
         self.assertIn("$videoStreams.Count -ne 1 -or $audioStreams.Count -ne 1", script)
         self.assertIn("[double]::IsNaN($videoDuration)", script)
@@ -223,7 +224,7 @@ class ReleaseAcceptanceTests(unittest.TestCase):
         self.assertIn("@(50.97,30.19)", script)
         self.assertIn("IsWindowVisible(w) && GetWindowRect(w,out r)", script)
         self.assertIn("$entry = Wait-TrayMenuItem $label", script)
-        self.assertIn("if ($ProbeOnly) { Close-TrayMenus; return (-not $disabled) }", script)
+        self.assertIn("if ($ProbeOnly) { Close-TrayMenu; return (-not $disabled) }", script)
         self.assertIn("Test-TrayMenuPolicy\nTest-RecordedAvTimelinePolicy", script)
         self.assertNotIn("Start-Sleep -Milliseconds 800", script)
         self.assertNotIn("Start-Sleep -Milliseconds 700", script)

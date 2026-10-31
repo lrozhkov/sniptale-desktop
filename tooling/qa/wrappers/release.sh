@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
-# shellcheck disable=SC1091
+# shellcheck source=../runtime/lib.sh
 source "$ROOT/tooling/qa/runtime/lib.sh"
 ensure_rust_env release
 cd "$ROOT"
@@ -24,8 +24,6 @@ while [[ $# -gt 0 ]]; do
 done
 
 qa_require_harness
-qa_step "build and QA environment audit" tooling/qa/wrappers/environment-audit.sh
-qa_fail_if_any "environment admission"
 qa_step "secret audit" tooling/qa/wrappers/audit.sh
 qa_step "checkpoint" tooling/qa/wrappers/checkpoint.sh
 qa_step "coverage" tooling/qa/wrappers/coverage.sh

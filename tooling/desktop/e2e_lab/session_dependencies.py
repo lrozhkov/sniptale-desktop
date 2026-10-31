@@ -76,7 +76,7 @@ def upload_wix_ui(paths, ssh, output):
     ).stdout.splitlines()
     if len(output) != len(transfers):
         raise IntegrityError("guest Windows tool inventory incomplete")
-    for actual, (target, expected, package) in zip(output, transfers):
+    for actual, (target, expected, package) in zip(output, transfers, strict=True):
         if actual.strip() != expected:
             ssh.upload(package, target, timeout=600)
     return lock["nuget"]["wixtoolset.ui.wixext"]["dll_sha256"]

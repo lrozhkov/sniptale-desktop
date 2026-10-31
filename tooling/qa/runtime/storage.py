@@ -6,8 +6,10 @@ import os
 import re
 import stat
 import tempfile
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, UTC
 from pathlib import Path
+from typing import Any
+import contextlib
 
 
 MAX_LOG_BYTES = 256 * 1024
@@ -45,7 +47,7 @@ GENERATED_MEDIA_ID = re.compile(
 
 
 def utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def iso_now() -> str:
@@ -66,10 +68,8 @@ def ensure_private_directory(path: Path) -> None:
     _reject_symlink_ancestors(path)
     path.mkdir(parents=True, exist_ok=True, mode=0o700)
     _reject_symlink_ancestors(path)
-    try:
+    with contextlib.suppress(OSError):
         path.chmod(0o700)
-    except OSError:
-        pass
 
 
 def atomic_write_json(path: Path, value: object) -> None:
@@ -83,20 +83,14 @@ def atomic_write_json(path: Path, value: object) -> None:
             handle.write("\n")
             handle.flush()
             os.fsync(handle.fileno())
-        try:
+        with contextlib.suppress(OSError):
             os.chmod(temporary, 0o600)
-        except OSError:
-            pass
         os.replace(temporary, path)
-        try:
+        with contextlib.suppress(OSError):
             path.chmod(0o600)
-        except OSError:
-            pass
     finally:
-        try:
+        with contextlib.suppress(FileNotFoundError):
             os.unlink(temporary)
-        except FileNotFoundError:
-            pass
 
 
 def _read_private_bytes(path: Path, maximum: int) -> bytes:
@@ -113,7 +107,7 @@ def _read_private_bytes(path: Path, maximum: int) -> bytes:
         os.close(descriptor)
 
 
-def read_json(path: Path) -> dict[str, object]:
+def read_json(path: Path) -> dict[str, Any]:
     value = json.loads(_read_private_bytes(path, MAX_JSON_BYTES).decode("utf-8"))
     if not isinstance(value, dict):
         raise ValueError(f"expected JSON object: {path}")
@@ -155,10 +149,8 @@ def append_bounded_log(
             raise OSError(f"private QA log is not a regular file: {path}")
         fchmod = getattr(os, "fchmod", None)
         if fchmod is not None:
-            try:
+            with contextlib.suppress(OSError):
                 fchmod(descriptor, 0o600)
-            except OSError:
-                pass
         current_size = metadata.st_size
         content_limit = MAX_LOG_BYTES - len(TRUNCATION_MARKER)
         if current_size > content_limit:
@@ -178,13 +170,11 @@ def append_bounded_log(
             remaining_payload = remaining_payload[written:]
     finally:
         os.close(descriptor)
-    try:
+    with contextlib.suppress(OSError):
         path.chmod(0o600)
-    except OSError:
-        pass
 
 
-def log_metadata(path: Path, relative: str) -> dict[str, object]:
+def log_metadata(path: Path, relative: str) -> dict[str, Any]:
     payload = _read_private_bytes(path, MAX_LOG_BYTES) if path.exists() or path.is_symlink() else b""
     return {
         "path": relative,
@@ -216,7 +206,7 @@ def maintain_storage(root: Path) -> None:
     runs_root = root / ".tmp/qa-observability/runs"
     logs_root = root / ".tmp/qa-logs"
     now = utc_now()
-    valid: list[tuple[datetime, Path, dict[str, object]]] = []
+    valid: list[tuple[datetime, Path, dict[str, Any]]] = []
     invalid: list[tuple[float, Path]] = []
     referenced_logs: set[str] = set()
     for path in runs_root.glob("**/*.json") if runs_root.exists() else []:
@@ -243,12 +233,10 @@ def maintain_storage(root: Path) -> None:
                 atomic_write_json(path, record)
             valid.append((started, path, record))
         except (OSError, ValueError, json.JSONDecodeError):
-            try:
+            with contextlib.suppress(OSError):
                 invalid.append((path.lstat().st_mtime, path))
-            except OSError:
-                pass
     valid.sort(key=lambda item: item[0], reverse=True)
-    kept: list[tuple[datetime, Path, dict[str, object]]] = []
+    kept: list[tuple[datetime, Path, dict[str, Any]]] = []
     for index, (started, path, record) in enumerate(valid):
         if index >= MAX_RUNS or now - started > RETENTION_AGE:
             path.unlink(missing_ok=True)

@@ -261,7 +261,11 @@ class Provisioner:
         if not source_disk.is_file() or not source_identity_path.is_file():
             return None
         identity = read_json(source_identity_path)
-        if identity.get("lane") != "linux-wayland" or identity.get("disk_sha256") != sha256_file(source_disk):
+        if (
+            identity is None
+            or identity.get("lane") != "linux-wayland"
+            or identity.get("disk_sha256") != sha256_file(source_disk)
+        ):
             raise IntegrityError("Wayland golden identity is invalid; refusing X11 derivation")
         target_dir = self.paths.golden / lane.name
         temporary_dir = self.paths.golden / f".{lane.name}.provisioning"
@@ -576,6 +580,8 @@ class Provisioner:
         shutil.copy2(source / "Autounattend.xml", seed / "Autounattend.xml")
         script = (source / "provision.ps1").read_text(encoding="utf-8").replace("{{SSH_PUBLIC_KEY}}", public_key)
         versions = read_json(self.paths.root / "tooling/configs/qa/tool-versions.json")
+        if versions is None:
+            raise IntegrityError("canonical provisioning tool versions are missing")
         for token, version in {
             "RUST_VERSION": versions["rust"]["channel"],
             "WIX_VERSION": versions["windows"]["wix"],

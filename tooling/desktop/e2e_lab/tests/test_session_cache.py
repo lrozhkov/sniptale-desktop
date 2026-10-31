@@ -97,9 +97,11 @@ class SessionCacheTests(unittest.TestCase):
             else:
                 raise LabError("injected qcow2 validation failure")
 
-        with mock.patch("session_cache.run", side_effect=execute):
-            with self.assertRaisesRegex(LabError, "validation failure"):
-                store(self.paths, "qemu-img", self.golden, self.overlay, "a" * 64, "20261030T160001Z", 12)
+        with (
+            mock.patch("session_cache.run", side_effect=execute),
+            self.assertRaisesRegex(LabError, "validation failure"),
+        ):
+            store(self.paths, "qemu-img", self.golden, self.overlay, "a" * 64, "20261030T160001Z", 12)
         self.assertEqual(self.disk.read_bytes(), previous)
         self.assertFalse((self.root / "pending.qcow2").exists())
 
@@ -113,9 +115,8 @@ class SessionCacheTests(unittest.TestCase):
             if command[1] == "convert":
                 Path(command[-1]).write_bytes(b"new converted image")
 
-        with mock.patch("session_cache.run", side_effect=convert):
-            with self.assertRaises(ResourceError):
-                store(self.paths, "qemu-img", self.golden, self.overlay, "a" * 64, "20261030T160001Z", 0)
+        with mock.patch("session_cache.run", side_effect=convert), self.assertRaises(ResourceError):
+            store(self.paths, "qemu-img", self.golden, self.overlay, "a" * 64, "20261030T160001Z", 0)
         self.assertEqual(self.disk.read_bytes(), original)
         self.assertFalse((self.root / "pending.qcow2").exists())
         with mock.patch("session_cache.run", side_effect=convert):

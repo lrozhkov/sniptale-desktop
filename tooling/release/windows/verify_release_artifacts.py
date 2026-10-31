@@ -245,7 +245,7 @@ def check_clean_break_identity_guards(errors: list[str]) -> None:
     if WINDOWS_MSI_IDENTITY_VERIFIER.is_file():
         text = WINDOWS_MSI_IDENTITY_VERIFIER.read_text(encoding="utf-8")
         for term in (
-            "Get-RetiredProductRoots",
+            "Get-RetiredProductRoot",
             "Assert-CleanIdentityValue",
             "SELECT * FROM",
             "SELECT `UpgradeCode` FROM `Upgrade`",
@@ -480,7 +480,7 @@ def check_windows_smoke_wrappers(errors: list[str]) -> None:
         required_terms = [
             "Ensure-WixUiExtension",
             'Join-Path $PSScriptRoot "..\\..\\..\\.."',
-            "Initialize-SniptaleWindowsTools",
+            "Initialize-SniptaleWindowsTool",
             "../toolchain.ps1",
             "tooling/configs/qa/tool-versions.json",
             "custom WiX version differs from canonical policy",
@@ -488,12 +488,12 @@ def check_windows_smoke_wrappers(errors: list[str]) -> None:
             '"/qn"',
             '"REBOOT=ReallySuppress"',
             "Invoke-NativeAgentJsonMode",
-            "Assert-SupportModeOutputs",
+            "Assert-SupportModeOutput",
             "Assert-RuntimeDirectoryAccessFailClosed",
             "Assert-PipeSecretProvisioned",
-            "Invoke-TopologyFailureProbes",
+            "Invoke-TopologyFailureProbe",
             "Assert-NativeHostOriginGate",
-            "Assert-NativeHostSessionProbes",
+            "Assert-NativeHostSessionProbe",
             "installed project license",
             "installed project notice",
             "installed third-party notices",
@@ -504,7 +504,7 @@ def check_windows_smoke_wrappers(errors: list[str]) -> None:
             "ThirdPartyDependencies=",
             "Invoke-NativeHostProbe",
             "New-NativeMessageFrame",
-            "Read-NativeMessageFrames",
+            "Read-NativeMessageFrame",
             "installed repeated native-host session probes",
             "app.hello/controller probe",
             "Assert-CollectDiagnosticsBundle",

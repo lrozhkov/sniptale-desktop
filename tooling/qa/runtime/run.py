@@ -6,7 +6,7 @@ import signal
 import subprocess
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from pathlib import Path
 
 from . import lock
@@ -27,12 +27,12 @@ MAX_STREAM_LINE_BYTES = min(64 * 1024, MAX_LOG_BYTES)
 
 
 def _run_id() -> str:
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
+    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S.%fZ")
     return f"{stamp}-{secrets.token_hex(6)}"
 
 
 def _paths(run_id: str) -> tuple[Path, Path, str, str]:
-    day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    day = datetime.now(UTC).strftime("%Y-%m-%d")
     run_relative = f".tmp/qa-observability/runs/{day}/{run_id}.json"
     log_relative = f".tmp/qa-logs/{day}/{run_id}.log"
     return ROOT / run_relative, ROOT / log_relative, run_relative, log_relative
@@ -212,7 +212,7 @@ def finish(run_path: Path, log_path: Path, exit_code: int) -> dict[str, object]:
     if record.get("status") != "running":
         return record
     append_bounded_log(log_path, f"\n[{record.get('wrapperId')}] finished exit={exit_code}\n", ROOT)
-    finished = datetime.now(timezone.utc)
+    finished = datetime.now(UTC)
     started_text = str(record.get("startedAt", "")).replace("Z", "+00:00")
     try:
         started = datetime.fromisoformat(started_text)

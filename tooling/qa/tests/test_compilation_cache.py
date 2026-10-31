@@ -38,6 +38,7 @@ class CompilationCacheTests(unittest.TestCase):
 
     def test_hosted_cache_rejects_unsafe_scope_skips_and_order(self):
         spec = importlib.util.spec_from_file_location("linux_cache_policy", ROOT / "tooling/qa/rules/verify_tooling.py")
+        assert spec is not None and spec.loader is not None
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         for mutation in ("key", "restore-keys", "path", "order", "missing", "conditional", "nonblocking", "image"):

@@ -64,8 +64,7 @@ def _dpkg(path: Path, *arguments: str) -> str:
     completed = subprocess.run(
         ["dpkg-deb", arguments[0], str(path), *arguments[1:]],
         text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         timeout=120,
         check=False,
     )

@@ -8,7 +8,9 @@
   "extraPaths": [
     "../../../tooling/desktop/e2e_lab",
     "../../../tooling/qa/rules",
-    "../../.."
+    "../../..",
+    "../../../tooling/release/windows",
+    "../../../tooling/qa/runtime"
   ],
   "venvPath": "../../../.tmp/qa-tools/script-tools",
   "venv": "python"

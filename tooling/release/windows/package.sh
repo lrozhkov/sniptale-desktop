@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
-# shellcheck disable=SC1091
+# shellcheck source=../../qa/runtime/lib.sh
 source "$ROOT/tooling/qa/runtime/lib.sh"
 ensure_rust_env
 cd "$ROOT"
@@ -315,6 +315,8 @@ ensure_wix_ui_extension() {
 
 sign_authenticode_artifact() {
   local artifact="$1"
+  # PowerShell expands its variables after Bash passes this literal command.
+  # shellcheck disable=SC2016
   "$powershell_cmd" -NoProfile -ExecutionPolicy Bypass -Command \
     '& {
       param([string]$Path, [string]$Thumbprint, [string]$TimestampUrl)
@@ -336,6 +338,8 @@ sign_authenticode_artifact() {
 verify_authenticode_artifact() {
   local artifact="$1"
   local evidence_path="$2"
+  # PowerShell expands its variables after Bash passes this literal command.
+  # shellcheck disable=SC2016
   "$powershell_cmd" -NoProfile -ExecutionPolicy Bypass -Command \
     '& {
       param([string]$Path, [string]$Thumbprint, [string]$EvidencePath)

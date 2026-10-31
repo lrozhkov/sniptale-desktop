@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "coverageLimit": "Queries cover known direct-version advisories in the declared source, not all bundled or statically linked dependencies. An empty response does not prove absence of vulnerabilities. Unsupported platforms require separate vendor review. Source failures fail closed; reports are never reused as admission authority.",
+  "coverageLimit": "Queries cover exact cataloged versions and the locked npm/Python checker dependency closures in the declared sources. Queries cover not all bundled or statically linked binary dependencies. An empty response does not prove absence of vulnerabilities. Unsupported platforms require separate vendor review. Source failures fail closed; reports are never reused as admission authority.",
   "tools": {
     "python": {
       "provider": "cpython"
@@ -184,11 +184,43 @@
       "provider": "osv",
       "ecosystem": "PyPI",
       "package": "Cython"
+    },
+    "@eslint/js": {
+      "provider": "osv",
+      "ecosystem": "npm",
+      "package": "@eslint/js"
+    },
+    "typescript": {
+      "provider": "osv",
+      "ecosystem": "npm",
+      "package": "typescript"
+    },
+    "minimatch": {
+      "provider": "osv",
+      "ecosystem": "npm",
+      "package": "minimatch"
+    },
+    "jsonata": {
+      "provider": "osv",
+      "ecosystem": "npm",
+      "package": "jsonata"
+    },
+    "@isaacs/nonrecursive-glob-match": {
+      "provider": "osv",
+      "ecosystem": "npm",
+      "package": "@isaacs/nonrecursive-glob-match"
+    },
+    "@types/estree": {
+      "provider": "osv",
+      "ecosystem": "npm",
+      "package": "@types/estree"
     }
   },
   "platformGaps": [
     "MSVC and static CRT: hosted image inventory and Microsoft servicing; no complete automatic package mapping.",
     ".NET host, Windows PowerShell 5.1, Windows OS and browser servicing: platform inventory, not a cataloged portable package closure.",
-    "QEMU/KVM, Bash, Git, tar and host libraries: host distribution servicing; not covered by the application Cargo advisory audit."
+    "QEMU/KVM, Bash, Git, tar and host libraries: host distribution servicing; not covered by the application Cargo advisory audit.",
+    "Mend-hosted Renovate runtime and its dependencies are serviced by the vendor. Local checks consume only the pinned official configuration schema; the Renovate npm dependency graph is not executed.",
+    "The Actions Python binary distribution and system shared libraries require vendor/distribution servicing; Python language advisories are checked by exact upstream version and commit."
   ]
 }

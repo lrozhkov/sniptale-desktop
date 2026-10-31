@@ -19,7 +19,7 @@ class GuestContractTests(unittest.TestCase):
         startup = script[script.index("foreach ($startupAttempt in 1..3)") : script.index("if (-not $profileExists)")]
         self.assertIn("Write-ProgressEvent", startup)
         self.assertIn("$browser.ExitCode", startup)
-        self.assertIn("Stop-ProbeBrowsers", startup)
+        self.assertIn("Stop-ProbeBrowser", startup)
         self.assertNotIn("Remove-Item", startup)
         self.assertIn("if ($startupAttempt -eq 3) { throw", startup)
 
@@ -89,8 +89,8 @@ class GuestContractTests(unittest.TestCase):
             "Test-NonSilentPcm",
             "function Reset-RecordingFixtureState",
             'if ($SourceMode -eq "microphone") {\n    Reset-RecordingFixtureState $media $tempMedia',
-            '$profile.manualProfile.video.quality = "low"',
-            '$profile.manualProfile.video.fps = "fps24"',
+            '$browserProfile.manualProfile.video.quality = "low"',
+            '$browserProfile.manualProfile.video.fps = "fps24"',
             'recording_fixture_quality = "low-fps24"',
             'microphone_fixture = "qemu-hda-alsa-infinite-synthetic-noise"',
             "function Initialize-SniptaleHotkeyInput",
@@ -120,15 +120,15 @@ class GuestContractTests(unittest.TestCase):
             'Find-Ui "Sniptale E2E Probe Running" 15',
             "Write-ProgressEvent",
             "$selectedTests.Contains($Name)",
-            'Write-ProgressEvent $scenario "retry" $attempt 2 55',
-            'Write-ProgressEvent $scenario "finalizing" $attempt 2 20',
-            'Write-ProgressEvent $scenario "stop-delivery" $stopAttempt 3 3',
+            'Write-ProgressEvent -Scenario $scenario -Status "retry" -Attempt $attempt -MaxAttempts 2 -DeadlineSeconds 55',
+            'Write-ProgressEvent -Scenario $scenario -Status "finalizing" -Attempt $attempt -MaxAttempts 2 -DeadlineSeconds 20',
+            'Write-ProgressEvent -Scenario $scenario -Status "stop-delivery" -Attempt $stopAttempt -MaxAttempts 3 -DeadlineSeconds 3',
             '$attemptFailure = "runtime-discarded"',
             '"attempt-${attempt}:stop-hotkey-not-observed"',
             '$attemptFailure = "finalization-stalled-${writingBytes}-bytes"',
             "function Get-AgentHotkeyEventCount",
             "function Get-AgentRecordingFailure",
-            "function Write-AgentRecordingDiagnostics",
+            "function Write-AgentRecordingDiagnostic",
         ):
             self.assertIn(required, script)
         self.assertNotIn("PlayLooping()", script)
@@ -181,7 +181,7 @@ class GuestContractTests(unittest.TestCase):
     def test_windows_build_keeps_release_symbols_for_bounded_lab_diagnostics(self) -> None:
         script = (GUEST / "windows/build.ps1").read_text(encoding="utf-8")
         self.assertIn('$env:CARGO_PROFILE_RELEASE_DEBUG = "1"', script)
-        self.assertIn("sniptale-native-agent-$Profile.pdb", script)
+        self.assertIn("sniptale-native-agent-$BuildProfile.pdb", script)
 
     def test_windows_build_requires_packaged_resources(self) -> None:
         script = (GUEST / "windows/build.ps1").read_text(encoding="utf-8")
@@ -213,7 +213,7 @@ class GuestContractTests(unittest.TestCase):
         self.assertIn("-d \"ThirdPartyNotices=$(Join-Path $work 'THIRD_PARTY_NOTICES.md')\"", builder)
         self.assertIn('& $IdentityVerifier -Msi $PreviousMsi -ExpectedProductVersion "0.0.1"', runner)
         self.assertIn('& $IdentityVerifier -Msi $Msi -ExpectedProductVersion "0.1.0"', runner)
-        self.assertIn("SniptaleNativeAgent-dev-$productVersion-$Profile.msi", builder)
+        self.assertIn("SniptaleNativeAgent-dev-$productVersion-$BuildProfile.msi", builder)
 
 
 if __name__ == "__main__":

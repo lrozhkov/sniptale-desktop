@@ -60,7 +60,7 @@ class WindowsDependencyTests(unittest.TestCase):
             else:
                 struct.pack_into("<H", value, 134, 65535)
             with self.subTest(mutation=mutation), self.assertRaises(ValueError):
-                dependencies.imports(value)
+                dependencies.imports(bytes(value))
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "oversized.exe"
             with path.open("wb") as stream:

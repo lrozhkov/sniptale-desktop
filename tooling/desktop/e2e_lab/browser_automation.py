@@ -88,8 +88,7 @@ def runtime_inventory(package):
         count = total = 0
         names = set()
         runtime = {}
-        for member in archive:
-            count += 1
+        for count, member in enumerate(archive, start=1):
             path = PurePosixPath(member.name)
             total += member.size
             if (
@@ -110,5 +109,9 @@ def runtime_inventory(package):
                 raise IntegrityError("unsafe Playwright package inventory")
             names.add(member.name.casefold())
             if member.isfile():
-                runtime[member.name] = hashlib.sha256(archive.extractfile(member).read()).hexdigest()
+                stream = archive.extractfile(member)
+                if stream is None:
+                    raise IntegrityError("Playwright file member has no content")
+                with stream:
+                    runtime[member.name] = hashlib.sha256(stream.read()).hexdigest()
     return runtime

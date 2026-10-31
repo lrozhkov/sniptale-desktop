@@ -20,6 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from artifacts import create_source_bundle, evidence_manifest
 from build_cache import restore as restore_build_cache, store as store_build_cache
 from browser_probe import build as build_browser_probe
+from config import LabConfig
 from errors import IntegrityError, LabError
 from evidence import _required_evidence_directories, verify_run_evidence
 import main as lab_main
@@ -34,6 +35,24 @@ from system import sha256_file
 
 
 class ArtifactResultTests(unittest.TestCase):
+    def test_linux_runner_starts_without_a_windows_audio_backend(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            runner = object.__new__(LaneRunner)
+            runner.paths = LabPaths.discover(root)
+            runner.vms = mock.Mock()
+            runner._collect_qemu_log = mock.Mock()
+            runner.config = mock.Mock(spec=LabConfig, lanes={"linux-x11": mock.Mock(ssh_port=22)})
+            runner._finish_vm = mock.Mock()
+            with (
+                mock.patch("runner.inspect_linux_artifact"),
+                mock.patch("runner.GuestSsh", side_effect=LabError("stop after start")),
+                self.assertRaisesRegex(LabError, "stop after start"),
+            ):
+                runner._test_linux("linux-x11", root / "probe.deb", root / "run")
+            runner.vms.start.assert_called_once_with("linux-x11", host_reserve_mib=1024)
+            runner._finish_vm.assert_called_once_with("linux-x11", "test", runner.vms.reset.return_value)
+
     def test_extension_inventory_rejects_windows_path_aliases(self):
         from extension_artifact import artifact_files
 
@@ -185,7 +204,7 @@ class ArtifactResultTests(unittest.TestCase):
                 mock.patch.object(lab_main, "verify_run_evidence"),
                 mock.patch.object(lab_main, "execute_run", return_value="focused") as execute,
             ):
-                result = lab_main.failed_windows_rerun(paths, SimpleNamespace(), run_id)
+                result = lab_main.failed_windows_rerun(paths, mock.Mock(spec=LabConfig), run_id)
             self.assertEqual(result, "focused")
             self.assertEqual(execute.call_args.args[4], current)
             self.assertEqual(execute.call_args.args[5], {"recording-system-audio"})
@@ -249,7 +268,7 @@ class ArtifactResultTests(unittest.TestCase):
                 mock.patch.object(lab_main, "gc"),
                 self.assertRaisesRegex(LabError, "windows-11 failed"),
             ):
-                lab_main.execute_run(paths, SimpleNamespace(), lanes, "release", artifact)
+                lab_main.execute_run(paths, mock.Mock(spec=LabConfig), lanes, "release", artifact)
             run_dir = next(path for path in paths.runs.iterdir() if path.name[:8].isdigit())
             receipt = json.loads((run_dir / "receipt.json").read_text(encoding="utf-8"))
             self.assertEqual([item["lane"] for item in receipt["test_matrix"]], lanes)
@@ -592,9 +611,11 @@ class ArtifactResultTests(unittest.TestCase):
                 "SNIPTALE_E2E_WINDOWS_ISO": "/does/not/matter.iso",
                 "SNIPTALE_E2E_WINDOWS_ISO_SHA256": "../outside",
             }
-            with mock.patch.dict(os.environ, environment, clear=False):
-                with self.assertRaisesRegex(IntegrityError, "64 hexadecimal"):
-                    Provisioner(paths, mock.Mock())._windows(mock.Mock())
+            with (
+                mock.patch.dict(os.environ, environment, clear=False),
+                self.assertRaisesRegex(IntegrityError, "64 hexadecimal"),
+            ):
+                Provisioner(paths, mock.Mock())._windows(mock.Mock())
             self.assertEqual(list(paths.images.iterdir()), [])
 
     def test_source_bundle_includes_dirty_files_and_excludes_state_secrets_and_media(self) -> None:
@@ -686,9 +707,11 @@ class ArtifactResultTests(unittest.TestCase):
             (root / "oversize.rs").write_text("too large", encoding="utf-8")
             archive = Path(directory) / "source.tar.gz"
             archive.write_bytes(b"previous verified archive")
-            with mock.patch("artifacts.MAX_SOURCE_FILE_BYTES", 1):
-                with self.assertRaisesRegex(IntegrityError, "source file exceeds"):
-                    create_source_bundle(root, archive)
+            with (
+                mock.patch("artifacts.MAX_SOURCE_FILE_BYTES", 1),
+                self.assertRaisesRegex(IntegrityError, "source file exceeds"),
+            ):
+                create_source_bundle(root, archive)
             self.assertEqual(archive.read_bytes(), b"previous verified archive")
             self.assertFalse(list(Path(directory).glob("*.partial")))
 
@@ -747,12 +770,13 @@ class ArtifactResultTests(unittest.TestCase):
         ssh = mock.Mock()
         ssh.command.return_value = SimpleNamespace(stdout="e2e-out/escape-link\n")
         runner = object.__new__(LaneRunner)
-        runner.config = SimpleNamespace(
+        runner.config = mock.Mock(
+            spec=LabConfig,
             limits=SimpleNamespace(
                 max_log_mib=1,
                 max_screenshot_mib=1,
                 max_recording_mib=1,
-            )
+            ),
         )
         with self.assertRaisesRegex(Exception, "unsafe file"):
             runner._enforce_remote_evidence_limit(ssh, windows=False)
@@ -773,10 +797,11 @@ class ArtifactResultTests(unittest.TestCase):
         runner.paths = mock.Mock()
         runner.vms = mock.Mock()
         runner.vms.current.return_value = mock.Mock()
-        runner.config = SimpleNamespace(
+        runner.config = mock.Mock(
+            spec=LabConfig,
             lanes={
                 "linux-wayland": SimpleNamespace(os="linux", ssh_port=22421),
-            }
+            },
         )
         with mock.patch("runner.GuestSsh") as guest_ssh:
             runner._request_guest_shutdown("linux-wayland")

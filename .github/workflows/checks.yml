@@ -30,10 +30,48 @@
           }
         },
         {
-          "name": "Audit build and QA tool advisories",
-          "run": "tooling/qa/wrappers/environment-audit.sh"
+          "name": "Cache pinned script tools",
+          "id": "script-tools",
+          "uses": "actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9",
+          "with": {
+            "path": ".tmp/qa-tools/script-tools\n.tmp/qa-tools/node-*",
+            "key": "script-tools-ubuntu24-v1-${{ hashFiles('tooling/configs/qa/tool-versions.json', 'tooling/configs/qa/toolchain-lock.json', 'tooling/configs/qa/script-python*', 'tooling/configs/qa/script-node/**', 'tooling/qa/installers/install-script-tools.sh', 'tooling/qa/runtime/install_script_tools.py') }}"
+          }
+        },
+        {
+          "name": "Install pinned script tools",
+          "run": "tooling/qa/installers/install-script-tools.sh"
+        },
+        {
+          "name": "Save prepared script tools",
+          "if": "steps.script-tools.outputs.cache-hit != 'true'",
+          "uses": "actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9",
+          "with": {
+            "path": ".tmp/qa-tools/script-tools\n.tmp/qa-tools/node-*",
+            "key": "script-tools-ubuntu24-v1-${{ hashFiles('tooling/configs/qa/tool-versions.json', 'tooling/configs/qa/toolchain-lock.json', 'tooling/configs/qa/script-python*', 'tooling/configs/qa/script-node/**', 'tooling/qa/installers/install-script-tools.sh', 'tooling/qa/runtime/install_script_tools.py') }}"
+          }
+        },
+        {
+          "name": "Environment and script admission",
+          "run": "tooling/qa/wrappers/fast.sh"
+        },
+        {
+          "name": "Export exact source lint proof",
+          "run": "python3 -m tooling.qa.runtime.lint_receipts --export .tmp/qa-artifacts/script-lint-proof.json"
+        },
+        {
+          "name": "Upload lint proof",
+          "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
+          "with": {
+            "name": "lint-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}",
+            "path": ".tmp/qa-artifacts",
+            "include-hidden-files": true,
+            "if-no-files-found": "error",
+            "retention-days": 2
+          }
         }
-      ]
+      ],
+      "name": "Fast environment and script checks"
     },
     "qa": {
       "runs-on": "ubuntu-24.04",
@@ -50,6 +88,26 @@
           "uses": "actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0",
           "with": {
             "python-version": "3.15.2"
+          }
+        },
+        {
+          "name": "Restore pinned script tools",
+          "uses": "actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9",
+          "with": {
+            "path": ".tmp/qa-tools/script-tools\n.tmp/qa-tools/node-*",
+            "key": "script-tools-ubuntu24-v1-${{ hashFiles('tooling/configs/qa/tool-versions.json', 'tooling/configs/qa/toolchain-lock.json', 'tooling/configs/qa/script-python*', 'tooling/configs/qa/script-node/**', 'tooling/qa/installers/install-script-tools.sh', 'tooling/qa/runtime/install_script_tools.py') }}"
+          }
+        },
+        {
+          "name": "Verify pinned script tools",
+          "run": "tooling/qa/installers/install-script-tools.sh"
+        },
+        {
+          "name": "Download same-run lint proof",
+          "uses": "actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333",
+          "with": {
+            "name": "lint-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}",
+            "path": ".tmp/qa-artifacts"
           }
         },
         {
@@ -113,7 +171,43 @@
           }
         }
       ],
-      "needs": "fast"
+      "needs": [
+        "fast",
+        "windows-powershell"
+      ],
+      "env": {
+        "GH_TOKEN": "${{ github.token }}",
+        "SNIPTALE_QA_LINT_PROOF": ".tmp/qa-artifacts/script-lint-proof.json"
+      }
+    },
+    "windows-powershell": {
+      "name": "Windows PowerShell 5.1 compatibility",
+      "runs-on": "windows-2025",
+      "timeout-minutes": 10,
+      "steps": [
+        {
+          "uses": "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "with": {
+            "fetch-depth": 0,
+            "persist-credentials": false
+          }
+        },
+        {
+          "uses": "actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0",
+          "with": {
+            "python-version": "3.15.2"
+          }
+        },
+        {
+          "name": "Inventory PowerShell sources",
+          "run": "python3 -m tooling.qa.runtime.script_lints --powershell-inventory"
+        },
+        {
+          "name": "Parse with Windows PowerShell 5.1 and resolve guest types",
+          "shell": "powershell",
+          "run": "& tooling/qa/runtime/lint-windows-powershell.ps1 -Repository (Get-Location).Path -Inventory .tmp/qa-reports/powershell-inventory.json"
+        }
+      ]
     }
   }
 }

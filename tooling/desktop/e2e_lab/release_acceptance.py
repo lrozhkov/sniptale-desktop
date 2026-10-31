@@ -47,7 +47,10 @@ def test_release(runner, lane_name: str, artifact: Path, run_dir: Path):
         runner.vms.start(lane_name, windows_audio_capture=True, host_reserve_mib=1024)
         runner._assert_windows_audio_backend(lane_name, require_capture=True)
         ssh = GuestSsh(runner.paths, runner.config.lanes[lane_name].ssh_port, "lab")
-        health_check = lambda: runner.vms.assert_running(lane_name)
+
+        def health_check():
+            runner.vms.assert_running(lane_name)
+
         ssh.wait(runner.config.timeouts.boot, probe=["cmd.exe", "/d", "/c", "exit", "0"], health_check=health_check)
         prepare_console(ssh, runner.config.timeouts.boot, health_check=health_check)
         ssh.upload(artifact, artifact.name, timeout=600)
@@ -68,8 +71,6 @@ def test_release(runner, lane_name: str, artifact: Path, run_dir: Path):
             sha256_file(bundle / "sniptale-native-agent.exe"),
             "-ExpectedManifestSha256",
             sha256_file(bundle / "native-host.json"),
-            "-ProductVersion",
-            provenance["productVersion"],
             "-TimeoutSeconds",
             "1200",
         ]

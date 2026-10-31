@@ -26,6 +26,7 @@ from results import GuestResult, parse_guest_result
 from ssh import GuestSsh, powershell_encoded
 from system import sha256_file
 from vm import VmManager
+import contextlib
 
 LINUX_CASES = {
     "session",
@@ -126,12 +127,9 @@ class LaneRunner:
         lane = self.config.lanes[lane_name]
         ssh = GuestSsh(self.paths, lane.ssh_port, "lab")
         command = ["sudo", "systemctl", "poweroff"] if lane.os == "linux" else ["shutdown.exe", "/s", "/t", "0", "/f"]
-        try:
+        # Shutdown can close SSH before its response; VmManager still proves process exit.
+        with contextlib.suppress(LabError):
             ssh.command(command, timeout=20)
-        except LabError:
-            # A successful shutdown commonly closes SSH before it can return a
-            # status. VmManager still verifies exit and enforces its timeout.
-            pass
 
     def _finish_vm(self, lane_name: str, phase: str, pre_forced: bool) -> None:
         if self.work_session:
@@ -242,13 +240,11 @@ class LaneRunner:
                 if self.vendor_bundle is not None:
                     ssh.upload(self.vendor_bundle, "vendor.tar.gz", timeout=300)
                     command.extend(("-VendorBundle", "vendor.tar.gz", "-VendorSha256", sha256_file(self.vendor_bundle)))
-                wix_hash = upload_wix_ui(self.paths, ssh, output)
+                upload_wix_ui(self.paths, ssh, output)
                 command.extend(
                     (
                         "-WorkspaceMode",
                         "warm",
-                        "-WixUiSha256",
-                        wix_hash,
                         "-RustcSha256",
                         compiler["rustc_sha256"],
                         "-CargoSha256",
@@ -307,7 +303,6 @@ class LaneRunner:
         try:
             self.vms.start(
                 lane_name,
-                windows_audio_capture=microphone_required,
                 host_reserve_mib=1024,
             )
             ssh = GuestSsh(self.paths, self.config.lanes[lane_name].ssh_port, "lab")
@@ -324,7 +319,7 @@ class LaneRunner:
             )
             script = self.paths.root / "tooling/desktop/e2e_lab/guest/linux-run.sh"
             ssh.upload(script, "linux-run.sh", timeout=120)
-            try:
+            with contextlib.suppress(LabError):
                 ssh.command(
                     [
                         "bash",
@@ -339,8 +334,6 @@ class LaneRunner:
                     timeout=self.config.timeouts.test,
                     log=run_dir / "logs" / f"{lane_name}.log",
                 )
-            except LabError:
-                pass
             self._enforce_remote_evidence_limit(ssh, windows=False)
             maximum = self._evidence_transfer_maximum()
             ssh.download("e2e-out/", lane_dir, recursive=True, timeout=600, max_bytes=maximum, max_files=2048)
@@ -430,7 +423,6 @@ class LaneRunner:
                 require_capture=microphone_required,
             )
             current_remote_name = artifact_set.current_msi.name
-            profile = artifact_set.profile
             previous_msi = artifact_set.previous_msi
             previous_remote_name = previous_msi.name
             baseline_exe = artifact_set.baseline_exe
@@ -466,6 +458,8 @@ class LaneRunner:
                 uploads["lab-signing.ps1"] = script.with_name("lab-signing.ps1")
                 self.consumed_artifacts.append(certificate)
             if real_extension_requested:
+                if self.real_extension is None:
+                    raise LabError("real extension artifact is missing")
                 uploads["real-extension.zip"] = self.real_extension
                 for name in (
                     "real-extension.ps1",
@@ -541,6 +535,8 @@ class LaneRunner:
             if self.work_session:
                 remote_command.extend(("-WorkspaceMode", "warm"))
             if real_extension_requested:
+                if self.real_extension is None:
+                    raise LabError("real extension artifact is missing")
                 remote_command.extend(("-RealExtensionSha256", sha256_file(self.real_extension)))
             runner_error: LabError | None = None
             try:
@@ -560,7 +556,7 @@ class LaneRunner:
                 self._enforce_remote_evidence_limit(ssh, windows=True)
             except LabError:
                 if runner_error is not None:
-                    raise runner_error
+                    raise runner_error from None
                 raise
             maximum = self._evidence_transfer_maximum()
             ssh.download("e2e-out/", lane_dir, recursive=True, timeout=600, max_bytes=maximum, max_files=2048)

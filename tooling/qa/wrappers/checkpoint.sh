@@ -3,7 +3,7 @@ set -euo pipefail
 export PYTHONDONTWRITEBYTECODE=1
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
-# shellcheck disable=SC1091
+# shellcheck source=../runtime/lib.sh
 source "$ROOT/tooling/qa/runtime/lib.sh"
 ensure_rust_env
 cd "$ROOT"
@@ -12,6 +12,8 @@ require_command cargo
 require_command python3
 qa_init "qa:checkpoint" blocking
 qa_require_harness
+qa_step "fast source admission" tooling/qa/wrappers/fast.sh
+qa_fail_if_any "fast source admission summary"
 
 qa_step "target artifact budget" tooling/qa/wrappers/prune-target.sh
 qa_step "checkpoint static proof" python3 -m tooling.qa.runtime.checkpoint_checks

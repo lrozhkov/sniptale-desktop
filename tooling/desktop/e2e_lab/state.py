@@ -8,9 +8,10 @@ import os
 import stat
 import tempfile
 import time
-from contextlib import AbstractContextManager
+from contextlib import AbstractContextManager, suppress
 from pathlib import Path
 from typing import Any
+from collections.abc import Mapping
 
 from errors import IntegrityError, ResourceError
 
@@ -45,7 +46,7 @@ def read_json(path: Path) -> dict[str, Any] | None:
     return value
 
 
-def write_json(path: Path, value: dict[str, Any]) -> None:
+def write_json(path: Path, value: Mapping[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     fd, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
     try:
@@ -57,10 +58,8 @@ def write_json(path: Path, value: dict[str, Any]) -> None:
         os.chmod(temporary, 0o600)
         os.replace(temporary, path)
     finally:
-        try:
+        with suppress(FileNotFoundError):
             os.unlink(temporary)
-        except FileNotFoundError:
-            pass
 
 
 class LabLock(AbstractContextManager["LabLock"]):
@@ -70,7 +69,7 @@ class LabLock(AbstractContextManager["LabLock"]):
         self.nonblocking = nonblocking
         self._stream = None
 
-    def __enter__(self) -> "LabLock":
+    def __enter__(self) -> LabLock:
         self.path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         try:
             descriptor = os.open(

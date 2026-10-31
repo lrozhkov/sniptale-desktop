@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 import time
-from typing import Callable
+from collections.abc import Callable
 
 from errors import LabError, TimeoutExpired
 from ssh import powershell_encoded

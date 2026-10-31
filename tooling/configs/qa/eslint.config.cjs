@@ -4,11 +4,12 @@ const root = path.resolve(__dirname, '../../..');
 const modules = path.join(root, '.tmp/qa-tools/script-tools/npm/node_modules');
 const load = require('node:module').createRequire(path.join(modules, '../package.json'));
 const tseslint = load('typescript-eslint');
+const recommended = load('@eslint/js').configs.recommended;
 const promise = load('eslint-plugin-promise');
 const security = load('eslint-plugin-security');
 const globals = load('globals');
 module.exports = [{
-  files: ['**/*.js', '**/*.cjs'],
+  files: ['**/*.js', '**/*.cjs', '**/*.mjs'],
   languageOptions: {
     parser: tseslint.parser,
     parserOptions: {project: path.join(__dirname, 'script-node/tsconfig.json'), tsconfigRootDir: root},
@@ -18,6 +19,7 @@ module.exports = [{
   plugins: {'@typescript-eslint': tseslint.plugin, promise, security},
   linterOptions: {reportUnusedDisableDirectives: 'error'},
   rules: {
+    ...recommended.rules,
     'constructor-super': 'error', 'for-direction': 'error', 'getter-return': 'error',
     'no-async-promise-executor': 'error', 'no-constant-binary-expression': 'error',
     'no-dupe-args': 'error', 'no-dupe-keys': 'error', 'no-duplicate-case': 'error',
@@ -32,4 +34,10 @@ module.exports = [{
     'security/detect-non-literal-require': 'error',
     'security/detect-unsafe-regex': 'error',
   },
+}, {
+  files: ['tooling/desktop/e2e_lab/guest/**/*.js'],
+  languageOptions: {globals: {...globals.browser, chrome: 'readonly'}},
+}, {
+  files: ['**/*.mjs'],
+  languageOptions: {sourceType: 'module'},
 }];

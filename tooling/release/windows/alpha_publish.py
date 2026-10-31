@@ -10,7 +10,7 @@ import subprocess
 import zipfile
 from pathlib import Path
 
-from alpha_artifacts import digest, read_json, verify_bundle, version_tag, write_json
+from alpha_artifacts import digest, verify_bundle, version_tag, write_json
 
 REPO = "lrozhkov/sniptale-desktop"
 RELEASE_CASES = {"network-isolation", "clean-install", "first-run", "capture", "recording", "restart", "uninstall"}
@@ -76,6 +76,8 @@ def main() -> None:
     run_id = os.environ["ALPHA_RUN_ID"]
     artifact_id = os.environ["ALPHA_ARTIFACT_ID"]
     commit = os.environ["ALPHA_COMMIT"]
+    if os.environ.get("GITHUB_SHA") != commit:
+        raise ValueError("candidate must match the workflow commit whose environment was audited")
     tag = os.environ["ALPHA_TAG"]
     encoded = os.environ["ALPHA_ACCEPTANCE"]
     if not re.fullmatch(r"[1-9][0-9]*", run_id) or not re.fullmatch(r"[1-9][0-9]*", artifact_id):

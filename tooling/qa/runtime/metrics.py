@@ -49,9 +49,12 @@ def summarize(record: dict) -> dict:
         raise ValueError("invalid timing source")
     for key, length in (("revision", 40), ("fingerprint", 64)):
         value = source.get(key)
-        if value is not None and not (key == "revision" and value == "no-head"):
-            if not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{" + str(length) + "}", value):
-                raise ValueError("invalid timing source identity")
+        if (
+            value is not None
+            and not (key == "revision" and value == "no-head")
+            and (not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{" + str(length) + "}", value))
+        ):
+            raise ValueError("invalid timing source identity")
     if not isinstance(record.get("wrapperId"), str) or not re.fullmatch(r"qa:[a-z-]{1,64}", record["wrapperId"]):
         raise ValueError("invalid timing wrapper")
     # Child durations overlap the containing group: never add them to wall time.

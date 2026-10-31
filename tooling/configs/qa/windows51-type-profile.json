@@ -1,0 +1,2908 @@
+{
+  "provenance": {
+    "collector": "PSScriptAnalyzer 1.25.0 TypeDataCollector",
+    "runtime": "Windows PowerShell 5.1; .NET Framework 4.8",
+    "scope": "Public APIs of explicitly loaded framework types only; no module or host inventory"
+  },
+  "schemaVersion": 1,
+  "types": {
+    "System.Security.Cryptography.DataProtectionScope": {
+      "assembly": {
+        "Name": "System.Security",
+        "PublicKeyToken": "sD9ffxHVCjo=",
+        "Version": "4.0.0.0"
+      },
+      "data": {
+        "Instance": {
+          "Fields": {
+            "value__": {
+              "Type": "System.Int32"
+            }
+          },
+          "Methods": {
+            "CompareTo": {
+              "OverloadParameters": [
+                [
+                  "System.Object"
+                ]
+              ],
+              "ReturnType": "System.Int32"
+            },
+            "Equals": {
+              "OverloadParameters": [
+                [
+                  "System.Object"
+                ]
+              ],
+              "ReturnType": "System.Boolean"
+            },
+            "GetHashCode": {
+              "OverloadParameters": [
+                []
+              ],
+              "ReturnType": "System.Int32"
+            },
+            "GetType": {
+              "OverloadParameters": [
+                []
+              ],
+              "ReturnType": "System.Type"
+            },
+            "GetTypeCode": {
+              "OverloadParameters": [
+                []
+              ],
+              "ReturnType": "System.TypeCode"
+            },
+            "HasFlag": {
+              "OverloadParameters": [
+                [
+                  "System.Enum"
+                ]
+              ],
+              "ReturnType": "System.Boolean"
+            },
+            "ToString": {
+              "OverloadParameters": [
+                [],
+                [
+                  "System.String",
+                  "System.IFormatProvider"
+                ],
+                [
+                  "System.IFormatProvider"
+                ],
+                [
+                  "System.String"
+                ]
+              ],
+              "ReturnType": "System.String"
+            }
+          }
+        },
+        "IsEnum": true,
+        "Static": {
+          "Fields": {
+            "CurrentUser": {
+              "Type": "System.Security.Cryptography.DataProtectionScope"
+            },
+            "LocalMachine": {
+              "Type": "System.Security.Cryptography.DataProtectionScope"
+            }
+          }
+        }
+      }
+    },
+    "System.Security.Cryptography.ProtectedData": {
+      "assembly": {
+        "Name": "System.Security",
+        "PublicKeyToken": "sD9ffxHVCjo=",
+        "Version": "4.0.0.0"
+      },
+      "data": {
+        "Instance": {
+          "Methods": {
+            "Equals": {
+              "OverloadParameters": [
+                [
+                  "System.Object"
+                ]
+              ],
+              "ReturnType": "System.Boolean"
+            },
+            "GetHashCode": {
+              "OverloadParameters": [
+                []
+              ],
+              "ReturnType": "System.Int32"
+            },
+            "GetType": {
+              "OverloadParameters": [
+                []
+              ],
+              "ReturnType": "System.Type"
+            },
+            "ToString": {
+              "OverloadParameters": [
+                []
+              ],
+              "ReturnType": "System.String"
+            }
+          }
+        },
+        "Static": {
+          "Methods": {
+            "Protect": {
+              "OverloadParameters": [
+                [
+                  "System.Byte[]",
+                  "System.Byte[]",
+                  "System.Security.Cryptography.DataProtectionScope"
+                ]
+              ],
+              "ReturnType": "System.Byte[]"
+            },
+            "Unprotect": {
+              "OverloadParameters": [
+                [
+                  "System.Byte[]",
+                  "System.Byte[]",
+                  "System.Security.Cryptography.DataProtectionScope"
+                ]
+              ],
+              "ReturnType": "System.Byte[]"
+            }
+          }
+        }
+      }
+    },
+    "System.Windows.Automation.AutomationElement": {
+      "assembly": {
+        "Name": "UIAutomationClient",
+        "PublicKeyToken": "Mb84Vq02TjU=",
+        "Version": "4.0.0.0"
+      },
+      "data": {
+        "Instance": {
+          "Methods": {
+            "Equals": {
+              "OverloadParameters": [
+                [
+                  "System.Object"
+                ]
+              ],
+              "ReturnType": "System.Boolean"
+            },
+            "FindAll": {
+              "OverloadParameters": [
+                [
+                  "System.Windows.Automation.TreeScope",
+                  "System.Windows.Automation.Condition"
+                ]
+              ],
+              "ReturnType": "System.Windows.Automation.AutomationElementCollection"
+            },
+            "FindFirst": {
+              "OverloadParameters": [
+                [
+                  "System.Windows.Automation.TreeScope",
+                  "System.Windows.Automation.Condition"
+                ]
+              ],
+              "ReturnType": "System.Windows.Automation.AutomationElement"
+            },
+            "GetCachedPattern": {
+              "OverloadParameters": [
+                [
+                  "System.Windows.Automation.AutomationPattern"
+                ]
+              ],
+              "ReturnType": "System.Object"
+            },
+            "GetCachedPropertyValue": {
+              "OverloadParameters": [
+                [
+                  "System.Windows.Automation.AutomationProperty"
+                ],
+                [
+                  "System.Windows.Automation.AutomationProperty",
+                  "System.Boolean"
+                ]
+              ],
+              "ReturnType": "System.Object"
+            },
+            "GetClickablePoint": {
+              "OverloadParameters": [
+                []
+              ],
+              "ReturnType": "System.Windows.Point"
+            },
+            "GetCurrentPattern": {
+              "OverloadParameters": [
+                [
+                  "System.Windows.Automation.AutomationPattern"
+                ]
+              ],
+              "ReturnType": "System.Object"
+            },
+            "GetCurrentPropertyValue": {
+              "OverloadParameters": [
+                [
+                  "System.Windows.Automation.AutomationProperty"
+                ],
+                [
+                  "System.Windows.Automation.AutomationProperty",
+                  "System.Boolean"
+                ]
+              ],
+              "ReturnType": "System.Object"
+            },
+            "GetHashCode": {
+              "OverloadParameters": [
+                []
+              ],
+              "ReturnType": "System.Int32"
+            },
+            "GetRuntimeId": {
+              "OverloadParameters": [
+                []
+              ],
+              "ReturnType": "System.Int32[]"
+            },
+            "GetSupportedPatterns": {
+              "OverloadParameters": [
+                []
+              ],
+              "ReturnType": "System.Windows.Automation.AutomationPattern[]"
+            },
+            "GetSupportedProperties": {
+              "OverloadParameters": [
+                []
+              ],
+              "ReturnType": "System.Windows.Automation.AutomationProperty[]"
+            },
+            "GetType": {
+              "OverloadParameters": [
+                []
+              ],
+              "ReturnType": "System.Type"
+            },
+            "GetUpdatedCache": {
+              "OverloadParameters": [
+                [
+                  "System.Windows.Automation.CacheRequest"
+                ]
+              ],
+              "ReturnType": "System.Windows.Automation.AutomationElement"
+            },
+            "SetFocus": {
+              "OverloadParameters": [
+                []
+              ],
+              "ReturnType": "System.Void"
+            },
+            "ToString": {
+              "OverloadParameters": [
+                []
+              ],
+              "ReturnType": "System.String"
+            },
+            "TryGetCachedPattern": {
+              "OverloadParameters": [
+                [
+                  "System.Windows.Automation.AutomationPattern",
+                  "System.Object&"
+                ]
+              ],
+              "ReturnType": "System.Boolean"
+            },
+            "TryGetClickablePoint": {
+              "OverloadParameters": [
+                [
+                  "System.Windows.Point&"
+                ]
+              ],
+              "ReturnType": "System.Boolean"
+            },
+            "TryGetCurrentPattern": {
+              "OverloadParameters": [
+                [
+                  "System.Windows.Automation.AutomationPattern",
+                  "System.Object&"
+                ]
+              ],
+              "ReturnType": "System.Boolean"
+            }
+          },
+          "NestedTypes": {
+            "AutomationElementInformation": {
+              "Instance": {
+                "Methods": {
+                  "Equals": {
+                    "OverloadParameters": [
+                      [
+                        "System.Object"
+                      ]
+                    ],
+                    "ReturnType": "System.Boolean"
+                  },
+                  "GetHashCode": {
+                    "OverloadParameters": [
+                      []
+                    ],
+                    "ReturnType": "System.Int32"
+                  },
+                  "GetType": {
+                    "OverloadParameters": [
+                      []
+                    ],
+                    "ReturnType": "System.Type"
+                  },
+                  "ToString": {
+                    "OverloadParameters": [
+                      []
+                    ],
+                    "ReturnType": "System.String"
+                  }
+                },
+                "Properties": {
+                  "AcceleratorKey": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.String"
+                  },
+                  "AccessKey": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.String"
+                  },
+                  "AutomationId": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.String"
+                  },
+                  "BoundingRectangle": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.Windows.Rect"
+                  },
+                  "ClassName": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.String"
+                  },
+                  "ControlType": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.Windows.Automation.ControlType"
+                  },
+                  "FrameworkId": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.String"
+                  },
+                  "HasKeyboardFocus": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.Boolean"
+                  },
+                  "HelpText": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.String"
+                  },
+                  "IsContentElement": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.Boolean"
+                  },
+                  "IsControlElement": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.Boolean"
+                  },
+                  "IsEnabled": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.Boolean"
+                  },
+                  "IsKeyboardFocusable": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.Boolean"
+                  },
+                  "IsOffscreen": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.Boolean"
+                  },
+                  "IsPassword": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.Boolean"
+                  },
+                  "IsRequiredForForm": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.Boolean"
+                  },
+                  "ItemStatus": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.String"
+                  },
+                  "ItemType": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.String"
+                  },
+                  "LabeledBy": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.Windows.Automation.AutomationElement"
+                  },
+                  "LocalizedControlType": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.String"
+                  },
+                  "Name": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.String"
+                  },
+                  "NativeWindowHandle": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.Int32"
+                  },
+                  "Orientation": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.Windows.Automation.OrientationType"
+                  },
+                  "ProcessId": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.Int32"
+                  }
+                }
+              }
+            }
+          },
+          "Properties": {
+            "Cached": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Windows.Automation.AutomationElement+AutomationElementInformation"
+            },
+            "CachedChildren": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Windows.Automation.AutomationElementCollection"
+            },
+            "CachedParent": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Windows.Automation.AutomationElement"
+            },
+            "Current": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Windows.Automation.AutomationElement+AutomationElementInformation"
+            }
+          }
+        },
+        "Static": {
+          "Fields": {
+            "AcceleratorKeyProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "AccessKeyProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "ActiveTextPositionChangedEvent": {
+              "Type": "System.Windows.Automation.AutomationEvent"
+            },
+            "AsyncContentLoadedEvent": {
+              "Type": "System.Windows.Automation.AutomationEvent"
+            },
+            "AutomationFocusChangedEvent": {
+              "Type": "System.Windows.Automation.AutomationEvent"
+            },
+            "AutomationIdProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "AutomationPropertyChangedEvent": {
+              "Type": "System.Windows.Automation.AutomationEvent"
+            },
+            "BoundingRectangleProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "ClassNameProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "ClickablePointProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "ControlTypeProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "CultureProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "FrameworkIdProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "HasKeyboardFocusProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "HeadingLevelProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "HelpTextProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "IsContentElementProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "IsControlElementProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "IsDialogProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "IsDockPatternAvailableProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "IsEnabledProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "IsExpandCollapsePatternAvailableProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "IsGridItemPatternAvailableProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "IsGridPatternAvailableProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "IsInvokePatternAvailableProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "IsItemContainerPatternAvailableProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "IsKeyboardFocusableProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "IsMultipleViewPatternAvailableProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "IsOffscreenProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "IsPasswordProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "IsRangeValuePatternAvailableProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "IsRequiredForFormProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "IsScrollItemPatternAvailableProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "IsScrollPatternAvailableProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "IsSelectionItemPatternAvailableProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "IsSelectionPatternAvailableProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "IsSynchronizedInputPatternAvailableProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "IsTableItemPatternAvailableProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "IsTablePatternAvailableProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "IsTextPatternAvailableProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "IsTogglePatternAvailableProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "IsTransformPatternAvailableProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "IsValuePatternAvailableProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "IsVirtualizedItemPatternAvailableProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "IsWindowPatternAvailableProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "ItemStatusProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "ItemTypeProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "LabeledByProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "LayoutInvalidatedEvent": {
+              "Type": "System.Windows.Automation.AutomationEvent"
+            },
+            "LocalizedControlTypeProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "MenuClosedEvent": {
+              "Type": "System.Windows.Automation.AutomationEvent"
+            },
+            "MenuOpenedEvent": {
+              "Type": "System.Windows.Automation.AutomationEvent"
+            },
+            "NameProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "NativeWindowHandleProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "NotSupported": {
+              "Type": "System.Object"
+            },
+            "NotificationEvent": {
+              "Type": "System.Windows.Automation.AutomationEvent"
+            },
+            "OrientationProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "PositionInSetProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "ProcessIdProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "RuntimeIdProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "SizeOfSetProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "StructureChangedEvent": {
+              "Type": "System.Windows.Automation.AutomationEvent"
+            },
+            "ToolTipClosedEvent": {
+              "Type": "System.Windows.Automation.AutomationEvent"
+            },
+            "ToolTipOpenedEvent": {
+              "Type": "System.Windows.Automation.AutomationEvent"
+            }
+          },
+          "Methods": {
+            "FromHandle": {
+              "OverloadParameters": [
+                [
+                  "System.IntPtr"
+                ]
+              ],
+              "ReturnType": "System.Windows.Automation.AutomationElement"
+            },
+            "FromLocalProvider": {
+              "OverloadParameters": [
+                [
+                  "System.Windows.Automation.Provider.IRawElementProviderSimple"
+                ]
+              ],
+              "ReturnType": "System.Windows.Automation.AutomationElement"
+            },
+            "FromPoint": {
+              "OverloadParameters": [
+                [
+                  "System.Windows.Point"
+                ]
+              ],
+              "ReturnType": "System.Windows.Automation.AutomationElement"
+            }
+          },
+          "NestedTypes": {
+            "AutomationElementInformation": {
+              "Instance": {
+                "Methods": {
+                  "Equals": {
+                    "OverloadParameters": [
+                      [
+                        "System.Object"
+                      ]
+                    ],
+                    "ReturnType": "System.Boolean"
+                  },
+                  "GetHashCode": {
+                    "OverloadParameters": [
+                      []
+                    ],
+                    "ReturnType": "System.Int32"
+                  },
+                  "GetType": {
+                    "OverloadParameters": [
+                      []
+                    ],
+                    "ReturnType": "System.Type"
+                  },
+                  "ToString": {
+                    "OverloadParameters": [
+                      []
+                    ],
+                    "ReturnType": "System.String"
+                  }
+                },
+                "Properties": {
+                  "AcceleratorKey": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.String"
+                  },
+                  "AccessKey": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.String"
+                  },
+                  "AutomationId": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.String"
+                  },
+                  "BoundingRectangle": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.Windows.Rect"
+                  },
+                  "ClassName": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.String"
+                  },
+                  "ControlType": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.Windows.Automation.ControlType"
+                  },
+                  "FrameworkId": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.String"
+                  },
+                  "HasKeyboardFocus": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.Boolean"
+                  },
+                  "HelpText": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.String"
+                  },
+                  "IsContentElement": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.Boolean"
+                  },
+                  "IsControlElement": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.Boolean"
+                  },
+                  "IsEnabled": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.Boolean"
+                  },
+                  "IsKeyboardFocusable": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.Boolean"
+                  },
+                  "IsOffscreen": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.Boolean"
+                  },
+                  "IsPassword": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.Boolean"
+                  },
+                  "IsRequiredForForm": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.Boolean"
+                  },
+                  "ItemStatus": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.String"
+                  },
+                  "ItemType": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.String"
+                  },
+                  "LabeledBy": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.Windows.Automation.AutomationElement"
+                  },
+                  "LocalizedControlType": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.String"
+                  },
+                  "Name": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.String"
+                  },
+                  "NativeWindowHandle": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.Int32"
+                  },
+                  "Orientation": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.Windows.Automation.OrientationType"
+                  },
+                  "ProcessId": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.Int32"
+                  }
+                }
+              }
+            }
+          },
+          "Properties": {
+            "FocusedElement": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Windows.Automation.AutomationElement"
+            },
+            "RootElement": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Windows.Automation.AutomationElement"
+            }
+          }
+        }
+      }
+    },
+    "System.Windows.Automation.ControlType": {
+      "assembly": {
+        "Name": "UIAutomationTypes",
+        "PublicKeyToken": "Mb84Vq02TjU=",
+        "Version": "4.0.0.0"
+      },
+      "data": {
+        "Instance": {
+          "Methods": {
+            "CompareTo": {
+              "OverloadParameters": [
+                [
+                  "System.Object"
+                ]
+              ],
+              "ReturnType": "System.Int32"
+            },
+            "Equals": {
+              "OverloadParameters": [
+                [
+                  "System.Object"
+                ]
+              ],
+              "ReturnType": "System.Boolean"
+            },
+            "GetHashCode": {
+              "OverloadParameters": [
+                []
+              ],
+              "ReturnType": "System.Int32"
+            },
+            "GetNeverSupportedPatterns": {
+              "OverloadParameters": [
+                []
+              ],
+              "ReturnType": "System.Windows.Automation.AutomationPattern[]"
+            },
+            "GetRequiredPatternSets": {
+              "OverloadParameters": [
+                []
+              ],
+              "ReturnType": "System.Windows.Automation.AutomationPattern[][]"
+            },
+            "GetRequiredProperties": {
+              "OverloadParameters": [
+                []
+              ],
+              "ReturnType": "System.Windows.Automation.AutomationProperty[]"
+            },
+            "GetType": {
+              "OverloadParameters": [
+                []
+              ],
+              "ReturnType": "System.Type"
+            },
+            "ToString": {
+              "OverloadParameters": [
+                []
+              ],
+              "ReturnType": "System.String"
+            }
+          },
+          "Properties": {
+            "Id": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Int32"
+            },
+            "LocalizedControlType": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.String"
+            },
+            "ProgrammaticName": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.String"
+            }
+          }
+        },
+        "Static": {
+          "Fields": {
+            "Button": {
+              "Type": "System.Windows.Automation.ControlType"
+            },
+            "Calendar": {
+              "Type": "System.Windows.Automation.ControlType"
+            },
+            "CheckBox": {
+              "Type": "System.Windows.Automation.ControlType"
+            },
+            "ComboBox": {
+              "Type": "System.Windows.Automation.ControlType"
+            },
+            "Custom": {
+              "Type": "System.Windows.Automation.ControlType"
+            },
+            "DataGrid": {
+              "Type": "System.Windows.Automation.ControlType"
+            },
+            "DataItem": {
+              "Type": "System.Windows.Automation.ControlType"
+            },
+            "Document": {
+              "Type": "System.Windows.Automation.ControlType"
+            },
+            "Edit": {
+              "Type": "System.Windows.Automation.ControlType"
+            },
+            "Group": {
+              "Type": "System.Windows.Automation.ControlType"
+            },
+            "Header": {
+              "Type": "System.Windows.Automation.ControlType"
+            },
+            "HeaderItem": {
+              "Type": "System.Windows.Automation.ControlType"
+            },
+            "Hyperlink": {
+              "Type": "System.Windows.Automation.ControlType"
+            },
+            "Image": {
+              "Type": "System.Windows.Automation.ControlType"
+            },
+            "List": {
+              "Type": "System.Windows.Automation.ControlType"
+            },
+            "ListItem": {
+              "Type": "System.Windows.Automation.ControlType"
+            },
+            "Menu": {
+              "Type": "System.Windows.Automation.ControlType"
+            },
+            "MenuBar": {
+              "Type": "System.Windows.Automation.ControlType"
+            },
+            "MenuItem": {
+              "Type": "System.Windows.Automation.ControlType"
+            },
+            "Pane": {
+              "Type": "System.Windows.Automation.ControlType"
+            },
+            "ProgressBar": {
+              "Type": "System.Windows.Automation.ControlType"
+            },
+            "RadioButton": {
+              "Type": "System.Windows.Automation.ControlType"
+            },
+            "ScrollBar": {
+              "Type": "System.Windows.Automation.ControlType"
+            },
+            "Separator": {
+              "Type": "System.Windows.Automation.ControlType"
+            },
+            "Slider": {
+              "Type": "System.Windows.Automation.ControlType"
+            },
+            "Spinner": {
+              "Type": "System.Windows.Automation.ControlType"
+            },
+            "SplitButton": {
+              "Type": "System.Windows.Automation.ControlType"
+            },
+            "StatusBar": {
+              "Type": "System.Windows.Automation.ControlType"
+            },
+            "Tab": {
+              "Type": "System.Windows.Automation.ControlType"
+            },
+            "TabItem": {
+              "Type": "System.Windows.Automation.ControlType"
+            },
+            "Table": {
+              "Type": "System.Windows.Automation.ControlType"
+            },
+            "Text": {
+              "Type": "System.Windows.Automation.ControlType"
+            },
+            "Thumb": {
+              "Type": "System.Windows.Automation.ControlType"
+            },
+            "TitleBar": {
+              "Type": "System.Windows.Automation.ControlType"
+            },
+            "ToolBar": {
+              "Type": "System.Windows.Automation.ControlType"
+            },
+            "ToolTip": {
+              "Type": "System.Windows.Automation.ControlType"
+            },
+            "Tree": {
+              "Type": "System.Windows.Automation.ControlType"
+            },
+            "TreeItem": {
+              "Type": "System.Windows.Automation.ControlType"
+            },
+            "Window": {
+              "Type": "System.Windows.Automation.ControlType"
+            }
+          },
+          "Methods": {
+            "LookupById": {
+              "OverloadParameters": [
+                [
+                  "System.Int32"
+                ]
+              ],
+              "ReturnType": "System.Windows.Automation.ControlType"
+            }
+          }
+        }
+      }
+    },
+    "System.Windows.Automation.ElementNotAvailableException": {
+      "assembly": {
+        "Name": "UIAutomationTypes",
+        "PublicKeyToken": "Mb84Vq02TjU=",
+        "Version": "4.0.0.0"
+      },
+      "data": {
+        "Instance": {
+          "Constructors": [
+            [],
+            [
+              "System.String"
+            ],
+            [
+              "System.String",
+              "System.Exception"
+            ],
+            [
+              "System.Exception"
+            ]
+          ],
+          "Methods": {
+            "Equals": {
+              "OverloadParameters": [
+                [
+                  "System.Object"
+                ]
+              ],
+              "ReturnType": "System.Boolean"
+            },
+            "GetBaseException": {
+              "OverloadParameters": [
+                []
+              ],
+              "ReturnType": "System.Exception"
+            },
+            "GetHashCode": {
+              "OverloadParameters": [
+                []
+              ],
+              "ReturnType": "System.Int32"
+            },
+            "GetObjectData": {
+              "OverloadParameters": [
+                [
+                  "System.Runtime.Serialization.SerializationInfo",
+                  "System.Runtime.Serialization.StreamingContext"
+                ]
+              ],
+              "ReturnType": "System.Void"
+            },
+            "GetType": {
+              "OverloadParameters": [
+                [],
+                []
+              ],
+              "ReturnType": "System.Type"
+            },
+            "ToString": {
+              "OverloadParameters": [
+                []
+              ],
+              "ReturnType": "System.String"
+            }
+          },
+          "Properties": {
+            "Data": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Collections.IDictionary"
+            },
+            "HResult": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Int32"
+            },
+            "HelpLink": {
+              "Accessors": [
+                "Get",
+                "Set"
+              ],
+              "Type": "System.String"
+            },
+            "InnerException": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Exception"
+            },
+            "Message": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.String"
+            },
+            "Source": {
+              "Accessors": [
+                "Get",
+                "Set"
+              ],
+              "Type": "System.String"
+            },
+            "StackTrace": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.String"
+            },
+            "TargetSite": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Reflection.MethodBase"
+            }
+          }
+        }
+      }
+    },
+    "System.Windows.Automation.InvokePattern": {
+      "assembly": {
+        "Name": "UIAutomationClient",
+        "PublicKeyToken": "Mb84Vq02TjU=",
+        "Version": "4.0.0.0"
+      },
+      "data": {
+        "Instance": {
+          "Methods": {
+            "Equals": {
+              "OverloadParameters": [
+                [
+                  "System.Object"
+                ]
+              ],
+              "ReturnType": "System.Boolean"
+            },
+            "GetHashCode": {
+              "OverloadParameters": [
+                []
+              ],
+              "ReturnType": "System.Int32"
+            },
+            "GetType": {
+              "OverloadParameters": [
+                []
+              ],
+              "ReturnType": "System.Type"
+            },
+            "Invoke": {
+              "OverloadParameters": [
+                []
+              ],
+              "ReturnType": "System.Void"
+            },
+            "ToString": {
+              "OverloadParameters": [
+                []
+              ],
+              "ReturnType": "System.String"
+            }
+          }
+        },
+        "Static": {
+          "Fields": {
+            "InvokedEvent": {
+              "Type": "System.Windows.Automation.AutomationEvent"
+            },
+            "Pattern": {
+              "Type": "System.Windows.Automation.AutomationPattern"
+            }
+          }
+        }
+      }
+    },
+    "System.Windows.Automation.PropertyCondition": {
+      "assembly": {
+        "Name": "UIAutomationClient",
+        "PublicKeyToken": "Mb84Vq02TjU=",
+        "Version": "4.0.0.0"
+      },
+      "data": {
+        "Instance": {
+          "Constructors": [
+            [
+              "System.Windows.Automation.AutomationProperty",
+              "System.Object"
+            ],
+            [
+              "System.Windows.Automation.AutomationProperty",
+              "System.Object",
+              "System.Windows.Automation.PropertyConditionFlags"
+            ]
+          ],
+          "Methods": {
+            "Equals": {
+              "OverloadParameters": [
+                [
+                  "System.Object"
+                ]
+              ],
+              "ReturnType": "System.Boolean"
+            },
+            "GetHashCode": {
+              "OverloadParameters": [
+                []
+              ],
+              "ReturnType": "System.Int32"
+            },
+            "GetType": {
+              "OverloadParameters": [
+                []
+              ],
+              "ReturnType": "System.Type"
+            },
+            "ToString": {
+              "OverloadParameters": [
+                []
+              ],
+              "ReturnType": "System.String"
+            }
+          },
+          "Properties": {
+            "Flags": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Windows.Automation.PropertyConditionFlags"
+            },
+            "Property": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "Value": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Object"
+            }
+          }
+        }
+      }
+    },
+    "System.Windows.Automation.TransformPattern": {
+      "assembly": {
+        "Name": "UIAutomationClient",
+        "PublicKeyToken": "Mb84Vq02TjU=",
+        "Version": "4.0.0.0"
+      },
+      "data": {
+        "Instance": {
+          "Methods": {
+            "Equals": {
+              "OverloadParameters": [
+                [
+                  "System.Object"
+                ]
+              ],
+              "ReturnType": "System.Boolean"
+            },
+            "GetHashCode": {
+              "OverloadParameters": [
+                []
+              ],
+              "ReturnType": "System.Int32"
+            },
+            "GetType": {
+              "OverloadParameters": [
+                []
+              ],
+              "ReturnType": "System.Type"
+            },
+            "Move": {
+              "OverloadParameters": [
+                [
+                  "System.Double",
+                  "System.Double"
+                ]
+              ],
+              "ReturnType": "System.Void"
+            },
+            "Resize": {
+              "OverloadParameters": [
+                [
+                  "System.Double",
+                  "System.Double"
+                ]
+              ],
+              "ReturnType": "System.Void"
+            },
+            "Rotate": {
+              "OverloadParameters": [
+                [
+                  "System.Double"
+                ]
+              ],
+              "ReturnType": "System.Void"
+            },
+            "ToString": {
+              "OverloadParameters": [
+                []
+              ],
+              "ReturnType": "System.String"
+            }
+          },
+          "NestedTypes": {
+            "TransformPatternInformation": {
+              "Instance": {
+                "Methods": {
+                  "Equals": {
+                    "OverloadParameters": [
+                      [
+                        "System.Object"
+                      ]
+                    ],
+                    "ReturnType": "System.Boolean"
+                  },
+                  "GetHashCode": {
+                    "OverloadParameters": [
+                      []
+                    ],
+                    "ReturnType": "System.Int32"
+                  },
+                  "GetType": {
+                    "OverloadParameters": [
+                      []
+                    ],
+                    "ReturnType": "System.Type"
+                  },
+                  "ToString": {
+                    "OverloadParameters": [
+                      []
+                    ],
+                    "ReturnType": "System.String"
+                  }
+                },
+                "Properties": {
+                  "CanMove": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.Boolean"
+                  },
+                  "CanResize": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.Boolean"
+                  },
+                  "CanRotate": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.Boolean"
+                  }
+                }
+              }
+            }
+          },
+          "Properties": {
+            "Cached": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Windows.Automation.TransformPattern+TransformPatternInformation"
+            },
+            "Current": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Windows.Automation.TransformPattern+TransformPatternInformation"
+            }
+          }
+        },
+        "Static": {
+          "Fields": {
+            "CanMoveProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "CanResizeProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "CanRotateProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "Pattern": {
+              "Type": "System.Windows.Automation.AutomationPattern"
+            }
+          },
+          "NestedTypes": {
+            "TransformPatternInformation": {
+              "Instance": {
+                "Methods": {
+                  "Equals": {
+                    "OverloadParameters": [
+                      [
+                        "System.Object"
+                      ]
+                    ],
+                    "ReturnType": "System.Boolean"
+                  },
+                  "GetHashCode": {
+                    "OverloadParameters": [
+                      []
+                    ],
+                    "ReturnType": "System.Int32"
+                  },
+                  "GetType": {
+                    "OverloadParameters": [
+                      []
+                    ],
+                    "ReturnType": "System.Type"
+                  },
+                  "ToString": {
+                    "OverloadParameters": [
+                      []
+                    ],
+                    "ReturnType": "System.String"
+                  }
+                },
+                "Properties": {
+                  "CanMove": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.Boolean"
+                  },
+                  "CanResize": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.Boolean"
+                  },
+                  "CanRotate": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.Boolean"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "System.Windows.Automation.TreeScope": {
+      "assembly": {
+        "Name": "UIAutomationTypes",
+        "PublicKeyToken": "Mb84Vq02TjU=",
+        "Version": "4.0.0.0"
+      },
+      "data": {
+        "Instance": {
+          "Fields": {
+            "value__": {
+              "Type": "System.Int32"
+            }
+          },
+          "Methods": {
+            "CompareTo": {
+              "OverloadParameters": [
+                [
+                  "System.Object"
+                ]
+              ],
+              "ReturnType": "System.Int32"
+            },
+            "Equals": {
+              "OverloadParameters": [
+                [
+                  "System.Object"
+                ]
+              ],
+              "ReturnType": "System.Boolean"
+            },
+            "GetHashCode": {
+              "OverloadParameters": [
+                []
+              ],
+              "ReturnType": "System.Int32"
+            },
+            "GetType": {
+              "OverloadParameters": [
+                []
+              ],
+              "ReturnType": "System.Type"
+            },
+            "GetTypeCode": {
+              "OverloadParameters": [
+                []
+              ],
+              "ReturnType": "System.TypeCode"
+            },
+            "HasFlag": {
+              "OverloadParameters": [
+                [
+                  "System.Enum"
+                ]
+              ],
+              "ReturnType": "System.Boolean"
+            },
+            "ToString": {
+              "OverloadParameters": [
+                [],
+                [
+                  "System.String",
+                  "System.IFormatProvider"
+                ],
+                [
+                  "System.IFormatProvider"
+                ],
+                [
+                  "System.String"
+                ]
+              ],
+              "ReturnType": "System.String"
+            }
+          }
+        },
+        "IsEnum": true,
+        "Static": {
+          "Fields": {
+            "Ancestors": {
+              "Type": "System.Windows.Automation.TreeScope"
+            },
+            "Children": {
+              "Type": "System.Windows.Automation.TreeScope"
+            },
+            "Descendants": {
+              "Type": "System.Windows.Automation.TreeScope"
+            },
+            "Element": {
+              "Type": "System.Windows.Automation.TreeScope"
+            },
+            "Parent": {
+              "Type": "System.Windows.Automation.TreeScope"
+            },
+            "Subtree": {
+              "Type": "System.Windows.Automation.TreeScope"
+            }
+          }
+        }
+      }
+    },
+    "System.Windows.Automation.ValuePattern": {
+      "assembly": {
+        "Name": "UIAutomationClient",
+        "PublicKeyToken": "Mb84Vq02TjU=",
+        "Version": "4.0.0.0"
+      },
+      "data": {
+        "Instance": {
+          "Methods": {
+            "Equals": {
+              "OverloadParameters": [
+                [
+                  "System.Object"
+                ]
+              ],
+              "ReturnType": "System.Boolean"
+            },
+            "GetHashCode": {
+              "OverloadParameters": [
+                []
+              ],
+              "ReturnType": "System.Int32"
+            },
+            "GetType": {
+              "OverloadParameters": [
+                []
+              ],
+              "ReturnType": "System.Type"
+            },
+            "SetValue": {
+              "OverloadParameters": [
+                [
+                  "System.String"
+                ]
+              ],
+              "ReturnType": "System.Void"
+            },
+            "ToString": {
+              "OverloadParameters": [
+                []
+              ],
+              "ReturnType": "System.String"
+            }
+          },
+          "NestedTypes": {
+            "ValuePatternInformation": {
+              "Instance": {
+                "Methods": {
+                  "Equals": {
+                    "OverloadParameters": [
+                      [
+                        "System.Object"
+                      ]
+                    ],
+                    "ReturnType": "System.Boolean"
+                  },
+                  "GetHashCode": {
+                    "OverloadParameters": [
+                      []
+                    ],
+                    "ReturnType": "System.Int32"
+                  },
+                  "GetType": {
+                    "OverloadParameters": [
+                      []
+                    ],
+                    "ReturnType": "System.Type"
+                  },
+                  "ToString": {
+                    "OverloadParameters": [
+                      []
+                    ],
+                    "ReturnType": "System.String"
+                  }
+                },
+                "Properties": {
+                  "IsReadOnly": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.Boolean"
+                  },
+                  "Value": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.String"
+                  }
+                }
+              }
+            }
+          },
+          "Properties": {
+            "Cached": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Windows.Automation.ValuePattern+ValuePatternInformation"
+            },
+            "Current": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Windows.Automation.ValuePattern+ValuePatternInformation"
+            }
+          }
+        },
+        "Static": {
+          "Fields": {
+            "IsReadOnlyProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "Pattern": {
+              "Type": "System.Windows.Automation.AutomationPattern"
+            },
+            "ValueProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            }
+          },
+          "NestedTypes": {
+            "ValuePatternInformation": {
+              "Instance": {
+                "Methods": {
+                  "Equals": {
+                    "OverloadParameters": [
+                      [
+                        "System.Object"
+                      ]
+                    ],
+                    "ReturnType": "System.Boolean"
+                  },
+                  "GetHashCode": {
+                    "OverloadParameters": [
+                      []
+                    ],
+                    "ReturnType": "System.Int32"
+                  },
+                  "GetType": {
+                    "OverloadParameters": [
+                      []
+                    ],
+                    "ReturnType": "System.Type"
+                  },
+                  "ToString": {
+                    "OverloadParameters": [
+                      []
+                    ],
+                    "ReturnType": "System.String"
+                  }
+                },
+                "Properties": {
+                  "IsReadOnly": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.Boolean"
+                  },
+                  "Value": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.String"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "System.Windows.Automation.WindowPattern": {
+      "assembly": {
+        "Name": "UIAutomationClient",
+        "PublicKeyToken": "Mb84Vq02TjU=",
+        "Version": "4.0.0.0"
+      },
+      "data": {
+        "Instance": {
+          "Methods": {
+            "Close": {
+              "OverloadParameters": [
+                []
+              ],
+              "ReturnType": "System.Void"
+            },
+            "Equals": {
+              "OverloadParameters": [
+                [
+                  "System.Object"
+                ]
+              ],
+              "ReturnType": "System.Boolean"
+            },
+            "GetHashCode": {
+              "OverloadParameters": [
+                []
+              ],
+              "ReturnType": "System.Int32"
+            },
+            "GetType": {
+              "OverloadParameters": [
+                []
+              ],
+              "ReturnType": "System.Type"
+            },
+            "SetWindowVisualState": {
+              "OverloadParameters": [
+                [
+                  "System.Windows.Automation.WindowVisualState"
+                ]
+              ],
+              "ReturnType": "System.Void"
+            },
+            "ToString": {
+              "OverloadParameters": [
+                []
+              ],
+              "ReturnType": "System.String"
+            },
+            "WaitForInputIdle": {
+              "OverloadParameters": [
+                [
+                  "System.Int32"
+                ]
+              ],
+              "ReturnType": "System.Boolean"
+            }
+          },
+          "NestedTypes": {
+            "WindowPatternInformation": {
+              "Instance": {
+                "Methods": {
+                  "Equals": {
+                    "OverloadParameters": [
+                      [
+                        "System.Object"
+                      ]
+                    ],
+                    "ReturnType": "System.Boolean"
+                  },
+                  "GetHashCode": {
+                    "OverloadParameters": [
+                      []
+                    ],
+                    "ReturnType": "System.Int32"
+                  },
+                  "GetType": {
+                    "OverloadParameters": [
+                      []
+                    ],
+                    "ReturnType": "System.Type"
+                  },
+                  "ToString": {
+                    "OverloadParameters": [
+                      []
+                    ],
+                    "ReturnType": "System.String"
+                  }
+                },
+                "Properties": {
+                  "CanMaximize": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.Boolean"
+                  },
+                  "CanMinimize": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.Boolean"
+                  },
+                  "IsModal": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.Boolean"
+                  },
+                  "IsTopmost": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.Boolean"
+                  },
+                  "WindowInteractionState": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.Windows.Automation.WindowInteractionState"
+                  },
+                  "WindowVisualState": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.Windows.Automation.WindowVisualState"
+                  }
+                }
+              }
+            }
+          },
+          "Properties": {
+            "Cached": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Windows.Automation.WindowPattern+WindowPatternInformation"
+            },
+            "Current": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Windows.Automation.WindowPattern+WindowPatternInformation"
+            }
+          }
+        },
+        "Static": {
+          "Fields": {
+            "CanMaximizeProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "CanMinimizeProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "IsModalProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "IsTopmostProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "Pattern": {
+              "Type": "System.Windows.Automation.AutomationPattern"
+            },
+            "WindowClosedEvent": {
+              "Type": "System.Windows.Automation.AutomationEvent"
+            },
+            "WindowInteractionStateProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            },
+            "WindowOpenedEvent": {
+              "Type": "System.Windows.Automation.AutomationEvent"
+            },
+            "WindowVisualStateProperty": {
+              "Type": "System.Windows.Automation.AutomationProperty"
+            }
+          },
+          "NestedTypes": {
+            "WindowPatternInformation": {
+              "Instance": {
+                "Methods": {
+                  "Equals": {
+                    "OverloadParameters": [
+                      [
+                        "System.Object"
+                      ]
+                    ],
+                    "ReturnType": "System.Boolean"
+                  },
+                  "GetHashCode": {
+                    "OverloadParameters": [
+                      []
+                    ],
+                    "ReturnType": "System.Int32"
+                  },
+                  "GetType": {
+                    "OverloadParameters": [
+                      []
+                    ],
+                    "ReturnType": "System.Type"
+                  },
+                  "ToString": {
+                    "OverloadParameters": [
+                      []
+                    ],
+                    "ReturnType": "System.String"
+                  }
+                },
+                "Properties": {
+                  "CanMaximize": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.Boolean"
+                  },
+                  "CanMinimize": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.Boolean"
+                  },
+                  "IsModal": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.Boolean"
+                  },
+                  "IsTopmost": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.Boolean"
+                  },
+                  "WindowInteractionState": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.Windows.Automation.WindowInteractionState"
+                  },
+                  "WindowVisualState": {
+                    "Accessors": [
+                      "Get"
+                    ],
+                    "Type": "System.Windows.Automation.WindowVisualState"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "System.Windows.Forms.SendKeys": {
+      "assembly": {
+        "Name": "System.Windows.Forms",
+        "PublicKeyToken": "t3pcVhk04Ik=",
+        "Version": "4.0.0.0"
+      },
+      "data": {
+        "Instance": {
+          "Methods": {
+            "Equals": {
+              "OverloadParameters": [
+                [
+                  "System.Object"
+                ]
+              ],
+              "ReturnType": "System.Boolean"
+            },
+            "GetHashCode": {
+              "OverloadParameters": [
+                []
+              ],
+              "ReturnType": "System.Int32"
+            },
+            "GetType": {
+              "OverloadParameters": [
+                []
+              ],
+              "ReturnType": "System.Type"
+            },
+            "ToString": {
+              "OverloadParameters": [
+                []
+              ],
+              "ReturnType": "System.String"
+            }
+          }
+        },
+        "Static": {
+          "Methods": {
+            "Flush": {
+              "OverloadParameters": [
+                []
+              ],
+              "ReturnType": "System.Void"
+            },
+            "Send": {
+              "OverloadParameters": [
+                [
+                  "System.String"
+                ]
+              ],
+              "ReturnType": "System.Void"
+            },
+            "SendWait": {
+              "OverloadParameters": [
+                [
+                  "System.String"
+                ]
+              ],
+              "ReturnType": "System.Void"
+            }
+          }
+        }
+      }
+    },
+    "System.Windows.Forms.SystemInformation": {
+      "assembly": {
+        "Name": "System.Windows.Forms",
+        "PublicKeyToken": "t3pcVhk04Ik=",
+        "Version": "4.0.0.0"
+      },
+      "data": {
+        "Instance": {
+          "Methods": {
+            "Equals": {
+              "OverloadParameters": [
+                [
+                  "System.Object"
+                ]
+              ],
+              "ReturnType": "System.Boolean"
+            },
+            "GetHashCode": {
+              "OverloadParameters": [
+                []
+              ],
+              "ReturnType": "System.Int32"
+            },
+            "GetType": {
+              "OverloadParameters": [
+                []
+              ],
+              "ReturnType": "System.Type"
+            },
+            "ToString": {
+              "OverloadParameters": [
+                []
+              ],
+              "ReturnType": "System.String"
+            }
+          }
+        },
+        "Static": {
+          "Methods": {
+            "GetBorderSizeForDpi": {
+              "OverloadParameters": [
+                [
+                  "System.Int32"
+                ]
+              ],
+              "ReturnType": "System.Drawing.Size"
+            },
+            "GetHorizontalScrollBarArrowWidthForDpi": {
+              "OverloadParameters": [
+                [
+                  "System.Int32"
+                ]
+              ],
+              "ReturnType": "System.Int32"
+            },
+            "GetHorizontalScrollBarHeightForDpi": {
+              "OverloadParameters": [
+                [
+                  "System.Int32"
+                ]
+              ],
+              "ReturnType": "System.Int32"
+            },
+            "GetMenuFontForDpi": {
+              "OverloadParameters": [
+                [
+                  "System.Int32"
+                ]
+              ],
+              "ReturnType": "System.Drawing.Font"
+            },
+            "GetVerticalScrollBarWidthForDpi": {
+              "OverloadParameters": [
+                [
+                  "System.Int32"
+                ]
+              ],
+              "ReturnType": "System.Int32"
+            },
+            "VerticalScrollBarArrowHeightForDpi": {
+              "OverloadParameters": [
+                [
+                  "System.Int32"
+                ]
+              ],
+              "ReturnType": "System.Int32"
+            }
+          },
+          "Properties": {
+            "ActiveWindowTrackingDelay": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Int32"
+            },
+            "ArrangeDirection": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Windows.Forms.ArrangeDirection"
+            },
+            "ArrangeStartingPosition": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Windows.Forms.ArrangeStartingPosition"
+            },
+            "BootMode": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Windows.Forms.BootMode"
+            },
+            "Border3DSize": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Drawing.Size"
+            },
+            "BorderMultiplierFactor": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Int32"
+            },
+            "BorderSize": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Drawing.Size"
+            },
+            "CaptionButtonSize": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Drawing.Size"
+            },
+            "CaptionHeight": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Int32"
+            },
+            "CaretBlinkTime": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Int32"
+            },
+            "CaretWidth": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Int32"
+            },
+            "ComputerName": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.String"
+            },
+            "CursorSize": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Drawing.Size"
+            },
+            "DbcsEnabled": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Boolean"
+            },
+            "DebugOS": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Boolean"
+            },
+            "DoubleClickSize": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Drawing.Size"
+            },
+            "DoubleClickTime": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Int32"
+            },
+            "DragFullWindows": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Boolean"
+            },
+            "DragSize": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Drawing.Size"
+            },
+            "FixedFrameBorderSize": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Drawing.Size"
+            },
+            "FontSmoothingContrast": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Int32"
+            },
+            "FontSmoothingType": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Int32"
+            },
+            "FrameBorderSize": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Drawing.Size"
+            },
+            "HighContrast": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Boolean"
+            },
+            "HorizontalFocusThickness": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Int32"
+            },
+            "HorizontalResizeBorderThickness": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Int32"
+            },
+            "HorizontalScrollBarArrowWidth": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Int32"
+            },
+            "HorizontalScrollBarHeight": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Int32"
+            },
+            "HorizontalScrollBarThumbWidth": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Int32"
+            },
+            "IconHorizontalSpacing": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Int32"
+            },
+            "IconSize": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Drawing.Size"
+            },
+            "IconSpacingSize": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Drawing.Size"
+            },
+            "IconVerticalSpacing": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Int32"
+            },
+            "IsActiveWindowTrackingEnabled": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Boolean"
+            },
+            "IsComboBoxAnimationEnabled": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Boolean"
+            },
+            "IsDropShadowEnabled": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Boolean"
+            },
+            "IsFlatMenuEnabled": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Boolean"
+            },
+            "IsFontSmoothingEnabled": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Boolean"
+            },
+            "IsHotTrackingEnabled": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Boolean"
+            },
+            "IsIconTitleWrappingEnabled": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Boolean"
+            },
+            "IsKeyboardPreferred": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Boolean"
+            },
+            "IsListBoxSmoothScrollingEnabled": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Boolean"
+            },
+            "IsMenuAnimationEnabled": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Boolean"
+            },
+            "IsMenuFadeEnabled": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Boolean"
+            },
+            "IsMinimizeRestoreAnimationEnabled": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Boolean"
+            },
+            "IsSelectionFadeEnabled": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Boolean"
+            },
+            "IsSnapToDefaultEnabled": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Boolean"
+            },
+            "IsTitleBarGradientEnabled": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Boolean"
+            },
+            "IsToolTipAnimationEnabled": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Boolean"
+            },
+            "KanjiWindowHeight": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Int32"
+            },
+            "KeyboardDelay": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Int32"
+            },
+            "KeyboardSpeed": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Int32"
+            },
+            "MaxWindowTrackSize": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Drawing.Size"
+            },
+            "MenuAccessKeysUnderlined": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Boolean"
+            },
+            "MenuBarButtonSize": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Drawing.Size"
+            },
+            "MenuButtonSize": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Drawing.Size"
+            },
+            "MenuCheckSize": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Drawing.Size"
+            },
+            "MenuFont": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Drawing.Font"
+            },
+            "MenuHeight": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Int32"
+            },
+            "MenuShowDelay": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Int32"
+            },
+            "MidEastEnabled": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Boolean"
+            },
+            "MinWindowTrackSize": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Drawing.Size"
+            },
+            "MinimizedWindowSize": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Drawing.Size"
+            },
+            "MinimizedWindowSpacingSize": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Drawing.Size"
+            },
+            "MinimumWindowSize": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Drawing.Size"
+            },
+            "MonitorCount": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Int32"
+            },
+            "MonitorsSameDisplayFormat": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Boolean"
+            },
+            "MouseButtons": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Int32"
+            },
+            "MouseButtonsSwapped": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Boolean"
+            },
+            "MouseHoverSize": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Drawing.Size"
+            },
+            "MouseHoverTime": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Int32"
+            },
+            "MousePresent": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Boolean"
+            },
+            "MouseSpeed": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Int32"
+            },
+            "MouseWheelPresent": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Boolean"
+            },
+            "MouseWheelScrollDelta": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Int32"
+            },
+            "MouseWheelScrollLines": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Int32"
+            },
+            "NativeMouseWheelSupport": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Boolean"
+            },
+            "Network": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Boolean"
+            },
+            "PenWindows": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Boolean"
+            },
+            "PopupMenuAlignment": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Windows.Forms.LeftRightAlignment"
+            },
+            "PowerStatus": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Windows.Forms.PowerStatus"
+            },
+            "PrimaryMonitorMaximizedWindowSize": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Drawing.Size"
+            },
+            "PrimaryMonitorSize": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Drawing.Size"
+            },
+            "RightAlignedMenus": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Boolean"
+            },
+            "ScreenOrientation": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Windows.Forms.ScreenOrientation"
+            },
+            "Secure": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Boolean"
+            },
+            "ShowSounds": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Boolean"
+            },
+            "SizingBorderWidth": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Int32"
+            },
+            "SmallCaptionButtonSize": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Drawing.Size"
+            },
+            "SmallIconSize": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Drawing.Size"
+            },
+            "TerminalServerSession": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Boolean"
+            },
+            "ToolWindowCaptionButtonSize": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Drawing.Size"
+            },
+            "ToolWindowCaptionHeight": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Int32"
+            },
+            "UIEffectsEnabled": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Boolean"
+            },
+            "UserDomainName": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.String"
+            },
+            "UserInteractive": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Boolean"
+            },
+            "UserName": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.String"
+            },
+            "VerticalFocusThickness": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Int32"
+            },
+            "VerticalResizeBorderThickness": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Int32"
+            },
+            "VerticalScrollBarArrowHeight": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Int32"
+            },
+            "VerticalScrollBarThumbHeight": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Int32"
+            },
+            "VerticalScrollBarWidth": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Int32"
+            },
+            "VirtualScreen": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Drawing.Rectangle"
+            },
+            "WorkingArea": {
+              "Accessors": [
+                "Get"
+              ],
+              "Type": "System.Drawing.Rectangle"
+            }
+          }
+        }
+      }
+    }
+  }
+}

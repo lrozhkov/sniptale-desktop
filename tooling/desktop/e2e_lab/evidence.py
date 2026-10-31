@@ -9,6 +9,7 @@ import stat
 import xml.etree.ElementTree as ET
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
+from typing import Any
 
 from errors import IntegrityError
 from receipt import validate_receipt
@@ -18,7 +19,7 @@ SHA256 = re.compile(r"^[0-9a-f]{64}$")
 COMMIT_ID = re.compile(r"^[0-9a-f]{40}(?:[0-9a-f]{24})?$")
 
 
-def verify_run_evidence(run_dir: Path) -> dict[str, object]:
+def verify_run_evidence(run_dir: Path) -> dict[str, Any]:
     receipt = _json(run_dir / "receipt.json")
     manifest = _json(run_dir / "artifact-manifest.json")
     evidence_manifest = _json(run_dir / "evidence-manifest.json")
@@ -94,7 +95,7 @@ def verify_run_evidence(run_dir: Path) -> dict[str, object]:
 
 
 def _required_evidence_directories(
-    receipt: dict[str, object],
+    receipt: dict[str, Any],
     expected: set[tuple[str, str, str, int]],
 ) -> set[str]:
     if not any(not name.startswith("build-") for _lane, name, _status, _duration in expected):
@@ -112,7 +113,7 @@ def _required_evidence_directories(
     return required
 
 
-def _json(path: Path) -> dict[str, object]:
+def _json(path: Path) -> dict[str, Any]:
     try:
         descriptor = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
     except OSError as exc:
@@ -130,7 +131,7 @@ def _json(path: Path) -> dict[str, object]:
     return value
 
 
-def _artifacts(manifest: dict[str, object]) -> list[dict[str, object]]:
+def _artifacts(manifest: dict[str, Any]) -> list[dict[str, Any]]:
     raw = manifest.get("artifacts")
     if manifest.get("schema_version") != 1 or not isinstance(raw, list) or len(raw) > 512:
         raise IntegrityError("artifact manifest schema is invalid")
@@ -148,7 +149,7 @@ def _artifacts(manifest: dict[str, object]) -> list[dict[str, object]]:
     return raw
 
 
-def _evidence_files(manifest: dict[str, object]) -> list[dict[str, object]]:
+def _evidence_files(manifest: dict[str, Any]) -> list[dict[str, Any]]:
     raw = manifest.get("files")
     if manifest.get("schema_version") != 1 or not isinstance(raw, list) or len(raw) > 4096:
         raise IntegrityError("evidence manifest schema is invalid")
@@ -179,7 +180,7 @@ def _evidence_files(manifest: dict[str, object]) -> list[dict[str, object]]:
     return raw
 
 
-def _matrix(receipt: dict[str, object]) -> set[tuple[str, str, str, int]]:
+def _matrix(receipt: dict[str, Any]) -> set[tuple[str, str, str, int]]:
     raw = receipt.get("test_matrix")
     if not isinstance(raw, list):
         raise IntegrityError("receipt test matrix is invalid")

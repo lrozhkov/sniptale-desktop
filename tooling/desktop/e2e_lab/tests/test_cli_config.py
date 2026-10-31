@@ -76,6 +76,8 @@ class CliConfigTests(unittest.TestCase):
             mock.patch("main.LabPaths.discover", return_value=paths),
             mock.patch("main.LabConfig.load", return_value=config),
             mock.patch("main.LabLock"),
+            mock.patch("main.source_stamp", return_value="a" * 64),
+            mock.patch("main.run"),
             mock.patch("main.VmManager"),
             mock.patch("main.execute_run", side_effect=failure),
             redirect_stdout(output),
@@ -100,6 +102,36 @@ class CliConfigTests(unittest.TestCase):
             },
         )
         self.assertIn("failed guest tests", diagnostics.getvalue())
+
+    def test_fast_failure_cannot_acquire_controller_lock_or_start_vm(self) -> None:
+        paths = mock.Mock(root=Path("/tmp/sniptale-fast-proof"), locks=Path("/tmp/sniptale-fast-proof/locks"))
+        with (
+            mock.patch("main.LabPaths.discover", return_value=paths),
+            mock.patch("main.LabConfig.load"),
+            mock.patch("main.source_stamp", return_value="a" * 64),
+            mock.patch("main.run", side_effect=lab_main_module.IntegrityError("fast proof failed")),
+            mock.patch("main.LabLock") as lock,
+            mock.patch("main.VmManager") as manager,
+            redirect_stderr(io.StringIO()),
+        ):
+            self.assertEqual(lab_main_module.main(["start", "windows-11"]), 3)
+        lock.assert_not_called()
+        manager.assert_not_called()
+        paths.ensure.assert_not_called()
+
+    def test_changed_source_while_waiting_for_controller_lock_cannot_start_vm(self) -> None:
+        paths = mock.Mock(root=Path("/tmp/sniptale-fast-proof"), locks=Path("/tmp/sniptale-fast-proof/locks"))
+        with (
+            mock.patch("main.LabPaths.discover", return_value=paths),
+            mock.patch("main.LabConfig.load"),
+            mock.patch("main.source_stamp", side_effect=["a" * 64, "b" * 64]),
+            mock.patch("main.run"),
+            mock.patch("main.LabLock"),
+            mock.patch("main.VmManager") as manager,
+            redirect_stderr(io.StringIO()),
+        ):
+            self.assertEqual(lab_main_module.main(["start", "windows-11"]), 3)
+        manager.assert_not_called()
 
     def test_config_enforces_lane_resource_ceilings(self) -> None:
         root = Path(__file__).resolve().parents[4]

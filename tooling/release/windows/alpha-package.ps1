@@ -51,7 +51,7 @@ foreach ($line in $environment) {
   if ($line -match '^([^=]+)=(.*)$') { [Environment]::SetEnvironmentVariable($Matches[1], $Matches[2], "Process") }
 }
 . (Join-Path $PSScriptRoot "toolchain.ps1")
-$windowsTools = Initialize-SniptaleWindowsTools $root (Join-Path $root ".tmp/alpha-tools")
+$windowsTools = Initialize-SniptaleWindowsTool $root (Join-Path $root ".tmp/alpha-tools")
 $wix = $windowsTools.Wix
 $wixVersion = $versions.windows.wix
 Remove-Item Env:SNIPTALE_DEV_LOCAL_BROWSER_TRUST -ErrorAction SilentlyContinue

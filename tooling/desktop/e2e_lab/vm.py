@@ -19,6 +19,7 @@ from paths import LabPaths
 from qmp import QmpReader
 from state import process_matches, read_json, write_json
 from system import run, sha256_file, terminate_process, wait_for_resources
+import contextlib
 
 
 def cpu_model(lane: Lane, acceleration: str) -> str:
@@ -581,10 +582,8 @@ class VmManager:
                 forced = terminate_process(pid, timeout=5) or forced
             return forced
         forced = False
-        try:
+        with contextlib.suppress(LabError):
             self.qmp(vm, "system_powerdown")
-        except LabError:
-            pass
         deadline = time.monotonic() + self.config.timeouts.shutdown
         while process_matches(vm.pid, f"sniptale-lab-{lane_name}", str(self.paths.lab)) and time.monotonic() < deadline:
             time.sleep(0.5)

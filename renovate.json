@@ -1,0 +1,199 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "enabledManagers": [
+    "cargo",
+    "custom.regex"
+  ],
+  "minimumReleaseAge": "7 days",
+  "minimumReleaseAgeBehaviour": "timestamp-required",
+  "internalChecksFilter": "strict",
+  "prCreation": "not-pending",
+  "automerge": false,
+  "ignoreUnstable": true,
+  "rangeStrategy": "pin",
+  "dependencyDashboard": true,
+  "autoReplaceGlobalMatch": false,
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "automerge": false,
+    "minimumReleaseAge": "0 days",
+    "addLabels": [
+      "security-update"
+    ]
+  },
+  "customDatasources": {
+    "cpython": {
+      "defaultRegistryUrlTemplate": "https://www.python.org/api/v2/downloads/release/",
+      "format": "json",
+      "transformTemplates": [
+        "{\"releases\": [$map($[is_published = true and pre_release = false and $exists($match(name, /^Python [0-9]+\\.[0-9]+\\.[0-9]+$/))], function($release) {{\"version\": $substringAfter($release.name, \"Python \"), \"releaseTimestamp\": $release.release_date}})]}"
+      ]
+    }
+  },
+  "customManagers": [
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^tooling/configs/qa/tool-versions\\.json$/"
+      ],
+      "matchStrings": [
+        "\"(?<depName>[^\"\\\\]+)\":\\s*\\{\\s*\"version\":\\s*\"(?<currentValue>[0-9]+(?:\\.[0-9]+){2})\",\\s*\"manager\":\\s*\"pypi\",\\s*\"package\":\\s*\"(?<packageName>[^\"\\\\]+)\""
+      ],
+      "datasourceTemplate": "pypi",
+      "versioningTemplate": "pep440"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^tooling/configs/qa/tool-versions\\.json$/"
+      ],
+      "matchStrings": [
+        "\"(?<depName>[^\"\\\\]+)\":\\s*\\{\\s*\"version\":\\s*\"(?<currentValue>[0-9]+(?:\\.[0-9]+){2})\",\\s*\"manager\":\\s*\"npm\",\\s*\"package\":\\s*\"(?<packageName>[^\"\\\\]+)\""
+      ],
+      "datasourceTemplate": "npm",
+      "versioningTemplate": "semver-coerced"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^tooling/configs/qa/tool-versions\\.json$/"
+      ],
+      "matchStrings": [
+        "\"(?<depName>[^\"\\\\]+)\":\\s*\\{\\s*\"version\":\\s*\"(?<currentValue>[0-9]+(?:\\.[0-9]+){2})\",\\s*\"manager\":\\s*\"github\",\\s*\"repository\":\\s*\"(?<packageName>[^\"\\\\]+)\""
+      ],
+      "datasourceTemplate": "github-releases",
+      "versioningTemplate": "semver-coerced"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^tooling/configs/qa/tool-versions\\.json$/"
+      ],
+      "matchStrings": [
+        "\"(?<depName>cargo-[a-z-]+)\":\\s*\"(?<currentValue>[0-9]+(?:\\.[0-9]+){2})\""
+      ],
+      "datasourceTemplate": "crate"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^tooling/configs/qa/tool-versions\\.json$/"
+      ],
+      "matchStrings": [
+        "\"(?<depName>actions/[a-z-]+)\":\\s*\"(?<currentValue>v[0-9]+(?:\\.[0-9]+){2})\""
+      ],
+      "datasourceTemplate": "github-releases"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^tooling/configs/qa/tool-versions\\.json$/"
+      ],
+      "matchStrings": [
+        "\"rust\":\\s*\\{\\s*\"channel\":\\s*\"(?<currentValue>[0-9]+(?:\\.[0-9]+){2})\""
+      ],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "rust",
+      "packageNameTemplate": "rust-lang/rust"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^tooling/configs/qa/tool-versions\\.json$/"
+      ],
+      "matchStrings": [
+        "\"gitleaks\":\\s*\\{\\s*\"version\":\\s*\"(?<currentValue>[0-9]+(?:\\.[0-9]+){2})\""
+      ],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "gitleaks",
+      "packageNameTemplate": "gitleaks/gitleaks"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^tooling/configs/qa/tool-versions\\.json$/"
+      ],
+      "matchStrings": [
+        "\"python\":\\s*\\{\\s*\"version\":\\s*\"(?<currentValue>[0-9]+(?:\\.[0-9]+){2})\""
+      ],
+      "datasourceTemplate": "custom.cpython",
+      "depNameTemplate": "python",
+      "versioningTemplate": "pep440"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^tooling/configs/qa/tool-versions\\.json$/"
+      ],
+      "matchStrings": [
+        "\"node\":\\s*\"(?<currentValue>[0-9]+(?:\\.[0-9]+){2})\""
+      ],
+      "datasourceTemplate": "node-version",
+      "depNameTemplate": "node"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^tooling/configs/qa/tool-versions\\.json$/"
+      ],
+      "matchStrings": [
+        "\"playwrightCore\":\\s*\"(?<currentValue>[0-9]+(?:\\.[0-9]+){2})\""
+      ],
+      "datasourceTemplate": "npm",
+      "depNameTemplate": "playwright-core"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^tooling/configs/qa/tool-versions\\.json$/"
+      ],
+      "matchStrings": [
+        "\"wix\":\\s*\"(?<currentValue>[0-9]+(?:\\.[0-9]+){2})\""
+      ],
+      "datasourceTemplate": "nuget",
+      "depNameTemplate": "wix"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^tooling/configs/qa/tool-versions\\.json$/"
+      ],
+      "matchStrings": [
+        "\"sdkPackage\":\\s*\"(?<currentValue>[0-9]+(?:\\.[0-9]+){3})\""
+      ],
+      "datasourceTemplate": "nuget",
+      "depNameTemplate": "windows-sdk",
+      "packageNameTemplate": "Microsoft.Windows.SDK.CPP",
+      "versioningTemplate": "nuget"
+    }
+  ],
+  "packageRules": [
+    {
+      "matchManagers": [
+        "custom.regex"
+      ],
+      "draftPR": true,
+      "prBodyNotes": [
+        "Regenerate derived toolchain inputs and checker locks from the common catalog, then run tooling/qa/wrappers/fast.sh. Any release younger than seven days requires an advisory-bound proof; labels do not authorize an exception."
+      ]
+    },
+    {
+      "matchDatasources": [
+        "nuget"
+      ],
+      "matchPackageNames": [
+        "wix"
+      ],
+      "allowedVersions": "<6"
+    },
+    {
+      "matchDatasources": [
+        "npm"
+      ],
+      "matchPackageNames": [
+        "typescript"
+      ],
+      "allowedVersions": "<7"
+    }
+  ]
+}

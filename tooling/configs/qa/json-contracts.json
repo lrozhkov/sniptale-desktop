@@ -3197,6 +3197,9 @@
         }
       }
     },
+    "renovate.json": {
+      "schemaTool": "renovate"
+    },
     "tooling/configs/qa/docs.json": {
       "type": "object",
       "required": [
@@ -3268,6 +3271,9 @@
         "tools": {
           "type": "object",
           "required": [
+            "@eslint/js",
+            "@isaacs/nonrecursive-glob-match",
+            "@types/estree",
             "Cython",
             "PSScriptAnalyzer",
             "actionlint",
@@ -3286,7 +3292,9 @@
             "eslint-plugin-security",
             "gitleaks",
             "globals",
+            "jsonata",
             "jsonschema",
+            "minimatch",
             "node",
             "playwright-core",
             "pwsh",
@@ -3299,6 +3307,7 @@
             "shellcheck",
             "shfmt",
             "taplo",
+            "typescript",
             "typescript-eslint",
             "wheel",
             "windows-sdk",
@@ -3417,6 +3426,24 @@
               "type": "object"
             },
             "Cython": {
+              "type": "object"
+            },
+            "@eslint/js": {
+              "type": "object"
+            },
+            "typescript": {
+              "type": "object"
+            },
+            "minimatch": {
+              "type": "object"
+            },
+            "jsonata": {
+              "type": "object"
+            },
+            "@isaacs/nonrecursive-glob-match": {
+              "type": "object"
+            },
+            "@types/estree": {
               "type": "object"
             }
           }
@@ -3670,6 +3697,7 @@
             "node_modules/@eslint/config-array",
             "node_modules/@eslint/config-helpers",
             "node_modules/@eslint/core",
+            "node_modules/@eslint/js",
             "node_modules/@eslint/object-schema",
             "node_modules/@eslint/plugin-kit",
             "node_modules/@humanfs/core",
@@ -3677,6 +3705,7 @@
             "node_modules/@humanfs/types",
             "node_modules/@humanwhocodes/module-importer",
             "node_modules/@humanwhocodes/retry",
+            "node_modules/@isaacs/nonrecursive-glob-match",
             "node_modules/@keyv/bigmap",
             "node_modules/@keyv/serialize",
             "node_modules/@types/esrecurse",
@@ -3733,6 +3762,7 @@
             "node_modules/isexe",
             "node_modules/json-schema-traverse",
             "node_modules/json-stable-stringify-without-jsonify",
+            "node_modules/jsonata",
             "node_modules/keyv",
             "node_modules/levn",
             "node_modules/locate-path",
@@ -3794,6 +3824,9 @@
             "node_modules/@eslint/core": {
               "type": "object"
             },
+            "node_modules/@eslint/js": {
+              "type": "object"
+            },
             "node_modules/@eslint/object-schema": {
               "type": "object"
             },
@@ -3813,6 +3846,9 @@
               "type": "object"
             },
             "node_modules/@humanwhocodes/retry": {
+              "type": "object"
+            },
+            "node_modules/@isaacs/nonrecursive-glob-match": {
               "type": "object"
             },
             "node_modules/@keyv/bigmap": {
@@ -3983,6 +4019,9 @@
             "node_modules/json-stable-stringify-without-jsonify": {
               "type": "object"
             },
+            "node_modules/jsonata": {
+              "type": "object"
+            },
             "node_modules/keyv": {
               "type": "object"
             },
@@ -4085,6 +4124,7 @@
       "required": [
         "dependencies",
         "name",
+        "overrides",
         "private",
         "version"
       ],
@@ -4102,11 +4142,17 @@
         "dependencies": {
           "type": "object",
           "required": [
+            "@eslint/js",
+            "@isaacs/nonrecursive-glob-match",
+            "@types/estree",
             "eslint",
             "eslint-plugin-promise",
             "eslint-plugin-security",
             "globals",
+            "jsonata",
+            "minimatch",
             "pyright",
+            "typescript",
             "typescript-eslint"
           ],
           "additionalProperties": false,
@@ -4127,6 +4173,44 @@
               "type": "string"
             },
             "globals": {
+              "type": "string"
+            },
+            "@eslint/js": {
+              "type": "string"
+            },
+            "typescript": {
+              "type": "string"
+            },
+            "minimatch": {
+              "type": "string"
+            },
+            "jsonata": {
+              "type": "string"
+            },
+            "@isaacs/nonrecursive-glob-match": {
+              "type": "string"
+            },
+            "@types/estree": {
+              "type": "string"
+            }
+          }
+        },
+        "overrides": {
+          "type": "object",
+          "required": [
+            "@isaacs/nonrecursive-glob-match",
+            "@types/estree",
+            "minimatch"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "minimatch": {
+              "type": "string"
+            },
+            "@isaacs/nonrecursive-glob-match": {
+              "type": "string"
+            },
+            "@types/estree": {
               "type": "string"
             }
           }
@@ -4201,7 +4285,9 @@
         "exceptions": {
           "type": "object",
           "required": [
+            "@isaacs/nonrecursive-glob-match",
             "cargo-nextest",
+            "minimatch",
             "python"
           ],
           "additionalProperties": false,
@@ -4210,6 +4296,12 @@
               "type": "object"
             },
             "cargo-nextest": {
+              "type": "object"
+            },
+            "minimatch": {
+              "type": "object"
+            },
+            "@isaacs/nonrecursive-glob-match": {
               "type": "object"
             }
           }
@@ -4367,7 +4459,9 @@
         "securityExceptions": {
           "type": "object",
           "required": [
+            "@isaacs/nonrecursive-glob-match",
             "cargo-nextest",
+            "minimatch",
             "python"
           ],
           "additionalProperties": false,
@@ -4376,6 +4470,12 @@
               "type": "object"
             },
             "cargo-nextest": {
+              "type": "object"
+            },
+            "minimatch": {
+              "type": "object"
+            },
+            "@isaacs/nonrecursive-glob-match": {
               "type": "object"
             }
           }
@@ -4399,6 +4499,9 @@
         "scriptTools": {
           "type": "object",
           "required": [
+            "@eslint/js",
+            "@isaacs/nonrecursive-glob-match",
+            "@types/estree",
             "Cython",
             "PSScriptAnalyzer",
             "actionlint",
@@ -4406,7 +4509,9 @@
             "eslint-plugin-promise",
             "eslint-plugin-security",
             "globals",
+            "jsonata",
             "jsonschema",
+            "minimatch",
             "pwsh",
             "pyright",
             "renovate",
@@ -4415,6 +4520,7 @@
             "shellcheck",
             "shfmt",
             "taplo",
+            "typescript",
             "typescript-eslint",
             "wheel",
             "yamllint",
@@ -4481,6 +4587,24 @@
             },
             "Cython": {
               "type": "object"
+            },
+            "@eslint/js": {
+              "type": "object"
+            },
+            "typescript": {
+              "type": "object"
+            },
+            "minimatch": {
+              "type": "object"
+            },
+            "jsonata": {
+              "type": "object"
+            },
+            "@isaacs/nonrecursive-glob-match": {
+              "type": "object"
+            },
+            "@types/estree": {
+              "type": "object"
             }
           }
         }
@@ -4492,6 +4616,7 @@
         "actions",
         "browserAutomation",
         "cargo",
+        "checkingDependencies",
         "nuget",
         "policy",
         "python",
@@ -4560,6 +4685,7 @@
         "python": {
           "type": "object",
           "required": [
+            "linuxX64",
             "publishedAt",
             "source",
             "version",
@@ -4577,6 +4703,9 @@
               "type": "string"
             },
             "windows": {
+              "type": "object"
+            },
+            "linuxX64": {
               "type": "object"
             }
           }
@@ -4693,6 +4822,9 @@
         "scriptTools": {
           "type": "object",
           "required": [
+            "@eslint/js",
+            "@isaacs/nonrecursive-glob-match",
+            "@types/estree",
             "Cython",
             "PSScriptAnalyzer",
             "actionlint",
@@ -4700,7 +4832,9 @@
             "eslint-plugin-promise",
             "eslint-plugin-security",
             "globals",
+            "jsonata",
             "jsonschema",
+            "minimatch",
             "pwsh",
             "pyright",
             "renovate",
@@ -4709,6 +4843,7 @@
             "shellcheck",
             "shfmt",
             "taplo",
+            "typescript",
             "typescript-eslint",
             "wheel",
             "yamllint",
@@ -4775,7 +4910,33 @@
             },
             "Cython": {
               "type": "object"
+            },
+            "@eslint/js": {
+              "type": "object"
+            },
+            "typescript": {
+              "type": "object"
+            },
+            "minimatch": {
+              "type": "object"
+            },
+            "jsonata": {
+              "type": "object"
+            },
+            "@isaacs/nonrecursive-glob-match": {
+              "type": "object"
+            },
+            "@types/estree": {
+              "type": "object"
             }
+          }
+        },
+        "checkingDependencies": {
+          "type": "array",
+          "items": {
+            "type": [
+              "object"
+            ]
           }
         }
       }
@@ -4801,6 +4962,100 @@
             "type": [
               "object"
             ]
+          }
+        }
+      }
+    },
+    "tooling/configs/qa/windows51-type-profile.json": {
+      "type": "object",
+      "required": [
+        "provenance",
+        "schemaVersion",
+        "types"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "provenance": {
+          "type": "object",
+          "required": [
+            "collector",
+            "runtime",
+            "scope"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "collector": {
+              "type": "string"
+            },
+            "runtime": {
+              "type": "string"
+            },
+            "scope": {
+              "type": "string"
+            }
+          }
+        },
+        "schemaVersion": {
+          "type": "integer"
+        },
+        "types": {
+          "type": "object",
+          "required": [
+            "System.Security.Cryptography.DataProtectionScope",
+            "System.Security.Cryptography.ProtectedData",
+            "System.Windows.Automation.AutomationElement",
+            "System.Windows.Automation.ControlType",
+            "System.Windows.Automation.ElementNotAvailableException",
+            "System.Windows.Automation.InvokePattern",
+            "System.Windows.Automation.PropertyCondition",
+            "System.Windows.Automation.TransformPattern",
+            "System.Windows.Automation.TreeScope",
+            "System.Windows.Automation.ValuePattern",
+            "System.Windows.Automation.WindowPattern",
+            "System.Windows.Forms.SendKeys",
+            "System.Windows.Forms.SystemInformation"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "System.Security.Cryptography.DataProtectionScope": {
+              "type": "object"
+            },
+            "System.Security.Cryptography.ProtectedData": {
+              "type": "object"
+            },
+            "System.Windows.Automation.AutomationElement": {
+              "type": "object"
+            },
+            "System.Windows.Automation.ControlType": {
+              "type": "object"
+            },
+            "System.Windows.Automation.ElementNotAvailableException": {
+              "type": "object"
+            },
+            "System.Windows.Automation.InvokePattern": {
+              "type": "object"
+            },
+            "System.Windows.Automation.PropertyCondition": {
+              "type": "object"
+            },
+            "System.Windows.Automation.TransformPattern": {
+              "type": "object"
+            },
+            "System.Windows.Automation.TreeScope": {
+              "type": "object"
+            },
+            "System.Windows.Automation.ValuePattern": {
+              "type": "object"
+            },
+            "System.Windows.Automation.WindowPattern": {
+              "type": "object"
+            },
+            "System.Windows.Forms.SendKeys": {
+              "type": "object"
+            },
+            "System.Windows.Forms.SystemInformation": {
+              "type": "object"
+            }
           }
         }
       }

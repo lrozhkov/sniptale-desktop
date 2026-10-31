@@ -233,7 +233,10 @@ def validate_wrapper_topology(errors: list[str]) -> None:
     if manifest.get("schemaVersion") != 1 or not isinstance(entries, list):
         errors.append("wrapper registry must use schemaVersion 1 and a wrappers list")
         return
-    registered = {entry.get("entrypoint") for entry in entries if isinstance(entry, dict)}
+    if any(not isinstance(entry, dict) or not isinstance(entry.get("entrypoint"), str) for entry in entries):
+        errors.append("wrapper registry entrypoints must be strings")
+        return
+    registered: set[str] = {entry["entrypoint"] for entry in entries}
     actual = {path.relative_to(ROOT).as_posix() for path in (ROOT / "tooling/qa/wrappers").glob("*.sh")}
     if registered != actual:
         errors.append(
@@ -354,6 +357,11 @@ def validate_hosted_qa_policy(errors: list[str]) -> None:
         "tooling/qa/installers/install-release-tools.sh",
         "tooling/qa/wrappers/alpha-proof.sh",
         "tooling/qa/wrappers/environment-audit.sh",
+        "tooling/qa/wrappers/fast.sh",
+        "tooling/qa/installers/install-script-tools.sh",
+        "python3 -m tooling.qa.runtime.lint_receipts --export .tmp/qa-artifacts/script-lint-proof.json",
+        "python3 -m tooling.qa.runtime.script_lints --powershell-inventory",
+        "& tooling/qa/runtime/lint-windows-powershell.ps1 -Repository (Get-Location).Path -Inventory .tmp/qa-reports/powershell-inventory.json",
         "python3 -m tooling.qa.runtime.compilation_cache",
         'test -n "$ImageVersion" && echo "version=$ImageVersion" >> "$GITHUB_OUTPUT"',
         "& tooling/release/windows/alpha-package.ps1 -QaProof .tmp/release/alpha-proof -Tag $env:ALPHA_TAG",
@@ -410,6 +418,17 @@ def validate_hosted_qa_policy(errors: list[str]) -> None:
                             "key": expected_key,
                         }:
                             errors.append("Linux compilation cache scope or identity drift")
+                    if name == "checks.yml" and step.get("name") in {
+                        "Cache pinned script tools",
+                        "Save prepared script tools",
+                        "Restore pinned script tools",
+                    }:
+                        checker_key = "script-tools-ubuntu24-v1-${{ hashFiles('tooling/configs/qa/tool-versions.json', 'tooling/configs/qa/toolchain-lock.json', 'tooling/configs/qa/script-python*', 'tooling/configs/qa/script-node/**', 'tooling/qa/installers/install-script-tools.sh', 'tooling/qa/runtime/install_script_tools.py') }}"
+                        if not action.startswith("actions/cache") or options != {
+                            "path": ".tmp/qa-tools/script-tools\n.tmp/qa-tools/node-*",
+                            "key": checker_key,
+                        }:
+                            errors.append("checker cache must bind exact catalog, locks and installer")
                     if name == "alpha.yml" and action.startswith("actions/cache"):
                         expected_key = "windows-msvc-static-v1-${{ steps.build-image.outputs.version }}-${{ hashFiles('Cargo.lock', 'Cargo.toml', 'build.rs', 'rust-toolchain.toml', '.cargo/**', 'resources/**', 'tooling/configs/qa/tool-versions.json', 'tooling/configs/qa/toolchain-lock.json', 'tooling/release/windows/toolchain.ps1', 'tooling/release/windows/alpha-package.ps1') }}"
                         if (
@@ -423,7 +442,16 @@ def validate_hosted_qa_policy(errors: list[str]) -> None:
                         and options.get("python-version") != lock["python"]["version"]
                     ):
                         errors.append("hosted Python version differs from canonical toolchain")
-                    if action.startswith("actions/upload-artifact@"):
+                    if action.startswith("actions/upload-artifact@") and name == "checks.yml" and job_name == "fast":
+                        if options != {
+                            "name": "lint-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}",
+                            "path": ".tmp/qa-artifacts",
+                            "include-hidden-files": True,
+                            "if-no-files-found": "error",
+                            "retention-days": 2,
+                        }:
+                            errors.append("lint proof upload scope or run identity drift")
+                    elif action.startswith("actions/upload-artifact@"):
                         kind = "alpha" if name == "alpha.yml" else "qa"
                         path = ".tmp/release/alpha" if kind == "alpha" else ".tmp/release/alpha-proof"
                         if (
@@ -434,7 +462,13 @@ def validate_hosted_qa_policy(errors: list[str]) -> None:
                             != kind + "-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}"
                         ):
                             errors.append("artifact output path or identity drift")
-                    if action.startswith("actions/download-artifact@") and (
+                    if action.startswith("actions/download-artifact@") and name == "checks.yml" and job_name == "qa":
+                        if options != {
+                            "name": "lint-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}",
+                            "path": ".tmp/qa-artifacts",
+                        }:
+                            errors.append("lint proof download must use the same run, attempt and commit")
+                    elif action.startswith("actions/download-artifact@") and (
                         name != "alpha.yml"
                         or options
                         != {
@@ -443,19 +477,57 @@ def validate_hosted_qa_policy(errors: list[str]) -> None:
                         }
                     ):
                         errors.append("QA handoff path or identity drift")
+            if name == "alpha-publish.yml":
+                admission = workflow["jobs"].get("environment-audit", {})
+                runs = [
+                    step
+                    for step in admission.get("steps", [])
+                    if step.get("run") == "tooling/qa/wrappers/environment-audit.sh"
+                ]
+                if (
+                    workflow["jobs"]["publish"].get("needs") != "environment-audit"
+                    or len(runs) != 1
+                    or runs[0].get("continue-on-error")
+                    or "if" in runs[0]
+                    or admission.get("if") != "github.ref == 'refs/heads/main'"
+                ):
+                    errors.append("alpha publication must wait for a fresh read-only environment audit")
             if name == "alpha.yml" and workflow["jobs"]["package"].get("needs") != "qa":
                 errors.append("alpha package must require canonical QA")
             if name == "checks.yml":
                 fast = workflow["jobs"].get("fast", {})
-                if workflow["jobs"]["qa"].get("needs") != "fast":
+                if workflow["jobs"]["qa"].get("needs") != ["fast", "windows-powershell"]:
                     errors.append("compilation must wait for fast environment and script checks")
-                audits = [
-                    step
-                    for step in fast.get("steps", [])
-                    if step.get("run") == "tooling/qa/wrappers/environment-audit.sh"
-                ]
+                audits = [step for step in fast.get("steps", []) if step.get("run") == "tooling/qa/wrappers/fast.sh"]
                 if len(audits) != 1 or any(step.get("continue-on-error") or "if" in step for step in audits):
                     errors.append("fast tool environment audit must be unconditional and blocking")
+                windows = workflow["jobs"].get("windows-powershell", {})
+                parsers = [
+                    step
+                    for step in windows.get("steps", [])
+                    if step.get("run", "").startswith("& tooling/qa/runtime/lint-windows-powershell.ps1")
+                ]
+                if (
+                    windows.get("runs-on") != "windows-2025"
+                    or len(parsers) != 1
+                    or parsers[0].get("shell") != "powershell"
+                    or parsers[0].get("continue-on-error")
+                    or "if" in parsers[0]
+                ):
+                    errors.append("native Windows PowerShell 5.1 proof must be unconditional and blocking")
+                expected_lint_path = ".tmp/qa-artifacts/script-lint-proof.json"
+                if workflow["jobs"]["qa"].get("env", {}).get("SNIPTALE_QA_LINT_PROOF") != expected_lint_path:
+                    errors.append("compilation must admit the exact source lint artifact")
+                required_fast = [
+                    "tooling/qa/installers/install-script-tools.sh",
+                    "tooling/qa/wrappers/fast.sh",
+                    "python3 -m tooling.qa.runtime.lint_receipts --export .tmp/qa-artifacts/script-lint-proof.json",
+                ]
+                commands_in_fast = [step.get("run") for step in fast.get("steps", []) if "run" in step]
+                if commands_in_fast != required_fast or any(
+                    step.get("continue-on-error") or "if" in step for step in fast.get("steps", []) if "run" in step
+                ):
+                    errors.append("fast install, check and proof export order must remain blocking")
                 steps = workflow["jobs"]["qa"]["steps"]
                 cache = [i for i, step in enumerate(steps) if step.get("name") == "Cache compiled Linux dependencies"]
                 images = [

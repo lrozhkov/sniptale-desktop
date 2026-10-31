@@ -6,7 +6,7 @@ param(
 )
 $ErrorActionPreference = "Stop"
 
-function Get-RetiredProductRoots {
+function Get-RetiredProductRoot {
   @(
     (@("scr", "eenyx") -join ""),
     (@("smart", "capture") -join ""),
@@ -18,7 +18,7 @@ function Get-RetiredProductRoots {
 function Assert-CleanIdentityValue([string] $Category, [string] $Value) {
   if ($null -eq $Value) { return }
   $folded = $Value.ToLowerInvariant()
-  foreach ($root in Get-RetiredProductRoots) {
+  foreach ($root in Get-RetiredProductRoot) {
     if ($folded.Contains($root)) {
       throw "MSI identity contains a retired product root in category $Category"
     }
@@ -45,8 +45,8 @@ function Get-ComProperty([object] $Target, [string] $Name, [object[]] $Arguments
   )
 }
 
-function Get-MsiRows([object] $Database, [string] $Query) {
-  $view = Invoke-ComMethod $Database "OpenView" @($Query)
+function Get-MsiRow([object] $Database, [string] $Query) {
+  $view = Invoke-ComMethod -Target $Database -Name "OpenView" -Arguments @($Query)
   try {
     $null = Invoke-ComMethod $view "Execute"
     while ($true) {
@@ -57,7 +57,7 @@ function Get-MsiRows([object] $Database, [string] $Query) {
         $values = [Collections.Generic.List[string]]::new()
         foreach ($index in 1..$fieldCount) {
           try {
-            $values.Add([string](Get-ComProperty $record "StringData" @($index)))
+            $values.Add([string](Get-ComProperty -Target $record -Name "StringData" -Arguments @($index)))
           } catch {
             $values.Add("")
           }
@@ -70,7 +70,7 @@ function Get-MsiRows([object] $Database, [string] $Query) {
       }
     }
   } finally {
-    try { $null = Invoke-ComMethod $view "Close" } catch { }
+    try { $null = Invoke-ComMethod $view "Close" } catch { Write-Verbose 'MSI view close failed; COM final release follows.' }
     if ([Runtime.InteropServices.Marshal]::IsComObject($view)) {
       [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($view)
     }
@@ -79,13 +79,13 @@ function Get-MsiRows([object] $Database, [string] $Query) {
 
 function Get-MsiProperty([object] $Database, [string] $Name) {
   $query = "SELECT ``Value`` FROM ``Property`` WHERE ``Property`` = '$Name'"
-  $rows = @(Get-MsiRows $Database $query)
+  $rows = @(Get-MsiRow $Database $query)
   if ($rows.Count -ne 1) { throw "MSI Property table requires exactly one $Name row" }
   [string]$rows[0].Values[0]
 }
 
 if ($SelfTest) {
-  foreach ($root in Get-RetiredProductRoots) {
+  foreach ($root in Get-RetiredProductRoot) {
     $rejected = $false
     try { Assert-CleanIdentityValue "self-test" ("prefix-" + $root.ToUpperInvariant() + "-suffix") } catch { $rejected = $true }
     if (-not $rejected) { throw "MSI identity self-test did not reject a retired root" }
@@ -115,7 +115,7 @@ if ($normalizedExpectedUpgradeCode -notmatch '^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{
 $installer = New-Object -ComObject WindowsInstaller.Installer
 $database = $null
 try {
-  $database = Invoke-ComMethod $installer "OpenDatabase" @($resolvedMsi, 0)
+  $database = Invoke-ComMethod -Target $installer -Name "OpenDatabase" -Arguments @($resolvedMsi, 0)
   $productName = Get-MsiProperty $database "ProductName"
   $manufacturer = Get-MsiProperty $database "Manufacturer"
   $productVersion = Get-MsiProperty $database "ProductVersion"
@@ -123,19 +123,19 @@ try {
   if ($manufacturer -ne "Sniptale") { throw "MSI Manufacturer drifted" }
   if ($productVersion -ne $ExpectedProductVersion) { throw "MSI ProductVersion drifted" }
 
-  $tableRows = @(Get-MsiRows $database 'SELECT `Name` FROM `_Tables`')
+  $tableRows = @(Get-MsiRow $database 'SELECT `Name` FROM `_Tables`')
   if ($tableRows.Count -eq 0) { throw "MSI table inventory is empty" }
   foreach ($tableRow in $tableRows) {
     $tableName = [string]$tableRow.Values[0]
     if ($tableName -notmatch '^[A-Za-z_][A-Za-z0-9_]*$') { throw "MSI table name is malformed" }
     Assert-CleanIdentityValue "table-name" $tableName
-    $rows = @(Get-MsiRows $database "SELECT * FROM ``$tableName``")
+    $rows = @(Get-MsiRow $database "SELECT * FROM ``$tableName``")
     foreach ($row in $rows) {
       foreach ($value in $row.Values) { Assert-CleanIdentityValue "table-value" ([string]$value) }
     }
   }
 
-  $upgradeRows = @(Get-MsiRows $database 'SELECT `UpgradeCode` FROM `Upgrade`')
+  $upgradeRows = @(Get-MsiRow $database 'SELECT `UpgradeCode` FROM `Upgrade`')
   if ($upgradeRows.Count -eq 0) { throw "MSI Upgrade table is empty" }
   $upgradeCodes = @($upgradeRows | ForEach-Object { ([string]$_.Values[0]).Trim("{}".ToCharArray()).ToUpperInvariant() } | Sort-Object -Unique)
   if ($upgradeCodes.Count -ne 1 -or $upgradeCodes[0] -ne $normalizedExpectedUpgradeCode) {

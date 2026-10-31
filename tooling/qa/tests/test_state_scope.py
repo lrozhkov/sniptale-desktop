@@ -49,9 +49,12 @@ class StateTests(unittest.TestCase):
         ):
             state.assert_run_inputs(Path("fixture.json"))
             for field, value in (("revision", "b" * 40), ("current_targets", []), ("fingerprint", "2" * 64)):
-                with self.subTest(field=field), mock.patch.object(state, field, return_value=value):
-                    with self.assertRaisesRegex(RuntimeError, "changed during proof"):
-                        state.assert_run_inputs(Path("fixture.json"))
+                with (
+                    self.subTest(field=field),
+                    mock.patch.object(state, field, return_value=value),
+                    self.assertRaisesRegex(RuntimeError, "changed during proof"),
+                ):
+                    state.assert_run_inputs(Path("fixture.json"))
 
     def test_accepts_exact_state_and_rejects_fingerprint_drift(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -70,9 +73,9 @@ class StateTests(unittest.TestCase):
                 mock.patch.object(state, "harness_targets", side_effect=lambda value=None: targets),
                 mock.patch.object(state, "revision", return_value="a" * 40),
                 mock.patch.object(state, "fingerprint", return_value="2" * 64),
+                self.assertRaisesRegex(RuntimeError, "fingerprint"),
             ):
-                with self.assertRaisesRegex(RuntimeError, "fingerprint"):
-                    state.assert_state(root, "release-harness")
+                state.assert_state(root, "release-harness")
 
 
 if __name__ == "__main__":

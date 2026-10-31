@@ -15,7 +15,7 @@ import urllib.parse
 import urllib.request
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Callable, Sequence
+from collections.abc import Callable, Sequence
 
 from errors import IntegrityError, LabError, ResourceError, TimeoutExpired
 from receipt import redact_text

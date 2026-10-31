@@ -1,13 +1,13 @@
 . "$PSScriptRoot\browser-playwright.ps1"
 function Invoke-RealExtension([string] $Name, [string] $Executable, [string] $ExtensionPath) {
-  Stop-ProbeBrowsers
+  Stop-ProbeBrowser
   $port = if ($Name -eq "chrome") { 9223 } else { 9224 }
-  $profile = "C:\SniptaleLab\browser-profiles\$Name"
-  $installedMarker = Join-Path $profile "sniptale-extension-installed"
+  $browserProfile = "C:\SniptaleLab\browser-profiles\$Name"
+  $installedMarker = Join-Path $browserProfile "sniptale-extension-installed"
   $profileExists = Test-Path -LiteralPath $installedMarker
-  $null = New-Item -ItemType Directory -Force -Path $profile
+  $null = New-Item -ItemType Directory -Force -Path $browserProfile
   $browserArguments = @(
-    "--user-data-dir=$profile", "--remote-debugging-address=127.0.0.1", "--remote-debugging-port=$port",
+    "--user-data-dir=$browserProfile", "--remote-debugging-address=127.0.0.1", "--remote-debugging-port=$port",
     "--force-renderer-accessibility", "--disable-background-mode", "--no-first-run", "--no-default-browser-check", "--new-window", "about:blank"
   )
   try {
@@ -21,7 +21,7 @@ function Invoke-RealExtension([string] $Name, [string] $Executable, [string] $Ex
         break
       } catch {
         $exitCategory = if ($browser.HasExited) { "exit-$($browser.ExitCode)" } else { "no-visible-window" }
-        Stop-ProbeBrowsers
+        Stop-ProbeBrowser
         Write-ProgressEvent "real-extension-$Name-startup" "retry" $startupAttempt 3 30
         if ($startupAttempt -eq 3) { throw "$Name browser startup failed after 3 attempts ($exitCategory)" }
         Start-Sleep -Seconds 1
@@ -60,10 +60,10 @@ function Invoke-RealExtension([string] $Name, [string] $Executable, [string] $Ex
     return [ordered]@{ browser = $Name; profile_reused = $profileExists; connection = $connect; capture_trigger = "native-tray-current-screen"; media = $media; reconnect = $reconnect; resident_restart = $restart }
   } catch {
     $failure = $_
-    try { Save-Desktop "real-extension-$Name-failure" } catch { }
+    try { Save-Desktop "real-extension-$Name-failure" } catch { Write-Verbose 'Failure screenshot unavailable; preserving the scenario failure.' }
     throw $failure
   } finally {
-    Stop-ProbeBrowsers
+    Stop-ProbeBrowser
   }
 }
 

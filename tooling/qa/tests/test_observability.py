@@ -6,7 +6,7 @@ import os
 import tempfile
 import unittest
 from contextlib import redirect_stderr
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, UTC
 from pathlib import Path
 from unittest import mock
 
@@ -120,7 +120,7 @@ class StorageTests(unittest.TestCase):
     def test_retention_recovers_stale_runs_and_bounds_invalid_and_orphan_files(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            now = datetime(2026, 7, 17, 12, tzinfo=timezone.utc)
+            now = datetime(2026, 7, 17, 12, tzinfo=UTC)
             day = "2026-07-17"
             stale_path = root / f".tmp/qa-observability/runs/{day}/stale.json"
             stale_log = root / f".tmp/qa-logs/{day}/stale.log"
@@ -306,7 +306,9 @@ class RunTests(unittest.TestCase):
             self.assertEqual(record["rootRunId"], "root")
             self.assertEqual(record["parentRunId"], "parent")
             self.assertEqual(record["status"], "problems-found")
-            self.assertEqual(record["steps"][0]["exitCode"], 3)
+            steps = record["steps"]
+            assert isinstance(steps, list)
+            self.assertEqual(steps[0]["exitCode"], 3)
             self.assertNotIn("private-value", Path(session["log_path"]).read_text(encoding="utf-8"))
             json.loads(Path(session["run_path"]).read_text(encoding="utf-8"))
 

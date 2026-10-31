@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import importlib.util
 import json
 import os
 import shutil
@@ -13,9 +12,9 @@ from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "tooling/release/windows"))
-import alpha_artifacts as artifacts
-import alpha_publish as publish
-import alpha_acceptance as acceptance
+import alpha_artifacts as artifacts  # noqa: E402 -- resolve the standalone release owner after its path is installed.
+import alpha_publish as publish  # noqa: E402 -- resolve the standalone release owner after its path is installed.
+import alpha_acceptance as acceptance  # noqa: E402 -- resolve the standalone release owner after its path is installed.
 
 
 class AlphaArtifactTests(unittest.TestCase):
@@ -129,9 +128,12 @@ class AlphaArtifactTests(unittest.TestCase):
             (receipt, "tests", {"capture": "pass"}),
             (receipt, "devLocalTrust", True),
         ]:
-            with self.subTest(field=field), mock.patch.dict(target, {field: value}):
-                with self.assertRaises(ValueError):
-                    publish.admit(run, artifact, receipt, self.commit, self.tag)
+            with (
+                self.subTest(field=field),
+                mock.patch.dict(target, {field: value}),
+                self.assertRaises(ValueError),
+            ):
+                publish.admit(run, artifact, receipt, self.commit, self.tag)
 
     def test_tag_rejects_stable_path_and_shell_inputs(self):
         for value in ("v1.0.0", "../v0.1.0-alpha.1", "v0.1.0-alpha.0", "v0.1.0-alpha.1;id"):
@@ -174,6 +176,22 @@ class AlphaArtifactTests(unittest.TestCase):
             with self.subTest(mutation=mutation), self.assertRaises(ValueError):
                 acceptance.verified_tests(value, self.commit)
 
+    def test_publication_cannot_use_an_environment_audit_for_another_commit(self):
+        environment = {
+            "GITHUB_REF": "refs/heads/main",
+            "GITHUB_SHA": "a" * 40,
+            "ALPHA_COMMIT": "b" * 40,
+            "ALPHA_RUN_ID": "1",
+            "ALPHA_ARTIFACT_ID": "2",
+        }
+        with (
+            mock.patch.dict(os.environ, environment, clear=True),
+            mock.patch.object(publish, "api") as api,
+            self.assertRaisesRegex(ValueError, "environment was audited"),
+        ):
+            publish.main()
+        api.assert_not_called()
+
     def test_tag_creation_explicitly_uses_post_with_structured_body(self):
         with mock.patch.object(publish.subprocess, "check_output", return_value="{}") as request:
             publish.api("git/refs", {"ref": "refs/tags/v0.1.0-alpha.1", "sha": self.commit})
@@ -198,8 +216,25 @@ class AlphaArtifactTests(unittest.TestCase):
                 (runtime / "lib.sh").write_text("ensure_rust_env() { :; }\n")
                 (configs / "tool-versions.json").write_text(json.dumps(versions))
                 shutil.copyfile(ROOT / "tooling/configs/qa/toolchain-lock.json", configs / "toolchain-lock.json")
-                for module in ("toolchain.py", "browser_toolchain.py", "script_toolchain.py", "advisories.py"):
+                for module in (
+                    "toolchain.py",
+                    "browser_toolchain.py",
+                    "script_toolchain.py",
+                    "python_toolchain.py",
+                    "checking_dependency_ages.py",
+                    "tool_dependencies.py",
+                    "repository.py",
+                    "advisories.py",
+                ):
                     shutil.copyfile(ROOT / "tooling/qa/runtime" / module, runtime / module)
+                for relative in (
+                    "script-python-requirements.txt",
+                    "script-python-build-requirements.txt",
+                    "script-node/package-lock.json",
+                ):
+                    target = configs / relative
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copyfile(ROOT / "tooling/configs/qa" / relative, target)
                 shutil.copyfile(ROOT / "rust-toolchain.toml", root / "rust-toolchain.toml")
                 shutil.copyfile(ROOT / "Cargo.lock", root / "Cargo.lock")
                 shutil.copyfile(ROOT / "Cargo.toml", root / "Cargo.toml")

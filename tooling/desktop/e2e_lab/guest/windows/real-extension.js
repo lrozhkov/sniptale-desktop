@@ -1,8 +1,9 @@
 // Runs in a real extension page through guest-local Playwright; all requests use the product runtime.
+// eslint-disable-next-line @typescript-eslint/no-floating-promises -- Playwright and the VM contract harness await this expression and propagate rejection.
 (async () => {
   const send = message => chrome.runtime.sendMessage({...message, requestId: crypto.randomUUID(),
     __sniptaleRuntimeFreshness: {issuedAtEpochMs: Date.now(), nonce: crypto.randomUUID()}});
-  const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+  const wait = ms => new Promise(resolve => { setTimeout(resolve, ms); });
   const readAll = async store => {
     if (!(await indexedDB.databases()).some(db => db.name === 'sniptale-db')) return [];
     return new Promise((resolve, reject) => {

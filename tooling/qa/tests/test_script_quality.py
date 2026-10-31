@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import unittest
-from unittest.mock import patch
 
 from tooling.qa.runtime.advisories import AdvisoryError, decode
 from tooling.qa.runtime import script_lints

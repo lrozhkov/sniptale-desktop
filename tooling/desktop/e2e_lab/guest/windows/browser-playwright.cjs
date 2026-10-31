@@ -1,6 +1,6 @@
 // A short-lived client attaches to the existing headful guest browser. It never launches a replacement browser.
 const fs = require('node:fs');
-const crypto = require('node:crypto');
+const nodeCrypto = require('node:crypto');
 const path = require('node:path');
 const timer = setTimeout(() => fail('browser-scenario-deadline'), 75000);
 function fail(category) { process.stderr.write(category + '\n', () => process.exit(1)); }
@@ -13,7 +13,7 @@ function fail(category) { process.stderr.write(category + '\n', () => process.ex
   const files = JSON.parse(fs.readFileSync(root + '/runtime-integrity.json', 'utf8'));
   for (const [name, hash] of Object.entries(files)) {
     const file = path.resolve(root, name);
-    if (!file.startsWith(path.resolve(root) + path.sep) || fs.lstatSync(file).isSymbolicLink() || crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex') !== hash) throw Error('tool-integrity');
+    if (!file.startsWith(path.resolve(root) + path.sep) || fs.lstatSync(file).isSymbolicLink() || nodeCrypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex') !== hash) throw Error('tool-integrity');
   }
   const {chromium} = require(root + '/package');
   const browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`, {timeout:10000});

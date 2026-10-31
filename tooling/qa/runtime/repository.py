@@ -21,7 +21,7 @@ SHARED_CONTROL_FILES = {
 
 
 def _git(*args: str, check: bool = True) -> bytes:
-    completed = subprocess.run(["git", *args], cwd=ROOT, check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    completed = subprocess.run(["git", *args], cwd=ROOT, check=False, capture_output=True)
     if check and completed.returncode != 0:
         raise RuntimeError(completed.stderr.decode("utf-8", errors="replace").strip())
     return completed.stdout

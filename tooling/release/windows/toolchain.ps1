@@ -20,7 +20,7 @@ function Expand-SniptaleBuildPackage([string] $Package, [string] $Destination, [
 }
 
 # Shared, hash-verified Windows build inputs for CI and isolated development guests.
-function Initialize-SniptaleWindowsTools([string] $Root, [string] $Cache, [switch] $Offline) {
+function Initialize-SniptaleWindowsTool([string] $Root, [string] $Cache, [switch] $Offline) {
   $versions = Get-Content -Raw (Join-Path $Root "tooling/configs/qa/tool-versions.json") | ConvertFrom-Json
   $lock = Get-Content -Raw (Join-Path $Root "tooling/configs/qa/toolchain-lock.json") | ConvertFrom-Json
   $null = New-Item -ItemType Directory -Force $Cache
@@ -39,7 +39,7 @@ function Initialize-SniptaleWindowsTools([string] $Root, [string] $Cache, [switc
       Invoke-WebRequest -Uri $expectedUrl -OutFile $package -UseBasicParsing
     }
     if ((Get-FileHash -LiteralPath $package).Hash.ToLowerInvariant() -ne $item.sha256) { throw "build package checksum mismatch: $name" }
-    Expand-SniptaleBuildPackage $package (Join-Path $Cache "$name-$version") $item.sha256
+    Expand-SniptaleBuildPackage -Package $package -Destination (Join-Path $Cache "$name-$version") -Sha256 $item.sha256
   }
   $wixRoot = Join-Path $Cache "wix-$($versions.windows.wix)"
   $env:DOTNET_ROLL_FORWARD = "Major"
@@ -82,7 +82,7 @@ function Initialize-SniptaleWindowsPython([string] $Root, [string] $Cache, [swit
   }
   if ((Get-FileHash -LiteralPath $package).Hash.ToLowerInvariant() -ne $item.sha256) { throw "Windows Python package checksum mismatch" }
   $destination = Join-Path $Cache "python-$version"
-  Expand-SniptaleBuildPackage $package $destination $item.sha256
+  Expand-SniptaleBuildPackage -Package $package -Destination $destination -Sha256 $item.sha256
   $python = Join-Path $destination "python.exe"
   $actual = & $python --version
   if ($LASTEXITCODE -ne 0 -or $actual.Trim() -ne "Python $version") { throw "Windows Python version differs from policy" }
