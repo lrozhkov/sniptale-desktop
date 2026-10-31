@@ -1,6 +1,8 @@
 # Testing policy
 
-Tests prove owner behavior and trust-boundary failure modes. Exact test inventory, scenario size limits, property markers, performance markers, and coverage floors are machine-owned by `tooling/qa/rules/verify_test_policy.py` and `tooling/qa/rules/coverage-floor.py`.
+Tests prove owner behavior and trust-boundary failure modes. Exact test inventory, property markers, performance markers, and coverage floors are machine-owned by `tooling/qa/rules/verify_test_policy.py` and `tooling/qa/rules/coverage-floor.py`.
+
+File and function sizes, including the exact existing test-file exceptions, follow [implementation rules](implementation-rules.md). Native Clippy boundary probes and QA negative tests verify threshold edges, warning propagation, exact exceptions and stale expectations.
 
 ## Contract tests
 

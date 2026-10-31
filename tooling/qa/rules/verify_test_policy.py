@@ -59,7 +59,6 @@ WINDOWS_SMOKE_WRAPPER = ROOT / "tooling/qa/wrappers/windows-smoke.sh"
 WINDOWS_SMOKE_IMPLEMENTATION = ROOT / "tooling/release/windows/smoke/windows-smoke.sh"
 COVERAGE_WRAPPER = ROOT / "tooling/qa/wrappers/coverage.sh"
 PRE_COMMIT_HOOK = ROOT / "tooling/qa/hooks/pre-commit"
-MAX_TEST_FILE_LINES = 1400
 SCENARIO_SPLIT_PARENTS = [
     ROOT / "src/app/tests/mod.rs",
     ROOT / "src/audio/tests/mod.rs",
@@ -267,17 +266,6 @@ def check_test_topology_is_scenario_sliced() -> None:
     ]
     if unsplit_parents:
         fail("scenario-split parent test modules must not contain #[test]: " + ", ".join(unsplit_parents))
-
-    oversized = []
-    for path in (ROOT / "src").rglob("*.rs"):
-        relative = path.relative_to(ROOT).as_posix()
-        if "/tests" not in relative:
-            continue
-        lines = len(path.read_text(encoding="utf-8").splitlines())
-        if lines > MAX_TEST_FILE_LINES:
-            oversized.append(f"{relative} has {lines} lines")
-    if oversized:
-        fail(f"owner test files must stay under {MAX_TEST_FILE_LINES} lines: " + "; ".join(sorted(oversized)))
 
 
 def check_property_harnesses_are_tracked() -> None:

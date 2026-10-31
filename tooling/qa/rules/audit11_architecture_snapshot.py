@@ -29,7 +29,7 @@ OWNERS = {
     "diagnostics",
 }
 MEDIA_WORKER_EXEMPTIONS = {"TransferWorker"}
-HOT_FILE_THRESHOLD = 250
+HOT_FILE_THRESHOLD = 501
 APP_MEDIA_WORKER_EXECUTION_FILES = {
     "src/app/resident/capture_worker.rs",
     "src/app/resident/recording_worker.rs",
@@ -296,7 +296,7 @@ def snapshot() -> dict[str, Any]:
             "--write .tmp/audit/deep-research-report-11-architecture-snapshot.json"
         ),
         "ownerFileCounts": owner_file_counts(files),
-        "hotFilesNear300Loc": hot_files(production),
+        "filesAboveNavigationWarning": hot_files(production),
         "testFileSizes": test_file_sizes(files),
         "directOwnerImports": direct_owner_import_snapshot(production),
         "knownScaffoldMarkers": known_scaffold_markers(files),

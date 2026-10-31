@@ -128,6 +128,23 @@
         "tooling/configs/qa/zizmor.yaml",
         "tooling/qa/tests/test_compilation_cache.py"
       ]
+    },
+    {
+      "id": "boundary.existing-scenario-file-sizes",
+      "ruleId": "architecture.rust-file-size",
+      "classification": "architectural-boundary",
+      "owner": "architecture-boundaries",
+      "exactScope": {
+        "catalog": "tooling/configs/qa/code-size-exceptions.json",
+        "array": "files",
+        "field": "path"
+      },
+      "rationale": "Preserve only the enumerated existing scenario-file limits. Each exact file has its own reason and ceiling; verify_boundaries rejects stale or over-limit entries.",
+      "risk": "Broad size exemptions can hide unrelated responsibilities and navigation costs.",
+      "proofReferences": [
+        "docs/engineering/implementation-rules.md",
+        "tooling/configs/qa/code-size-exceptions.json"
+      ]
     }
   ],
   "technicalDebt": []

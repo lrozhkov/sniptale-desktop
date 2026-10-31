@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import json
 import re
 import sys
 import tempfile
@@ -36,12 +37,12 @@ OWNERS = {
     "diagnostics",
 }
 
-MAX_RUST_FILE_LINES = 300
+WARN_RUST_FILE_LINES = 500
+MAX_RUST_FILE_LINES = 800
 MAX_MAIN_LINES = 80
 MAX_ROOT_MOD_LINES = 120
-MAX_DIRECT_OWNER_FILES = 12
-MAX_OWNER_FILES = 40
-MAX_FUNCTION_LINES = 50
+WARN_DIRECT_MODULE_FILES = 20
+WARN_MODULE_FILES = 60
 FILE_LEVEL_DEAD_CODE_BASELINE = 0
 PLATFORM_CFG_DEAD_CODE_BASELINE = 0
 ALLOWLISTED_COMPAT_FACADES: dict[str, str] = {
@@ -324,18 +325,64 @@ def check_facade_files(errors: list[str]) -> None:
         errors.extend(facade_file_errors(path, facade_like))
 
 
-def check_file_sizes(errors: list[str]) -> None:
-    for path in rust_files() + ([SRC / "main.rs"] if (SRC / "main.rs").exists() else []):
-        lines = line_count(path)
-        relative = rel(path)
-        if relative == "src/main.rs" and lines > MAX_MAIN_LINES:
-            errors.append(f"{relative} has {lines} lines; main.rs limit is {MAX_MAIN_LINES}")
+def file_size_limit(path: Path) -> int:
+    if path == SRC / "main.rs":
+        return MAX_MAIN_LINES
+    if path.name == "mod.rs" and path.parent.parent == SRC:
+        return MAX_ROOT_MOD_LINES
+    return MAX_RUST_FILE_LINES
+
+
+def file_size_findings(files: list[Path], exceptions: list[dict], errors: list[str], warnings: list[str]) -> None:
+    limits: dict[str, int] = {}
+    for entry in exceptions:
+        relative, maximum, reason = entry.get("path"), entry.get("maxLines"), entry.get("reason")
+        if (
+            not isinstance(relative, str)
+            or not relative.startswith("src/")
+            or not relative.endswith(".rs")
+            or any(part in relative for part in ("*", "?", "[", "..", "\\"))
+            or relative in limits
+            or type(maximum) is not int
+            or not isinstance(reason, str)
+            or not reason.strip()
+        ):
+            errors.append("invalid exact Rust file-size exception")
             continue
-        if path.name == "mod.rs" and path.parent.parent == SRC and lines > MAX_ROOT_MOD_LINES:
-            errors.append(f"{relative} has {lines} lines; root owner mod.rs limit is {MAX_ROOT_MOD_LINES}")
-            continue
-        if lines > MAX_RUST_FILE_LINES:
-            errors.append(f"{relative} has {lines} lines; file limit is {MAX_RUST_FILE_LINES}")
+        path = ROOT / relative
+        base = file_size_limit(path)
+        if maximum <= base or path not in files or line_count(path) <= base:
+            errors.append(f"stale Rust file-size exception: {relative}")
+        limits[relative] = maximum
+    for path in sorted(files):
+        lines, relative, base = line_count(path), rel(path), file_size_limit(path)
+        maximum = limits.get(relative, base)
+        if lines > maximum:
+            errors.append(f"{relative} has {lines} physical lines; limit is {maximum}")
+        elif base == MAX_RUST_FILE_LINES and lines > WARN_RUST_FILE_LINES:
+            warnings.append(f"{relative} has {lines} physical lines; review cohesion above {WARN_RUST_FILE_LINES}")
+
+
+def check_file_sizes(errors: list[str], warnings: list[str]) -> None:
+    catalog = json.loads((ROOT / "tooling/configs/qa/code-size-exceptions.json").read_text(encoding="utf-8"))
+    file_size_findings(list(SRC.rglob("*.rs")), catalog["files"], errors, warnings)
+
+
+def check_function_size_exceptions(errors: list[str]) -> None:
+    # This validates suppression scope only. Clippy alone measures function length.
+    for path in SRC.rglob("*.rs"):
+        text = read(path)
+        for match in re.finditer(r"#(!?)\[(allow|expect)\((.*?)\)\]", text, re.S):
+            if "clippy::too_many_lines" not in match[3]:
+                continue
+            following = text[match.end() :].lstrip()
+            if (
+                match[1]
+                or match[2] != "expect"
+                or not re.search(r'reason\s*=\s*"[^"\n]*\S[^"\n]*"', match[3])
+                or not re.match(r"(?:pub(?:\([^)]*\))?\s+)?(?:async\s+)?(?:unsafe\s+)?fn\s+", following)
+            ):
+                errors.append(f"{rel(path)}: too_many_lines requires function-local #[expect] with a reason")
 
 
 def file_level_dead_code_files(files: list[Path]) -> list[Path]:
@@ -476,34 +523,33 @@ def check_import_direction(errors: list[str]) -> None:
         )
 
 
-def check_directory_shape(errors: list[str]) -> None:
-    for owner in OWNERS:
+def module_size_warnings(module: Path, warnings: list[str]) -> None:
+    direct = list(module.glob("*.rs"))
+    total = list(module.rglob("*.rs"))
+    if len(direct) > WARN_DIRECT_MODULE_FILES:
+        warnings.append(
+            f"{rel(module)} has {len(direct)} direct Rust files; review cohesion above {WARN_DIRECT_MODULE_FILES}"
+        )
+    if len(total) > WARN_MODULE_FILES:
+        warnings.append(
+            f"{rel(module)} has {len(total)} recursive Rust files; review cohesion above {WARN_MODULE_FILES}"
+        )
+
+
+def check_directory_shape(errors: list[str], warnings: list[str]) -> None:
+    for owner in sorted(OWNERS):
         owner_dir = SRC / owner
         if not owner_dir.exists():
             continue
-        direct_files = [path for path in owner_dir.glob("*.rs") if path.name != "mod.rs"]
-        all_files = [path for path in owner_dir.rglob("*.rs") if "/tests/" not in path.as_posix()]
-        sub_owner_dirs = sorted(
-            {path.relative_to(owner_dir).parts[0] for path in all_files if len(path.relative_to(owner_dir).parts) > 1}
-        )
-        if len(direct_files) > MAX_DIRECT_OWNER_FILES:
-            errors.append(f"src/{owner} has {len(direct_files)} direct Rust files; split into sub-owners")
-        if len(all_files) > MAX_OWNER_FILES and len(sub_owner_dirs) < 2:
-            errors.append(f"src/{owner} has {len(all_files)} Rust files; split owner directory")
-        for sub_owner in sub_owner_dirs:
-            sub_owner_files = [path for path in all_files if path.relative_to(owner_dir).parts[0] == sub_owner]
-            nested_sub_owners = {
-                path.relative_to(owner_dir).parts[1]
-                for path in sub_owner_files
-                if len(path.relative_to(owner_dir).parts) > 2
-            }
-            if len(sub_owner_files) > MAX_OWNER_FILES and len(nested_sub_owners) < 2:
-                errors.append(
-                    f"src/{owner}/{sub_owner} has {len(sub_owner_files)} Rust files; split sub-owner directory"
-                )
-
+        all_files = list(owner_dir.rglob("*.rs"))
+        for module in sorted({owner_dir} | {path.parent for path in all_files}):
+            module_size_warnings(module, warnings)
+        # Naming and owner boundaries remain blocking and independent of file counts.
         repeated_prefix = [
-            rel(path) for path in all_files if path.stem.startswith(f"{owner}_") or path.stem.startswith(f"{owner}-")
+            rel(path)
+            for path in all_files
+            if "/tests/" not in path.as_posix()
+            and (path.stem.startswith(f"{owner}_") or path.stem.startswith(f"{owner}-"))
         ]
         if repeated_prefix:
             errors.append(f"src/{owner} repeats owner name in file names: " + ", ".join(repeated_prefix))
@@ -515,30 +561,6 @@ def check_lifecycle_smells(errors: list[str]) -> None:
         for pattern, reason in LIFECYCLE_SMELLS.items():
             if re.search(pattern, text):
                 errors.append(f"{rel(path)}: {reason}")
-
-
-def check_function_sizes(errors: list[str]) -> None:
-    function_start = re.compile(r"^\s*(?:pub(?:\([^)]*\))?\s+)?(?:async\s+)?fn\s+\w+")
-    for path in rust_files():
-        lines = read(path).splitlines()
-        start_line: int | None = None
-        brace_depth = 0
-        for index, line in enumerate(lines, start=1):
-            if start_line is None and function_start.search(line):
-                start_line = index
-                brace_depth = line.count("{") - line.count("}")
-                if brace_depth <= 0 and "{" in line:
-                    start_line = None
-                continue
-            if start_line is not None:
-                brace_depth += line.count("{") - line.count("}")
-                if brace_depth <= 0:
-                    length = index - start_line + 1
-                    if length > MAX_FUNCTION_LINES:
-                        errors.append(
-                            f"{rel(path)}:{start_line} function has {length} lines; limit is {MAX_FUNCTION_LINES}"
-                        )
-                    start_line = None
 
 
 def extract_struct_body(text: str, struct_name: str) -> str | None:
@@ -694,16 +716,19 @@ def main() -> int:
     if sys.argv[1:] == ["--self-test"]:
         return run_self_tests()
     errors: list[str] = []
-    check_file_sizes(errors)
+    warnings: list[str] = []
+    check_file_sizes(errors, warnings)
     check_file_level_dead_code_ratchet(errors)
     check_root_facades(errors)
     check_app_role_topology(errors)
     check_facade_files(errors)
     check_import_direction(errors)
-    check_directory_shape(errors)
+    check_directory_shape(errors, warnings)
     check_lifecycle_smells(errors)
-    check_function_sizes(errors)
+    check_function_size_exceptions(errors)
     check_resident_state_authority(errors)
+    for warning in warnings:
+        print(f"WARN code-size: {warning}")
     if errors:
         fail(errors)
     print("OK boundary guardrails")

@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "files": [
+    {
+      "path": "src/app/resident/tray/tests/mod.rs",
+      "maxLines": 1400,
+      "reason": "Existing tray command and resident lifecycle scenario harness; preserve the previous scenario-file ceiling."
+    },
+    {
+      "path": "src/app/tests/command_flow.rs",
+      "maxLines": 1400,
+      "reason": "Existing capture and recording command authorization scenarios; preserve the previous scenario-file ceiling."
+    },
+    {
+      "path": "src/app/tests/mod.rs",
+      "maxLines": 1400,
+      "reason": "Existing app fake effect ports and shared scenario harness; preserve the previous scenario-file ceiling."
+    },
+    {
+      "path": "src/app/tests/native_session.rs",
+      "maxLines": 1400,
+      "reason": "Existing Native Messaging handshake, lease and settings scenarios; preserve the previous scenario-file ceiling."
+    },
+    {
+      "path": "src/app/tests/resident_bridge.rs",
+      "maxLines": 1400,
+      "reason": "Existing resident lifecycle and authenticated bridge scenarios; preserve the previous scenario-file ceiling."
+    },
+    {
+      "path": "src/ipc/tests/bridge.rs",
+      "maxLines": 1400,
+      "reason": "Existing bridge framing, disconnect and bounded transport scenarios; preserve the previous scenario-file ceiling."
+    },
+    {
+      "path": "src/recording/tests/state_service.rs",
+      "maxLines": 1400,
+      "reason": "Existing recording state-transition and failure-cleanup scenarios share service fixtures; preserve the previous scenario-file ceiling."
+    }
+  ]
+}

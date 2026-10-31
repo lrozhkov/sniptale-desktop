@@ -124,7 +124,7 @@ def run_step(
             else:
                 decoded = line.decode("utf-8", errors="replace")
             append_bounded_log(log_path, decoded, ROOT, sensitive)
-            if stream_output:
+            if stream_output or decoded.startswith("WARN code-size: "):
                 sys.stderr.write(sanitize_text(decoded, ROOT, sensitive))
                 sys.stderr.flush()
         process.stdout.close()

@@ -5422,6 +5422,45 @@
           }
         }
       }
+    },
+    "tooling/configs/qa/code-size-exceptions.json": {
+      "type": "object",
+      "required": [
+        "schemaVersion",
+        "files"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "path",
+              "maxLines",
+              "reason"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "path": {
+                "type": "string",
+                "pattern": "^src/.+\\.rs$"
+              },
+              "maxLines": {
+                "type": "integer",
+                "minimum": 81
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      }
     }
   }
 }
