@@ -1,0 +1,47 @@
+# Desktop UI delivery plan
+
+[Design index](index.md) routes the concept and research. This document records the next requested goal and its acceptance sequence. Preparation is in progress; the previous environment-audit and script-lint goal still awaits a decision about hosted Renovate activation. Start the UI execution goal after that prerequisite is resolved. This plan does not mark either goal complete.
+
+## Objective and scope
+
+Deliver a repository-owned Sniptale Desktop design system, demonstrate the required components and states in a working sandbox, then rebuild the settings window and tray presentation from the shared primitives. Enforce continued sandbox coverage for future UI changes. Preserve existing settings authority, security decisions, and reachable workflows. Keep browser integration and Native Messaging redesign outside this goal.
+
+## Delivery sequence
+
+1. Complete the surface inventory and baseline. Map every existing settings field, theme/mode control, notice, command, dialog, tray item, and submenu to its owner, consumers, state transitions, and current Windows screenshot. Record current first-open, warm-open, input, scrolling, and resize timings with the benchmark method and guest resources. Inventory the actual locale support before deciding whether translation work is required.
+2. Establish shared design inputs. Review the proposed foundations against the browser reference. Create one token source for colors, semantic type roles, spacing, geometry, focus, and motion. Generate or consume it consistently in the native sandbox and application; verify output drift. Select the font through light/dark English/Russian specimens, accessibility, scaling, and license review. Keep choices explicit when the browser reference and native platform differ.
+3. Build a vertical native sandbox spike before expanding infrastructure. Show a neutral button, draft checkbox, dropdown, editable value, navigation item, hotkey field, feedback region, and native menu using the actual Windows implementations. Prove keyboard routing, focus, UI Automation names/patterns, DPI/text scaling, theme changes, and reduced motion. If this approach cannot meet acceptance, document the measured limitation and compare alternatives before committing to a runtime change.
+4. Expand the catalog to every supported component and required state listed below. Provide an indexed local launch command through the repository wrappers, deterministic fixture selection, a visible specimen version, and a link to the owning design rule. Use fake typed data and in-memory drafts: sandbox actions must not capture media, register global hotkeys, change installed settings, launch browser integration, or request installation repair.
+5. Demonstrate component behavior and full settings/tray compositions before rewriting the application surface. Supply runnable previews, settled screenshots, interaction evidence, and open visual decisions. Record exactly which version was demonstrated and any user feedback; automated tests or expert review must not be labelled user visual acceptance. Incorporate feedback into shared rules and specimens before product composition.
+6. Rebuild the settings presentation from demonstrated primitives. Preserve Manual versus ExtensionManaged behavior, Apply/Cancel/discard semantics, custom persisted values, appearance persistence, device refresh, hotkey conflicts, and error recovery. Migrate one coherent section at a time, retaining the existing settings owners and typed commands. Update the tray presentation with the same semantic hierarchy while preserving native menu behavior and command dispatch.
+7. Enforce the workflow. Add a machine-readable component/case inventory and negative fixtures. Require changed UI components to reference covered cases and their canonical rule. Run deterministic inventory, token drift, and presentation tests in the existing fast QA flow before compilation and VM admission. Validate actual native interaction in the Windows lane. Cover missing specimens and stale references without pretending that a file-name check proves UX quality. Route future UI tasks through `DESIGN.md` and the test policy.
+8. Close with deterministic owner tests, applicable coverage, architecture/security review for changed boundaries, and real Windows interaction evidence. Run required wrappers and closeout. Record performance results, supported configurations, unresolved limitations, and the exact reviewed specimen/product versions. Prepare the resulting reviewable PR with no claim of runtime acceptance until the Windows checks pass.
+
+## Required specimen inventory
+
+| Family | Required cases |
+| --- | --- |
+| Foundations | Light, dark, system theme, system contrast colors, reduced motion, typography, semantic colors, focus, disabled state, long text. |
+| Commands | Neutral primary/secondary, icon action with accessible name, hover, focus, press/hold, drag outside, release outside, interruption, duplicate activation prevention, unavailable reason. |
+| Draft values | Checked/unchecked/disabled checkbox, radio/exclusive selection where used, dropdown closed/open/keyboard selection, numeric or custom persisted value, destination display and folder-picker handoff. |
+| Hotkeys | Idle, focused, capturing, accepted, invalid, conflicting, cancelled, unavailable, focus restored after capture. |
+| Navigation | Selected versus hovered, keyboard movement, resize, scrolling, preserved draft, short work area, focus kept visible. |
+| Feedback and layers | Initial/unavailable state, pending, success, recoverable failure/retry, dirty-close confirmation, Escape, continued editing, focus return, long error text. |
+| Compositions | Capture, Video, Audio, Shortcuts, appearance controls, Manual entry/active draft, ExtensionManaged read-only, unavailable settings, changed mode while open. |
+| Tray | Idle/recording, checked mode, unavailable action, warning, shortcut label, submenu, keyboard activation/dismissal, work-area edge placement, reopening without stale state. |
+
+Every component actually used by the product needs an inventory entry. Optional future components do not justify building unrelated controls. Each entry identifies its rule, real implementation, deterministic cases, applicable Windows cases, and required evidence. State coverage must include both local control behavior and the owner contract it projects.
+
+## Acceptance and measurements
+
+- The catalog can be launched locally through a documented wrapper and operated without an installer, active browser connection, real capture, or mutation of the user's settings. The Windows specimen uses the production primitives and fixture-driven presentation; rules and tokens have one source of truth.
+- Both themes and contrast themes remain usable with keyboard, Narrator, and UI Automation. Test 100%, 150%, and 200% display scale, plus independent 200% text scale, long English/Russian specimens, and the smallest supported work area. Validate actual application-supported languages separately from localization stress specimens.
+- Apply failures preserve drafts; invalid input remains editable; cancellation, dirty-close decisions, focus return, scrolling, and unavailable states work in the real settings window. Tray actions remain reachable and dispatch once. No native authority or consent boundary changes as a side effect of visual work.
+- Record cold and warm sandbox startup and check time, cold/warm settings opening, event-to-visible-feedback latency, scroll/resize frame time, idle CPU, and additional private memory. Report sample count, median and p95 where applicable, display refresh rate, guest resources, source revision, build profile, and fixture. Targets start with p95 input feedback below 100 ms and p95 active animation work within a 16.7 ms frame budget on a 60 Hz reference guest; investigate regressions against the measured baseline before claiming smoothness.
+- Routine token, fixture, inventory, and presentation checks require neither app compilation nor VM startup. Reuse the existing warmed guest/session for actual native verification and explain when a clean guest is needed. Measure the incremental edit/check/preview loop and publish the result rather than assuming the sandbox improves it.
+- Negative tests reject missing component cases, broken inventory references, token drift, and incorrect owner-state projection. Behavioral fixes receive meaningful regression tests. Formatting and palette data edits do not receive tests that merely repeat their implementation.
+- New dependencies, fonts, or tools follow the existing advisory, license, and seven-full-day release-age policy. No new runtime or QA dependency is selected merely for visual novelty.
+
+## Completion record
+
+Research and initial concept: prepared. Baseline inventory, token implementation, native spike, full sandbox, product migration, enforcement, measured Windows proof, and final closeout: pending. Update this record as evidence is obtained; keep logs and screenshots as evidence rather than a source of design rules.

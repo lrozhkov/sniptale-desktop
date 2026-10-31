@@ -18,6 +18,13 @@ This index lists every active document. Code, tracked contracts, and machine pol
 - [Unsafe and FFI policy](engineering/unsafe-ffi-policy.md) owns admission requirements for privileged Windows adapters.
 - [QA tooling](tooling/qa.md) routes wrappers, evidence, and generated state.
 
+## Product design
+
+- [Desktop design index](design/index.md) routes the settings and tray design system.
+- [Desktop foundations](design/foundations.md) owns the target visual and interaction contract.
+- [Desktop UI research](design/research.md) records the native-stack assessment and primary sources.
+- [Desktop UI delivery plan](design/delivery-plan.md) owns the sandbox-first implementation sequence and acceptance criteria.
+
 ## Security and operations
 
 - [Threat model and trade-offs](security/threat-model.md) owns trust assumptions, mitigations, and residual risks.
