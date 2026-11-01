@@ -40,7 +40,9 @@ function Invoke-RealExtension([string] $Name, [string] $Executable, [string] $Ex
     Add-BrowserConnectionTrust $(if ($Name -eq "chrome") { "chrome" } else { "msedge" })
     Set-BrowserLocation $window "chrome-extension://elhndangpenapadjimfoodlaenpcndpo/apps/extension/src/settings/index.html?section=native-app&view=connection"
     Start-Sleep -Seconds 3
-    $scenario = Get-Content -Raw -LiteralPath "$PSScriptRoot\real-extension.js"
+    $scenarioFactory = Get-Content -Raw -LiteralPath "$PSScriptRoot\real-extension.js"
+    $historyProof = Get-Content -Raw -LiteralPath "$PSScriptRoot\native-history-proof.js"
+    $scenario = "($scenarioFactory)($historyProof)"
     $reload = Invoke-LabBrowserScript $port ("globalThis.__labAction='reload-runtime';" + $scenario)
     if (-not $reload.passed) { throw "$Name laboratory runtime reload was not scheduled" }
     Start-Sleep -Seconds 3
@@ -286,7 +288,7 @@ try {$null=$form.ShowDialog()} finally {$timer.Dispose(); $form.Dispose()}
     if (-not $nativeFile) { throw "native pointer recording did not publish its MP4 fallback" }
     $expected = @{sha256=(Get-FileHash -LiteralPath $nativeFile.FullName).Hash.ToLowerInvariant();totalBytes=$nativeFile.Length} | ConvertTo-Json -Compress
     $null = Invoke-LabBrowserScript $Port ("globalThis.__labExpectedMedia=$expected;({passed:true})")
-    $media = Invoke-LabBrowserScript $Port ("globalThis.__labAction='verify-recording';" + $Scenario)
+    $media = Invoke-LabBrowserScript $Port ("globalThis.__labAction='verify-history-recording';" + $Scenario)
     if (-not $media.passed) { throw "native MP4 or cursor telemetry verification failed: $($media.category)" }
     $opened = Invoke-LabBrowserScript $Port ("globalThis.__labAction='open-recording-editor';" + $Scenario)
     if (-not $opened.passed) { throw "verified native recording could not open its editor" }

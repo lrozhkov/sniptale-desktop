@@ -1,6 +1,5 @@
 // Runs in a real extension page through guest-local Playwright; all requests use the product runtime.
-// eslint-disable-next-line @typescript-eslint/no-floating-promises -- Playwright and the VM contract harness await this expression and propagate rejection.
-(async () => {
+(() => async (verifyNativeHistory) => {
   const send = message => chrome.runtime.sendMessage({...message, requestId: crypto.randomUUID(),
     __sniptaleRuntimeFreshness: {issuedAtEpochMs: Date.now(), nonce: crypto.randomUUID()}});
   const wait = ms => new Promise(resolve => { setTimeout(resolve, ms); });
@@ -19,13 +18,107 @@
     };
     });
   };
+  const readKey = async (store,key) => {
+    if (!(await indexedDB.databases()).some(db=>db.name==='sniptale-db')) return null;
+    return new Promise((resolve,reject)=>{
+      const request=indexedDB.open('sniptale-db');
+      request.onerror=()=>reject(new Error('database-open-failed'));
+      request.onsuccess=()=>{
+        const db=request.result;
+        if (!db.objectStoreNames.contains(store)) {db.close();resolve(null);return;}
+        const read=db.transaction(store,'readonly').objectStore(store).get(key);
+        read.onerror=()=>{db.close();reject(new Error('database-read-failed'));};
+        read.onsuccess=()=>{db.close();resolve(read.result??null);};
+      };
+    });
+  };
+  const immutableHistories = async (session,entry,metadata,expected) => {
+    const fail=category=>({passed:false,category});
+    const intent=session.metadata.history;
+    if (!intent || intent.phase==='pending' || !metadata) return {pending:true};
+    if (intent.phase!=='complete' || intent.recordingId!==session.id || intent.recordingAssetId!==entry.assetId ||
+        intent.videoSha256!==expected.sha256 || intent.width!==session.metadata.width || intent.height!==session.metadata.height) {
+      return fail('native-history-parent-binding-invalid');
+    }
+    if (typeof verifyNativeHistory!=='function') return fail('native-history-verifier-missing');
+    const width=session.metadata.width,height=session.metadata.height;
+    const target=(x,y)=>[14745,18022,21298].findIndex(value=>
+      Math.abs(x-value/32767*(width-1))<=4 && Math.abs(y-20479/32767*(height-1))<=4);
+    let downs=0,ups=0,clicks=0,completions=0;
+    const active=new Map(),proofs={};
+    for (const kind of ['cursor','events']) {
+      const cursor=kind==='cursor';
+      const descriptor=metadata[cursor?'cursorTrajectory':'recordingEvents'];
+      const snapshot=metadata[cursor?'cursorTrajectorySnapshot':'recordingEventsSnapshot'];
+      const slot=intent[kind];
+      const role=cursor?'cursor-trajectory':'recording-events';
+      const id=descriptor?.[cursor?'trajectoryId':'eventStreamId'];
+      if (!descriptor || !snapshot || !slot?.writer || slot.pull?.kind!=='published' ||
+          snapshot.sourceRecordingId!==intent.recordingId ||
+          (cursor && (snapshot.width!==width || snapshot.height!==height))) return fail('native-history-publication-missing');
+      const fields=['format','formatVersion','algorithm','encoding','state','finalized','totalBlocks','totalRecords','totalBytes','streamSha256',cursor?'trajectoryId':'eventStreamId'];
+      if (cursor) fields.push('totalSamples');
+      if (!fields.every(key=>descriptor[key]===slot.descriptor?.[key])) return fail('native-history-native-summary-mismatch');
+      const ref=snapshot.ref;
+      if (!ref || typeof ref.assetId!=='string' || !ref.assetId || ref.assetId.length>256 || /[\\/]/.test(ref.assetId) || ['.','..'].includes(ref.assetId) ||
+          ref.mimeType!=='application/octet-stream' || ref.location?.kind!=='opfs' || ref.location.objectKey!==`objects/${ref.assetId}` ||
+          !Number.isSafeInteger(ref.size) || ref.size<=0 || ref.size>1048576 || ref.sha256!==descriptor.streamSha256 ||
+          ref.size!==descriptor.totalBytes+4*descriptor.totalBlocks) return fail('native-history-snapshot-reference-invalid');
+      const head=await readKey(cursor?'recording_cursor_trajectories':'recording_events',
+        cursor?[session.id,id]:[session.id,id,'head',0]);
+      if (!head || head.retired!==false || head.finalized!==true || head.snapshotAssetId!==ref.assetId ||
+          head.stagingJournalId!==undefined || head.sourceRecordingId!==snapshot.sourceRecordingId ||
+          head.writerGeneration!==slot.writer.writerGeneration || typeof head.writerGeneration!=='string' || !head.writerGeneration ||
+          !['state','totalBlocks','totalRecords','totalBytes','streamSha256'].every(key=>head[key]===descriptor[key]) ||
+          (cursor && head.totalSamples!==descriptor.totalSamples)) return fail('native-history-published-head-invalid');
+      const owner=await readKey('asset_owners',['recording',session.id,role]);
+      const registered=await readKey('asset_refs',ref.assetId);
+      if (owner?.assetId!==ref.assetId || owner.ownerId!==session.id || owner.ownerKind!=='recording' || owner.role!==role ||
+          !registered || !['assetId','createdAt','mimeType','sha256','size'].every(key=>registered[key]===ref[key]) ||
+          registered.location?.kind!=='opfs' || registered.location.objectKey!==ref.location.objectKey) return fail('native-history-owner-binding-invalid');
+      const objects=await(await(await navigator.storage.getDirectory()).getDirectoryHandle('sniptale-assets')).getDirectoryHandle('objects');
+      const blob=await(await objects.getFileHandle(ref.assetId)).getFile();
+      if (blob.size!==ref.size || blob.size>1048576) return fail('native-history-snapshot-file-size-invalid');
+      const proof=await verifyNativeHistory({bytes:new Uint8Array(await blob.arrayBuffer()),descriptor,kind,sourceRecordingId:snapshot.sourceRecordingId,
+        observe:record=>{
+          if (cursor && record.kind==='segment' && (record.width!==width || record.height!==height)) return false;
+          if (cursor && record.kind==='sample' && record.observed && record.visible) {
+            const index=target(record.xQ8/256,record.yQ8/256);
+            if (index>=0 && record.event==='down') downs|=1<<index;
+            if (index>=0 && record.event==='up') ups|=1<<index;
+          }
+          if (!cursor && record.kind==='action' && record.action?.kind==='CLICK' && record.action.point) {
+            const index=target(record.action.point.x*width,record.action.point.y*height);
+            if (index>=0) {
+              if (active.size>=32 || active.has(record.action.id)) return false;
+              active.set(record.action.id,{index,down:record.action.data?.downTimeUs});
+              clicks|=1<<index;
+            }
+          }
+          if (!cursor && record.kind==='action-update' && active.has(record.actionId)) {
+            const base=active.get(record.actionId),data=record.data;
+            if (data?.completion!=='released' || !Number.isSafeInteger(base.down) || !Number.isSafeInteger(data.upTimeUs) ||
+                data.upTimeUs<base.down || data.pressDurationUs!==data.upTimeUs-base.down || data.lastObservedTimeUs!==data.upTimeUs) return false;
+            completions|=1<<base.index;active.delete(record.actionId);
+          }
+          return true;
+        }});
+      if (!proof.passed) return proof;
+      proofs[kind]={blocks:proof.blocks,records:proof.records,bytes:proof.bytes,sha256:proof.streamSha256};
+      if (cursor) proofs[kind].samples=proof.samples;
+    }
+    if (downs!==7 || ups!==7 || clicks!==7 || completions!==7 || active.size) return fail('native-history-physical-fixture-incomplete');
+    return {passed:true,cursorSamples:proofs.cursor.samples,clickEvents:3,normalization:'microseconds-q8-verified',historyAttachments:proofs};
+  };
   const action = globalThis.__labAction;
   // Parser messages are static literals. Never forward an arbitrary error message from the peer.
   const rejectedMessage = status => {
     const match = /^Invalid (app\.[a-z.]+)$/.exec(status?.error?.message ?? '');
     const known = ['app.hello', 'app.controller.lease', 'app.settings.accepted', 'app.pong',
       'app.screenshot.start', 'app.screenshot.chunk', 'app.screenshot.commit',
-      'app.recording.started', 'app.recording.progress', 'app.recording.stopped', 'app.recording.chunk'];
+      'app.recording.started', 'app.recording.progress', 'app.recording.stopped', 'app.recording.chunk',
+      'app.recording.attachment.manifest', 'app.recording.attachment.chunk', 'app.recording.attachment.available',
+      'app.recording.events.manifest', 'app.recording.events.chunk', 'app.recording.events.available'];
     return match && known.includes(match[1]) ? match[1] : 'unclassified';
   };
   if (action === 'reload-runtime') {
@@ -146,7 +239,7 @@
     }
     return {passed:false, category:'native-media-not-received'};
   }
-  if (action === 'verify-recording') {
+  if (action === 'verify-recording' || action === 'verify-history-recording') {
     const expected = globalThis.__labExpectedMedia;
     for (let i=0; i<80; i++) {
       const sessions = (await readAll('native_transfer_sessions')).filter(row => row.kind === 'recording-complete' && !globalThis.__labPriorTransfers?.has(row.id));
@@ -185,6 +278,22 @@
             return {passed:false,category:'native-video-decode-mismatch'};
           }
         } finally { video.removeAttribute('src'); video.load(); URL.revokeObjectURL(url); }
+        if (action==='verify-history-recording') {
+          const metadata=await readKey('recording_telemetry',session.id);
+          const histories=await immutableHistories(session,entry,metadata,expected);
+          if (histories.pending) {await wait(500);continue;}
+          if (!histories.passed) return histories;
+          const legacyEvents=metadata.actionEvents??[],legacySamples=metadata.cursorTrack?.samples??[],legacySignals=metadata.signals??[];
+          if (!Array.isArray(legacyEvents) || legacyEvents.length || !Array.isArray(legacySamples) || legacySamples.length ||
+              !Array.isArray(legacySignals) || legacySignals.some(signal=>signal.kind!=='static-frame')) return {passed:false,category:'native-history-lifetime-arrays-present'};
+          const response=await send({type:'NATIVE_APP_QUERY'});
+          const settings=response.status?.effectiveSettings;
+          if (!selected(response.status) || settings?.video?.telemetry?.collectCursor!==true || settings?.video?.telemetry?.collectClicks!==true ||
+              settings?.video?.advanced?.includeCursorInVideo!==false) return {passed:false,category:'native-pointer-opt-in-settings-not-synchronized'};
+          globalThis.__labVerifiedRecordingId=session.id;
+          return {...histories,sha256:hash,bytes:bytes.length,width:session.metadata.width,height:session.metadata.height,durationMs:session.metadata.durationMs,
+            mimeType:reference.mimeType,storageKind:'opfs',sourceCursorEmbedded:false};
+        }
         const raw = session.metadata.telemetry;
         const telemetry = (await readAll('recording_telemetry')).find(row=>row.recordingId===session.id);
         const rawSamples = raw?.cursorTrack?.samples;
@@ -221,7 +330,7 @@
       }
       await wait(500);
     }
-    return {passed:false,category:'native-video-not-received'};
+    return {passed:false,category:action==='verify-history-recording'?'native-history-publication-not-received':'native-video-not-received'};
   }
   if (action === 'open-recording-editor') {
     const id=globalThis.__labVerifiedRecordingId;

@@ -406,7 +406,41 @@ class ArtifactResultTests(unittest.TestCase):
             "automation": automation,
         }
         self.assertEqual(sanitize_real_extension(observer), observer)
+        immutable = copy.deepcopy(valid)
+        for item in immutable:
+            video = item["recording"]["media"]
+            video["normalization"] = "microseconds-q8-verified"
+            video["cursorSamples"] = 6
+            video["historyAttachments"] = {
+                "cursor": {"blocks": 1, "records": 8, "samples": 6, "bytes": 1800, "sha256": "b" * 64},
+                "events": {"blocks": 1, "records": 8, "bytes": 2800, "sha256": "c" * 64},
+            }
+            item["recording"]["editor"].update(reopenedHistorySegments=1, seekStart=True, seekEnd=True, reopened=True)
+        self.assertEqual(sanitize_real_extension(immutable), immutable)
         rejected = [valid[:1], [chrome, chrome], {"browsers": valid}]
+        missing_histories = copy.deepcopy(immutable)
+        del missing_histories[0]["recording"]["media"]["historyAttachments"]
+        rejected.append(missing_histories)
+        for key, bad in [("seekStart", False), ("seekEnd", False), ("reopened", False), ("reopenedHistorySegments", 0)]:
+            invalid_seek = copy.deepcopy(immutable)
+            invalid_seek[0]["recording"]["editor"][key] = bad
+            rejected.append(invalid_seek)
+        for kind, key, bad in [
+            ("cursor", "blocks", True),
+            ("cursor", "blocks", 0),
+            ("cursor", "blocks", 17),
+            ("cursor", "records", 513),
+            ("cursor", "samples", 5),
+            ("cursor", "bytes", 1048576),
+            ("cursor", "sha256", "private"),
+            ("cursor", "writerGeneration", "private"),
+            ("events", "records", 5),
+            ("events", "samples", 0),
+            ("events", "sha256", "b" * 64),
+        ]:
+            invalid_history = copy.deepcopy(immutable)
+            invalid_history[0]["recording"]["media"]["historyAttachments"][kind][key] = bad
+            rejected.append(invalid_history)
         for section, key, bad in [
             ("media", "cursorSamples", True),
             ("media", "cursorSamples", 4097),

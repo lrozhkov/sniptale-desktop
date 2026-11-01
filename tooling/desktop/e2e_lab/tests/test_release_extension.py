@@ -28,6 +28,7 @@ class ReleaseExtensionTests(unittest.TestCase):
         self.assertTrue(node.is_file(), "install the cataloged Node runtime before the release harness")
         for contract, runtime in (
             ("native-probe-contracts.cjs", "../browser-extension/probe.js"),
+            ("native-history-contracts.cjs", "native-history-proof.js"),
             ("real-extension-contracts.cjs", "real-extension.js"),
             ("browser-playwright-contracts.cjs", "browser-playwright.cjs"),
         ):

@@ -85,6 +85,22 @@ def sanitize_real_extension(value):
             )
         )
 
+    def histories(item, samples):
+        """Bounds for this short physical-input fixture, not product history quotas."""
+        fields(item, "cursor events")
+        for kind, proof in item.items():
+            fields(proof, "blocks records bytes sha256" + (" samples" if kind == "cursor" else ""))
+            require(type(proof["blocks"]) is int and 1 <= proof["blocks"] <= 16)
+            require(type(proof["records"]) is int and proof["blocks"] <= proof["records"] <= 512 * proof["blocks"])
+            require(type(proof["bytes"]) is int and 0 < proof["bytes"] <= 1048576 - 4 * proof["blocks"])
+            require(isinstance(proof["sha256"], str) and re.fullmatch(r"[0-9a-f]{64}", proof["sha256"]) is not None)
+            if kind == "cursor":
+                require(type(proof["samples"]) is int and 3 <= proof["samples"] <= proof["records"])
+                require(proof["samples"] == samples)
+            else:
+                require(proof["records"] >= 6)
+        require(item["cursor"]["sha256"] != item["events"]["sha256"])
+
     require(isinstance(value, list) and len(value) == 2)
     seen = set()
     for item in value:
@@ -141,23 +157,39 @@ def sanitize_real_extension(value):
         recording = item["recording"]
         fields(recording, "media editor")
         video = recording["media"]
+        immutable = isinstance(video, dict) and video.get("normalization") == "microseconds-q8-verified"
         fields(
             video,
-            "passed sha256 bytes width height durationMs mimeType storageKind cursorSamples clickEvents normalization sourceCursorEmbedded automation",
+            "passed sha256 bytes width height durationMs mimeType storageKind cursorSamples clickEvents normalization sourceCursorEmbedded automation"
+            + (" historyAttachments" if immutable else ""),
         )
         require(video["passed"] is True and video["mimeType"] == "video/mp4" and video["storageKind"] == "opfs")
         require(isinstance(video["sha256"], str) and re.fullmatch(r"[0-9a-f]{64}", video["sha256"]) is not None)
         require(type(video["bytes"]) is int and 0 < video["bytes"] <= 64 * 1024 * 1024)
         require(all(type(video[key]) is int and 0 < video[key] <= 16384 for key in ("width", "height")))
         require(type(video["durationMs"]) is int and 0 < video["durationMs"] <= 60000)
-        require(type(video["cursorSamples"]) is int and 3 <= video["cursorSamples"] <= 4096)
-        require(type(video["clickEvents"]) is int and 3 <= video["clickEvents"] <= 2048)
-        require(video["normalization"] == "milliseconds-to-seconds-once" and video["sourceCursorEmbedded"] is False)
+        require(type(video["cursorSamples"]) is int and 3 <= video["cursorSamples"] <= (8192 if immutable else 4096))
+        require(
+            type(video["clickEvents"]) is int
+            and (video["clickEvents"] == 3 if immutable else 3 <= video["clickEvents"] <= 2048)
+        )
+        require(video["sourceCursorEmbedded"] is False)
+        if immutable:
+            histories(video["historyAttachments"], video["cursorSamples"])
+        else:
+            require(video["normalization"] == "milliseconds-to-seconds-once")
         automation(video["automation"])
         editor = recording["editor"]
-        fields(editor, "passed historySegments canvasWidth canvasHeight playbackAdvanced automation")
+        fields(
+            editor,
+            "passed historySegments canvasWidth canvasHeight playbackAdvanced automation"
+            + (" reopenedHistorySegments seekStart seekEnd reopened" if immutable else ""),
+        )
         require(editor["passed"] is True and editor["playbackAdvanced"] is True)
         require(type(editor["historySegments"]) is int and 1 <= editor["historySegments"] <= 4096)
         require(all(type(editor[key]) is int and 0 < editor[key] <= 16384 for key in ("canvasWidth", "canvasHeight")))
+        if immutable:
+            require(all(editor[key] is True for key in ("seekStart", "seekEnd", "reopened")))
+            require(type(editor["reopenedHistorySegments"]) is int and 1 <= editor["reopenedHistorySegments"] <= 4096)
         automation(editor["automation"])
     return value

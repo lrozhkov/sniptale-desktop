@@ -1,15 +1,16 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const path = require('node:path');
 const vm = require('node:vm');
-const {webcrypto} = require('node:crypto');
+const {webcrypto,createHash} = require('node:crypto');
 const source = fs.readFileSync(process.argv[2], 'utf8');
 const extensionId = 'a'.repeat(32);
 const clientId = 'b'.repeat(64);
-async function check(reply, {action='connect', pin=null, extra={}}={}) {
+async function check(reply, {action='connect', pin=null, extra={}, verifyHistory}={}) {
   const nonces = new Set();
   let calls = 0;
-  const result = await vm.runInNewContext(source, {
-    __labAction: action, crypto: webcrypto, Blob, navigator: {userAgent:'Chrome/1.0'},
+  const scenario = vm.runInNewContext(source, {
+    __labAction: action, crypto: webcrypto, Blob, Uint8Array,DataView,TextDecoder,navigator: {userAgent:'Chrome/1.0'},
     setTimeout: callback => callback(),
     chrome: {storage:{local:{get: async key => ({[key]:pin})}}, runtime: {id:extensionId, sendMessage: async message => {
       const freshness = message.__sniptaleRuntimeFreshness;
@@ -22,6 +23,8 @@ async function check(reply, {action='connect', pin=null, extra={}}={}) {
       return reply(message, ++calls);
     }}}, ...extra
   });
+  assert.equal(typeof scenario,'function');
+  const result = await scenario(verifyHistory);
   return {result, calls};
 }
 (async () => {
@@ -59,6 +62,9 @@ async function check(reply, {action='connect', pin=null, extra={}}={}) {
   const observer = {...connected, status:{...connected.status, connectionState:'selection-required', settingsRevision:null, effectiveSettings:null,
     controllerLease:{...lease,status:'rejected',selectionStatus:'selection-required'}}};
   for (const [message, expected] of [['Invalid app.recording.stopped','app.recording.stopped'],
+    ...['attachment','events'].flatMap(kind=>['manifest','chunk','available'].map(part=>{
+      const type=`app.recording.${kind}.${part}`;return [`Invalid ${type}`,type];
+    })),
     ['Invalid app.settings.accepted','app.settings.accepted'], ['Invalid app.private.secret','unclassified'],
     ['https://private.invalid/token','unclassified']]) {
     const denied = await check(() => ({...connected,status:{...connected.status,connectionState:'error',error:{code:'malformed-message',message}}}));
@@ -141,6 +147,52 @@ async function check(reply, {action='connect', pin=null, extra={}}={}) {
     actionEvents:rawSamples.map((sample,index)=>({id:`native-click-${index}`,kind:'CLICK',time:sample.time,duration:0,point:{x:sample.x,y:sample.y}})),signals:[]};
   const normalized = {recordingId:'native-video-1',viewport:rawTelemetry.viewport,cursorTrack:{samples:rawSamples.map(sample=>({...sample,time:sample.time/1000}))},
     actionEvents:rawTelemetry.actionEvents.map(event=>({...event,time:event.time/1000})),signals:[],provenance:{source:'native',normalizationVersion:1,timeUnit:'seconds',coordinateSpace:'desktop'}};
+  const fixtureRoot=path.resolve(__dirname,'../../../../contracts/native/fixtures');
+  const cursorVector=JSON.parse(fs.readFileSync(path.join(fixtureRoot,'cursor-trajectory-v1.json'),'utf8')).canonicalVectors[0].value;
+  const eventVector=JSON.parse(fs.readFileSync(path.join(fixtureRoot,'positive/contract-fixtures.json'),'utf8')).RecordingEventsBlock;
+  const historyVerifier=vm.runInNewContext(fs.readFileSync(path.join(path.dirname(process.argv[2]),'native-history-proof.js'),'utf8'),
+    {Uint8Array,DataView,TextDecoder,crypto:webcrypto});
+  function historyFixture() {
+    const id='native-video-1',cursorId='a'.repeat(32),eventId='b'.repeat(32);
+    const cursorRecords=[{...cursorVector.records[0],width:1280,height:800}];
+    const eventRecords=[structuredClone(eventVector.records[0])];
+    const click=eventVector.records.find(record=>record.action?.kind==='CLICK');
+    const completion=eventVector.records.find(record=>record.kind==='action-update'&&'gestureType' in record.data);
+    for(const [index,point] of rawSamples.entries()) {
+      const down=100000+index*200000,up=down+50000,actionId=`click-${index}`;
+      for(const [event,time] of [['down',down],['up',up]]) cursorRecords.push({...cursorVector.records.find(record=>record.kind==='sample'),
+        observationSeq:cursorRecords.length-1,relatedObservationSeq:event==='up'?cursorRecords.length-2:null,
+        anchors:[event==='up'?'after-button':'before-button'],activeTimeUs:time,xQ8:point.x*256,yQ8:point.y*256,observed:true,visible:true,event,button:'left'});
+      eventRecords.push({...structuredClone(click),recordSeq:eventRecords.length,activeTimeUs:down,action:{...structuredClone(click.action),
+        id:actionId,timeUs:down,durationUs:null,point:{x:point.x/1280,y:point.y/800},data:{...structuredClone(click.action.data),downTimeUs:down,upTimeUs:null,
+          pressDurationUs:null,lastObservedTimeUs:down,completion:'observed'}}});
+      eventRecords.push({...structuredClone(completion),recordSeq:eventRecords.length,activeTimeUs:up,actionId,data:{...structuredClone(completion.data),
+        upTimeUs:up,pressDurationUs:up-down,lastObservedTimeUs:up,completion:'released',upPoint:{x:point.x/1280,y:point.y/800}}});
+    }
+    cursorRecords.push({kind:'boundary',segmentId:0,activeTimeUs:1000000,reason:'stop'});
+    eventRecords.push({kind:'boundary',recordSeq:eventRecords.length,segmentId:0,activeTimeUs:1000000,reason:'stop'});
+    const metadata={recordingId:id,cursorTrack:{samples:[]},actionEvents:[],signals:[]},files=new Map(),refs=[],owners=[],heads={};
+    const intent={version:1,operationId:'operation-1',revision:1,recordingId:id,recordingAssetId:'video-asset',videoSha256:videoHash,
+      controllerLeaseId:lease.controllerLeaseId,width:1280,height:800,createdAt:1,updatedAt:1,phase:'complete'};
+    for(const kind of ['cursor','events']) {
+      const cursor=kind==='cursor',streamId=cursor?cursorId:eventId;
+      const body=Buffer.from(JSON.stringify({formatVersion:1,recordingId:id,[cursor?'trajectoryId':'eventStreamId']:streamId,
+        sequence:0,startTimeUs:0,endTimeUs:1000000,records:cursor?cursorRecords:eventRecords}));
+      const prefix=Buffer.alloc(4);prefix.writeUInt32LE(body.length);
+      const bytes=new Uint8Array(Buffer.concat([prefix,body])),sha256=createHash('sha256').update(bytes).digest('hex');
+      const descriptor={format:cursor?'cursor-trajectory-v1':'recording-events-v1',formatVersion:1,algorithm:cursor?'sed-window-v1':'lossless-v1',
+        encoding:cursor?'json-ascii-int-v1':'json-utf8-v1',[cursor?'trajectoryId':'eventStreamId']:streamId,state:'complete',finalized:true,
+        totalBlocks:1,totalRecords:(cursor?cursorRecords:eventRecords).length,totalBytes:body.length,streamSha256:sha256,...(cursor?{totalSamples:6}:{})};
+      const ref={assetId:`history-${kind}`,createdAt:1,mimeType:'application/octet-stream',sha256,size:bytes.length,location:{kind:'opfs',objectKey:`objects/history-${kind}`}};
+      const writer={recordingId:id,[cursor?'trajectoryId':'eventStreamId']:streamId,writerGeneration:`generation-${kind}`};
+      metadata[cursor?'cursorTrajectory':'recordingEvents']=descriptor;
+      metadata[cursor?'cursorTrajectorySnapshot':'recordingEventsSnapshot']={ref,sourceRecordingId:id,...(cursor?{width:1280,height:800}:{})};
+      intent[kind]={descriptor:structuredClone(descriptor),writer,pull:{kind:'published'}};
+      heads[kind]={...descriptor,...writer,sourceRecordingId:id,snapshotAssetId:ref.assetId,retired:false,...(!cursor?{kind:'head',entryId:0}:{})};
+      refs.push(ref);owners.push({assetId:ref.assetId,ownerKind:'recording',ownerId:id,role:cursor?'cursor-trajectory':'recording-events'});files.set(ref.assetId,bytes);
+    }
+    return {metadata,intent,heads,refs,owners,files};
+  }
   async function videoCheck(patch={}) {
     const raw = structuredClone(rawTelemetry);
     const saved = structuredClone(normalized);
@@ -148,12 +200,32 @@ async function check(reply, {action='connect', pin=null, extra={}}={}) {
     if (patch.change) patch.change({raw,saved,ref});
     const rows = {native_transfer_sessions:[{id:'native-video-1',kind:'recording-complete',sha256:videoHash,totalBytes:0,
       metadata:{width:1280,height:800,durationMs:1000,telemetry:raw}}],recordings:[{id:'native-video-1',assetId:'video-asset',mimeType:'video/mp4',size:videoBytes.length}],asset_refs:[ref],recording_telemetry:[saved]};
+    const files=new Map([['video-asset',patch.bytes??videoBytes]]);
+    if (patch.histories) {
+      const fixture=historyFixture();
+      Object.assign(saved,fixture.metadata);
+      rows.native_transfer_sessions[0].metadata.history=fixture.intent;
+      rows.asset_refs.push(...structuredClone(fixture.refs));
+      rows.asset_owners=fixture.owners;
+      rows.recording_cursor_trajectories=[fixture.heads.cursor];rows.recording_events=[fixture.heads.events];
+      for(const [name,data] of fixture.files) files.set(name,data);
+      patch.changeHistory?.({fixture,rows,files,saved});
+    }
+    const keyed=(name,key)=>rows[name].find(row=>{
+      if(name==='recording_telemetry') return row.recordingId===key;
+      if(name==='asset_refs') return row.assetId===key;
+      if(name==='asset_owners') return row.ownerKind===key[0]&&row.ownerId===key[1]&&row.role===key[2];
+      if(name==='recording_cursor_trajectories') return row.recordingId===key[0]&&row.trajectoryId===key[1];
+      if(name==='recording_events') return row.recordingId===key[0]&&row.eventStreamId===key[1]&&row.kind===key[2]&&row.entryId===key[3];
+      throw Error('unexpected-keyed-store');
+    });
     const indexedDB={databases:async()=>[{name:'sniptale-db'}],open:()=>{
       const request={};request.result={objectStoreNames:{contains:name=>name in rows},close:()=>{},transaction:name=>({objectStore:()=>({getAll:()=>{
+        assert.ok(!['recording_events','recording_cursor_trajectories'].includes(name),'history scans must stay bounded');
         const read={result:rows[name]};queueMicrotask(()=>read.onsuccess());return read;
-      }})})};queueMicrotask(()=>request.onsuccess());return request;
+      },get:key=>{const read={result:keyed(name,key)};queueMicrotask(()=>read.onsuccess());return read;}})})};queueMicrotask(()=>request.onsuccess());return request;
     }};
-    const objects={getFileHandle:async(name,options)=>{assert.equal(name,'video-asset');assert.equal(options,undefined);return {getFile:async()=>new Blob([patch.bytes??videoBytes])};}};
+    const objects={getFileHandle:async(name,options)=>{assert.ok(files.has(name));assert.equal(options,undefined);return {getFile:async()=>new Blob([files.get(name)])};}};
     const assets={getDirectoryHandle:async(name,options)=>{assert.equal(name,'objects');assert.equal(options,undefined);return objects;}};
     const storage={getDirectory:async()=>({getDirectoryHandle:async(name,options)=>{assert.equal(name,'sniptale-assets');assert.equal(options,undefined);return assets;}})};
     const settings={video:{telemetry:{collectCursor:!patch.optOut,collectClicks:true},advanced:{includeCursorInVideo:!!patch.embedded}}};
@@ -164,7 +236,8 @@ async function check(reply, {action='connect', pin=null, extra={}}={}) {
       Object.defineProperty(element,'src',{set:()=>{queueMicrotask(()=>patch.decodeError?element.onerror():element.onloadedmetadata());}});
       return element;
     }};
-    return check(()=>response,{action:'verify-recording',extra:{indexedDB,navigator:{storage},document,
+    return check(()=>response,{action:patch.histories?'verify-history-recording':'verify-recording',verifyHistory:patch.histories?historyVerifier:undefined,
+      extra:{indexedDB,navigator:{storage},document,
       URL:{createObjectURL:()=> 'blob:synthetic',revokeObjectURL:()=>{}},
       setTimeout:(callback,ms)=>{if(ms!==10000)callback();return 0;},
       __labExpectedMedia:{sha256:videoHash,totalBytes:videoBytes.length}}});
@@ -185,5 +258,24 @@ async function check(reply, {action='connect', pin=null, extra={}}={}) {
     {change:({saved})=>{saved.actionEvents[0].time=100;}}]) {
     assert.equal((await videoCheck(patch)).result.passed,false);
   }
+  const imported=await videoCheck({histories:true});
+  assert.equal(imported.result.passed,true);
+  assert.equal(imported.result.normalization,'microseconds-q8-verified');
+  assert.equal(imported.result.cursorSamples,6);
+  assert.equal(imported.result.clickEvents,3);
+  assert.equal(imported.result.historyAttachments.events.records,8);
+  for(const changeHistory of [
+    ({fixture})=>{fixture.intent.videoSha256='0'.repeat(64);},
+    ({fixture})=>{fixture.intent.cursor.descriptor.streamSha256='0'.repeat(64);},
+    ({fixture})=>{fixture.heads.cursor.writerGeneration='other-generation';},
+    ({fixture})=>{fixture.heads.events.stagingJournalId='unpublished';},
+    ({fixture})=>{fixture.heads.events.retired=true;},
+    ({rows})=>{rows.asset_owners[0].role='video';},
+    ({rows})=>{rows.asset_refs[1].sha256='0'.repeat(64);},
+    ({saved})=>{saved.actionEvents=[{kind:'CLICK'}];},
+    ({saved})=>{saved.cursorTrack.samples=[{time:0}];},
+    ({saved})=>{saved.recordingEventsSnapshot.sourceRecordingId='wrong-source';},
+    ({files})=>{const bytes=files.get('history-events');bytes[bytes.length-1]^=1;},
+  ]) assert.equal((await videoCheck({histories:true,changeHistory})).result.passed,false);
   process.stdout.write('OK real extension freshness, explicit pin, observer/selected authority, immutable OPFS bytes, native hash and byte-count contracts\n');
 })().catch(error => { process.stderr.write(error.stack + '\n'); process.exitCode = 1; });

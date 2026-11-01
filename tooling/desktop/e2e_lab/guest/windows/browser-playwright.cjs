@@ -42,13 +42,35 @@ async function inspectNativeEditor(context, settingsPage, port, request) {
   await editor.waitForTimeout(1500);
   await editor.getByRole('button',{name:'Pause',exact:true}).click();
   await editor.waitForTimeout(300);
+  const duration=Number(await playhead.getAttribute('aria-valuemax'));
+  if (!Number.isFinite(duration)||duration<=0||duration>60) throw Error('native-editor-duration-invalid');
+  const seek = async (key,time) => {
+    await playhead.press(key);
+    for(let attempt=0;attempt<40;attempt++) {
+      const current=Number(await playhead.getAttribute('aria-valuenow'));
+      if(Number.isFinite(current)&&Math.abs(current-time)<=0.001) return;
+      await editor.waitForTimeout(100);
+    }
+    throw Error('native-editor-seek-did-not-settle');
+  };
+  await seek('Home',0);
+  await seek('End',duration);
+  await seek('Home',0);
+  await editor.reload({waitUntil:'domcontentloaded',timeout:20000});
+  await editor.waitForSelector('[data-ui="video-editor.timeline.surface"]',{timeout:20000});
+  if(!(await row.isVisible())) await editor.locator('[data-ui="video-editor.timeline.toolbar.telemetry-lane"]').click();
+  await segments.first().waitFor({state:'visible',timeout:15000});
+  const reopenedCount=await segments.count();
+  if(reopenedCount<1||reopenedCount>4096) throw Error('native-editor-reopened-history-missing');
+  await canvas.waitFor({state:'visible',timeout:15000});
   const size = await canvas.evaluate(element=>({width:element.width,height:element.height}));
   if(!Number.isInteger(size.width)||!Number.isInteger(size.height)||size.width<=0||size.height<=0) throw Error('native-editor-preview-canvas-empty');
   const browser = port==='9223'?'chrome':'edge';
   const directory = path.join(path.dirname(request),'screenshots');
   await canvas.screenshot({path:path.join(directory,`native-cursor-preview-${browser}.png`)});
   await editor.screenshot({path:path.join(directory,`native-cursor-editor-${browser}.png`)});
-  return {passed:true,historySegments:count,canvasWidth:size.width,canvasHeight:size.height,playbackAdvanced:true};
+  return {passed:true,historySegments:count,reopenedHistorySegments:reopenedCount,canvasWidth:size.width,canvasHeight:size.height,
+    playbackAdvanced:true,seekStart:true,seekEnd:true,reopened:true};
 }
 (async () => {
   const [port, request] = process.argv.slice(2);

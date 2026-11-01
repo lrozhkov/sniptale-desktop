@@ -468,6 +468,7 @@ class LaneRunner:
                     "browser-playwright.ps1",
                     "browser-playwright.cjs",
                     "real-extension.js",
+                    "native-history-proof.js",
                 ):
                     uploads[name] = script.with_name(name)
             try:
