@@ -3,7 +3,6 @@
 use super::{EventDescriptor, EventFormat, EventManifestEntry, EventReceipt};
 use serde::{Deserialize, Serialize};
 
-#[cfg(test)]
 pub(crate) const RECORDING_EVENTS_CAPABILITY: &str = "recording-events-v1";
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]

@@ -30,6 +30,58 @@ def phase(browser: str = "chrome", /, **patch: object):
 
 
 class NativePointerTests(unittest.TestCase):
+    def test_admitted_late_input_stops_recording_only_after_the_last_button_release(self):
+        now = [1004.9]
+        events = []
+
+        def send(event):
+            events.extend((now[0], item) for item in event["events"])
+
+        def pause(seconds):
+            now[0] += seconds
+
+        fixture = NativePointerFixture(send, pause, lambda: now[0])
+        fixture.observe(phase())
+        releases = [time for time, event in events if event["type"] == "btn" and not event["data"]["down"]]
+        self.assertEqual(len(releases), 3)
+        # The old guest timer expired at 1006, before this valid request finished.
+        self.assertGreater(releases[-1], 1006)
+        stop = [(time, event["data"]) for time, event in events if event["type"] == "key"]
+        self.assertEqual(len(stop), 8)
+        self.assertGreater(stop[0][0], releases[-1])
+        self.assertEqual(
+            [data for _time, data in stop],
+            [
+                {"down": down, "key": {"type": "qcode", "data": key}}
+                for down, keys in [(True, ("ctrl", "alt", "shift", "f8")), (False, ("f8", "shift", "alt", "ctrl"))]
+                for key in keys
+            ],
+        )
+
+    def test_stop_key_is_released_and_fixture_fails_when_stop_press_fails(self):
+        events = []
+
+        def send(event):
+            events.append(event)
+            first = event["events"][0]
+            if first["type"] == "key" and first["data"]["down"]:
+                raise LabError("stop press response failed")
+
+        fixture = NativePointerFixture(send, lambda _seconds: None, lambda: 1000)
+        with self.assertRaisesRegex(LabError, "stop press response failed"):
+            fixture.observe(phase())
+        self.assertEqual(
+            events[-1],
+            {
+                "events": [
+                    {"type": "key", "data": {"down": False, "key": {"type": "qcode", "data": key}}}
+                    for key in ("f8", "shift", "alt", "ctrl")
+                ]
+            },
+        )
+        with self.assertRaises(IntegrityError):
+            fixture.require_complete()
+
     def test_fixed_hid_sequence_requires_both_browsers_and_cannot_repeat(self):
         events = []
         sleeps = []
@@ -38,8 +90,8 @@ class NativePointerTests(unittest.TestCase):
             fixture.observe(line)
         self.assertEqual(events, [])
         fixture.observe(phase())
-        self.assertEqual(len(events), 9)
-        moves = [event["events"] for event in events[::3]]
+        self.assertEqual(len(events), 11)
+        moves = [event["events"] for event in events if event["events"][0]["type"] == "abs"]
         self.assertEqual([move[0]["data"]["value"] for move in moves], [14745, 18022, 21298])
         self.assertTrue(all(move[1]["data"] == {"axis": "y", "value": 20479} for move in moves))
         self.assertEqual(
@@ -50,11 +102,11 @@ class NativePointerTests(unittest.TestCase):
             fixture.require_complete()
         fixture.observe(phase("edge"))
         fixture.require_complete()
-        self.assertEqual(len(events), 18)
-        self.assertAlmostEqual(sum(sleeps), 3)
+        self.assertEqual(len(events), 22)
+        self.assertAlmostEqual(sum(sleeps), 3.2)
         with self.assertRaises(IntegrityError):
             fixture.observe(phase())
-        self.assertEqual(len(events), 18)
+        self.assertEqual(len(events), 22)
         with self.assertRaises(IntegrityError):
             fixture.require_complete()
 

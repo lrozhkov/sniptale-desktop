@@ -182,14 +182,23 @@ def sanitize_real_extension(value):
         editor = recording["editor"]
         fields(
             editor,
-            "passed historySegments canvasWidth canvasHeight playbackAdvanced automation"
-            + (" reopenedHistorySegments seekStart seekEnd reopened" if immutable else ""),
+            "passed canvasWidth canvasHeight playbackAdvanced automation"
+            + (
+                " archivedHistoryVisible reopenedHistoryVisible seekStart seekEnd reopened"
+                if immutable
+                else " historySegments"
+            ),
         )
         require(editor["passed"] is True and editor["playbackAdvanced"] is True)
-        require(type(editor["historySegments"]) is int and 1 <= editor["historySegments"] <= 4096)
         require(all(type(editor[key]) is int and 0 < editor[key] <= 16384 for key in ("canvasWidth", "canvasHeight")))
         if immutable:
-            require(all(editor[key] is True for key in ("seekStart", "seekEnd", "reopened")))
-            require(type(editor["reopenedHistorySegments"]) is int and 1 <= editor["reopenedHistorySegments"] <= 4096)
+            require(
+                all(
+                    editor[key] is True
+                    for key in ("archivedHistoryVisible", "reopenedHistoryVisible", "seekStart", "seekEnd", "reopened")
+                )
+            )
+        else:
+            require(type(editor["historySegments"]) is int and 1 <= editor["historySegments"] <= 4096)
         automation(editor["automation"])
     return value

@@ -415,13 +415,23 @@ class ArtifactResultTests(unittest.TestCase):
                 "cursor": {"blocks": 1, "records": 8, "samples": 6, "bytes": 1800, "sha256": "b" * 64},
                 "events": {"blocks": 1, "records": 8, "bytes": 2800, "sha256": "c" * 64},
             }
-            item["recording"]["editor"].update(reopenedHistorySegments=1, seekStart=True, seekEnd=True, reopened=True)
+            item["recording"]["editor"].pop("historySegments")
+            item["recording"]["editor"].update(
+                archivedHistoryVisible=True, reopenedHistoryVisible=True, seekStart=True, seekEnd=True, reopened=True
+            )
         self.assertEqual(sanitize_real_extension(immutable), immutable)
         rejected = [valid[:1], [chrome, chrome], {"browsers": valid}]
         missing_histories = copy.deepcopy(immutable)
         del missing_histories[0]["recording"]["media"]["historyAttachments"]
         rejected.append(missing_histories)
-        for key, bad in [("seekStart", False), ("seekEnd", False), ("reopened", False), ("reopenedHistorySegments", 0)]:
+        for key, bad in [
+            ("seekStart", False),
+            ("seekEnd", False),
+            ("reopened", False),
+            ("archivedHistoryVisible", False),
+            ("reopenedHistoryVisible", False),
+            ("historySegments", 1),
+        ]:
             invalid_seek = copy.deepcopy(immutable)
             invalid_seek[0]["recording"]["editor"][key] = bad
             rejected.append(invalid_seek)
@@ -504,6 +514,46 @@ class ArtifactResultTests(unittest.TestCase):
             with self.assertRaisesRegex(IntegrityError, "invalid real extension"):
                 LaneRunner._sanitize_guest_text_tree(guest)
             self.assertFalse(report.exists())
+
+    def test_windows_callback_error_remains_primary_while_invalid_evidence_is_sanitized(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            guest = Path(directory)
+            invalid = guest / "a-partial.log"
+            invalid.write_bytes(b"unfinished utf8: \xe2\x80")
+            later = guest / "z-later.log"
+            later.write_text("token=super-secret-token", encoding="utf-8")
+            runner = object.__new__(LaneRunner)
+            primary = IntegrityError("invalid physical pointer fixture request")
+            with self.assertRaises(IntegrityError) as raised:
+                runner._validate_windows_evidence(guest, primary)
+            self.assertIs(raised.exception, primary)
+            self.assertIsInstance(raised.exception.__cause__, LabError)
+            self.assertIn("not valid UTF-8", str(raised.exception.__cause__))
+            self.assertFalse(invalid.exists())
+            self.assertNotIn("super-secret-token", later.read_text(encoding="utf-8"))
+
+    def test_windows_valid_evidence_cannot_hide_callback_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            guest = Path(directory)
+            log = guest / "runner.log"
+            log.write_text("token=super-secret-token", encoding="utf-8")
+            runner = object.__new__(LaneRunner)
+            primary = IntegrityError("invalid physical pointer fixture request")
+            with self.assertRaises(IntegrityError) as raised:
+                runner._validate_windows_evidence(guest, primary)
+            self.assertIs(raised.exception, primary)
+            self.assertNotIn("super-secret-token", log.read_text(encoding="utf-8"))
+            runner._validate_windows_evidence(guest, None)
+
+    def test_windows_invalid_evidence_without_callback_error_still_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            guest = Path(directory)
+            invalid = guest / "partial.log"
+            invalid.write_bytes(b"\xff")
+            runner = object.__new__(LaneRunner)
+            with self.assertRaisesRegex(LabError, "not valid UTF-8"):
+                runner._validate_windows_evidence(guest, None)
+            self.assertFalse(invalid.exists())
 
     def test_guest_evidence_rejects_unknown_or_oversized_text_before_reading(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

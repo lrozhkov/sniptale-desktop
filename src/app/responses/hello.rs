@@ -22,7 +22,14 @@ pub(in crate::app) use capabilities::runtime_capability_snapshot;
 #[cfg(test)]
 pub(in crate::app) use capabilities::{CapabilityFacts, capabilities_from_facts};
 
+#[cfg(any(windows, test))]
 pub(in crate::app) fn app_hello() -> Value {
+    app_hello_for_recording_formats(&super::session::NegotiatedRecordingFormats::default())
+}
+
+pub(super) fn app_hello_for_recording_formats(
+    formats: &super::session::NegotiatedRecordingFormats,
+) -> Value {
     #[cfg(all(windows, not(test)))]
     let Ok(client_id) = crate::install::current_desktop_client_id() else {
         return super::outbound::operation_failed(super::outbound::OperationFailure {
@@ -38,7 +45,7 @@ pub(in crate::app) fn app_hello() -> Value {
     #[cfg(any(not(windows), test))]
     let client_id = "0".repeat(64);
     json!(WireMessage::AppHello(Box::new(app_hello_message(
-        client_id
+        client_id, formats
     ))))
 }
 
@@ -47,8 +54,18 @@ pub(in crate::app) fn install_state() -> Value {
     json!(runtime_install_state())
 }
 
-fn app_hello_message(client_id: String) -> AppHelloMessage {
+fn app_hello_message(
+    client_id: String,
+    formats: &super::session::NegotiatedRecordingFormats,
+) -> AppHelloMessage {
     use crate::protocol::{DesktopAppIdentity, DesktopSettingsAuthority};
+    let mut capabilities = capabilities::handshake_capability_snapshot();
+    capabilities.attachments = formats
+        .cursor_trajectory
+        .then(crate::protocol::trajectory::NativeTrajectoryAttachmentCapabilities::v1);
+    capabilities.event_attachments = formats
+        .recording_events
+        .then(crate::protocol::recording_events::NativeEventAttachmentCapabilities::v1);
     AppHelloMessage {
         protocol_version: PROTOCOL_VERSION,
         settings_schema_version: SETTINGS_SCHEMA_VERSION,
@@ -63,7 +80,7 @@ fn app_hello_message(client_id: String) -> AppHelloMessage {
         settings_authority: DesktopSettingsAuthority::Desktop,
         platform: runtime_platform(),
         install: runtime_install_state(),
-        capabilities: capabilities::handshake_capability_snapshot(),
+        capabilities,
     }
 }
 

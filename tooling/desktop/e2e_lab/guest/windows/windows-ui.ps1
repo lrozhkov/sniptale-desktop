@@ -383,6 +383,8 @@ public static class SniptaleRealExtensionMenu {
   [StructLayout(LayoutKind.Sequential)] struct Point { public int X,Y; }
   delegate bool EnumProc(IntPtr window, IntPtr parameter);
   [DllImport("user32.dll")] static extern bool EnumWindows(EnumProc callback, IntPtr parameter);
+  [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr window,out uint process);
+  [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr window);
   [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern int GetClassName(IntPtr window,StringBuilder name,int count);
   [DllImport("user32.dll")] static extern IntPtr SendMessage(IntPtr window,uint message,IntPtr wparam,IntPtr lparam);
   [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr window,out Rect rect);
@@ -419,6 +421,26 @@ public static class SniptaleRealExtensionMenu {
     } finally {
       if(SetThreadDpiAwarenessContext(previous)==IntPtr.Zero) throw new InvalidOperationException("DPI context restoration failed");
     }
+  }
+  public static bool HasDisabledStatus(uint process,string label) {
+    int matches=0;
+    EnumWindows((window,parameter)=> {
+      uint owner;
+      var cls=new StringBuilder(64);
+      if(!IsWindowVisible(window) || GetWindowThreadProcessId(window,out owner)==0 || owner!=process ||
+        GetClassName(window,cls,cls.Capacity)==0 || cls.ToString()!="#32768") return true;
+      IntPtr menu=SendMessage(window,0x01E1,IntPtr.Zero,IntPtr.Zero);
+      int count=GetMenuItemCount(menu);
+      if(count<1 || count>64) return true;
+      for(uint i=0;i<count;i++) {
+        var text=new StringBuilder(256);
+        if(GetMenuString(menu,i,text,text.Capacity,0x400)<=0 || text.ToString().Split('\t')[0].Replace("&","")!=label) continue;
+        uint state=GetMenuState(menu,i,0x400);
+        if(state!=0xFFFFFFFF && (state&3)!=0) matches++;
+      }
+      return true;
+    },IntPtr.Zero);
+    return matches==1;
   }
   public static bool Click(string label) {
     bool clicked=false;

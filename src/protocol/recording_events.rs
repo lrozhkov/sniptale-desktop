@@ -29,7 +29,7 @@ pub(crate) use attachments::{
     AppRecordingEventsAvailableMessage, AppRecordingEventsChunkMessage,
     AppRecordingEventsManifestMessage, ExtensionRecordingEventsAckMessage,
     ExtensionRecordingEventsChunkRequestMessage, ExtensionRecordingEventsManifestRequestMessage,
-    NativeEventAttachmentCapabilities,
+    NativeEventAttachmentCapabilities, RECORDING_EVENTS_CAPABILITY,
 };
 pub(crate) use descriptor::{
     EventAlgorithm, EventDescriptor, EventEncoding, EventFormat, EventManifestEntry, EventReceipt,

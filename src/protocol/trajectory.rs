@@ -21,8 +21,8 @@ mod validation;
 pub(crate) use attachment_validation::validate_attachment_message;
 pub(crate) use attachments::{
     AppRecordingAttachmentAvailableMessage, AppRecordingAttachmentChunkMessage,
-    AppRecordingAttachmentManifestMessage, ExtensionRecordingAttachmentAckMessage,
-    ExtensionRecordingAttachmentChunkRequestMessage,
+    AppRecordingAttachmentManifestMessage, CURSOR_TRAJECTORY_CAPABILITY,
+    ExtensionRecordingAttachmentAckMessage, ExtensionRecordingAttachmentChunkRequestMessage,
     ExtensionRecordingAttachmentManifestRequestMessage, NativeTrajectoryAttachmentCapabilities,
 };
 #[cfg(any(windows, test))]

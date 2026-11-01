@@ -229,6 +229,80 @@ fn every_receipt_order_preserves_unacknowledged_history_after_video_cleanup()
 }
 
 #[test]
+fn busy_history_refuses_video_receipt_without_losing_media_and_allows_retry()
+-> Result<(), ProofError> {
+    for hold_cursor in [true, false] {
+        let mut fixture = fixture()?;
+        let before = fixture
+            .effects
+            .pending_recordings_for_reconnect_from_store()
+            .map_err(|error| format!("{error:?}"))?;
+        let cursor_lock = hold_cursor
+            .then(|| {
+                crate::transfer::trajectory_store::TrajectoryArchive::open(
+                    &fixture.root.path().join("cursor-trajectories"),
+                    RECORDING,
+                    CURSOR,
+                )
+            })
+            .transpose()?;
+        let event_lock = (!hold_cursor)
+            .then(|| {
+                crate::transfer::events_store::EventsArchive::open(
+                    &fixture.root.path().join("recording-events"),
+                    RECORDING,
+                    EVENTS,
+                )
+            })
+            .transpose()?;
+        assert!(
+            fixture
+                .effects
+                .ack_recording_transfer_in_store(RECORDING)
+                .is_err()
+        );
+        assert_eq!(
+            fixture
+                .effects
+                .pending_recordings_for_reconnect_from_store()
+                .map_err(|error| format!("{error:?}"))?,
+            before
+        );
+        let now = u64::try_from(SystemTime::now().duration_since(UNIX_EPOCH)?.as_millis())?;
+        let chunk = fixture
+            .effects
+            .recording_transfer_chunk_from_store(RECORDING, 0, now)
+            .map_err(|error| format!("{error:?}"))?
+            .ok_or("video body was lost after refused receipt")?;
+        let video = before.first().ok_or("missing original video metadata")?;
+        assert_eq!(chunk.raw_bytes, video.total_bytes);
+        assert_eq!(chunk.chunk_sha256, video.sha256);
+        drop((cursor_lock, event_lock));
+        assert!(
+            fixture
+                .effects
+                .ack_recording_transfer_in_store(RECORDING)
+                .map_err(|error| format!("{error:?}"))?
+        );
+        assert_eq!(
+            fixture
+                .effects
+                .pending_recordings_for_reconnect_from_store()
+                .map_err(|error| format!("{error:?}"))?,
+            Vec::<crate::recording::PendingRecordingTransfer>::new()
+        );
+        let histories = fixture
+            .assignments
+            .recording_histories(RECORDING, &"a".repeat(64))
+            .map_err(|error| format!("{error:?}"))?
+            .ok_or("history assignment removed before history receipts")?;
+        assert_eq!(histories.cursor_trajectory_id.as_deref(), Some(CURSOR));
+        assert_eq!(histories.event_stream_id.as_deref(), Some(EVENTS));
+    }
+    Ok(())
+}
+
+#[test]
 fn a_complete_receipt_cannot_erase_gap_history_and_another_browser_cannot_ack_it()
 -> Result<(), ProofError> {
     let mut fixture = fixture()?;

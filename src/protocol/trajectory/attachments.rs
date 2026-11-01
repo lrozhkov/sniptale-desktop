@@ -6,7 +6,6 @@ use super::{
 };
 use serde::{Deserialize, Serialize};
 
-#[cfg(test)]
 pub(crate) const CURSOR_TRAJECTORY_CAPABILITY: &str = "cursor-trajectory-v1";
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]

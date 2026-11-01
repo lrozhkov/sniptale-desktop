@@ -236,6 +236,21 @@ function Enable-DesktopPointerRecording {
   $window.GetCurrentPattern([System.Windows.Automation.WindowPattern]::Pattern).Close()
 }
 
+function Wait-NativePointerRecordingReady([int] $Seconds = 20) {
+  # The temp record precedes runtime start. Manual capture has no browser live-start event.
+  $deadline = [DateTime]::UtcNow.AddSeconds($Seconds)
+  Initialize-SniptaleMenuProbe
+  while ([DateTime]::UtcNow -lt $deadline) {
+    Show-SniptaleTrayMenu
+    Start-Sleep -Milliseconds 100
+    try {
+      if ([SniptaleRealExtensionMenu]::HasDisabledStatus($script:agent.Id, "Recording")) { return }
+    } finally { [System.Windows.Forms.SendKeys]::SendWait("{ESC}") }
+    Start-Sleep -Milliseconds 100
+  }
+  throw "native pointer fixture did not observe its native Recording state"
+}
+
 function Invoke-RealExtensionPointerRecording([string] $Name, [int] $Port, [string] $Scenario, [string] $Destination) {
   Enable-DesktopPointerRecording
   $before = Invoke-LabBrowserScript $Port ("globalThis.__labAction='before-capture';" + $Scenario)
@@ -275,10 +290,11 @@ try {$null=$form.ShowDialog()} finally {$timer.Dispose(); $form.Dispose()}
       if (-not $record) { Start-Sleep -Milliseconds 250 }
     }
     if (-not $record) { throw "native pointer recording did not start" }
+    Wait-NativePointerRecordingReady
+    $fixtureWindow = Find-Ui "Sniptale pointer fixture" 5
+    if (-not [SniptaleRealExtensionMenu]::SetForegroundWindow([IntPtr]$fixtureWindow.Current.NativeWindowHandle)) { throw "native pointer fixture could not regain focus" }
     Write-ProgressEvent "real-extension-$Name-pointer-recording" "started"
-    Start-Sleep -Seconds 6
-    [SniptaleHotkeyInput]::Press(0x77)
-    $started = $false
+    # The host sends Ctrl+Alt+Shift+F8 after all HID releases. Publication proves completion.
     $nativeFile = $null
     $deadline = [DateTime]::UtcNow.AddSeconds(60)
     while (-not $nativeFile -and [DateTime]::UtcNow -lt $deadline) {
@@ -286,6 +302,7 @@ try {$null=$form.ShowDialog()} finally {$timer.Dispose(); $form.Dispose()}
       if (-not $nativeFile) { Start-Sleep -Milliseconds 250 }
     }
     if (-not $nativeFile) { throw "native pointer recording did not publish its MP4 fallback" }
+    $started = $false
     $expected = @{sha256=(Get-FileHash -LiteralPath $nativeFile.FullName).Hash.ToLowerInvariant();totalBytes=$nativeFile.Length} | ConvertTo-Json -Compress
     $null = Invoke-LabBrowserScript $Port ("globalThis.__labExpectedMedia=$expected;({passed:true})")
     $media = Invoke-LabBrowserScript $Port ("globalThis.__labAction='verify-history-recording';" + $Scenario)

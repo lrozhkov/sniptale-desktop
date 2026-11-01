@@ -184,11 +184,11 @@ async function check(reply, {action='connect', pin=null, extra={}, verifyHistory
         encoding:cursor?'json-ascii-int-v1':'json-utf8-v1',[cursor?'trajectoryId':'eventStreamId']:streamId,state:'complete',finalized:true,
         totalBlocks:1,totalRecords:(cursor?cursorRecords:eventRecords).length,totalBytes:body.length,streamSha256:sha256,...(cursor?{totalSamples:6}:{})};
       const ref={assetId:`history-${kind}`,createdAt:1,mimeType:'application/octet-stream',sha256,size:bytes.length,location:{kind:'opfs',objectKey:`objects/history-${kind}`}};
-      const writer={recordingId:id,[cursor?'trajectoryId':'eventStreamId']:streamId,writerGeneration:`generation-${kind}`};
+      const writer={recordingId:`private-${kind}`,[cursor?'trajectoryId':'eventStreamId']:streamId,writerGeneration:`private-generation-${kind}`};
       metadata[cursor?'cursorTrajectory':'recordingEvents']=descriptor;
       metadata[cursor?'cursorTrajectorySnapshot':'recordingEventsSnapshot']={ref,sourceRecordingId:id,...(cursor?{width:1280,height:800}:{})};
       intent[kind]={descriptor:structuredClone(descriptor),writer,pull:{kind:'published'}};
-      heads[kind]={...descriptor,...writer,sourceRecordingId:id,snapshotAssetId:ref.assetId,retired:false,...(!cursor?{kind:'head',entryId:0}:{})};
+      heads[kind]={...descriptor,recordingId:id,writerGeneration:`published-generation-${kind}`,sourceRecordingId:id,snapshotAssetId:ref.assetId,retired:false,...(!cursor?{kind:'head',entryId:0}:{})};
       refs.push(ref);owners.push({assetId:ref.assetId,ownerKind:'recording',ownerId:id,role:cursor?'cursor-trajectory':'recording-events'});files.set(ref.assetId,bytes);
     }
     return {metadata,intent,heads,refs,owners,files};
@@ -267,7 +267,11 @@ async function check(reply, {action='connect', pin=null, extra={}, verifyHistory
   for(const changeHistory of [
     ({fixture})=>{fixture.intent.videoSha256='0'.repeat(64);},
     ({fixture})=>{fixture.intent.cursor.descriptor.streamSha256='0'.repeat(64);},
-    ({fixture})=>{fixture.heads.cursor.writerGeneration='other-generation';},
+    ({fixture})=>{fixture.heads.cursor.writerGeneration=fixture.intent.cursor.writer.writerGeneration;},
+    ({fixture})=>{fixture.heads.events.writerGeneration='';},
+    ({fixture})=>{fixture.intent.cursor.writer.recordingId=fixture.intent.recordingId;},
+    ({fixture})=>{fixture.intent.events.writer.eventStreamId='f'.repeat(32);},
+    ({fixture})=>{fixture.intent.events.writer.writerGeneration=null;},
     ({fixture})=>{fixture.heads.events.stagingJournalId='unpublished';},
     ({fixture})=>{fixture.heads.events.retired=true;},
     ({rows})=>{rows.asset_owners[0].role='video';},

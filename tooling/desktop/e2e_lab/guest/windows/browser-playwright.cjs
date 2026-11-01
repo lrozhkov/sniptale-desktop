@@ -8,9 +8,20 @@ async function inspectNativeEditor(context, settingsPage, port, request) {
   const id = await settingsPage.evaluate(() => globalThis.__labVerifiedRecordingId);
   if (typeof id !== 'string' || !/^[A-Za-z0-9_-]{1,96}$/.test(id)) throw Error('verified-recording-missing');
   const target = `chrome-extension://elhndangpenapadjimfoodlaenpcndpo/apps/extension/src/video-editor/index.html?id=${encodeURIComponent(id)}`;
+  const expected = new URL(target);
+  const matchesRecording = page => {
+    try {
+      const url = new URL(page.url());
+      const projects = url.searchParams.getAll('project');
+      return url.protocol===expected.protocol && url.host===expected.host && url.pathname===expected.pathname &&
+        !url.username && !url.password && url.searchParams.getAll('id').length===1 && url.searchParams.get('id')===id &&
+        projects.length<=1 && (!projects.length || (projects[0].length>0 && projects[0].length<=256)) &&
+        [...url.searchParams.keys()].every(key=>key==='id'||key==='project');
+    } catch { return false; }
+  };
   let pages = [];
   for (let attempt=0;attempt<40;attempt++) {
-    pages = context.pages().filter(page=>page.url()===target);
+    pages = context.pages().filter(matchesRecording);
     if (pages.length) break;
     await settingsPage.waitForTimeout(250);
   }
@@ -18,14 +29,14 @@ async function inspectNativeEditor(context, settingsPage, port, request) {
   const editor = pages[0];
   await editor.bringToFront();
   await editor.waitForSelector('[data-ui="video-editor.timeline.surface"]',{timeout:20000});
+  if (!matchesRecording(editor)) throw Error('native-editor-recording-route-changed');
   const row = editor.locator('[data-ui="video-editor.timeline.history-cursor-row"]');
   if (!(await row.isVisible())) {
     await editor.locator('[data-ui="video-editor.timeline.toolbar.telemetry-lane"]').click();
   }
-  const segments = editor.locator('[data-ui="video-editor.timeline.history-cursor-row"] [data-timeline-effect-segment]');
-  await segments.first().waitFor({state:'visible',timeout:15000});
-  const count = await segments.count();
-  if (count<1||count>4096) throw Error('native-editor-cursor-segments-missing');
+  const archive = row.getByText(/^(Archived cursor history|История курсора в архиве)$/);
+  await archive.waitFor({state:'visible',timeout:15000});
+  if (await archive.count()!==1) throw Error('native-editor-cursor-archive-missing-or-ambiguous');
   const canvas = editor.locator('[data-ui="video.preview.stage.root"] canvas[data-preview-stage-canvas]');
   await canvas.waitFor({state:'visible',timeout:15000});
   const playhead = editor.locator('[data-ui="video-editor.timeline.playhead-handle"]');
@@ -58,10 +69,10 @@ async function inspectNativeEditor(context, settingsPage, port, request) {
   await seek('Home',0);
   await editor.reload({waitUntil:'domcontentloaded',timeout:20000});
   await editor.waitForSelector('[data-ui="video-editor.timeline.surface"]',{timeout:20000});
+  if (!matchesRecording(editor)) throw Error('native-editor-reopened-recording-route-changed');
   if(!(await row.isVisible())) await editor.locator('[data-ui="video-editor.timeline.toolbar.telemetry-lane"]').click();
-  await segments.first().waitFor({state:'visible',timeout:15000});
-  const reopenedCount=await segments.count();
-  if(reopenedCount<1||reopenedCount>4096) throw Error('native-editor-reopened-history-missing');
+  await archive.waitFor({state:'visible',timeout:15000});
+  if(await archive.count()!==1) throw Error('native-editor-reopened-history-missing-or-ambiguous');
   await canvas.waitFor({state:'visible',timeout:15000});
   const size = await canvas.evaluate(element=>({width:element.width,height:element.height}));
   if(!Number.isInteger(size.width)||!Number.isInteger(size.height)||size.width<=0||size.height<=0) throw Error('native-editor-preview-canvas-empty');
@@ -69,7 +80,7 @@ async function inspectNativeEditor(context, settingsPage, port, request) {
   const directory = path.join(path.dirname(request),'screenshots');
   await canvas.screenshot({path:path.join(directory,`native-cursor-preview-${browser}.png`)});
   await editor.screenshot({path:path.join(directory,`native-cursor-editor-${browser}.png`)});
-  return {passed:true,historySegments:count,reopenedHistorySegments:reopenedCount,canvasWidth:size.width,canvasHeight:size.height,
+  return {passed:true,archivedHistoryVisible:true,reopenedHistoryVisible:true,canvasWidth:size.width,canvasHeight:size.height,
     playbackAdvanced:true,seekStart:true,seekEnd:true,reopened:true};
 }
 (async () => {

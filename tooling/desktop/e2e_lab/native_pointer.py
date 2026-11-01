@@ -69,6 +69,28 @@ class NativePointerFixture:
                 finally:
                     self.send({"events": [{"type": "btn", "data": {"button": "left", "down": False}}]})
                 self.pause(0.2)
+            # The fixture uses the registered Ctrl+Alt+Shift+F8 stop shortcut after
+            # the last release; a guest timer can expire before input completes.
+            keys = ("ctrl", "alt", "shift", "f8")
+            try:
+                self.send(
+                    {
+                        "events": [
+                            {"type": "key", "data": {"down": True, "key": {"type": "qcode", "data": key}}}
+                            for key in keys
+                        ]
+                    }
+                )
+                self.pause(0.1)
+            finally:
+                self.send(
+                    {
+                        "events": [
+                            {"type": "key", "data": {"down": False, "key": {"type": "qcode", "data": key}}}
+                            for key in reversed(keys)
+                        ]
+                    }
+                )
         except Exception:
             self.failed = True
             raise

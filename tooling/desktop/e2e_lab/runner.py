@@ -576,8 +576,8 @@ class LaneRunner:
         finally:
             self._collect_qemu_log(lane_name, run_dir)
             self._finish_vm(lane_name, "test", pre_forced)
-        self._validate_guest_tree(lane_dir)
-        self._sanitize_guest_text_tree(lane_dir)
+        callback_error = runner_error if pointer_fixture is not None and pointer_fixture.failed else None
+        self._validate_windows_evidence(lane_dir, callback_error)
         result_path = next(iter(lane_dir.rglob("result.json")), None)
         if result_path is None:
             if runner_error is not None:
@@ -591,6 +591,17 @@ class LaneRunner:
         if result.passed and pointer_fixture is not None:
             pointer_fixture.require_complete()
         return result
+
+    def _validate_windows_evidence(self, source: Path, callback_error: LabError | None) -> None:
+        try:
+            self._validate_guest_tree(source)
+            self._sanitize_guest_text_tree(source)
+        except LabError as evidence_error:
+            if callback_error is not None:
+                raise callback_error from evidence_error
+            raise
+        if callback_error is not None:
+            raise callback_error
 
     def _assert_windows_audio_backend(
         self,

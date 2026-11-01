@@ -54,6 +54,9 @@
       const role=cursor?'cursor-trajectory':'recording-events';
       const id=descriptor?.[cursor?'trajectoryId':'eventStreamId'];
       if (!descriptor || !snapshot || !slot?.writer || slot.pull?.kind!=='published' ||
+          typeof slot.writer.recordingId!=='string' || !slot.writer.recordingId || slot.writer.recordingId===session.id ||
+          slot.writer[cursor?'trajectoryId':'eventStreamId']!==id ||
+          typeof slot.writer.writerGeneration!=='string' || !slot.writer.writerGeneration ||
           snapshot.sourceRecordingId!==intent.recordingId ||
           (cursor && (snapshot.width!==width || snapshot.height!==height))) return fail('native-history-publication-missing');
       const fields=['format','formatVersion','algorithm','encoding','state','finalized','totalBlocks','totalRecords','totalBytes','streamSha256',cursor?'trajectoryId':'eventStreamId'];
@@ -68,7 +71,8 @@
         cursor?[session.id,id]:[session.id,id,'head',0]);
       if (!head || head.retired!==false || head.finalized!==true || head.snapshotAssetId!==ref.assetId ||
           head.stagingJournalId!==undefined || head.sourceRecordingId!==snapshot.sourceRecordingId ||
-          head.writerGeneration!==slot.writer.writerGeneration || typeof head.writerGeneration!=='string' || !head.writerGeneration ||
+          head.recordingId!==session.id || head[cursor?'trajectoryId':'eventStreamId']!==id ||
+          head.writerGeneration===slot.writer.writerGeneration || typeof head.writerGeneration!=='string' || !head.writerGeneration ||
           !['state','totalBlocks','totalRecords','totalBytes','streamSha256'].every(key=>head[key]===descriptor[key]) ||
           (cursor && head.totalSamples!==descriptor.totalSamples)) return fail('native-history-published-head-invalid');
       const owner=await readKey('asset_owners',['recording',session.id,role]);

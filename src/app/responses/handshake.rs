@@ -15,8 +15,10 @@ pub(super) fn hello_responses(
     session: &mut super::NativeHostSession,
     hello: &ExtensionHelloMessage,
 ) -> Vec<serde_json::Value> {
+    session.handshake_accepted = false;
+    session.recording_formats = super::session::NegotiatedRecordingFormats::default();
+    session.extension_id = None;
     if !session.accepts_extension_id(&hello.extension_id) {
-        session.handshake_accepted = false;
         return vec![super::handshake_failure(
             HandshakeFailure {
                 kind: crate::protocol::OperationalErrorKind::MalformedMessage,
@@ -26,15 +28,30 @@ pub(super) fn hello_responses(
         )];
     }
     if let Some(failure) = hello_compatibility_failure(hello) {
-        session.handshake_accepted = false;
         return vec![super::handshake_failure(failure, None)];
     }
-    let response = super::app_hello();
+    let formats = requested_recording_formats(hello);
+    let response = super::hello::app_hello_for_recording_formats(&formats);
     session.handshake_accepted = response["type"] == "app.hello";
+    if session.handshake_accepted {
+        session.recording_formats = formats;
+    }
     session.extension_id = session
         .handshake_accepted
         .then(|| hello.extension_id.clone());
     vec![response]
+}
+
+fn requested_recording_formats(
+    hello: &ExtensionHelloMessage,
+) -> super::session::NegotiatedRecordingFormats {
+    let requested = |token: &str| {
+        cfg!(any(windows, test)) && hello.capabilities.iter().any(|value| value == token)
+    };
+    super::session::NegotiatedRecordingFormats {
+        cursor_trajectory: requested(crate::protocol::trajectory::CURSOR_TRAJECTORY_CAPABILITY),
+        recording_events: requested(crate::protocol::recording_events::RECORDING_EVENTS_CAPABILITY),
+    }
 }
 
 pub(super) fn hello_compatibility_failure(
@@ -161,5 +178,124 @@ mod tests {
             hello_compatibility_failure(&extension_upgrade).map(|failure| failure.kind),
             Some(OperationalErrorKind::ExtensionUpgradeRequired)
         );
+    }
+
+    #[test]
+    fn history_formats_are_independent_and_require_the_exact_requested_token()
+    -> Result<(), Box<dyn std::error::Error>> {
+        for (cursor, events) in [(false, false), (true, false), (false, true), (true, true)] {
+            let mut request = hello();
+            request.capabilities.extend([
+                "cursor-trajectory-v2".to_owned(),
+                "recording-events-v2".to_owned(),
+            ]);
+            if cursor {
+                request.capabilities.push("cursor-trajectory-v1".to_owned());
+            }
+            if events {
+                request.capabilities.push("recording-events-v1".to_owned());
+            }
+            let mut session = super::super::NativeHostSession::default();
+            let responses = hello_responses(&mut session, &request);
+            assert_eq!(responses.len(), 1);
+            assert_eq!(responses[0]["type"], "app.hello");
+            assert!(session.handshake_accepted);
+            assert_eq!(session.recording_formats.cursor_trajectory, cursor);
+            assert_eq!(session.recording_formats.recording_events, events);
+            let capabilities = &responses[0]["capabilities"];
+            assert_eq!(capabilities.get("attachments").is_some(), cursor);
+            assert_eq!(capabilities.get("eventAttachments").is_some(), events);
+            for (field, formats_key, token, enabled) in [
+                (
+                    "attachments",
+                    "cursorTrajectoryFormats",
+                    "cursor-trajectory-v1",
+                    cursor,
+                ),
+                (
+                    "eventAttachments",
+                    "recordingEventFormats",
+                    "recording-events-v1",
+                    events,
+                ),
+            ] {
+                if enabled {
+                    assert_eq!(
+                        capabilities[field],
+                        serde_json::json!({
+                            formats_key: [token], "maxBlockBytes": 65536,
+                            "maxBlockRecords": 512, "maxChunkRawBytes": 32768,
+                            "maxManifestEntries": 32,
+                        })
+                    );
+                }
+            }
+            assert!(matches!(
+                crate::protocol::parse_wire_message(&serde_json::to_vec(&responses[0])?)?,
+                crate::protocol::WireMessage::AppHello(_)
+            ));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn repeated_hello_replaces_previous_format_negotiation() {
+        let mut request = hello();
+        request.capabilities.extend([
+            "cursor-trajectory-v1".to_owned(),
+            "recording-events-v1".to_owned(),
+        ]);
+        let mut session = super::super::NativeHostSession::default();
+        hello_responses(&mut session, &request);
+        assert!(session.recording_formats.cursor_trajectory);
+        assert!(session.recording_formats.recording_events);
+        request
+            .capabilities
+            .retain(|value| value != "cursor-trajectory-v1");
+        let response = hello_responses(&mut session, &request);
+        assert!(!session.recording_formats.cursor_trajectory);
+        assert!(session.recording_formats.recording_events);
+        assert!(response[0]["capabilities"].get("attachments").is_none());
+        let response = hello_responses(&mut session, &hello());
+        assert!(!session.recording_formats.recording_events);
+        assert!(
+            response[0]["capabilities"]
+                .get("eventAttachments")
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn rejected_hello_cannot_retain_previously_negotiated_history_access() {
+        for wrong_origin in [false, true] {
+            let mut request = hello();
+            request.capabilities.extend([
+                "cursor-trajectory-v1".to_owned(),
+                "recording-events-v1".to_owned(),
+            ]);
+            let mut session = super::super::NativeHostSession::default();
+            hello_responses(&mut session, &request);
+            assert!(session.handshake_accepted);
+            if wrong_origin {
+                session.bind_authenticated_origin(
+                    "chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/",
+                );
+            } else {
+                request.supported_protocol_versions.clear();
+            }
+            let responses = hello_responses(&mut session, &request);
+            assert_eq!(responses[0]["type"], "app.operation.failed");
+            assert!(!session.handshake_accepted);
+            assert!(session.extension_id.is_none());
+            assert!(!session.recording_formats.cursor_trajectory);
+            assert!(!session.recording_formats.recording_events);
+        }
+    }
+
+    #[test]
+    fn unsolicited_hello_has_no_history_advertisement() {
+        let response = super::super::app_hello();
+        assert!(response["capabilities"].get("attachments").is_none());
+        assert!(response["capabilities"].get("eventAttachments").is_none());
     }
 }

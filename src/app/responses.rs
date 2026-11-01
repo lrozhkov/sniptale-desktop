@@ -48,7 +48,7 @@ pub(crate) use self::effects::{
     NativeHostCommandOutcome, NativeHostSideEffectError, NativeHostSideEffects,
 };
 use self::handshake::HandshakeFailure;
-#[cfg(not(test))]
+#[cfg(all(windows, not(test)))]
 pub(in crate::app) use self::hello::app_hello;
 #[cfg(test)]
 pub(in crate::app) use self::hello::{
