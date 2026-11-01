@@ -11,3 +11,5 @@ LICENSES/third-party/*.txt -text
 THIRD_PARTY_NOTICES.md -text
 *.ico binary
 *.png binary
+
+.agents/skills/asd-ste100/LICENSE -text

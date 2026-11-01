@@ -6,7 +6,7 @@ Status: Accepted, 2026-07-09.
 
 `transfer/**` owns chunk sizing, base64 encoding, JSON budgets, hashes, protected reads, transfer identity, and lifecycle progression through writing, finalized, acknowledged, rejected, recovery, and cleanup states. Capture and recording keep their domain stores and metadata but consume transfer-owned policy such as `TransferLifecycleSnapshot`.
 
-Native Messaging and the resident pipe remain command/control transports. Browser-facing media delivery is an explicit request/response path owned by transfer; media bytes never enter resident-pipe responses or duplicate-command caches.
+Native Messaging and the resident pipe remain command/control transports. Browser-facing media delivery is an explicit request/response path owned by transfer. Media bytes never enter resident-pipe responses or duplicate-command caches.
 
 ## Trade-off
 

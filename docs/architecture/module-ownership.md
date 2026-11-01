@@ -23,7 +23,7 @@ The stable product owner set is `app`, `protocol`, `ipc`, `settings`, `assets`, 
 
 Authoritative state belongs only to the owner above. Advisory caches and disposable temp state must be separate types and paths. Read paths do not repair persisted state. Capture and recording persist an immutable authority/delivery snapshot before media side effects.
 
-Desktop settings and capture controls remain native-owned. A trusted browser registers an available destination; only an explicit Desktop choice selects it. Its controller lease authorizes assigned-media transfer, not settings mutation or capture. [ADR 0005](adr/0005-dual-settings-authority-and-local-asset-delivery.md) owns the authority and frozen-delivery contract.
+Desktop settings and capture controls remain native-owned. A trusted browser registers an available destination. Only an explicit Desktop choice selects it. Its controller lease authorizes assigned-media transfer, not settings mutation or capture. [ADR 0005](adr/0005-dual-settings-authority-and-local-asset-delivery.md) owns the authority and frozen-delivery contract.
 
 DPAPI is intentionally split: `install/**` unwraps the per-install pipe secret and `transfer/**` protects per-media keys. [ADR 0002](adr/0002-dpapi-owner-local-adapters.md) owns that exception.
 

@@ -10,7 +10,7 @@ Command acceptance never runs capture or recording work on the caller. A full qu
 
 ## Trade-off
 
-One process keeps installation and coordination small but does not isolate media and privileged adapters from a process-wide crash or compromise. Owner-local typed boundaries are mandatory so a future broker-controlled media process can be introduced without moving raw handles, raw JSON, or media bytes across the boundary. Process separation requires a new contract and security decision.
+One process keeps installation and coordination small but does not isolate media and privileged adapters from a process-wide crash or compromise. Owner-local typed boundaries are mandatory. They permit a future broker-controlled media process without moving raw handles, raw JSON, or media bytes across the boundary. Process separation requires a new contract and security decision.
 
 ## Proof
 

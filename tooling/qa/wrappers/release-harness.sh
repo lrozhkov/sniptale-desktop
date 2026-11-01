@@ -8,6 +8,7 @@ source "$ROOT/tooling/qa/runtime/lib.sh"
 cd "$ROOT"
 
 qa_init "qa:release-harness" blocking
+qa_step "STE checker self-tests" python3 tooling/qa/rules/ste_lint.py --selftest
 qa_step "documentation policy" python3 tooling/qa/rules/verify_docs.py
 qa_step "tooling topology and registry" python3 tooling/qa/rules/verify_tooling.py
 qa_step "Python harness tests" python3 -m unittest discover -s tooling/qa/tests -p 'test_*.py'

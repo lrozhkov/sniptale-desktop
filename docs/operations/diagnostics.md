@@ -15,7 +15,7 @@ sniptale-native-agent --collect-diagnostics
 
 Logs and diagnostics live below `%LOCALAPPDATA%\Sniptale\NativeAgent`. Temporary media, profiles, job stores, and destination paths must not be attached to reports. [Data handling](../security/data-handling.md) owns redaction and retention.
 
-Production logging defaults to `info`; dev builds default to `debug`. Support modes accept `SNIPTALE_NATIVE_LOG`, `--log-level`, and `--log-dir`. Invalid levels and empty paths are rejected. Native Messaging stdout is reserved for framed protocol output.
+Production logging defaults to `info`. Dev builds default to `debug`. Support modes accept `SNIPTALE_NATIVE_LOG`, `--log-level`, and `--log-dir`. Invalid levels and empty paths are rejected. Native Messaging stdout is reserved for framed protocol output.
 
 ## Triage
 

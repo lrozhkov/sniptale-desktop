@@ -1,35 +1,31 @@
 # Sniptale Desktop
 
-**Capture beyond the browser. Keep the workflow local.**
+Sniptale Desktop is a Windows capture application and a native companion for the Sniptale browser extension. It captures screenshots and records desktop video with optional audio. It runs without a Sniptale account or hosted backend.
 
-Sniptale Desktop is a native companion for Sniptale and a standalone Windows capture application. It adds operating-system screenshot, screen-recording, audio, tray, and global-hotkey capabilities that a browser extension cannot reliably own by itself.
+**Experimental preview.** Keep separate backups of important media. Stable release requires the evidence in the [release procedure](docs/oss/release.md).
 
-The application owns its capture settings and can save user-requested PNG and MP4 files to a selected local folder, or also deliver them to an explicitly selected compatible Chromium browser through Native Messaging. It does not require a Sniptale account or hosted Sniptale backend.
+## Features
 
-> **Experimental preview.** The Windows implementation is functional and has deterministic architecture, security, and packaging checks, but it still needs broader product validation, compatibility testing, performance work, signed-release evidence, and real-world use before it should be treated as a stable production application. Do not rely on the current build as the only copy of important media.
+- Capture a screen, active window, virtual desktop, or selected region as PNG.
+- Record a screen, window, or region as H.264/AAC MP4. Configure microphone audio, system audio, quality, frame rate, and duration.
+- Control capture through the tray menu and global hotkeys. Pause, resume, or stop a recording.
+- Save media to a selected local folder. Optionally deliver media to a compatible Chromium extension through Native Messaging.
+- Inspect bounded, redacted [diagnostics](docs/operations/diagnostics.md).
 
-## Current status
+Desktop owns capture settings and controls. The user selects a browser destination in Desktop. [ADR 0005](docs/architecture/adr/0005-dual-settings-authority-and-local-asset-delivery.md) defines delivery authority and recovery.
 
-| Area | Status |
-| --- | --- |
-| Windows | Experimental implementation; the current release target is `x86_64-pc-windows-msvc` |
-| Local capture | Experimental standalone tray application with local PNG/MP4 publication |
-| Browser integration | Experimental Chromium Native Messaging integration; requires a compatible extension build and matching extension origin |
-| Linux | Planned; no working Linux product build or package is included yet |
-| macOS | The owner and adapter boundaries leave room for a future port, but a macOS implementation is not currently planned |
+## Requirements
 
-Windows is the only implemented desktop platform today. The protocol and state contracts are kept platform-neutral where practical, while Windows APIs remain behind owner-local adapters; this is the portability boundary for planned Linux work, not a claim that the current code already runs on Linux or macOS.
+- Windows 10 or Windows 11 on x64.
+- Rust through `rustup`. [rust-toolchain.toml](rust-toolchain.toml) selects the pinned toolchain and Windows target.
+- Visual Studio 2022 Build Tools with Desktop development with C++, x64 MSVC, and a Windows SDK.
+- Git.
+
+The [tool catalog](tooling/configs/qa/tool-versions.json) owns exact managed versions. [QA tooling](docs/tooling/qa.md) explains tool installation.
 
 ## Build from source
 
-### Requirements
-
-- Windows 10 or Windows 11 on x64.
-- [Rust](https://www.rust-lang.org/tools/install) `1.96` or newer installed through `rustup`; `rust-toolchain.toml` selects the stable toolchain and the `x86_64-pc-windows-msvc` target.
-- Visual Studio 2022 Build Tools with **Desktop development with C++**, the x64 MSVC toolchain, and a Windows 10 or Windows 11 SDK.
-- Git.
-
-Open **Developer PowerShell for VS 2022** in the repository root and build an unsigned development executable:
+Open Developer PowerShell for VS 2022 in the repository root. Build an unsigned development executable:
 
 ```powershell
 $env:SNIPTALE_INSTALL_CHANNEL = "dev"
@@ -37,126 +33,40 @@ $env:SNIPTALE_WINDOWS_RESOURCES = "require"
 cargo build --locked --release --target x86_64-pc-windows-msvc --bin sniptale-native-agent --all-features
 ```
 
-The executable is written to:
-
-```text
-target\x86_64-pc-windows-msvc\release\sniptale-native-agent.exe
-```
-
-Start it directly to open the resident tray application:
+Start the tray application:
 
 ```powershell
 .\target\x86_64-pc-windows-msvc\release\sniptale-native-agent.exe
 ```
 
-Open the tray settings, switch to **Manual**, and select a local destination before capturing. A direct source build is unsigned and does not install the Native Messaging manifest, autostart entry, or MSI registration.
+Open the tray settings. Select Manual mode and a local destination before capture. A direct source build does not install Native Messaging registration, autostart, or MSI state.
 
-To compile a binary for later extension packaging and registration, set the exact Chromium extension origin before the Cargo command:
+For extension packaging, set the exact extension origin before the Cargo command:
 
 ```powershell
 $env:SNIPTALE_ALLOWED_EXTENSION_ORIGIN = "chrome-extension://<32-character-extension-id>/"
 ```
 
-The extension origin is compiled into the channel-specific install identity. Rebuild after changing it. Installable MSI generation also requires WiX v4 and the repository release gates; see the [local OSS release guide](docs/oss/release.md) instead of invoking WiX directly.
+Rebuild after an origin change. Use the [release procedure](docs/oss/release.md) for installable packages and signing requirements.
 
-## Why this project exists
+## Limits and security
 
-Sniptale Desktop is part of the same practical experiment as the Sniptale browser extension: **can a person who is not a software developer create and continue maintaining a native application through coding agents?**
+Windows is the only implemented product platform. Linux is planned. No macOS implementation is currently planned.
 
-I do not have the skills to write this codebase by hand. My role has been the product role: define the direction, describe the desired behavior, set acceptance criteria, inspect results, make architecture and security trade-offs, and decide what is ready to keep or release.
+This application does not include a gallery, editor, OCR, transcription, AI features, accounts, cloud sync, or an automatic updater. Capture and audio availability depend on Windows, source protection, hardware, and drivers.
 
-Sniptale Desktop was developed entirely through Codex coding-agent sessions under that product direction. All project-authored application code, Windows integrations, tests, refactors, installer definitions, documentation, and quality and release tooling were produced or revised by Codex agents rather than written by me by hand.
+The application uses protected temporary media, authenticated local IPC, bounded transfers, and redacted diagnostics. These controls do not provide a security certification. A compromised Windows user session remains outside the protection boundary. Local output inherits the destination's ACL, backup, and sync behavior.
 
-The project was not created as one large generation prompt. Development has repeatedly followed a constrained review loop:
+Read the [threat model](docs/security/threat-model.md) before sensitive use. [Data handling](docs/security/data-handling.md) defines storage and retention.
 
-```text
-product intent and acceptance criteria
-  → bounded Codex implementation task
-  → deterministic checks and tests
-  → separate architecture or security review when risk justifies it
-  → consolidated refactor
-  → repeat
-```
+## Development and documentation
 
-This is also the intended development model going forward: new functionality, maintenance, refactoring, tests, documentation, and release work will continue to be carried out through Codex agents under human product direction and acceptance.
+The product uses Rust with owner-local Windows adapters. The [repository overview](docs/architecture/repository-overview.md) explains runtime modes. The [owner map](docs/architecture/module-ownership.md) defines state authority and dependency direction.
 
-Agent-driven implementation is not treated as proof that the result is correct. The repository therefore turns architecture, security, testing, licensing, and release expectations into executable checks wherever practical, while human decisions remain responsible for product intent, trade-offs, and release acceptance.
-
-## What Sniptale Desktop can do
-
-### Capture screenshots
-
-Capture the current screen, active window, complete virtual desktop, or a selected region. Cursor inclusion is configurable, and completed screenshots are encoded as PNG.
-
-### Record the desktop
-
-Record a screen, active window, or selected region to H.264/AAC MP4. Available settings include cursor capture, 24/30/60 FPS, quality and bitrate controls, hardware or software encoding preference, maximum duration, microphone audio, system audio, or a mixed audio track.
-
-### Stay available from the tray
-
-The resident application exposes capture and recording actions through its tray menu and configurable global hotkeys. Recording can be paused, resumed, or stopped without returning to the source window.
-
-### Work with or without the browser extension
-
-Desktop owns settings, hotkeys, and capture controls. A trusted extension registers a browser destination; the user selects it in Desktop. Completed media keeps a local fallback and uses bounded, integrity-checked browser delivery. The optional destination prompt supports Local, browser, or Later. [ADR 0005](docs/architecture/adr/0005-dual-settings-authority-and-local-asset-delivery.md) owns authority, legacy-profile compatibility, and recovery semantics.
-
-### Produce bounded diagnostics
-
-Support commands report version, health, registration assessment, and redacted diagnostics without returning raw media or unrestricted runtime state. See [Diagnostics and support](docs/operations/diagnostics.md) for the supported commands.
-
-## Architecture
-
-Sniptale Desktop is implemented in Rust 2024. The Windows product uses direct Win32, Windows Graphics Capture, WIC, Media Foundation, WASAPI, and WiX adapters; it does not embed Electron, a browser-rendered desktop shell, or a general asynchronous runtime.
-
-The installed executable remains named `sniptale-native-agent.exe` because the same binary can run in three bounded roles:
-
-- a resident tray process that owns capture, recording, settings, local publication, and authenticated local IPC;
-- a browser-launched Native Messaging bridge that validates the extension origin before connecting to the resident process;
-- support commands for version, health, registration assessment, and diagnostic collection.
-
-The resident runtime is one process with owner-specific, bounded worker lifecycles. Product state and behavior are split among named owners such as `capture`, `recording`, `audio`, `settings`, `transfer`, `install`, and `diagnostics`; cross-owner coordination uses narrow typed interfaces, while raw Windows handles and privileged APIs stay inside the adapter that acquired them.
-
-Wire contracts are platform-neutral, versioned, size-bounded, and parsed at their receiving boundary. Native Messaging and resident IPC carry commands and control state; media delivery remains transfer-owned rather than becoming an unbounded message bus. See the [repository overview](docs/architecture/repository-overview.md), [module ownership](docs/architecture/module-ownership.md), and [architecture decisions](docs/README.md#architecture).
-
-## Security and privacy
-
-Sniptale Desktop is local-first, but local software is not automatically safe. The current design includes the following controls:
-
-- screenshot and recording temp media is bounded and protected with per-media keys; [data handling](docs/security/data-handling.md) defines authorized cleanup and finalized-source retention;
-- the per-install resident-pipe secret is protected for the current Windows user, and clients must complete a live HMAC challenge before commands are accepted;
-- extension origin, native consent, session limits, controller authority, freshness, and replay checks fail closed at the IPC boundary;
-- media chunks have explicit size limits and integrity hashes, and media bytes never traverse the resident control pipe;
-- logs, health output, and support bundles use typed categories and redaction rules instead of media, typed text, clipboard values, URLs, tokens, identifiers, raw payloads, or full paths;
-- optional recording interaction telemetry is sanitized and frame-relative; plaintext local media is published only to the user-selected destination.
-
-These controls are engineering measures, not a security certification or independent penetration test. A compromised Windows user session remains outside the protection boundary, Manual output inherits the destination's ACL, backup, and sync behavior, and the current single-process runtime does not isolate a process-wide memory-safety or privileged-adapter failure. Stable public packages additionally require Authenticode and release-provenance evidence.
-
-Read the [threat model](docs/security/threat-model.md), [data-handling rules](docs/security/data-handling.md), [IPC authorization design](docs/security/ipc-auth.md), and [install-trust policy](docs/security/install-trust.md) before depending on the application for sensitive workflows.
-
-## Known limits
-
-- Windows is the only implemented runtime and package target.
-- The application is a capture companion, not a gallery, editor, OCR, transcription, AI, account, cloud-sync, or collaboration service.
-- Gallery and editor workflows belong to the separate browser extension and are not included in this repository.
-- Protected or unavailable operating-system sources may not be capturable, and audio/encoder availability depends on the Windows device and drivers.
-- No automatic updater is included.
-- Stable packaging still requires signed Windows artifacts and the manual acceptance evidence described in the release guide.
-
-## Repository and quality model
-
-- `src/**` contains product owners and owner-local tests.
-- `contracts/**` contains executable wire, parser, limit, error, and redaction fixtures.
-- `installer/**` and `resources/**` contain Windows packaging inputs.
-- `tooling/**` contains canonical QA, release, audit, and desktop E2E entrypoints.
-- [`docs/README.md`](docs/README.md) indexes the active architecture, engineering, security, operations, provenance, and release documentation.
-- [`AGENTS.md`](AGENTS.md) defines the compact repository workflow for coding agents.
-
-The repository uses formatting, linting, owner-boundary checks, negative parser and state-machine proof, coverage policy, dependency and license checks, Windows-target compilation, installed-runtime smoke tests, isolated desktop E2E, secret scanning, and release-evidence validation. These controls reduce risk; they do not replace real-user testing, performance profiling, accessibility review, adversarial testing, or independent security assessment.
-
-Repository QA and release gates run locally and through allowlisted GitHub Actions workflows. The same packaging entrypoint produces a Windows alpha installer in both environments. Publication consumes the exact package admitted by isolated Windows acceptance; see the [release procedure](docs/oss/release.md).
+[AGENTS.md](AGENTS.md) defines the implementation and review workflow. [QA tooling](docs/tooling/qa.md) defines canonical local and CI checks. The [documentation index](docs/README.md) lists all active documents.
 
 ## License and contributions
 
-Sniptale Desktop is licensed under the [MIT License](LICENSE). Third-party components retain their own terms; see the [third-party notices](THIRD_PARTY_NOTICES.md) and [OSS provenance](docs/oss/provenance.md).
+The project uses the [MIT License](LICENSE). Third-party components retain their own terms. Read [third-party notices](THIRD_PARTY_NOTICES.md) and [OSS provenance](docs/oss/provenance.md).
 
-External code contributions are not accepted at this time. Public bug reports and product proposals must not include sensitive data, and suspected vulnerabilities must not be disclosed in public issues. See [CONTRIBUTING.md](CONTRIBUTING.md).
+External code contributions are currently closed. Read [CONTRIBUTING.md](CONTRIBUTING.md) before a bug report or product proposal. Do not publish sensitive data or suspected vulnerabilities in public issues.

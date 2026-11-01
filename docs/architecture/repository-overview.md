@@ -12,7 +12,7 @@ Sniptale Desktop is the Windows-native Sniptale process. The installed `sniptale
 
 ## Technology boundary
 
-The release target is Windows MSVC. Product UI and OS integration use Rust with direct Win32, Windows Graphics Capture, WIC, Media Foundation, WASAPI, and WiX adapters; no browser-rendered desktop shell or general async runtime is part of the product.
+The release target is Windows MSVC. Product UI and OS integration use Rust with direct Win32, Windows Graphics Capture, WIC, Media Foundation, WASAPI, and WiX adapters. No browser-rendered desktop shell or general async runtime is part of the product.
 
 ## Authoritative inputs
 

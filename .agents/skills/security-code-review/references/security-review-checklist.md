@@ -3,7 +3,7 @@
 ## Boundaries and authority
 
 - Native Messaging, named-pipe, file, registry, process, and persisted inputs are bounded and parsed before use.
-- Pipe clients complete the current challenge protocol; origin, consent, replay, expiry, session limits, controller lease, and mode epoch fail closed.
+- Pipe clients complete the current challenge protocol. Origin, consent, replay, expiry, session limits, controller lease, and mode epoch fail closed.
 - Channel, host name, origin, install ID, executable path, signatures, manifests, autostart, and ACLs come from the install authority.
 
 ## Data and privileged resources
@@ -17,7 +17,7 @@
 - Chunks, JSON budgets, indexes, hashes, lifecycle transitions, protected reads, resume, and cleanup are verified before media release.
 - Production EXE/MSI signatures, timestamps, revocation status, manifest hashes, legal payload, SBOM, audit reports, provenance, and distributable hashes are bound in release evidence.
 - Dependency and license changes preserve the allowed-license policy, tracked exact texts, notice freshness, and runtime redistribution closure.
-- Public release evidence includes a pinned, redacted secret scan of the current tree and complete Git history; shallow or skipped history is not acceptance evidence.
+- Public release evidence includes a pinned, redacted secret scan of the current tree and complete Git history. Shallow or skipped history is not acceptance evidence.
 
 ## Proof
 

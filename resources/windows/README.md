@@ -1,6 +1,6 @@
 # Windows resources
 
-The tracked PNG sources were copied from the original Sniptale icon set. Their SHA-256 values are verified by `tooling/release/windows/verify_windows_resources.py`.
+The tracked PNG sources come from the original Sniptale icon set. `tooling/release/windows/verify_windows_resources.py` checks their SHA-256 values.
 
 | File | SHA-256 |
 | --- | --- |

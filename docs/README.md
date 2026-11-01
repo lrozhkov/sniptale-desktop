@@ -1,6 +1,6 @@
 # Sniptale Desktop documentation
 
-This index lists every active document. Code, tracked contracts, and machine policy are authoritative for executable behavior; documents own architecture decisions, security assumptions, audit rationale, and operator procedures that are not evident from code.
+This index lists every active document. Code, tracked contracts, and machine policy are authoritative for executable behavior. Documents own architecture decisions, security assumptions, audit rationale, and operator procedures that are not evident from code.
 
 ## Architecture
 
