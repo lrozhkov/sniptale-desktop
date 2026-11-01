@@ -10,7 +10,7 @@ import hashlib
 import json
 import tempfile
 from pathlib import Path
-from unittest import mock
+import unittest.mock as mock
 from tooling.qa.runtime import install_script_tools as owner
 
 from tooling.qa.runtime.python_toolchain import validate as validate_python

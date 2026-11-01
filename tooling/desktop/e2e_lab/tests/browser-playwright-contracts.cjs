@@ -4,7 +4,7 @@ const vm = require('node:vm');
 const source = fs.readFileSync(process.argv[2], 'utf8');
 const target = 'chrome-extension://elhndangpenapadjimfoodlaenpcndpo/apps/extension/src/settings/index.html';
 async function run(patch = {}) {
-  let output = '', error = '', code, connected = false, evaluated = false;
+  let output = '', error = '', code, connected = false, evaluated = false, closedDescriptors=0;
   let playheadX=10, playing=false,currentTime=0,reloads=0;
   const keys=[];
   const screenshots=[];
@@ -38,11 +38,27 @@ async function run(patch = {}) {
     waitForTimeout:async()=>{if(playing&&!patch.playheadStuck){playheadX+=3;currentTime+=0.05;}},screenshot:async options=>screenshots.push(options.path),
     reload:async()=>{if(patch.reopenFailure)throw Error('reopen-failed');reloads++;currentTime=0;playheadX=10;},
   };
+  const runtimeBytes='verified-runtime';
+  const runtimeHash=require('node:crypto').createHash('sha256').update(runtimeBytes).digest('hex');
+  const fileBytes=file=>Buffer.from(file.endsWith('runtime-integrity.json')
+    ? (patch.integrityFile?JSON.stringify({'package/index.js':runtimeHash}):'{}')
+    : file.endsWith('index.js')?(patch.corruptRuntime?'changed-runtime':runtimeBytes)
+    : JSON.stringify(patch.input??{expression:'laboratory-expression'}));
   const context = {
     require: name => {
       if (name === 'node:fs') return {
-        statSync:() => ({size:patch.size ?? 100}),
-        readFileSync:path => path.endsWith('runtime-integrity.json') ? '{}' : JSON.stringify(patch.input??{expression:'laboratory-expression'}),
+        openSync:file => file,
+        fstatSync:file => ({size:patch.size ?? fileBytes(file).length, isFile:()=>!patch.nonFile}),
+        lstatSync:()=>({isSymbolicLink:()=>Boolean(patch.symbolicRuntime)}),
+        readSync:(file,buffer,offset,length,position) => {
+          const bytes=fileBytes(file);
+          if(patch.truncatedFile) return 0;
+          if(patch.growingFile && !file.endsWith('runtime-integrity.json')) return buffer.fill(65,offset,offset+length).length-offset;
+          const count=Math.max(0,Math.min(length,bytes.length-position));
+          bytes.copy(buffer,offset,position,position+count);
+          return count;
+        },
+        closeSync:()=>{closedDescriptors++;},
       };
       if (name === 'C:/SniptaleLab/browser-tools/package') return {chromium:{connectOverCDP:async (endpoint, options) => {
         connected = true;
@@ -62,12 +78,20 @@ async function run(patch = {}) {
       stderr:{write:(text, done) => {error += text; done();}}, exit:value => {code = value;}},
   };
   await vm.runInNewContext(source, context);
-  return {output, error, code, connected, evaluated, screenshots,keys,reloads};
+  return {output, error, code, connected, evaluated, screenshots,keys,reloads,closedDescriptors};
 }
 (async () => {
   const good = await run();
   assert.equal(good.code, 0);
   assert.equal(JSON.parse(good.output).passed, true);
+  const integrityGood=await run({integrityFile:true});
+  assert.equal(integrityGood.code,0);
+  for(const patch of [{integrityFile:true,corruptRuntime:true},{integrityFile:true,symbolicRuntime:true},{truncatedFile:true}]) {
+    const rejected=await run(patch);
+    assert.equal(rejected.code,1);
+    assert.equal(rejected.connected,false);
+    assert.ok(rejected.closedDescriptors>0);
+  }
   const native = await run({input:{scenario:'native-video-editor'}});
   assert.equal(native.code,0);
   assert.equal(JSON.parse(native.output).playbackAdvanced,true);
@@ -91,7 +115,7 @@ async function run(patch = {}) {
   }
   const canonicalReopen=await run({input:{scenario:'native-video-editor'},reopenedEditorUrl:editorBase+'?project=project-1&id=video-1'});
   assert.equal(canonicalReopen.code,0);
-  for (const patch of [{port:'1234'}, {size:65537}, {connectFailure:true}, {contexts:[]},
+  for (const patch of [{port:'1234'}, {size:65537}, {nonFile:true}, {growingFile:true}, {connectFailure:true}, {contexts:[]},
     {contexts:[{},{}]}, {url:'https://untrusted.invalid/'}, {evaluateFailure:true}, {value:{data:'x'.repeat(1048576)}},
     {input:{scenario:'unknown'}},{input:{scenario:'native-video-editor',expression:'extra'}},
     ...[{recordingId:'../escape'},{editorUrl:'https://untrusted.invalid/'},{editorNotReady:true},{archiveMissing:true},{archiveCount:2},{playheadStuck:true},{canvasWidth:0},

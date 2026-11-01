@@ -10,7 +10,7 @@ import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from types import SimpleNamespace
-from unittest import mock
+import unittest.mock as mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 

@@ -8,7 +8,7 @@ import unittest
 from contextlib import redirect_stderr
 from datetime import datetime, timedelta, UTC
 from pathlib import Path
-from unittest import mock
+import unittest.mock as mock
 
 from tooling.qa.runtime import lock, run, storage
 

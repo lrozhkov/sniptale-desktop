@@ -207,7 +207,7 @@ def validate(
         if expected_channel is not None and channel != expected_channel:
             errors.append(f"releaseCandidate.channel must be {expected_channel}")
     except KeyError:
-        pass
+        pass  # Required-path validation already reports the missing field.
 
     for path in NON_NEGATIVE_NUMBER_PATHS:
         try:
@@ -237,7 +237,7 @@ def validate(
         if get_path(payload, ("performanceBaseline", "recordingFiveMinute", "durationMs")) != EXPECTED_DURATION_MS:
             errors.append("performanceBaseline.recordingFiveMinute.durationMs must be 300000")
     except KeyError:
-        pass
+        pass  # Required-path validation already reports the missing field.
 
     with contextlib.suppress(KeyError):
         validate_completed_at_utc(errors, get_path(payload, ("review", "completedAtUtc")))

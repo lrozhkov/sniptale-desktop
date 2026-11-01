@@ -2,7 +2,7 @@
 
 from pathlib import Path
 import unittest
-from unittest import mock
+import unittest.mock as mock
 
 from tooling.qa.rules import verify_architecture as rules
 

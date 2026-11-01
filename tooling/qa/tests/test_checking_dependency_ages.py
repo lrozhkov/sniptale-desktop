@@ -6,7 +6,7 @@ import copy
 import unittest
 from datetime import datetime, UTC
 from pathlib import Path
-from unittest import mock
+import unittest.mock as mock
 
 from tooling.qa.runtime import checking_dependency_ages as owner
 from tooling.qa.runtime.toolchain import check_age, ToolchainError

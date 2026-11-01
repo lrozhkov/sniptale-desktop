@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import copy
 import unittest
-from unittest import mock
+import unittest.mock as mock
 from datetime import UTC, datetime, timedelta
 
 from tooling.qa.runtime.lint_receipts import REQUIRED, validate

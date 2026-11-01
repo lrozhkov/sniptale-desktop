@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import copy
 import unittest
-from unittest import mock
+import unittest.mock as mock
 
 from tooling.qa.runtime import powershell_profile as owner
 

@@ -176,8 +176,10 @@ def validate_registry(errors: list[str]) -> None:
     if registry.get("schemaVersion") != 1:
         errors.append("exception registry schemaVersion must be 1")
     debt = registry.get("technicalDebt")
-    if debt != []:
-        errors.append("technicalDebt must stay empty in this tooling wave")
+    sys.path.insert(0, str(ROOT))
+    from tooling.qa.runtime.finding_registry import validate
+
+    errors.extend(validate(debt, ROOT))
     entries = registry.get("exceptions")
     if not isinstance(entries, list):
         errors.append("exception registry exceptions must be a list")
@@ -205,14 +207,12 @@ def validate_registry(errors: list[str]) -> None:
             continue
         if classification not in VALID_CLASSIFICATIONS:
             errors.append(f"{entry['id']} has invalid classification {classification}")
-        if classification == "temporary-debt":
-            if (
-                "reviewBy" not in entry
-                or not isinstance(entry.get("removalCondition"), str)
-                or not entry["removalCondition"].strip()
-            ):
-                errors.append(f"temporary debt requires reviewBy and removalCondition: {entry['id']}")
-            errors.append(f"temporary debt is forbidden in this wave: {entry['id']}")
+        if classification in {"temporary-debt", "tool-noise"} and (
+            "reviewBy" not in entry
+            or not isinstance(entry.get("removalCondition"), str)
+            or not entry["removalCondition"].strip()
+        ):
+            errors.append(f"reviewed exception requires reviewBy and removalCondition: {entry['id']}")
         if classification == "tool-noise" and "reviewBy" not in entry:
             errors.append(f"tool-noise entry requires reviewBy: {entry['id']}")
         if "reviewBy" in entry:
@@ -451,6 +451,24 @@ def validate_hosted_qa_policy(errors: list[str]) -> None:
                             "retention-days": 2,
                         }:
                             errors.append("lint proof upload scope or run identity drift")
+                    elif (
+                        action.startswith("actions/upload-artifact@")
+                        and step.get("name") == "Upload static analysis reports"
+                    ):
+                        if (
+                            name != "checks.yml"
+                            or job_name != "qa"
+                            or step.get("if") != "always()"
+                            or options
+                            != {
+                                "name": "static-analysis-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}",
+                                "path": ".tmp/qa/static-analysis/*/*.sarif\n.tmp/qa/static-analysis/*/findings.json\n.tmp/qa/static-analysis/*/*.log",
+                                "include-hidden-files": True,
+                                "if-no-files-found": "warn",
+                                "retention-days": 14,
+                            }
+                        ):
+                            errors.append("static analysis artifact scope or identity drift")
                     elif action.startswith("actions/upload-artifact@"):
                         kind = "alpha" if name == "alpha.yml" else "qa"
                         path = ".tmp/release/alpha" if kind == "alpha" else ".tmp/release/alpha-proof"

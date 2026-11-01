@@ -2,6 +2,24 @@
 const fs = require('node:fs');
 const nodeCrypto = require('node:crypto');
 const path = require('node:path');
+function readBoundedFile(file, maximum) {
+  const descriptor = fs.openSync(file, 'r');
+  try {
+    const info = fs.fstatSync(descriptor);
+    if (!info.isFile() || info.size > maximum) throw Error('invalid-input');
+    const bytes = Buffer.alloc(info.size + 1);
+    let total = 0;
+    while (total < bytes.length) {
+      const count = fs.readSync(descriptor, bytes, total, bytes.length - total, total);
+      if (count === 0) break;
+      total += count;
+    }
+    if (total !== info.size) throw Error('file-changed-during-read');
+    return bytes.subarray(0, total);
+  } finally {
+    fs.closeSync(descriptor);
+  }
+}
 const timer = setTimeout(() => fail('browser-scenario-deadline'), 75000);
 function fail(category) { process.stderr.write(category + '\n', () => process.exit(1)); }
 async function inspectNativeEditor(context, settingsPage, port, request) {
@@ -85,15 +103,17 @@ async function inspectNativeEditor(context, settingsPage, port, request) {
 }
 (async () => {
   const [port, request] = process.argv.slice(2);
-  if (!['9223', '9224'].includes(port) || fs.statSync(request).size > 65536) throw Error('invalid-input');
-  const input = JSON.parse(fs.readFileSync(request, 'utf8').replace(/^\uFEFF/, ''));
+  if (!['9223', '9224'].includes(port)) throw Error('invalid-input');
+  const input = JSON.parse(readBoundedFile(request, 65536).toString('utf8').replace(/^\uFEFF/, ''));
   const editorScenario = input.scenario === 'native-video-editor';
   if (Object.keys(input).length !== 1 || (!editorScenario && typeof input.expression !== 'string')) throw Error('invalid-input');
   const root = 'C:/SniptaleLab/browser-tools';
-  const files = JSON.parse(fs.readFileSync(root + '/runtime-integrity.json', 'utf8'));
+  const files = JSON.parse(readBoundedFile(root + '/runtime-integrity.json', 2 * 1024 * 1024).toString('utf8'));
   for (const [name, hash] of Object.entries(files)) {
     const file = path.resolve(root, name);
-    if (!file.startsWith(path.resolve(root) + path.sep) || fs.lstatSync(file).isSymbolicLink() || nodeCrypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex') !== hash) throw Error('tool-integrity');
+    if (!file.startsWith(path.resolve(root) + path.sep)) throw Error('tool-integrity');
+    const bytes = readBoundedFile(file, 16 * 1024 * 1024);
+    if (fs.lstatSync(file).isSymbolicLink() || nodeCrypto.createHash('sha256').update(bytes).digest('hex') !== hash) throw Error('tool-integrity');
   }
   const {chromium} = require(root + '/package');
   const browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`, {timeout:10000});

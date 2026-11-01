@@ -2,10 +2,12 @@
 
 use std::{collections::HashMap, path::Path};
 
+use crate::diagnostics::log::source::default_log_directory;
+
 use super::{
     OBSERVABILITY_METRICS, ObservabilityCounter, ObservabilityEvent, ObservabilityMetricKind,
     ObservabilitySnapshot, counter, operation_for_metric, phase_for_metric,
-    source::{LogRecordView, default_log_directory, log_records},
+    source::{LogRecordView, log_records},
     timestamp_bucket,
 };
 

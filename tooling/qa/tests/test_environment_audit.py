@@ -5,8 +5,9 @@ from __future__ import annotations
 import json
 import unittest
 import urllib.request
+import urllib.parse
 import urllib.error
-from unittest import mock
+import unittest.mock as mock
 from tooling.qa.runtime import advisories
 from pathlib import Path
 
@@ -42,7 +43,7 @@ class EnvironmentAuditTests(unittest.TestCase):
                 # aliases CVE-2024-0450, CPython 3.12.1 is before its fix.
                 return {"vulns": [{"id": "PSF-2024-2", "aliases": ["CVE-2024-0450"]}]}
             return {}
-        if "services.nvd.nist.gov" in url:
+        if urllib.parse.urlparse(url).hostname == "services.nvd.nist.gov":
             return {"totalResults": 0, "startIndex": 0, "vulnerabilities": []}
         raise AssertionError("unexpected source")
 

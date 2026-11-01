@@ -185,7 +185,7 @@ def validate_versions(versions):
         versions["rust"]["channel"],
         versions["windows"]["wix"],
         versions["python"]["version"],
-        versions["externalTools"]["gitleaks"]["version"],
+        *[item["version"] for item in versions["externalTools"].values()],
         *versions["cargoSubcommands"].values(),
     ]
     if any(not isinstance(value, str) or VERSION.fullmatch(value) is None for value in exact):
@@ -269,10 +269,18 @@ def resolve(root=ROOT):
         release = github_release(repo, prefix + version)
         check_age(release["publishedAt"], policy, versions.get("securityExceptions", {}).get(name))
         tools[name] = {"version": version, **release}
-    gitleaks = versions["externalTools"]["gitleaks"]["version"]
-    release = github_release("gitleaks/gitleaks", "v" + gitleaks)
-    check_age(release["publishedAt"], policy, versions.get("securityExceptions", {}).get("gitleaks"))
-    tools["gitleaks"] = {"version": gitleaks, **release}
+    external_repos = {
+        "gitleaks": ("gitleaks/gitleaks", "v"),
+        "jscpd": ("kucherenko/jscpd", "v"),
+        "codeql": ("github/codeql-action", "codeql-bundle-v"),
+    }
+    if set(versions["externalTools"]) - set(external_repos):
+        raise ToolchainError("unapproved external tool")
+    for name, item in versions["externalTools"].items():
+        repo, prefix = external_repos[name]
+        release = github_release(repo, prefix + item["version"])
+        check_age(release["publishedAt"], policy, versions.get("securityExceptions", {}).get(name))
+        tools[name] = {"version": item["version"], **release}
     actions = {}
     for repo, tag in versions["githubActions"].items():
         if (
@@ -393,7 +401,7 @@ def check(root=ROOT):
         )
     except (OSError, ValueError) as exc:
         raise ToolchainError("locked checker dependency age evidence is missing or invalid") from exc
-    expected_tools = set(versions["cargoSubcommands"]) | {"gitleaks"}
+    expected_tools = set(versions["cargoSubcommands"]) | set(versions["externalTools"])
     if (
         set(lock["tools"]) != expected_tools
         or set(lock["nuget"])
@@ -421,8 +429,8 @@ def check(root=ROOT):
             if name == "python"
             else versions["rust"]["channel"]
             if name == "rust"
-            else versions["externalTools"]["gitleaks"]["version"]
-            if name == "gitleaks"
+            else versions["externalTools"][name]["version"]
+            if name in versions["externalTools"]
             else versions["cargoSubcommands"][name]
         )
         if item.get("version", item.get("rust_version")) != expected:

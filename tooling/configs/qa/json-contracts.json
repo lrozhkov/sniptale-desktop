@@ -9025,7 +9025,9 @@
             "windows-sdk",
             "wix",
             "yamllint",
-            "zizmor"
+            "zizmor",
+            "jscpd",
+            "codeql"
           ],
           "additionalProperties": false,
           "properties": {
@@ -9157,6 +9159,12 @@
             },
             "@types/estree": {
               "type": "object"
+            },
+            "jscpd": {
+              "type": "object"
+            },
+            "codeql": {
+              "type": "object"
             }
           }
         },
@@ -9195,7 +9203,144 @@
           }
         },
         "technicalDebt": {
-          "type": "array"
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "owner",
+              "rationale",
+              "risk",
+              "reviewBy",
+              "removalCondition",
+              "targetAction",
+              "classification",
+              "source",
+              "exactScope",
+              "proofReferences"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "owner": {
+                "type": "string",
+                "minLength": 1
+              },
+              "rationale": {
+                "type": "string",
+                "minLength": 1
+              },
+              "risk": {
+                "type": "string",
+                "minLength": 1
+              },
+              "reviewBy": {
+                "type": "string",
+                "minLength": 1
+              },
+              "removalCondition": {
+                "type": "string",
+                "minLength": 1
+              },
+              "targetAction": {
+                "type": "string",
+                "minLength": 1
+              },
+              "classification": {
+                "enum": [
+                  "tool-noise",
+                  "temporary-debt"
+                ]
+              },
+              "source": {
+                "type": "object",
+                "required": [
+                  "tool",
+                  "rule",
+                  "fingerprint"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "tool": {
+                    "enum": [
+                      "jscpd",
+                      "codeql"
+                    ]
+                  },
+                  "rule": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "fingerprint": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  }
+                }
+              },
+              "exactScope": {
+                "type": "object",
+                "required": [
+                  "exactPaths",
+                  "locations"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "exactPaths": {
+                    "type": "array",
+                    "minItems": 1,
+                    "uniqueItems": true,
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "locations": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "path",
+                        "startLine",
+                        "endLine",
+                        "sourceSha256"
+                      ],
+                      "additionalProperties": false,
+                      "properties": {
+                        "path": {
+                          "type": "string",
+                          "minLength": 1
+                        },
+                        "startLine": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "endLine": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "sourceSha256": {
+                          "type": "string",
+                          "pattern": "^[0-9a-f]{64}$"
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "proofReferences": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          }
         }
       }
     },
@@ -10071,11 +10216,19 @@
         "externalTools": {
           "type": "object",
           "required": [
-            "gitleaks"
+            "gitleaks",
+            "jscpd",
+            "codeql"
           ],
           "additionalProperties": false,
           "properties": {
             "gitleaks": {
+              "type": "object"
+            },
+            "jscpd": {
+              "type": "object"
+            },
+            "codeql": {
               "type": "object"
             }
           }
@@ -10495,7 +10648,9 @@
             "cargo-deny",
             "cargo-llvm-cov",
             "cargo-nextest",
-            "gitleaks"
+            "gitleaks",
+            "jscpd",
+            "codeql"
           ],
           "additionalProperties": false,
           "properties": {
@@ -10515,6 +10670,12 @@
               "type": "object"
             },
             "gitleaks": {
+              "type": "object"
+            },
+            "jscpd": {
+              "type": "object"
+            },
+            "codeql": {
               "type": "object"
             }
           }
@@ -18127,6 +18288,25 @@
                 "pattern": "^[a-f0-9]{64}$"
               }
             }
+          }
+        }
+      }
+    },
+    "tooling/configs/qa/codeql.json": {
+      "type": "object",
+      "required": [
+        "name",
+        "paths-ignore"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "paths-ignore": {
+          "type": "array",
+          "items": {
+            "type": "string"
           }
         }
       }

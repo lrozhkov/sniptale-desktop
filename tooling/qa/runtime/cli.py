@@ -82,6 +82,16 @@ def _state(args: argparse.Namespace) -> int:
     return 0
 
 
+def _require_harness(_args: argparse.Namespace) -> int:
+    require_harness_if_needed(ROOT)
+    return 0
+
+
+def _assert_inputs(args: argparse.Namespace) -> int:
+    assert_run_inputs(Path(args.record))
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(prog="sniptale-qa-runtime")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -134,11 +144,11 @@ def main() -> int:
     state_parser.set_defaults(handler=_state)
 
     harness_parser = sub.add_parser("require-harness")
-    harness_parser.set_defaults(handler=lambda _args: (require_harness_if_needed(ROOT), 0)[1])
+    harness_parser.set_defaults(handler=_require_harness)
 
     inputs_parser = sub.add_parser("assert-inputs")
     inputs_parser.add_argument("--record", required=True)
-    inputs_parser.set_defaults(handler=lambda args: (assert_run_inputs(Path(args.record)), 0)[1])
+    inputs_parser.set_defaults(handler=_assert_inputs)
 
     fingerprint_parser = sub.add_parser("fingerprint")
     fingerprint_parser.set_defaults(handler=lambda _args: (print(fingerprint()), 0)[1])

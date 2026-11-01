@@ -85,7 +85,7 @@ def prepare(paths, ssh):
 def runtime_inventory(package):
     # Validate every tar member before Windows tar can materialize it. The npm package has no dependencies.
     with tarfile.open(package, "r:gz") as archive:
-        count = total = 0
+        total = 0
         names = set()
         runtime = {}
         for count, member in enumerate(archive, start=1):

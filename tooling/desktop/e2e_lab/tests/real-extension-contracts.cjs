@@ -157,7 +157,7 @@ async function check(reply, {action='connect', pin=null, extra={}, verifyHistory
     const cursorRecords=[{...cursorVector.records[0],width:1280,height:800}];
     const eventRecords=[structuredClone(eventVector.records[0])];
     const click=eventVector.records.find(record=>record.action?.kind==='CLICK');
-    const completion=eventVector.records.find(record=>record.kind==='action-update'&&'gestureType' in record.data);
+    const completion=eventVector.records.find(record=>record.kind==='action-update' && ('gestureType' in record.data));
     for(const [index,point] of rawSamples.entries()) {
       const down=100000+index*200000,up=down+50000,actionId=`click-${index}`;
       for(const [event,time] of [['down',down],['up',up]]) cursorRecords.push({...cursorVector.records.find(record=>record.kind==='sample'),

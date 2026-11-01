@@ -149,8 +149,8 @@ def compact_existing_goldens(
             identity["disk_sha256"] = sha256_file(compacted_disk)
             identity["storage_format"] = STORAGE_FORMAT
             write_json(compacted_identity, identity)
-            os.chmod(compacted_disk, 0o444)
-            os.chmod(compacted_identity, 0o444)
+            os.chmod(compacted_disk, 0o400)
+            os.chmod(compacted_identity, 0o400)
             os.replace(disk, backup_disk)
             os.replace(identity_path, backup_identity)
             try:

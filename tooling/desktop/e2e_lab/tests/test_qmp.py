@@ -3,7 +3,7 @@ from __future__ import annotations
 import sys
 import unittest
 from pathlib import Path
-from unittest import mock
+import unittest.mock as mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from errors import LabError

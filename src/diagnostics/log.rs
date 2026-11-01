@@ -6,6 +6,7 @@ pub(super) mod record;
 pub(super) mod redaction;
 pub(super) mod runtime;
 pub(super) mod setup;
+pub(super) mod source;
 #[cfg(all(windows, not(test)))]
 mod windows_exception;
 

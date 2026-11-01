@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parents[3]
 ORIGIN = "chrome-extension://pcegkgbagkiagakmfjchgfgheepkllda/"
 PROOF_FILES = {"sbom.spdx.json", "cargo-audit.json", "cargo-deny.txt", "qa-proof.json"}
 GATES = {
+    "qa:static-analysis",
     "qa:release-harness",
     "qa:checkpoint",
     "qa:coverage",
@@ -92,6 +93,7 @@ def make_proof(output: Path) -> None:
         source = record.get("repository", {})
         if (
             owner in GATES
+            and (owner != "qa:static-analysis" or record.get("mode") == "default")
             and record.get("status") == "all-passed"
             and record.get("exitCode") == 0
             and source.get("revision") == commit

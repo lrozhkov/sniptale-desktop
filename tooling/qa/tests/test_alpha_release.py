@@ -8,7 +8,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest import mock
+import unittest.mock as mock
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "tooling/release/windows"))
@@ -20,6 +20,44 @@ import alpha_acceptance as acceptance  # noqa: E402 -- resolve the standalone re
 class AlphaArtifactTests(unittest.TestCase):
     commit = "a" * 40
     tag = "v0.1.0-alpha.1"
+
+    def test_release_handoff_rejects_review_only_analysis(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            records = root / ".tmp/qa-observability/runs/day"
+            records.mkdir(parents=True)
+            for index, owner in enumerate(sorted(artifacts.GATES)):
+                record = {
+                    "wrapperId": owner,
+                    "mode": "review-existing-results" if owner == "qa:static-analysis" else "default",
+                    "status": "all-passed",
+                    "exitCode": 0,
+                    "runId": f"run-{index}",
+                    "repository": {"revision": self.commit, "targetFiles": []},
+                }
+                (records / f"record-{index}.json").write_text(json.dumps(record))
+            for name in [
+                ".tmp/release/sbom.spdx.json",
+                ".tmp/release/supply-chain/cargo-audit.json",
+                ".tmp/release/supply-chain/cargo-deny.txt",
+            ]:
+                path = root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("{}\n")
+            with (
+                mock.patch.object(artifacts, "ROOT", root),
+                mock.patch.object(artifacts, "git", return_value=self.commit),
+                mock.patch.object(artifacts, "assert_source"),
+            ):
+                with self.assertRaisesRegex(ValueError, "missing clean-commit canonical release gates"):
+                    artifacts.make_proof(root / "rejected")
+                for path in records.glob("*.json"):
+                    record = json.loads(path.read_text())
+                    record["mode"] = "default"
+                    path.write_text(json.dumps(record))
+                artifacts.make_proof(root / "accepted")
+                proof = artifacts.verify_proof(root / "accepted", self.commit)
+                self.assertIn("qa:static-analysis", proof["gates"])
 
     def bundle(self, directory: Path) -> None:
         qa = directory / "qa"
@@ -246,6 +284,9 @@ class AlphaArtifactTests(unittest.TestCase):
                     )
                     target.write_text("#!/usr/bin/env bash\n" + body + "\n")
                     target.chmod(0o700)
+                analysis_installer = installers / "install-analysis-tools.sh"
+                analysis_installer.write_text("#!/usr/bin/env bash\nprintf 'analysis-tools-ready\\n'\n")
+                analysis_installer.chmod(0o700)
                 for tool, version in versions["cargoSubcommands"].items():
                     if tool != "cargo-about":
                         target = binaries / tool
@@ -282,6 +323,7 @@ if '--features' in args and args[args.index('--features')+1] == 'cli' and os.env
                     text=True,
                 )
                 self.assertEqual(result.returncode, 1 if missing else 0, result.stderr)
+                self.assertEqual("analysis-tools-ready" in result.stdout, not missing)
 
 
 if __name__ == "__main__":

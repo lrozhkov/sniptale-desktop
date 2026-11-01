@@ -120,15 +120,41 @@ The documentation gate applies the repository [asd-ste100 skill](../../.agents/s
 
 The gate preserves code, frontmatter, and link targets. The legal generator owns the exact third-party notice bundle. License texts remain unchanged. Release harness and checkpoint use this same gate locally and in CI. The harness also executes the checker self-tests and integration negatives.
 
-## Additional tool decisions
+## Release analysis
 
-These decisions use upstream documentation checked on 2026-11-01. Neither candidate is installed or enabled by this change.
+`tooling/qa/wrappers/static-analysis.sh` runs jscpd and CodeQL before the other release gates. The alpha proof uses the same release wrapper locally and in CI. Installation uses the common version catalog, official release metadata, minimum release age, and verified archive hashes. Installed file hashes detect changed tool contents. The CodeQL bundle uses a private temporary tool cache outside the source root. This prevents bundled externs from becoming application input. Both tools are QA-only and remain outside the Cargo redistribution closure.
 
-| Candidate | Value | Decision and adoption conditions |
-| --- | --- | --- |
-| jscpd | Token-based duplication reports can identify repeated implementation. [Upstream documentation](https://github.com/kucherenko/jscpd) describes Rust support and machine reports. | Defer a blocking duplication budget. First evaluate an advisory report against owner boundaries and declarative/test repetition. Adoption requires a pinned verified binary, license review, bounded runtime, and explicit source scope. A percentage must not force shared abstractions or mechanical decomposition. |
-| CodeQL | [Supported languages](https://codeql.github.com/docs/codeql-overview/supported-languages-and-frameworks/) include Rust 2021/2024, Python, and GitHub Actions. Rust analysis requires rustup and Cargo. | Retain as a security-analysis candidate. Before enabling it, prove extraction of Windows-gated Rust with the pinned toolchain and measure useful findings and runtime. Pin the CLI, queries, and workflow actions through managed tooling. Check usage terms and repository eligibility. Keep local reproducibility and precise permissions. |
+jscpd scans the exact tracked and non-ignored source inventory, including tests and Windows code. It compares blocks of at least 15 lines and 100 tokens, without comment tokens. Findings are advisory maintenance evidence. A duplication percentage does not force shared abstractions or mechanical decomposition. An empty scan, failed tool, malformed report, or stale registry entry blocks release.
 
-The existing owner checks, Clippy, parser/state-machine tests, unsafe adapter review, dependency checks, actionlint, and zizmor remain required. Neither candidate replaces them. No candidate benchmark or coverage result is claimed here.
+CodeQL analyzes Rust with the Windows MSVC target and all features, plus Python, JavaScript, and GitHub Actions. It uses the bundled security-and-quality suites with two threads and a 6144 MiB memory setting. Rust extraction uses build mode `none`. It still executes build scripts and macro compilation. The gate checks extraction coverage for every inventoried Rust file, including build.rs and Windows adapters. These checks supplement existing Clippy, owner, parser, unsafe, dependency, and workflow checks.
 
-The adapted browser-repository practices are bounded acceptance, explicit investigation stop conditions, actual-context proof, and evidence-based review classification. UI tooling and external review services are outside this change. Reviews inspect supplied green proof. They request another run only when a concrete evidence defect requires it.
+CodeQL warnings and errors block release unless an exact reviewed tool-noise entry applies. Temporary debt cannot suppress a blocking CodeQL finding. Missing rules, unsuccessful invocations, malformed reports, and source changes during analysis fail closed. The wrapper retains SARIF, JSON findings, command logs, and timings under `.tmp/qa/static-analysis/<run-id>/`. Release proof binds the analysis gate to the candidate commit.
+
+## Tool-noise and technical debt
+
+`tooling/configs/qa/exception-registry.json` remains the central registry. Its `exceptions` list owns existing architectural exceptions. Its `technicalDebt` list owns exact analyzer findings. Do not copy the same finding into another baseline.
+
+Every analyzer record requires:
+
+- A unique ID and a classification: `tool-noise` or `temporary-debt`.
+- An owner, rationale, and concrete risk.
+- The exact tool, rule, finding fingerprint, and source paths.
+- A review date, removal condition, and target action.
+- Tracked proof references.
+
+The fingerprint binds the source paths, bounds, snippets, and rule. Moving or changing the relevant text requires renewed review. Lightweight checks compare source bounds and snippet hashes during every tooling gate. They reject broad scopes, missing paths, expired dates, duplicate identities, and missing metadata. Release analysis also rejects findings that no longer exist.
+
+Use `static-analysis.sh --review-run <run-id>` after a registry-only correction. This mode verifies the complete raw report inventory and hashes. It requires the same Git revision, source files, dependencies, tool pins, and analyzer settings. It permits registry and Markdown changes without another scan. It never reuses an accepted policy verdict. The normal release wrapper always requests a fresh scan. New findings remain visible. Debt records describe real deferred work. Tool-noise records explain why a precise heuristic finding does not require a code change.
+
+Use owner boundaries and behavior to decide whether duplication needs correction. Independent scenario setup and the two DPAPI authorities must not become shared product authority solely to satisfy jscpd. Fix genuine defects before registration. Do not classify a real security defect as tool-noise.
+
+## Cost and limits
+
+This repository is public. Standard GitHub-hosted runners have no usage charge for public repositories. CodeQL use follows its published terms. Runtime, memory, storage, and artifact retention still have costs. Heavy analysis belongs to release proof rather than each edit checkpoint.
+
+- [GitHub Actions billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions) defines hosted usage terms.
+- [CodeQL CLI availability](https://docs.github.com/en/code-security/reference/code-scanning/codeql/codeql-cli) defines repository eligibility.
+- [CodeQL Rust extraction](https://docs.github.com/en/code-security/reference/code-scanning/codeql/build-options-for-compiled-languages) explains the build mode.
+- [jscpd](https://github.com/kucherenko/jscpd) owns detector behavior.
+
+The environment audit checks the exact jscpd package through OSV. CodeQL bundle advisories require upstream review because no supported exact-version OSV package identity covers the complete bundle. An empty advisory response does not prove bundled-component safety.

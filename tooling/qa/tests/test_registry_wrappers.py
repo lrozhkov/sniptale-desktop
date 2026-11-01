@@ -5,9 +5,10 @@ import json
 import os
 import subprocess
 import tempfile
+from datetime import date
 import unittest
 from pathlib import Path
-from unittest import mock
+import unittest.mock as mock
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -267,8 +268,18 @@ exit {checkpoint_exit}
             errors: list[str] = []
             with mock.patch.object(module, "REGISTRY", registry):
                 module.validate_registry(errors)
+                payload = json.loads(registry.read_text())
+                payload["exceptions"][0].update(
+                    {
+                        "reviewBy": date.today().isoformat(),
+                        "removalCondition": "Remove after the exact debt is corrected.",
+                    }
+                )
+                registry.write_text(json.dumps(payload), encoding="utf-8")
+                complete_errors: list[str] = []
+                module.validate_registry(complete_errors)
+                self.assertEqual(complete_errors, [])
         self.assertTrue(any("reviewBy and removalCondition" in error for error in errors))
-        self.assertTrue(any("forbidden in this wave" in error for error in errors))
 
     def test_retired_path_guard_ignores_policy_and_historical_evidence(self) -> None:
         path = ROOT / "tooling/qa/rules/verify_tooling.py"

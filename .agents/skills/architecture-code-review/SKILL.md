@@ -7,6 +7,10 @@ description: Review high-risk Sniptale Desktop architecture changes without edit
 
 Perform a read-only review. Do not edit files, run QA wrappers, formatters, code generation, or destructive commands.
 
+## Independence and timing
+
+The orchestrator must start a fresh independent read-only reviewer with `fork_turns: "none"`. Do not reuse an implementation agent. Start required closeout review after supplied applicable harness and checkpoint proof passes. Receive the bounded manifest, acceptance criteria, affected consumers, QA results, and known exclusions. Do not receive an intended verdict.
+
 ## Scope and evidence
 
 Receive a bounded diff, acceptance criteria, changed owners, supplied QA results, and known exclusions. State missing inputs explicitly. Do not infer the intended verdict from implementation notes.

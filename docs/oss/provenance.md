@@ -29,3 +29,8 @@ This repository contains the Windows desktop/native-host component only. QA and 
 The repository adapts architecture, security, topology, and audit review practices from the companion browser repository. Desktop owner names, Rust proof, Windows trust, and local wrappers govern these adaptations. The copied workflow does not authorize an external review service.
 
 The asd-ste100 adaptation includes its original [MIT license](../../.agents/skills/asd-ste100/LICENSE) without byte changes. Its source skill version is 0.4.0, by Dustin Yuchen Teng. The bundled checker retains upstream structural heuristics with local formatting and a type-narrowing guard. The repository owns the integration, concise instructions, and paraphrased references. It does not redistribute ASD's official dictionary or claim certified compliance.
+
+
+## Analysis tools
+
+jscpd and CodeQL are installed as verified QA tools. They do not enter the product Cargo dependency or redistribution closure. Their installed bundles retain upstream legal files. CodeQL use follows the [GitHub CodeQL terms](https://github.com/github/codeql-cli-binaries/blob/main/LICENSE.md). The common tool catalog owns versions and archive hashes. The [QA guide](../tooling/qa.md) owns release execution and the finding registry.

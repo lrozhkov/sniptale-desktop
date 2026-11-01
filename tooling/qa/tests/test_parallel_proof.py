@@ -7,7 +7,7 @@ import tempfile
 import threading
 import unittest
 from pathlib import Path
-from unittest import mock
+import unittest.mock as mock
 
 from tooling.qa.runtime import parallel, run, storage
 from tooling.qa.runtime.checkpoint_checks import CHECKS

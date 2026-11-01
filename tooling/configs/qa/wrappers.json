@@ -115,6 +115,11 @@
       "id": "qa:fast",
       "entrypoint": "tooling/qa/wrappers/fast.sh",
       "blocking": true
+    },
+    {
+      "id": "qa:static-analysis",
+      "entrypoint": "tooling/qa/wrappers/static-analysis.sh",
+      "blocking": true
     }
   ]
 }

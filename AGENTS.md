@@ -44,6 +44,10 @@ Only the first three categories can block acceptance. Supply file evidence, a co
 
 Use the architecture and security skills for their existing risk boundaries. Use `topology-plan-review` for large owner moves. Use `repo-audit` for an explicitly requested bounded repository audit. Reviewers inspect supplied proof and do not repeat wrappers without a specific evidence defect.
 
+For each required review, spawn a fresh independent read-only agent with `fork_turns: "none"`. Supply the bounded manifest, acceptance criteria, affected consumers, QA results, and known exclusions. Do not reuse an implementation agent as a reviewer. Run applicable architecture and security reviews after green harness and checkpoint proof. They may run in parallel. Resolve blockers before closeout. Retain each verdict and its evidence under ignored `.tmp/qa/reviews/`. A self-review does not satisfy this stage.
+
+These are agent workflow stages. Shell wrappers do not perform semantic review or create a review verdict.
+
 ## Text and legal files
 
 - Apply the repository `asd-ste100` skill to all English documentation, including this file, README, ADRs, procedures, and skills. Preserve requirement strength, conditions, exceptions, and technical names. The skill supports clear technical English without certifying dictionary compliance.
@@ -58,6 +62,8 @@ Use the architecture and security skills for their existing risk boundaries. Use
 Use wrappers instead of substitute ad hoc commands. The normal implementation flow is a coherent change, `release-harness.sh` when tooling/CI/docs-policy/skills changed, `checkpoint.sh`, required reviews, then `closeout.sh -m "message"`. `closeout.sh` stages and commits. Use `--no-commit` only for diagnostics or an explicit no-commit request.
 
 Run `coverage.sh` for parser, IPC, transfer, settings, diagnostics, state-machine, or public contract changes. Dependency or license-policy changes require `licenses.sh --write` after review and `supply-chain.sh`. Normal gates use the non-mutating `licenses.sh --check`.
+
+Run `static-analysis.sh` before public release through the canonical release wrapper. It runs pinned jscpd and CodeQL with the same settings locally and in CI. Use the central finding registry for reviewed tool-noise and temporary debt. Do not use broad baselines, count budgets, or inline analyzer suppressions.
 
 Run `audit.sh` from a complete Git checkout before public release. It requires the pinned Gitleaks version and scans both the worktree and full history. Findings and shallow history fail closed.
 

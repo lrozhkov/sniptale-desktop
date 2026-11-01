@@ -24,6 +24,8 @@ while [[ $# -gt 0 ]]; do
 done
 
 qa_require_harness
+qa_step "static analysis" tooling/qa/wrappers/static-analysis.sh
+qa_fail_if_any "release static analysis"
 qa_step "secret audit" tooling/qa/wrappers/audit.sh
 qa_step "checkpoint" tooling/qa/wrappers/checkpoint.sh
 qa_step "coverage" tooling/qa/wrappers/coverage.sh

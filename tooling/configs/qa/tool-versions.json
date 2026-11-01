@@ -14,6 +14,20 @@
         "url": "https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz",
         "sha256": "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb"
       }
+    },
+    "jscpd": {
+      "version": "5.4.0",
+      "linuxX64": {
+        "url": "https://github.com/kucherenko/jscpd/releases/download/v5.4.0/jscpd-linux-x64-gnu.tar.gz",
+        "sha256": "4c2819a5663e5418fe5dcf0faceca7f05c1f080d3c87fd57cc4ccf99ce857194"
+      }
+    },
+    "codeql": {
+      "version": "2.27.3",
+      "linuxX64": {
+        "url": "https://github.com/github/codeql-action/releases/download/codeql-bundle-v2.27.3/codeql-bundle-linux64.tar.zst",
+        "sha256": "5e7607e1b721728955e31f5402d460ad227cbd2ffed0d4cc610116755796150e"
+      }
     }
   },
   "rust": {

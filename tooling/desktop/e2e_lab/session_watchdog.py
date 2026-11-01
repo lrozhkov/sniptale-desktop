@@ -16,7 +16,7 @@ from work_sessions import WorkSessions, load_session
 
 def main():
     paths = LabPaths.discover(Path(sys.argv[1]))
-    config = LabConfig.load(paths.root)
+    LabConfig.load(paths.root)  # Validate before startup and reload within the mutation lock.
     identity = sys.argv[2]
     while True:
         try:

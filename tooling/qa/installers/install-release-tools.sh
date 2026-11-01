@@ -27,3 +27,5 @@ PY
 )
 rustup component add llvm-tools-preview
 tooling/qa/installers/install-gitleaks.sh
+
+tooling/qa/installers/install-analysis-tools.sh
