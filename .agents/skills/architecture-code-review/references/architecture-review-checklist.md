@@ -23,4 +23,7 @@
 
 - New owner behavior has deterministic owner-local proof and negative boundary cases.
 - High-risk owners use coverage. Dependency changes use supply-chain and license proof. Windows-only behavior has Windows-target or installed-runtime evidence.
-- Repeated review findings become deterministic checks when feasible.
+- Persistence changes cover the AGENTS.md concurrency cases with invariants, named tests, execution evidence, and reasons for inapplicable cases.
+- Concurrency tests control operation ordering without timing delays. Startup and recovery writers remain in scope when applicable.
+- Defects missed by QA have proof that fails before correction, a documented cause, and a deterministic-guard decision.
+- Proposed new guards address a concrete defect or repeated finding and use existing owners where possible.

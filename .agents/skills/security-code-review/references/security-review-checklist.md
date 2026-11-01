@@ -23,4 +23,8 @@
 
 - Negative tests cover malformed, oversized, stale, replayed, duplicate, wrong-owner, wrong-origin, corrupted, and cleanup paths.
 - Redaction corpus, Windows smoke, desktop E2E, coverage, supply-chain, and license evidence are present where required.
-- A repeatable security finding is proposed as a deterministic guardrail when feasible.
+- Persistence changes cover the AGENTS.md concurrency cases, including data loss, retention, identity reuse, and recovery writers where applicable.
+- Supplied evidence names applicable tests and establishes checkpoint execution. Inapplicable cases have supported-flow reasons.
+- Defects missed by QA have proof that fails before correction, a documented cause, and a deterministic-guard decision.
+- Tool-noise has exact evidence and removal conditions. Temporary debt does not suppress blocking checks.
+- Proposed security guards address concrete reachable defects or repeated findings without inventing stronger unrelated guarantees.
