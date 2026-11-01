@@ -32,10 +32,21 @@ impl RecordingRuntime for WindowsRecordingRuntime {
             return Err(RecordingRuntimeError::InvalidState);
         }
         let plan = windows_recording_runtime_plan(request.request)?;
+        let bounds = crate::capture::recording_source_bounds(&request.request.source)
+            .map_err(|_| RecordingRuntimeError::UnsupportedMode)?;
+        let frame_geometry = Some(crate::telemetry::RecordingFrameGeometry {
+            x: bounds.x,
+            y: bounds.y,
+            width: bounds.width,
+            height: bounds.height,
+        });
         let effective_quality = plan.effective_quality.clone();
         let start = worker_start(&request, plan)?;
         self.active = Some(spawn_worker(request.recording_id, start)?);
-        Ok(StartedRecordingRuntime { effective_quality })
+        Ok(StartedRecordingRuntime {
+            effective_quality,
+            frame_geometry,
+        })
     }
 
     fn stop_recording(

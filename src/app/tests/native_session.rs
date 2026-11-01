@@ -26,14 +26,14 @@ fn native_host_clean_eof_keeps_stdout_reserved_for_native_messages() {
 fn native_host_replies_to_extension_hello_with_framed_app_hello() -> Result<(), Box<dyn Error>> {
     let input = framed(
         br#"{
-            "type": "extension.hello",
-            "protocolVersion": 1,
+            "type": "extension.hello", "connectionIntent": "automatic",
+            "protocolVersion": 2,
             "settingsSchemaVersion": 1,
             "extensionVersion": "0.1.0",
             "extensionId": "abcdefghijklmnopqrstuvwxzyabcdef",
             "minAppVersion": "0.1.0",
-            "supportedProtocolVersions": [1],
-            "supportedSettingsSchemaVersions": [1]
+            "supportedProtocolVersions": [2],
+            "supportedSettingsSchemaVersions": [1], "capabilities": ["desktop-settings-v1", "durable-media-ack-v1"]
         }"#,
     )?;
     let mut stdin = Cursor::new(input);
@@ -57,7 +57,7 @@ fn native_host_replies_to_extension_hello_with_framed_app_hello() -> Result<(), 
     assert_eq!(stderr.len(), 0);
     let value = read_framed_json(&stdout)?;
     assert_eq!(value["type"], "app.hello");
-    assert_eq!(value["protocolVersion"], 1);
+    assert_eq!(value["protocolVersion"], 2);
     assert_eq!(value["install"]["installerVersion"], "0.1.0");
     assert_eq!(value["install"]["nativeHostManifestVersion"], "0.1.0");
     assert_eq!(value["install"]["rollbackProtected"], true);
@@ -78,14 +78,14 @@ fn native_host_replies_to_extension_hello_with_framed_app_hello() -> Result<(), 
 fn native_host_rejects_incompatible_hello_with_typed_failure() -> Result<(), Box<dyn Error>> {
     let input = framed(
         br#"{
-            "type": "extension.hello",
-            "protocolVersion": 1,
+            "type": "extension.hello", "connectionIntent": "automatic",
+            "protocolVersion": 2,
             "settingsSchemaVersion": 1,
             "extensionVersion": "0.1.0",
             "extensionId": "abcdefghijklmnopqrstuvwxzyabcdef",
             "minAppVersion": "0.1.0",
-            "supportedProtocolVersions": [2],
-            "supportedSettingsSchemaVersions": [1]
+            "supportedProtocolVersions": [3],
+            "supportedSettingsSchemaVersions": [1], "capabilities": ["desktop-settings-v1", "durable-media-ack-v1"]
         }"#,
     )?;
     let mut stdin = Cursor::new(input);
@@ -121,7 +121,7 @@ fn native_host_requires_accepted_hello_before_controller_acquire() -> Result<(),
     let input = framed(
         br#"{
             "type": "extension.controller.acquire",
-            "protocolVersion": 1,
+            "protocolVersion": 2,
             "connectionId": "connection-1",
             "browserFamily": "chrome",
             "profileKey": "profile-1",
@@ -276,7 +276,7 @@ fn rejected_tray_action_result_shows_tray_notice() -> Result<(), Box<dyn Error>>
     let value: Value = serde_json::from_slice(
         br#"{
             "type": "extension.tray.actionResult",
-            "protocolVersion": 1,
+            "protocolVersion": 2,
             "controllerLeaseId": "lease:connection-1",
             "invocationId": "tray-invocation-1",
             "accepted": false,
@@ -300,7 +300,7 @@ fn accepted_tray_action_result_does_not_show_tray_notice() -> Result<(), Box<dyn
     let value: Value = serde_json::from_slice(
         br#"{
             "type": "extension.tray.actionResult",
-            "protocolVersion": 1,
+            "protocolVersion": 2,
             "controllerLeaseId": "lease:connection-1",
             "invocationId": "tray-invocation-1",
             "accepted": true
@@ -324,7 +324,7 @@ fn native_host_grants_controller_and_accepts_settings_sync() -> Result<(), Box<d
         extension_hello(),
         br#"{
             "type": "extension.controller.acquire",
-            "protocolVersion": 1,
+            "protocolVersion": 2,
             "connectionId": "connection-1",
             "browserFamily": "chrome",
             "profileKey": "profile-1",
@@ -336,7 +336,7 @@ fn native_host_grants_controller_and_accepts_settings_sync() -> Result<(), Box<d
         extension_settings_sync(),
         br#"{
             "type": "extension.ping",
-            "protocolVersion": 1,
+            "protocolVersion": 2,
             "nonce": "ping-1",
             "sentAtEpochMs": 3000
         }"#
@@ -399,7 +399,7 @@ fn native_host_controller_identity_comes_from_acquire_message() -> Result<(), Bo
         extension_hello(),
         br#"{
             "type": "extension.controller.acquire",
-            "protocolVersion": 1,
+            "protocolVersion": 2,
             "connectionId": "edge-connection-1",
             "browserFamily": "edge",
             "profileKey": "edge-profile",
@@ -453,7 +453,7 @@ fn native_host_second_initial_controller_does_not_receive_active_lease()
         extension_hello(),
         br#"{
             "type": "extension.controller.acquire",
-            "protocolVersion": 1,
+            "protocolVersion": 2,
             "connectionId": "connection-1",
             "browserFamily": "chrome",
             "profileKey": "profile-1",
@@ -464,7 +464,7 @@ fn native_host_second_initial_controller_does_not_receive_active_lease()
         .as_slice(),
         br#"{
             "type": "extension.controller.acquire",
-            "protocolVersion": 1,
+            "protocolVersion": 2,
             "connectionId": "connection-2",
             "browserFamily": "chrome",
             "profileKey": "profile-2",
@@ -515,7 +515,7 @@ fn native_host_document_id_difference_does_not_bypass_profile_owner() -> Result<
         extension_hello(),
         br#"{
             "type": "extension.controller.acquire",
-            "protocolVersion": 1,
+            "protocolVersion": 2,
             "connectionId": "connection-1",
             "browserFamily": "chrome",
             "profileKey": "profile-1",
@@ -526,7 +526,7 @@ fn native_host_document_id_difference_does_not_bypass_profile_owner() -> Result<
         .as_slice(),
         br#"{
             "type": "extension.controller.acquire",
-            "protocolVersion": 1,
+            "protocolVersion": 2,
             "connectionId": "connection-2",
             "browserFamily": "chrome",
             "profileKey": "profile-1",
@@ -573,7 +573,7 @@ fn native_host_browser_family_difference_is_distinct_controller() -> Result<(), 
         extension_hello(),
         br#"{
             "type": "extension.controller.acquire",
-            "protocolVersion": 1,
+            "protocolVersion": 2,
             "connectionId": "chrome-connection",
             "browserFamily": "chrome",
             "profileKey": "profile-1",
@@ -584,7 +584,7 @@ fn native_host_browser_family_difference_is_distinct_controller() -> Result<(), 
         .as_slice(),
         br#"{
             "type": "extension.controller.acquire",
-            "protocolVersion": 1,
+            "protocolVersion": 2,
             "connectionId": "edge-connection",
             "browserFamily": "edge",
             "profileKey": "profile-1",
@@ -631,7 +631,7 @@ fn native_host_takeover_rotates_active_controller_lease() -> Result<(), Box<dyn 
         extension_hello(),
         br#"{
             "type": "extension.controller.acquire",
-            "protocolVersion": 1,
+            "protocolVersion": 2,
             "connectionId": "connection-1",
             "browserFamily": "chrome",
             "profileKey": "profile-1",
@@ -642,7 +642,7 @@ fn native_host_takeover_rotates_active_controller_lease() -> Result<(), Box<dyn 
         .as_slice(),
         br#"{
             "type": "extension.controller.acquire",
-            "protocolVersion": 1,
+            "protocolVersion": 2,
             "connectionId": "connection-2",
             "browserFamily": "chrome",
             "profileKey": "profile-2",
@@ -653,7 +653,7 @@ fn native_host_takeover_rotates_active_controller_lease() -> Result<(), Box<dyn 
         .as_slice(),
         br#"{
             "type": "extension.screenshot.capture",
-            "protocolVersion": 1,
+            "protocolVersion": 2,
             "controllerLeaseId": "lease:connection-1",
             "commandId": "command-1",
             "mode": "screen",
@@ -737,7 +737,7 @@ fn native_host_rejects_expired_settings_sync_with_typed_failure() -> Result<(), 
         extension_hello(),
         br#"{
             "type": "extension.controller.acquire",
-            "protocolVersion": 1,
+            "protocolVersion": 2,
             "connectionId": "connection-1",
             "browserFamily": "chrome",
             "profileKey": "profile-1",
@@ -748,7 +748,7 @@ fn native_host_rejects_expired_settings_sync_with_typed_failure() -> Result<(), 
         .as_slice(),
         br#"{
             "type": "extension.settings.sync",
-            "protocolVersion": 1,
+            "protocolVersion": 2,
             "controllerLeaseId": "lease:connection-1",
             "revision": "settings-revision-expired",
             "schemaVersion": 1,
@@ -827,7 +827,7 @@ fn native_host_rejects_settings_sync_schema_mismatch() -> Result<(), Box<dyn Err
         extension_hello(),
         br#"{
             "type": "extension.controller.acquire",
-            "protocolVersion": 1,
+            "protocolVersion": 2,
             "connectionId": "connection-1",
             "browserFamily": "chrome",
             "profileKey": "profile-1",
@@ -838,7 +838,7 @@ fn native_host_rejects_settings_sync_schema_mismatch() -> Result<(), Box<dyn Err
         .as_slice(),
         br#"{
             "type": "extension.settings.sync",
-            "protocolVersion": 1,
+            "protocolVersion": 2,
             "controllerLeaseId": "lease:connection-1",
             "revision": "settings-revision-bad-schema",
             "schemaVersion": 2,
@@ -918,7 +918,7 @@ fn native_host_rejects_settings_sync_with_invalid_hotkey_label() -> Result<(), B
         extension_controller_acquire(),
         br#"{
             "type": "extension.settings.sync",
-            "protocolVersion": 1,
+            "protocolVersion": 2,
             "controllerLeaseId": "lease:connection-1",
             "revision": "settings-revision-bad-hotkey",
             "schemaVersion": 1,

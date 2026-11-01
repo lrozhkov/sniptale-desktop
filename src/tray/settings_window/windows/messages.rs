@@ -1,7 +1,7 @@
 //! Win32 settings message handlers kept behind typed window-state methods.
 #![allow(unsafe_code)]
 
-use super::*;
+use super::{HOTKEY_FIRST_ID, SettingsNativeWindow, event_map, push_event, with_state};
 use windows::Win32::{
     Foundation::{HWND, LPARAM, LRESULT, WPARAM},
     Graphics::Gdi::{BeginPaint, EndPaint, HDC, PAINTSTRUCT},
@@ -18,10 +18,11 @@ use windows::Win32::{
 
 pub(super) fn command(window: HWND, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     let id = wparam.0 & 0xffff;
-    let notification = (wparam.0 >> 16) as u32;
+    let bytes = wparam.0.to_le_bytes();
+    let notification = u32::from(u16::from_le_bytes([bytes[2], bytes[3]]));
     if notification == BN_CLICKED && (HOTKEY_FIRST_ID..=HOTKEY_FIRST_ID + 7).contains(&id) {
         let _ = with_state(window, |state| {
-            state.begin_hotkey_capture(id - HOTKEY_FIRST_ID)
+            state.begin_hotkey_capture(id - HOTKEY_FIRST_ID);
         });
         return LRESULT(0);
     }
@@ -44,7 +45,10 @@ pub(super) fn key(window: HWND, message: u32, wparam: WPARAM, lparam: LPARAM) ->
         // SAFETY: recorder did not consume the original message or its parameters.
         return unsafe { DefWindowProcW(window, message, wparam, lparam) };
     }
-    let key = event_map::capture_key(VIRTUAL_KEY(wparam.0 as u16));
+    let key = event_map::capture_key(VIRTUAL_KEY(u16::from_le_bytes([
+        wparam.0.to_le_bytes()[0],
+        wparam.0.to_le_bytes()[1],
+    ])));
     let key_up = matches!(message, WM_KEYUP | WM_SYSKEYUP);
     if let Some(event) = with_state(window, |state| state.capture_key(key, key_up)).flatten() {
         push_event(event);
@@ -55,30 +59,33 @@ pub(super) fn key(window: HWND, message: u32, wparam: WPARAM, lparam: LPARAM) ->
 pub(super) fn paint(window: HWND) -> LRESULT {
     let mut paint = PAINTSTRUCT::default();
     // SAFETY: BeginPaint/EndPaint are paired for this WM_PAINT dispatch.
-    let _ = unsafe { BeginPaint(window, &mut paint) };
-    let _ = with_state(window, |state| state.paint());
-    let _ = unsafe { EndPaint(window, &paint) };
+    let _ = unsafe { BeginPaint(window, &raw mut paint) };
+    let _ = with_state(window, super::controls::SettingsNativeWindow::paint);
+    let _ = unsafe { EndPaint(window, &raw const paint) };
     LRESULT(0)
 }
 
 pub(super) fn resize(window: HWND, lparam: LPARAM) -> LRESULT {
-    let width = (lparam.0 as u32) & 0xffff;
-    let height = ((lparam.0 as u32) >> 16) & 0xffff;
+    let bytes = lparam.0.to_le_bytes();
+    let width = u32::from(u16::from_le_bytes([bytes[0], bytes[1]]));
+    let height = u32::from(u16::from_le_bytes([bytes[2], bytes[3]]));
     let _ = with_state(window, |state| state.resize(width, height));
     LRESULT(0)
 }
 
 pub(super) fn mouse_wheel(window: HWND, wparam: WPARAM) -> LRESULT {
-    let delta = ((wparam.0 >> 16) as u16) as i16;
+    let bytes = wparam.0.to_le_bytes();
+    let delta = i16::from_le_bytes([bytes[2], bytes[3]]);
     let _ = with_state(window, |state| {
-        state.scroll_by(-i32::from(delta.signum()) * 48)
+        state.scroll_by(-i32::from(delta.signum()) * 48);
     });
     LRESULT(0)
 }
 
 pub(super) fn scroll(window: HWND, wparam: WPARAM) -> LRESULT {
-    let command = (wparam.0 & 0xffff) as i32;
-    let position = ((wparam.0 >> 16) & 0xffff) as i32;
+    let bytes = wparam.0.to_le_bytes();
+    let command = i32::from(u16::from_le_bytes([bytes[0], bytes[1]]));
+    let position = i32::from(u16::from_le_bytes([bytes[2], bytes[3]]));
     let _ = with_state(window, |state| match command {
         value if value == SB_LINEUP.0 => state.scroll_by(-40),
         value if value == SB_LINEDOWN.0 => state.scroll_by(40),
@@ -122,5 +129,6 @@ fn combo_index(control: HWND) -> usize {
     // SAFETY: CB_GETCURSEL synchronously reads selection state from this child control.
     unsafe { SendMessageW(control, CB_GETCURSEL, None, None) }
         .0
-        .max(0) as usize
+        .max(0)
+        .cast_unsigned()
 }

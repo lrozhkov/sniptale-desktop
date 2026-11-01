@@ -88,20 +88,30 @@ def sanitize_real_extension(value):
     require(isinstance(value, list) and len(value) == 2)
     seen = set()
     for item in value:
-        fields(item, "browser profile_reused capture_trigger connection media reconnect resident_restart")
+        fields(
+            item,
+            "browser profile_reused capture_trigger connection selected media recovery recording reconnect resident_restart",
+        )
         require(
             isinstance(item["browser"], str) and item["browser"] in {"chrome", "edge"} and item["browser"] not in seen
         )
         seen.add(item["browser"])
         require(type(item["profile_reused"]) is bool and item["capture_trigger"] == "native-tray-current-screen")
-        for name in ("connection", "reconnect", "resident_restart"):
+        for name in ("connection", "selected", "reconnect", "resident_restart"):
             connection = item[name]
-            fields(connection, "passed connectionState settingsApplied browserVersion automation")
-            require(
-                connection["passed"] is True
-                and connection["connectionState"] == "connected"
-                and connection["settingsApplied"] is True
-            )
+            require(isinstance(connection, dict) and type(connection.get("selected")) is bool)
+            selected = connection["selected"]
+            names = "passed selected connectionState settingsApplied selectionStatus automation"
+            fields(connection, names + (" browserVersion" if selected else ""))
+            require(connection["passed"] is True)
+            if not selected:
+                require(name == "connection" and connection["settingsApplied"] is False)
+                require(connection["connectionState"] in {"controlled-by-other-profile", "selection-required"})
+                require(connection["selectionStatus"] in {"available", "selection-required"})
+                automation(connection["automation"])
+                continue
+            require(connection["connectionState"] == "connected" and connection["settingsApplied"] is True)
+            require(connection["selectionStatus"] == "selected")
             versions = connection["browserVersion"]
             require(isinstance(versions, list) and 1 <= len(versions) <= 2)
             require(
@@ -112,11 +122,42 @@ def sanitize_real_extension(value):
             )
             require(any(version.startswith("Edg/" if item["browser"] == "edge" else "Chrome/") for version in versions))
             automation(connection["automation"])
-        media = item["media"]
-        fields(media, "passed sha256 bytes width height mimeType automation")
-        require(media["passed"] is True and media["mimeType"] == "image/png")
-        require(isinstance(media["sha256"], str) and re.fullmatch(r"[0-9a-f]{64}", media["sha256"]) is not None)
-        require(type(media["bytes"]) is int and 0 < media["bytes"] <= 128 * 1024 * 1024)
-        require(all(type(media[key]) is int and 0 < media[key] <= 16384 for key in ("width", "height")))
-        automation(media["automation"])
+        recovery = item["recovery"]
+        fields(recovery, "cancelledRetained localPreserved explicitRecovery sourceReleased media")
+        require(
+            all(
+                recovery[key] is True
+                for key in ("cancelledRetained", "localPreserved", "explicitRecovery", "sourceReleased")
+            )
+        )
+        for media in (item["media"], recovery["media"]):
+            fields(media, "passed sha256 bytes width height mimeType storageKind automation")
+            require(media["passed"] is True and media["mimeType"] == "image/png")
+            require(isinstance(media["storageKind"], str) and media["storageKind"] in {"opfs", "indexeddb-blob"})
+            require(isinstance(media["sha256"], str) and re.fullmatch(r"[0-9a-f]{64}", media["sha256"]) is not None)
+            require(type(media["bytes"]) is int and 0 < media["bytes"] <= 128 * 1024 * 1024)
+            require(all(type(media[key]) is int and 0 < media[key] <= 16384 for key in ("width", "height")))
+            automation(media["automation"])
+        recording = item["recording"]
+        fields(recording, "media editor")
+        video = recording["media"]
+        fields(
+            video,
+            "passed sha256 bytes width height durationMs mimeType storageKind cursorSamples clickEvents normalization sourceCursorEmbedded automation",
+        )
+        require(video["passed"] is True and video["mimeType"] == "video/mp4" and video["storageKind"] == "opfs")
+        require(isinstance(video["sha256"], str) and re.fullmatch(r"[0-9a-f]{64}", video["sha256"]) is not None)
+        require(type(video["bytes"]) is int and 0 < video["bytes"] <= 64 * 1024 * 1024)
+        require(all(type(video[key]) is int and 0 < video[key] <= 16384 for key in ("width", "height")))
+        require(type(video["durationMs"]) is int and 0 < video["durationMs"] <= 60000)
+        require(type(video["cursorSamples"]) is int and 3 <= video["cursorSamples"] <= 4096)
+        require(type(video["clickEvents"]) is int and 3 <= video["clickEvents"] <= 2048)
+        require(video["normalization"] == "milliseconds-to-seconds-once" and video["sourceCursorEmbedded"] is False)
+        automation(video["automation"])
+        editor = recording["editor"]
+        fields(editor, "passed historySegments canvasWidth canvasHeight playbackAdvanced automation")
+        require(editor["passed"] is True and editor["playbackAdvanced"] is True)
+        require(type(editor["historySegments"]) is int and 1 <= editor["historySegments"] <= 4096)
+        require(all(type(editor[key]) is int and 0 < editor[key] <= 16384 for key in ("canvasWidth", "canvasHeight")))
+        automation(editor["automation"])
     return value

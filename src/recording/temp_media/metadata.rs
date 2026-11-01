@@ -8,6 +8,10 @@ use crate::transfer::identity::{
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub(crate) struct RecordingMediaMetadata {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) recording_events: Option<crate::protocol::recording_events::EventDescriptor>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) cursor_trajectory: Option<crate::protocol::trajectory::CursorTrajectoryDescriptor>,
     pub(crate) filename: String,
     pub(crate) duration_ms: u64,
     pub(crate) width: u32,
@@ -19,6 +23,15 @@ pub(crate) struct RecordingMediaMetadata {
 pub(crate) fn validate_recording_metadata(
     metadata: &RecordingMediaMetadata,
 ) -> Result<(), TempStoreError> {
+    if let Some(descriptor) = &metadata.recording_events {
+        descriptor
+            .validate()
+            .map_err(|_| TempStoreError::InvalidTransition)?;
+    }
+    if let Some(descriptor) = &metadata.cursor_trajectory {
+        crate::protocol::trajectory::validate_trajectory_descriptor(descriptor)
+            .map_err(|_| TempStoreError::InvalidTransition)?;
+    }
     validate_recording_filename(&metadata.filename)?;
     if metadata.duration_ms == 0 {
         return Err(TempStoreError::InvalidDuration);

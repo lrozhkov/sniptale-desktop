@@ -5,14 +5,14 @@ use crate::{
             capture_worker::CaptureWorkerCommandSink, hotkeys::HotkeyWorkerPlanSink,
             recording_worker::RecordingWorkerCommandSink, tray::TrayWorkerRegistrySink,
         },
-        responses::{NativeHostSideEffectError, NativeHostSideEffects},
+        responses::NativeHostSideEffects,
     },
     settings::{ActiveSettings, OperatingMode},
     tray::TrayNoticeKind,
 };
 
 #[test]
-fn stale_extension_session_cannot_apply_any_side_effect_after_manual_epoch_is_active() {
+fn manual_delivery_session_may_project_a_category_only_notice() {
     let mut effects = AgentSideEffects::new_with_active_settings(
         HotkeyWorkerPlanSink::new(None),
         TrayWorkerRegistrySink::new(None),
@@ -25,6 +25,6 @@ fn stale_extension_session_cannot_apply_any_side_effect_after_manual_epoch_is_ac
 
     assert_eq!(
         effects.show_tray_notice(TrayNoticeKind::ActionRejected),
-        Err(NativeHostSideEffectError::UnsupportedCapability)
+        Ok(())
     );
 }

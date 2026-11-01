@@ -10,8 +10,7 @@ impl RuntimeRecordingTelemetrySource {
         code: &'static str,
         monotonic_ns: u64,
     ) {
-        self.collector
-            .record_telemetry_warning(recording_id, source, code, monotonic_ns)
+        self.record_warning(recording_id, source, code, monotonic_ns)
             .unwrap_or(());
     }
 }

@@ -42,7 +42,7 @@ impl HotkeyEventSource for WindowsHotkeyRegistrar {
             // SAFETY: this drains only the current thread message queue; the MSG storage lives for
             // the call and no window handle is retained.
             let has_message =
-                unsafe { PeekMessageW(&mut message, None, WM_HOTKEY, WM_HOTKEY, PM_REMOVE) }
+                unsafe { PeekMessageW(&raw mut message, None, WM_HOTKEY, WM_HOTKEY, PM_REMOVE) }
                     .as_bool();
             if !has_message {
                 break;
@@ -70,7 +70,7 @@ impl WindowsHotkeyRegistration {
         // SAFETY: a NULL-window RegisterHotKey posts WM_HOTKEY to this worker thread. A
         // non-removing peek creates that queue before registration without dispatching messages.
         unsafe {
-            let _ = PeekMessageW(&mut message, None, WM_USER, WM_USER, PM_NOREMOVE);
+            let _ = PeekMessageW(&raw mut message, None, WM_USER, WM_USER, PM_NOREMOVE);
         }
         // SAFETY: hwnd=None registers the hotkey for the current thread message queue; id is a
         // bounded positive registry id; modifiers/key are derived from validated HotkeyChord data.

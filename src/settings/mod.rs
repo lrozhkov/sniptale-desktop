@@ -3,8 +3,18 @@
 mod actions;
 mod active;
 #[cfg(any(windows, test))]
+mod browser;
+#[cfg(all(windows, not(test)))]
+pub(crate) use browser::startup::{
+    browser_start_allowed, browser_startup_preference_path, persist_browser_start_allowed,
+};
+#[cfg(any(windows, test))]
+pub(crate) use browser::{BrowserTarget, BrowserTargetError, BrowserTargetRegistry};
+#[cfg(any(windows, test))]
 mod appearance;
 mod cache;
+#[cfg(any(windows, test))]
+pub(crate) use profile::desktop_snapshot::desktop_settings_snapshot;
 #[cfg(any(windows, test))]
 mod draft;
 pub(crate) mod effective;

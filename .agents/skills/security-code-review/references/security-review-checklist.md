@@ -9,7 +9,7 @@
 ## Data and privileged resources
 
 - Media, secrets, typed text, clipboard values, URLs, tokens, identifiers, payloads, and paths do not enter logs, diagnostics, telemetry, errors, evidence, or legal reports.
-- Temporary media and keys remain owner-local, protected, bounded, wiped where required, and deleted on acknowledgement, rejection, expiry, or failed operation.
+- Temporary media and keys follow `docs/security/data-handling.md`: owner-local protection, size and resource bounds, required wiping, and lifecycle-authorized cleanup. Rejection, timeout, or failed browser delivery must not silently discard finalized recovery sources.
 - Raw handles, allocations, hooks, callbacks, COM/MF/WASAPI objects, and DPAPI blobs have reviewed owner-local RAII and shutdown proof.
 
 ## Transfer, install, and release

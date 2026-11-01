@@ -16,8 +16,26 @@ use crate::tray::{ShellActionId, TrayActionError, TrayActionRegistry};
 const AGENT_EVENT_QUEUE_CAPACITY: usize = 16;
 const AGENT_EVENT_MAX_SUBSCRIBERS: usize = 4;
 
+#[derive(Clone, Debug)]
+pub(crate) struct ConnectionCloseReceipt(Arc<std::sync::atomic::AtomicUsize>);
+impl PartialEq for ConnectionCloseReceipt {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+}
+impl Eq for ConnectionCloseReceipt {}
+impl ConnectionCloseReceipt {
+    pub(crate) fn acknowledge(&self) {
+        self.0.fetch_add(1, Ordering::Release);
+    }
+    pub(crate) fn completed(&self, expected: usize) -> bool {
+        self.0.load(Ordering::Acquire) >= expected
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum AgentOutboundEvent {
+    ConnectionClosed(ConnectionCloseReceipt),
     CommandEvent(Box<NativeHostCommandEvent>),
     CommandFailure(Box<NativeHostCommandFailureEvent>),
     TrayActionRequested {
@@ -45,6 +63,23 @@ pub(crate) struct AgentEventHub {
 }
 
 impl AgentEventHub {
+    pub(crate) fn publish_connection_closed(&self) -> (ConnectionCloseReceipt, usize) {
+        let receipt = ConnectionCloseReceipt(Arc::new(std::sync::atomic::AtomicUsize::new(0)));
+        let mut expected = 0;
+        if let Ok(mut subscribers) = self.subscribers.lock() {
+            subscribers.retain(|sender| {
+                match sender.try_send(AgentOutboundEvent::ConnectionClosed(receipt.clone())) {
+                    Ok(()) => {
+                        expected += 1;
+                        true
+                    }
+                    Err(TrySendError::Full(_)) => true,
+                    Err(TrySendError::Disconnected(_)) => false,
+                }
+            });
+        }
+        (receipt, expected)
+    }
     pub(crate) fn subscribe(&self) -> Receiver<AgentOutboundEvent> {
         let (sender, receiver) = mpsc::sync_channel(AGENT_EVENT_QUEUE_CAPACITY);
         if let Ok(mut subscribers) = self.subscribers.lock() {
@@ -190,6 +225,7 @@ mod tests {
         );
 
         let first_action_id = first.try_recv().map(|event| match event {
+            AgentOutboundEvent::ConnectionClosed(_) => "connection-closed".to_owned(),
             AgentOutboundEvent::TrayActionRequested { action_id, .. } => action_id,
             AgentOutboundEvent::OpenSettingsRequested { .. } => "open-settings".to_owned(),
             AgentOutboundEvent::CommandEvent(_) | AgentOutboundEvent::CommandFailure(_) => {
@@ -197,6 +233,7 @@ mod tests {
             }
         });
         let second_action_id = second.try_recv().map(|event| match event {
+            AgentOutboundEvent::ConnectionClosed(_) => "connection-closed".to_owned(),
             AgentOutboundEvent::TrayActionRequested { action_id, .. } => action_id,
             AgentOutboundEvent::OpenSettingsRequested { .. } => "open-settings".to_owned(),
             AgentOutboundEvent::CommandEvent(_) | AgentOutboundEvent::CommandFailure(_) => {

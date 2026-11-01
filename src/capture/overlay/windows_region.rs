@@ -43,6 +43,17 @@ const OVERLAY_CLASS_NAME: &str = "SniptaleRegionOverlay";
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct WindowsRegionSelector;
 
+pub(crate) fn choose_recording_region()
+-> Result<crate::protocol::recording::NativeRecordingRegion, ScreenshotCaptureError> {
+    let region = service::select_region()?;
+    Ok(crate::protocol::recording::NativeRecordingRegion {
+        x: region.x,
+        y: region.y,
+        width: region.width,
+        height: region.height,
+    })
+}
+
 impl ScreenshotRegionSelector for WindowsRegionSelector {
     fn select_region(
         &mut self,
@@ -69,7 +80,7 @@ impl WindowsRegionOverlay {
             let mut message = MSG::default();
             // SAFETY: this modal loop runs on the current thread and dispatches messages for the
             // overlay window owned by this adapter; MSG storage lives for each call.
-            let result = unsafe { GetMessageW(&mut message, Some(self.window), 0, 0) };
+            let result = unsafe { GetMessageW(&raw mut message, Some(self.window), 0, 0) };
             if result.0 == -1 {
                 return Err(ScreenshotCaptureError::CaptureUnavailable);
             }
@@ -79,8 +90,8 @@ impl WindowsRegionOverlay {
             // SAFETY: message was produced by GetMessageW for this thread and is dispatched
             // synchronously to the overlay window procedure.
             unsafe {
-                let _ = TranslateMessage(&message);
-                DispatchMessageW(&message);
+                let _ = TranslateMessage(&raw const message);
+                DispatchMessageW(&raw const message);
             }
         }
         Ok(())
@@ -194,13 +205,13 @@ fn confirm_selection(window: HWND, state: &mut OverlayWindowState, point: Physic
 fn paint_overlay(window: HWND, state: &OverlayWindowState) {
     let mut paint = PAINTSTRUCT::default();
     // SAFETY: BeginPaint/EndPaint are paired for WM_PAINT on this overlay HWND.
-    let hdc = unsafe { BeginPaint(window, &mut paint) };
+    let hdc = unsafe { BeginPaint(window, &raw mut paint) };
     if let Some(rect) = state.preview_client_rect() {
         // SAFETY: stock brush handle is process-global and valid for FrameRect during this call.
         let brush = HBRUSH(unsafe { GetStockObject(WHITE_BRUSH).0 });
         // SAFETY: hdc and rect are valid for the synchronous paint call.
-        let _ = unsafe { FrameRect(hdc, &rect, brush) };
+        let _ = unsafe { FrameRect(hdc, &raw const rect, brush) };
     }
     // SAFETY: completes the paint cycle started above.
-    let _ = unsafe { EndPaint(window, &paint) };
+    let _ = unsafe { EndPaint(window, &raw const paint) };
 }

@@ -1,9 +1,11 @@
 //! Persisted per-install pipe secret file parser.
 
 mod provision;
-#[cfg(windows)]
+#[cfg(all(windows, not(test)))]
 pub(crate) use provision::initialize_current_user_pipe_secret;
 
+#[cfg(windows)]
+use std::io::Read;
 use std::{
     error::Error,
     fmt,
@@ -184,7 +186,6 @@ pub(crate) fn load_current_user_pipe_secret(
     let local_app_data =
         std::env::var_os("LOCALAPPDATA").ok_or(PipeSecretLoadError::MissingLocalAppData)?;
     let path = pipe_secret_file_path(Path::new(&local_app_data));
-    use std::io::Read;
     let mut payload = Vec::new();
     std::fs::File::open(path)
         .map_err(PipeSecretLoadError::Io)?

@@ -129,8 +129,8 @@ impl SettingsLayout {
 
 const fn page_height(section: SettingsWindowSection) -> i32 {
     match section {
-        SettingsWindowSection::Capture => 380,
-        SettingsWindowSection::Video => 500,
+        SettingsWindowSection::Capture => 650,
+        SettingsWindowSection::Video => 540,
         SettingsWindowSection::Audio => 400,
         SettingsWindowSection::Shortcuts => 560,
     }
@@ -138,8 +138,8 @@ const fn page_height(section: SettingsWindowSection) -> i32 {
 
 pub(crate) const fn card_geometry(section: SettingsWindowSection) -> &'static [(i32, i32)] {
     match section {
-        SettingsWindowSection::Capture => &[(0, 150), (168, 112)],
-        SettingsWindowSection::Video => &[(0, 390)],
+        SettingsWindowSection::Capture => &[(0, 150), (168, 280), (466, 112)],
+        SettingsWindowSection::Video => &[(0, 430)],
         SettingsWindowSection::Audio => &[(0, 270)],
         SettingsWindowSection::Shortcuts => &[(0, 480)],
     }
@@ -239,7 +239,7 @@ mod tests {
     }
 
     #[test]
-    fn nominal_window_does_not_scroll_non_shortcut_pages() {
+    fn nominal_window_scrolls_expanded_capture_and_video_without_clipping() {
         for section in [
             SettingsWindowSection::Capture,
             SettingsWindowSection::Video,
@@ -247,7 +247,12 @@ mod tests {
         ] {
             let layout =
                 SettingsLayout::compute(960, 720, section, SettingsWindowView::ManualDraft);
-            assert_eq!(layout.max_scroll, 0, "{section:?}");
+            if section == SettingsWindowSection::Audio {
+                assert_eq!(layout.max_scroll, 0);
+            } else {
+                assert!(layout.max_scroll > 0, "{section:?}");
+                assert!(layout.content_height - layout.max_scroll <= layout.viewport.height);
+            }
         }
     }
 

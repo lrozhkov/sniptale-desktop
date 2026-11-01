@@ -10,7 +10,7 @@ use super::super::health::{
 fn healthy_snapshot() -> HealthSnapshot {
     HealthSnapshot {
         app_version: "0.1.0".to_owned(),
-        protocol_version: 1,
+        protocol_version: 2,
         settings_schema_version: 1,
         cache_schema_version: 1,
         process_mode: ProcessMode::Agent,

@@ -1,6 +1,13 @@
 //! Construction and semantic grouping of native child controls.
 
-use super::*;
+use super::{
+    APPLY_ID, ASK_DESTINATION_ID, AUDIO_BITRATE_ID, AUDIO_SOURCE_ID, BROWSE_DESTINATION_ID,
+    BROWSER_DESTINATION_ID, CANCEL_ID, CONFIRM_DISCARD_ID, EXTENSION_MODE_ID, HOTKEY_FIRST_ID,
+    HWND, KEEP_EDITING_ID, MICROPHONE_DEVICE_ID, NAV_FIRST_ID, POINTER_TELEMETRY_ID,
+    REFRESH_MICROPHONES_ID, REFRESH_TARGETS_ID, SAVE_DESTINATION_ID, SCREENSHOT_CURSOR_ID,
+    THEME_ID, VIDEO_BITRATE_ID, VIDEO_CURSOR_ID, VIDEO_DURATION_ID, VIDEO_FPS_ID,
+    VIDEO_HARDWARE_ID, VIDEO_QUALITY_ID, create_control, io,
+};
 use crate::tray::settings_window::model::SettingsWindowSection;
 use windows::Win32::UI::WindowsAndMessaging::{BS_OWNERDRAW, WS_TABSTOP};
 
@@ -85,11 +92,16 @@ impl ManualControls {
         let mut handles = vec![
             self.capture.browse,
             self.capture.screenshot_cursor,
+            self.capture.browser_destination,
+            self.capture.ask_destination,
+            self.capture.save_destination,
+            self.capture.refresh_targets,
             self.video.quality,
             self.video.fps,
             self.video.bitrate,
             self.video.hardware,
             self.video.cursor,
+            self.video.pointer_telemetry,
             self.video.duration,
             self.audio.source,
             self.audio.microphone,
@@ -112,6 +124,11 @@ impl ManualControls {
 
 #[derive(Debug)]
 pub(super) struct CaptureControls {
+    pub(super) destination_label: HWND,
+    pub(super) browser_destination: HWND,
+    pub(super) ask_destination: HWND,
+    pub(super) save_destination: HWND,
+    pub(super) refresh_targets: HWND,
     pub(super) handles: Vec<HWND>,
     pub(super) title: HWND,
     pub(super) subtitle: HWND,
@@ -124,6 +141,7 @@ pub(super) struct CaptureControls {
 
 #[derive(Debug)]
 pub(super) struct VideoControls {
+    pub(super) pointer_telemetry: HWND,
     pub(super) handles: Vec<HWND>,
     pub(super) title: HWND,
     pub(super) subtitle: HWND,

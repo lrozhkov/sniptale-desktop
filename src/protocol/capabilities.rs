@@ -107,6 +107,15 @@ pub(crate) struct NativeCapabilityLimits {
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub(crate) struct NativeAppCapabilities {
+    #[serde(
+        rename = "eventAttachments",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub(crate) event_attachments:
+        Option<super::recording_events::NativeEventAttachmentCapabilities>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) attachments: Option<super::trajectory::NativeTrajectoryAttachmentCapabilities>,
     pub(crate) capture: NativeCaptureCapabilities,
     pub(crate) codecs: NativeCodecCapabilities,
     pub(crate) audio: NativeAudioCapabilities,

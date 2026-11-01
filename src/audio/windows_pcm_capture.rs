@@ -115,7 +115,7 @@ impl WindowsWasapiPcmSource {
                 stream_flags,
                 CAPTURE_BUFFER_DURATION_100NS,
                 0,
-                &wave_format,
+                &raw const wave_format,
                 None,
             )
         }
@@ -174,10 +174,10 @@ impl WindowsWasapiPcmSource {
         // SAFETY: output pointers are valid for the call; buffer is released by CapturePacketGuard.
         unsafe {
             self.capture_client.GetBuffer(
-                &mut data,
-                &mut frames,
-                &mut flags,
-                Some(&mut device_frame),
+                &raw mut data,
+                &raw mut frames,
+                &raw mut flags,
+                Some(&raw mut device_frame),
                 None,
             )
         }
@@ -273,7 +273,9 @@ fn wide_string(value: &str) -> Vec<u16> {
 }
 
 fn hresult(error: windows::core::Error) -> i32 {
-    error.code().0
+    let code = error.code().0;
+    drop(error);
+    code
 }
 
 const fn com_error(error: WindowsAudioDeviceError) -> WindowsWasapiPcmError {

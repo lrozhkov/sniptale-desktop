@@ -1,5 +1,7 @@
 //! Resident adapter for durable Manual artifact publication.
 
+mod recovery;
+
 use std::sync::mpsc::{Receiver, SyncSender};
 
 use crate::assets::AssetPublishService;
@@ -16,6 +18,11 @@ pub(super) fn run_asset_publisher_worker(
     let _ = event_sender.send(WorkerEvent::Started(component));
     loop {
         match command_receiver.recv() {
+            Ok(WorkerCommand::RecoverPendingAssets) => {
+                if let Some(service) = service {
+                    recovery::recover(service, tray_sender);
+                }
+            }
             Ok(WorkerCommand::Stop) | Err(_) => break,
             Ok(WorkerCommand::PrepareManualAsset { job, result_sender }) => {
                 let result = service.map_or_else(
@@ -31,7 +38,11 @@ pub(super) fn run_asset_publisher_worker(
                 );
                 let _ = result_sender.send(result);
             }
-            Ok(WorkerCommand::PublishManualAsset { job_id, mut source }) => {
+            Ok(WorkerCommand::PublishManualAsset {
+                job_id,
+                mut source,
+                delivery,
+            }) => {
                 let result = service.map_or_else(
                     || {
                         Err(crate::assets::AssetPublishServiceError::Store(
@@ -40,6 +51,14 @@ pub(super) fn run_asset_publisher_worker(
                     },
                     |service| service.publish_finalized(&job_id, &mut *source),
                 );
+                if let Some(request) = delivery
+                    && let Some(sender) = tray_sender
+                {
+                    let _ = sender.try_send(WorkerCommand::ChooseMediaDestination {
+                        request,
+                        local_saved: result.is_ok(),
+                    });
+                }
                 if result.is_err()
                     && let Some(sender) = tray_sender
                 {
@@ -143,9 +162,9 @@ mod tests {
         prepared_rx
             .recv()?
             .map_err(|_| std::io::Error::other("prepare"))?;
-        let job_id =
-            AssetJobId::parse("asset-job-1".to_owned()).map_err(|_| std::io::Error::other("id"))?;
+        let job_id = job_id()?;
         commands_tx.send(WorkerCommand::PublishManualAsset {
+            delivery: None,
             job_id,
             source: Box::new(Source {
                 bytes,
@@ -183,6 +202,7 @@ mod tests {
             WorkerEvent::Started(AgentComponent::AssetPublisher)
         );
         commands_tx.send(WorkerCommand::PublishManualAsset {
+            delivery: None,
             job_id: AssetJobId::parse("asset-job-failed".to_owned())
                 .map_err(|_| std::io::Error::other("id"))?,
             source: Box::new(Source {
@@ -204,6 +224,10 @@ mod tests {
             Err(mpsc::TryRecvError::Empty | mpsc::TryRecvError::Disconnected)
         ));
         Ok(())
+    }
+
+    fn job_id() -> Result<AssetJobId, std::io::Error> {
+        AssetJobId::parse("asset-job-1".to_owned()).map_err(|_| std::io::Error::other("id"))
     }
 
     fn prepared_job(

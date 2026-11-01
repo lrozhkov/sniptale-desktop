@@ -5,12 +5,11 @@ use crate::audio::{
         AudioEndpoint, AudioEndpointState, AudioPlanError, AudioSourceMode, AudioSourceRequest,
         select_sources, summarize_capabilities,
     },
-    runtime_audio_capability_summary,
 };
 
 #[test]
-fn runtime_audio_capabilities_fail_closed_without_endpoint_probe() {
-    let summary = runtime_audio_capability_summary();
+fn audio_capabilities_fail_closed_without_available_endpoints() {
+    let summary = summarize_capabilities(&[]);
 
     assert!(!summary.supports_microphone);
     assert!(!summary.supports_system_audio);

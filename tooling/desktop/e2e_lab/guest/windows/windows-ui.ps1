@@ -8,27 +8,35 @@ function Provision-DevRuntimeTrust {
   Add-Type -AssemblyName System.Security
   $directory = [IO.Path]::GetDirectoryName($installed)
   $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
-  $secretBytes = [byte[]]::new(32)
-  $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
-  try { $rng.GetBytes($secretBytes) } finally { $rng.Dispose() }
-  $plain = [Text.Encoding]::UTF8.GetBytes((ConvertTo-LowerHex $secretBytes))
-  $protected = [System.Security.Cryptography.ProtectedData]::Protect(
-    $plain,
-    $null,
-    [System.Security.Cryptography.DataProtectionScope]::CurrentUser
-  )
-  $secret = [ordered]@{
-    installId = "install-dev"
-    currentUserSid = $sid
-    authAlgorithm = "pipe-auth-v2-hmac-sha256"
-    protection = "current-user-dpapi"
-    protectedSecretHex = ConvertTo-LowerHex $protected
+  $secretPath = Join-Path $directory "pipe-secret.json"
+  if (Test-Path -LiteralPath $secretPath) {
+    $existing = Get-Content -Raw -LiteralPath $secretPath | ConvertFrom-Json
+    if ($existing.installId -ne "install-dev" -or $existing.currentUserSid -ne $sid -or $existing.authAlgorithm -ne "pipe-auth-v2-hmac-sha256" -or $existing.protection -ne "current-user-dpapi" -or $existing.protectedSecretHex -notmatch '^(?:[0-9a-fA-F]{2}){32,}$') {
+      throw "existing laboratory pipe credential must validate; it must never be silently replaced"
+    }
+  } else {
+    $secretBytes = [byte[]]::new(32)
+    $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+    try { $rng.GetBytes($secretBytes) } finally { $rng.Dispose() }
+    $plain = [Text.Encoding]::UTF8.GetBytes((ConvertTo-LowerHex $secretBytes))
+    $protected = [System.Security.Cryptography.ProtectedData]::Protect(
+      $plain,
+      $null,
+      [System.Security.Cryptography.DataProtectionScope]::CurrentUser
+    )
+    $secret = [ordered]@{
+      installId = "install-dev"
+      currentUserSid = $sid
+      authAlgorithm = "pipe-auth-v2-hmac-sha256"
+      protection = "current-user-dpapi"
+      protectedSecretHex = ConvertTo-LowerHex $protected
+    }
+    [IO.File]::WriteAllText(
+      (Join-Path $directory "pipe-secret.json"),
+      ($secret | ConvertTo-Json -Depth 5 -Compress),
+      [Text.UTF8Encoding]::new($false)
+    )
   }
-  [IO.File]::WriteAllText(
-    (Join-Path $directory "pipe-secret.json"),
-    ($secret | ConvertTo-Json -Depth 5 -Compress),
-    [Text.UTF8Encoding]::new($false)
-  )
   $marker = [ordered]@{
     kind = "sniptale-dev-local-browser-trust"
     enabled = $true
@@ -64,6 +72,23 @@ function Find-Ui([string] $Name, [int] $Seconds = 20) {
     Start-Sleep -Milliseconds 500
   }
   throw "UI element not found: $Name"
+}
+
+function Find-DesktopSettingsWindow([int] $Seconds = 20) {
+  Add-Type -AssemblyName UIAutomationClient
+  $settingsTitle = "Sniptale $([char]0x2014) Settings"
+  $condition = [System.Windows.Automation.PropertyCondition]::new(
+    [System.Windows.Automation.AutomationElement]::ClassNameProperty, "SniptaleSettingsWindowV2"
+  )
+  $deadline = [DateTime]::UtcNow.AddSeconds($Seconds)
+  while ([DateTime]::UtcNow -lt $deadline) {
+    $windows = [System.Windows.Automation.AutomationElement]::RootElement.FindAll([System.Windows.Automation.TreeScope]::Children, $condition)
+    foreach ($window in $windows) {
+      if ($window.Current.Name -eq $settingsTitle -and $window.Current.ProcessId -eq $script:agent.Id) { return $window }
+    }
+    Start-Sleep -Milliseconds 250
+  }
+  throw "native Desktop settings window not found for the installed resident process"
 }
 
 
@@ -267,7 +292,7 @@ function Open-EdgeExtensionsMenu([IntPtr] $Window) {
 
 function Click-UiElement([object] $Element, [int] $OffsetX = 0) {
   $bounds = $Element.Current.BoundingRectangle
-  if ($bounds.Width -lt 4 -or $bounds.Height -lt 4) { throw "browser UI element bounds are invalid" }
+  if ($bounds.Width -lt 4 -or $bounds.Height -lt 4) { throw "UI element bounds are invalid" }
   [SniptaleBrowserFocus]::SetCursorPos([int]($bounds.Left + ($bounds.Width / 2) + $OffsetX), [int]($bounds.Top + ($bounds.Height / 2))) | Out-Null
   [SniptaleBrowserFocus]::mouse_event(2, 0, 0, 0, [UIntPtr]::Zero)
   [SniptaleBrowserFocus]::mouse_event(4, 0, 0, 0, [UIntPtr]::Zero)
@@ -344,3 +369,171 @@ function Add-BrowserConnectionTrust([string] $ProcessName, [string] $Origin = "c
   [IO.File]::WriteAllText($storePath, ($payload | ConvertTo-Json -Depth 5), [Text.UTF8Encoding]::new($false))
 }
 
+
+function Initialize-SniptaleMenuProbe {
+  if (-not ('SniptaleRealExtensionMenu' -as [type])) { Add-Type @'
+using System;
+using System.Runtime.InteropServices;
+using System.Text;
+public static class SniptaleRealExtensionMenu {
+  [DllImport("user32.dll")] public static extern IntPtr GetDlgItem(IntPtr window,int id);
+  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window);
+  public static void WheelDown() { mouse_event(0x0800,0,0,unchecked((uint)-120),UIntPtr.Zero); }
+  [StructLayout(LayoutKind.Sequential)] struct Rect { public int Left,Top,Right,Bottom; }
+  [StructLayout(LayoutKind.Sequential)] struct Point { public int X,Y; }
+  delegate bool EnumProc(IntPtr window, IntPtr parameter);
+  [DllImport("user32.dll")] static extern bool EnumWindows(EnumProc callback, IntPtr parameter);
+  [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern int GetClassName(IntPtr window,StringBuilder name,int count);
+  [DllImport("user32.dll")] static extern IntPtr SendMessage(IntPtr window,uint message,IntPtr wparam,IntPtr lparam);
+  [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr window,out Rect rect);
+  [DllImport("user32.dll")] static extern IntPtr WindowFromPoint(Point point);
+  [DllImport("user32.dll")] static extern bool IsChild(IntPtr parent,IntPtr child);
+  [DllImport("user32.dll")] static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);
+  [DllImport("user32.dll")] static extern int GetMenuItemCount(IntPtr menu);
+  [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern int GetMenuString(IntPtr menu,uint item,StringBuilder text,int count,uint flags);
+  [DllImport("user32.dll")] static extern uint GetMenuState(IntPtr menu,uint item,uint flags);
+  [DllImport("user32.dll")] static extern bool GetMenuItemRect(IntPtr window,IntPtr menu,uint item,out Rect rect);
+  [DllImport("user32.dll")] static extern bool SetCursorPos(int x,int y);
+  [DllImport("user32.dll")] static extern void mouse_event(uint flags,uint x,uint y,uint data,UIntPtr extra);
+  public static int ComboIndex(IntPtr control) { return SendMessage(control,0x0147,IntPtr.Zero,IntPtr.Zero).ToInt32(); }
+  public static int ComboCount(IntPtr control) { return SendMessage(control,0x0146,IntPtr.Zero,IntPtr.Zero).ToInt32(); }
+  public static bool ComboDropped(IntPtr control) { return SendMessage(control,0x0157,IntPtr.Zero,IntPtr.Zero)!=IntPtr.Zero; }
+  public static bool CanClickControl(IntPtr control,bool combo) { return PointerControl(control,combo,false); }
+  public static bool ClickControl(IntPtr control,bool combo) { return PointerControl(control,combo,true); }
+  static bool PointerControl(IntPtr control,bool combo,bool click) {
+    // GetWindowRect is DPI-virtualized. Keep geometry, hit testing and pointer input in physical pixels.
+    var previous=SetThreadDpiAwarenessContext(new IntPtr(-4));
+    if(previous==IntPtr.Zero) return false;
+    try {
+      Rect bounds;
+      if(!GetWindowRect(control,out bounds) || bounds.Right-bounds.Left<4 || bounds.Bottom-bounds.Top<4) return false;
+      var point=new Point { X=bounds.Left+(bounds.Right-bounds.Left)/2,
+        Y=bounds.Top+(combo?Math.Min(16,(bounds.Bottom-bounds.Top)/2):(bounds.Bottom-bounds.Top)/2) };
+      var hit=WindowFromPoint(point);
+      if(hit!=control && !IsChild(control,hit)) return false;
+      if(!click) return true;
+      if(!SetCursorPos(point.X,point.Y)) return false;
+      mouse_event(2,0,0,0,UIntPtr.Zero);
+      mouse_event(4,0,0,0,UIntPtr.Zero);
+      return true;
+    } finally {
+      if(SetThreadDpiAwarenessContext(previous)==IntPtr.Zero) throw new InvalidOperationException("DPI context restoration failed");
+    }
+  }
+  public static bool Click(string label) {
+    bool clicked=false;
+    EnumWindows((window,parameter)=> {
+      var cls=new StringBuilder(64);
+      if(GetClassName(window,cls,cls.Capacity)==0 || cls.ToString()!="#32768") return true;
+      IntPtr menu=SendMessage(window,0x01E1,IntPtr.Zero,IntPtr.Zero);
+      int count=GetMenuItemCount(menu);
+      if(count<1 || count>64) return true;
+      for(uint i=0;i<count;i++) {
+        var text=new StringBuilder(256);
+        GetMenuString(menu,i,text,text.Capacity,0x400);
+        if(text.ToString().Split('\t')[0].Replace("&","")!=label) continue;
+        Rect rect;
+        if((GetMenuState(menu,i,0x400)&3)!=0 || !GetMenuItemRect(IntPtr.Zero,menu,i,out rect) || rect.Right<=rect.Left || rect.Bottom<=rect.Top) return true;
+        if(!SetCursorPos((rect.Left+rect.Right)/2,(rect.Top+rect.Bottom)/2)) return true;
+        mouse_event(2,0,0,0,UIntPtr.Zero); mouse_event(4,0,0,0,UIntPtr.Zero);
+        clicked=true; return false;
+      }
+      return true;
+    },IntPtr.Zero);
+    return clicked;
+  }
+}
+'@
+  }
+}
+
+function Invoke-SniptaleMenuItem([string] $Label) {
+  Initialize-SniptaleMenuProbe
+  foreach ($attempt in 1..30) {
+    if ([SniptaleRealExtensionMenu]::Click($Label)) { return }
+    Start-Sleep -Milliseconds 100
+  }
+  throw "native tray menu entry unavailable: $Label"
+}
+
+function Show-SniptaleTrayMenu {
+  Initialize-SniptaleTrayProbe
+  $trayWindow = [SniptaleTrayProbe]::FindWindow("SniptaleTrayCommandSource", $null)
+  if ($trayWindow -eq [IntPtr]::Zero) { throw "native tray window unavailable" }
+  [SniptaleTrayProbe]::SetCursorPos(480, 300) | Out-Null
+  $callback = [IntPtr]((1 -shl 16) -bor 0x007b)
+  if (-not [SniptaleTrayProbe]::PostMessage($trayWindow, 0x8001, [UIntPtr]::Zero, $callback)) { throw "native tray context callback failed" }
+}
+
+function Invoke-DesktopSettingsButton([IntPtr] $Window, [int] $Id) {
+  $handle = [SniptaleRealExtensionMenu]::GetDlgItem($Window, $Id)
+  if ($handle -eq [IntPtr]::Zero) { throw "Desktop button is missing" }
+  $control = [System.Windows.Automation.AutomationElement]::FromHandle($handle)
+  if (-not $control.Current.IsEnabled -or $control.Current.IsOffscreen) { throw "Desktop button is not reachable" }
+  if (-not [SniptaleRealExtensionMenu]::ClickControl($handle, $false)) { throw "Desktop button did not pass pointer hit testing (control $Id)" }
+  Start-Sleep -Milliseconds 300
+}
+
+function Select-DesktopBrowserDestination([string] $BrowserFamily, [bool] $AskAfterCapture = $false) {
+  Add-Type -AssemblyName UIAutomationClient
+  Add-Type -AssemblyName System.Windows.Forms
+  Initialize-SniptaleMenuProbe
+  Show-SniptaleTrayMenu
+  Invoke-SniptaleMenuItem "Settings$([char]0x2026)"
+  $window = Find-DesktopSettingsWindow 15
+  $handle = [IntPtr]$window.Current.NativeWindowHandle
+  if (-not [SniptaleRealExtensionMenu]::SetForegroundWindow($handle)) { throw "Desktop settings could not be focused" }
+  Invoke-DesktopSettingsButton $handle 30
+  $bounds = $window.Current.BoundingRectangle
+  [SniptaleTrayProbe]::SetCursorPos([int]($bounds.Right - 30), [int]($bounds.Top + $bounds.Height / 2)) | Out-Null
+  $deliveryVisible = $false
+  foreach ($step in 0..12) {
+    $deliveryVisible = $true
+    foreach ($id in @(19, 20, 21, 22)) {
+      $child = [SniptaleRealExtensionMenu]::GetDlgItem($handle, $id)
+      if ($child -eq [IntPtr]::Zero) { throw "Desktop delivery control is missing" }
+      $control = [System.Windows.Automation.AutomationElement]::FromHandle($child)
+      if ($control.Current.IsOffscreen -or -not [SniptaleRealExtensionMenu]::CanClickControl($child, $id -eq 19)) { $deliveryVisible = $false; break }
+    }
+    if ($deliveryVisible) { break }
+    if ($step -lt 12) { [SniptaleRealExtensionMenu]::WheelDown(); Start-Sleep -Milliseconds 100 }
+  }
+  if (-not $deliveryVisible) { throw "Desktop delivery controls could not be scrolled into view" }
+  Invoke-DesktopSettingsButton $handle 22
+  $registryPath = Join-Path $env:LOCALAPPDATA "Sniptale\NativeAgent\browser-targets.json"
+  $registry = Get-Content -Raw -LiteralPath $registryPath | ConvertFrom-Json
+  $destinationMatches = @()
+  for ($index = 0; $index -lt @($registry.targets).Count; $index++) {
+    $target = $registry.targets[$index]
+    if ($target.browserFamily -eq $BrowserFamily -and $target.extensionId -eq "elhndangpenapadjimfoodlaenpcndpo" -and $target.profileKey -notin @("e2e-profile", "smoke-profile")) { $destinationMatches += $index }
+  }
+  if ($destinationMatches.Count -ne 1) { throw "real browser destination is missing or ambiguous" }
+  $selectedIndex = $destinationMatches[0]
+  $combo = [System.Windows.Automation.AutomationElement]::FromHandle([SniptaleRealExtensionMenu]::GetDlgItem($handle, 19))
+  if (-not $combo.Current.IsEnabled -or $combo.Current.IsOffscreen) { throw "Desktop browser selector must be reachable" }
+  $comboHandle = [SniptaleRealExtensionMenu]::GetDlgItem($handle, 19)
+  if ([SniptaleRealExtensionMenu]::ComboCount($comboHandle) -ne @($registry.targets).Count + 1) { throw "Desktop browser choices do not match registered destinations" }
+  Save-UiWindow $window "desktop-destination-$BrowserFamily-before"
+  if (-not [SniptaleRealExtensionMenu]::ClickControl($comboHandle, $true)) { throw "Desktop browser selector did not pass pointer hit testing" }
+  Start-Sleep -Milliseconds 300
+  [System.Windows.Forms.SendKeys]::SendWait("{HOME}")
+  Start-Sleep -Milliseconds 300
+  if (-not [SniptaleRealExtensionMenu]::ComboDropped($comboHandle)) { throw "Desktop presentation refresh closed the active browser dropdown" }
+  foreach ($step in 0..$selectedIndex) {
+    [System.Windows.Forms.SendKeys]::SendWait("{DOWN}")
+    Start-Sleep -Milliseconds 300
+    if (-not [SniptaleRealExtensionMenu]::ComboDropped($comboHandle)) { throw "Desktop browser dropdown lost its keyboard interaction during refresh" }
+  }
+  [System.Windows.Forms.SendKeys]::SendWait("{TAB}")
+  Start-Sleep -Milliseconds 300
+  if ([SniptaleRealExtensionMenu]::GetDlgItem($handle, 19) -eq [IntPtr]::Zero) { throw "Desktop window closed during browser selection" }
+  if ([SniptaleRealExtensionMenu]::ComboIndex($comboHandle) -ne $selectedIndex + 1) { throw "Desktop browser selection did not reach the requested native list index" }
+  Save-UiWindow $window "desktop-destination-$BrowserFamily-selected"
+  if ([bool]$registry.askAfterCapture -ne $AskAfterCapture) { Invoke-DesktopSettingsButton $handle 20 }
+  Invoke-DesktopSettingsButton $handle 21
+  Start-Sleep -Milliseconds 500
+  $saved = Get-Content -Raw -LiteralPath $registryPath | ConvertFrom-Json
+  if ($saved.defaultTargetId -ne $registry.targets[$selectedIndex].id -or [bool]$saved.askAfterCapture -ne $AskAfterCapture) { throw "explicit Desktop destination selection was not persisted" }
+  Save-UiWindow $window "desktop-destination-$BrowserFamily"
+  $window.GetCurrentPattern([System.Windows.Automation.WindowPattern]::Pattern).Close()
+}

@@ -44,10 +44,33 @@ pub(super) fn controller_acquire_responses(
         document_id: acquire.document_id.clone(),
         connection_id: acquire.connection_id.clone(),
     };
-    let requested_lease_id = controller_lease_id(&acquire.connection_id);
+    session.registered_controller = Some(controller.clone());
+    #[cfg(any(windows, test))]
+    if let Some(response) = desktop_selection_response(session, &controller, now_epoch_ms) {
+        return vec![response];
+    }
+    let requested_lease_id = if session.desktop_owned() {
+        let mut nonce = [0_u8; 16];
+        if getrandom::fill(&mut nonce).is_err() {
+            return vec![handshake_failure(
+                HandshakeFailure {
+                    kind: OperationalErrorKind::StorageUnavailable,
+                    message: "controller lease entropy is unavailable",
+                },
+                None,
+            )];
+        }
+        format!("lease-{:032x}", u128::from_le_bytes(nonce))
+    } else {
+        controller_lease_id(&acquire.connection_id)
+    };
     let Ok(decision) = session.acquire_controller_lease(
         controller,
-        &acquire.reason,
+        if session.desktop_owned() {
+            &crate::protocol::ControllerAcquireReason::UserRequestedTakeover
+        } else {
+            &acquire.reason
+        },
         now_epoch_ms,
         requested_lease_id.clone(),
     ) else {
@@ -59,26 +82,127 @@ pub(super) fn controller_acquire_responses(
             Some(&acquire.connection_id),
         )];
     };
-    let mut responses = vec![controller_lease(&decision, &requested_lease_id)];
+    granted_controller_responses(
+        session,
+        effects,
+        &decision,
+        &requested_lease_id,
+        now_epoch_ms,
+    )
+}
+
+fn granted_controller_responses(
+    session: &mut NativeHostSession,
+    effects: &mut impl NativeHostSideEffects,
+    decision: &crate::ipc::ControllerLeaseDecision,
+    requested_lease_id: &str,
+    now_epoch_ms: u64,
+) -> Vec<Value> {
+    let mut responses = vec![controller_lease(decision, requested_lease_id)];
     if let Some(lease_id) = decision.granted_lease_id.clone() {
+        #[cfg(any(windows, test))]
+        if session.desktop_owned()
+            && let Ok(target) =
+                crate::settings::BrowserTarget::from_controller(&decision.controller)
+        {
+            effects.bind_browser_target(&target.id);
+        }
         session.controller_lease_id = Some(lease_id);
         session.active_controller = Some(decision.controller.clone());
+        #[cfg(any(windows, test))]
+        if let Some(snapshot) = super::desktop_settings::accepted_snapshot(session, now_epoch_ms) {
+            responses.push(snapshot);
+        }
         let generation = session.begin_tray_connection_projection();
         let _ = effects.mark_tray_connection_connected(generation);
+        #[cfg(any(windows, test))]
+        if session.desktop_owned() {
+            super::desktop_settings::append_pending(session, effects, &mut responses);
+            return responses;
+        }
         append_pending_screenshot_notifications(
             &mut responses,
-            &requested_lease_id,
+            requested_lease_id,
             now_epoch_ms,
             effects,
         );
         append_pending_recording_notifications(
             &mut responses,
-            &requested_lease_id,
+            requested_lease_id,
             now_epoch_ms,
+            session.recording_formats.cursor_trajectory,
+            session.recording_formats.recording_events,
             effects,
         );
     }
     responses
+}
+
+#[cfg(any(windows, test))]
+fn desktop_selection_response(
+    session: &mut NativeHostSession,
+    controller: &NativeControllerIdentity,
+    now_epoch_ms: u64,
+) -> Option<Value> {
+    if session.connection_was_replaced(now_epoch_ms) {
+        return Some(observer_response(
+            session,
+            controller,
+            now_epoch_ms,
+            crate::protocol::TargetSelectionStatus::Available,
+        ));
+    }
+    if let Some(settings) = session.desktop_settings() {
+        let registered = settings.register_browser_target(controller);
+        let registry = settings.browser_targets();
+        let (Ok(target), Ok(registry)) = (registered, registry) else {
+            return Some(handshake_failure(
+                HandshakeFailure {
+                    kind: OperationalErrorKind::StorageUnavailable,
+                    message: "browser target registry is unavailable",
+                },
+                None,
+            ));
+        };
+        if registry.selected_target_id() != Some(target.id.as_str()) {
+            let selection = if registry.selected_target_id().is_none() {
+                crate::protocol::TargetSelectionStatus::SelectionRequired
+            } else {
+                crate::protocol::TargetSelectionStatus::Available
+            };
+            return Some(observer_response(
+                session,
+                controller,
+                now_epoch_ms,
+                selection,
+            ));
+        }
+    }
+    None
+}
+
+#[cfg(any(windows, test))]
+pub(super) fn observer_response(
+    session: &NativeHostSession,
+    controller: &NativeControllerIdentity,
+    now_ms: u64,
+    selection: crate::protocol::TargetSelectionStatus,
+) -> Value {
+    let decision = session.observer_decision(controller, now_ms);
+    match decision {
+        Some(decision) => super::outbound::controller_lease_with_selection(
+            &decision,
+            &controller_lease_id(&controller.connection_id),
+            selection,
+        ),
+        None => handshake_failure(
+            HandshakeFailure {
+                kind: OperationalErrorKind::StorageUnavailable,
+                message: "controller observer projection is unavailable",
+            },
+            None,
+        ),
+    }
 }
 
 #[cfg(test)]
@@ -101,7 +225,7 @@ mod tests {
         let message = parse_wire_message(
             br#"{
                 "type": "extension.controller.acquire",
-                "protocolVersion": 1,
+                "protocolVersion": 2,
                 "connectionId": "connection-1",
                 "browserFamily": "chrome",
                 "profileKey": "profile-1",

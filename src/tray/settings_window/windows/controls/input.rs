@@ -1,6 +1,9 @@
 //! Typed combo selection and shortcut-recorder input lifecycle.
 
-use super::*;
+use super::{
+    AUDIO_SOURCE_ID, MICROPHONE_DEVICE_ID, SettingsNativeWindow, VIDEO_BITRATE_ID,
+    VIDEO_DURATION_ID, invalidate, native, presentation,
+};
 use crate::tray::settings_window::{
     hotkey_capture::{CaptureKey, CaptureOutcome},
     model::SettingsWindowEvent,

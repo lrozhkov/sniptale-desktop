@@ -80,9 +80,9 @@ fn query_directory_dacl(path: &Path) -> Result<DirectoryDacl, ()> {
             DACL_SECURITY_INFORMATION,
             None,
             None,
-            Some(&mut dacl),
+            Some(&raw mut dacl),
             None,
-            &mut security_descriptor,
+            &raw mut security_descriptor,
         )
     };
     if status != ERROR_SUCCESS || security_descriptor.is_invalid() {
@@ -97,11 +97,11 @@ fn query_directory_dacl(path: &Path) -> Result<DirectoryDacl, ()> {
 fn effective_rights_for_sid(dacl: *const ACL, sid: PSID) -> Result<u32, ()> {
     let mut trustee = TRUSTEE_W::default();
     // SAFETY: `sid` is a valid LocalAlloc SID owned by LocalSid and lives through the API call.
-    unsafe { BuildTrusteeWithSidW(&mut trustee, Some(sid)) };
+    unsafe { BuildTrusteeWithSidW(&raw mut trustee, Some(sid)) };
     let mut rights = 0_u32;
     // SAFETY: `dacl` is owned by the security descriptor returned by GetNamedSecurityInfoW; trustee
     // points to a valid SID-backed TRUSTEE_W for the duration of this call.
-    let status = unsafe { GetEffectiveRightsFromAclW(dacl, &trustee, &mut rights) };
+    let status = unsafe { GetEffectiveRightsFromAclW(dacl, &raw const trustee, &raw mut rights) };
     if status == ERROR_SUCCESS {
         Ok(rights)
     } else {
@@ -162,7 +162,7 @@ impl LocalSid {
         let mut sid = PSID::default();
         // SAFETY: `value` is a NUL-terminated SID string; the returned LocalAlloc SID is wrapped
         // immediately for LocalFree ownership.
-        unsafe { ConvertStringSidToSidW(PCWSTR(value.as_ptr()), &mut sid) }.map_err(|_| ())?;
+        unsafe { ConvertStringSidToSidW(PCWSTR(value.as_ptr()), &raw mut sid) }.map_err(|_| ())?;
         if sid.is_invalid() {
             Err(())
         } else {

@@ -58,23 +58,15 @@ use super::dialog_commands::{APPLY_ID, BROWSE_DESTINATION_ID, CANCEL_ID};
 
 // IsDialogMessageW synthesizes these commands for Enter and Escape respectively.
 const _: () = assert!(APPLY_ID == IDOK.0 as usize && CANCEL_ID == IDCANCEL.0 as usize);
-pub(super) const EXTENSION_MODE_ID: usize = 4;
-pub(super) const SCREENSHOT_CURSOR_ID: usize = 5;
-pub(super) const VIDEO_QUALITY_ID: usize = 6;
-pub(super) const VIDEO_FPS_ID: usize = 7;
-pub(super) const VIDEO_BITRATE_ID: usize = 8;
-pub(super) const VIDEO_HARDWARE_ID: usize = 9;
-pub(super) const VIDEO_CURSOR_ID: usize = 10;
-pub(super) const VIDEO_DURATION_ID: usize = 11;
-pub(super) const AUDIO_SOURCE_ID: usize = 12;
-pub(super) const AUDIO_BITRATE_ID: usize = 13;
-pub(super) const MICROPHONE_DEVICE_ID: usize = 14;
-pub(super) const REFRESH_MICROPHONES_ID: usize = 15;
-pub(super) const CONFIRM_DISCARD_ID: usize = 16;
-pub(super) const KEEP_EDITING_ID: usize = 17;
-pub(super) const THEME_ID: usize = 18;
-pub(super) const NAV_FIRST_ID: usize = 30;
-pub(super) const HOTKEY_FIRST_ID: usize = 100;
+#[path = "windows/control_ids.rs"]
+mod control_ids;
+use control_ids::{
+    ASK_DESTINATION_ID, AUDIO_BITRATE_ID, AUDIO_SOURCE_ID, BROWSER_DESTINATION_ID,
+    CONFIRM_DISCARD_ID, EXTENSION_MODE_ID, HOTKEY_FIRST_ID, KEEP_EDITING_ID, MICROPHONE_DEVICE_ID,
+    NAV_FIRST_ID, POINTER_TELEMETRY_ID, REFRESH_MICROPHONES_ID, REFRESH_TARGETS_ID,
+    SAVE_DESTINATION_ID, SCREENSHOT_CURSOR_ID, THEME_ID, VIDEO_BITRATE_ID, VIDEO_CURSOR_ID,
+    VIDEO_DURATION_ID, VIDEO_FPS_ID, VIDEO_HARDWARE_ID, VIDEO_QUALITY_ID,
+};
 
 thread_local! {
     static WINDOW_EVENTS: RefCell<Vec<SettingsWindowEvent>> = const { RefCell::new(Vec::new()) };
@@ -94,7 +86,7 @@ impl WindowsSettingsWindow {
                 .try_borrow()
                 .map_or(true, |window| window.handle.is_invalid())
         }) {
-            self.window = Some(self.create_window(&title, presentation.clone())?);
+            self.window = Some(Self::create_window(&title, presentation.clone())?);
         }
         let window = self
             .window
@@ -114,10 +106,11 @@ impl WindowsSettingsWindow {
 
     pub(crate) fn hide(&self) -> io::Result<()> {
         if let Some(handle) = self.handle() {
-            if let Some(window) = self.window.as_ref()
-                && let Ok(mut window) = window.try_borrow_mut()
-            {
-                window.cancel_hotkey_capture();
+            if let Some(window) = self.window.as_ref() {
+                window
+                    .try_borrow_mut()
+                    .map_err(|_| io::Error::other("settings window is busy"))?
+                    .cancel_hotkey_capture();
             }
             // SAFETY: hiding retains the modeless adapter-owned settings window.
             let _ = unsafe { ShowWindow(handle, SW_HIDE) };
@@ -126,6 +119,9 @@ impl WindowsSettingsWindow {
     }
 
     pub(crate) fn drain_events(&mut self) -> Vec<SettingsWindowEvent> {
+        if self.window.is_none() {
+            return Vec::new();
+        }
         WINDOW_EVENTS.with(|events| std::mem::take(&mut *events.borrow_mut()))
     }
 
@@ -144,7 +140,6 @@ impl WindowsSettingsWindow {
     }
 
     fn create_window(
-        &self,
         title: &[u16],
         presentation: SettingsWindowPresentation,
     ) -> io::Result<Rc<RefCell<SettingsNativeWindow>>> {
@@ -286,7 +281,7 @@ fn register_class(module: HINSTANCE, class_name: &[u16]) -> io::Result<()> {
         ..WNDCLASSW::default()
     };
     // SAFETY: RegisterClassW copies all class values synchronously.
-    let atom = unsafe { RegisterClassW(&class) };
+    let atom = unsafe { RegisterClassW(&raw const class) };
     if atom != 0 || unsafe { GetLastError() } == ERROR_CLASS_ALREADY_EXISTS {
         Ok(())
     } else {

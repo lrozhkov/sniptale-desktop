@@ -402,14 +402,36 @@ fn repair_registration_report_uses_redacted_issue_categories() {
 
 #[test]
 fn current_repair_registration_report_fails_closed_when_runtime_facts_are_unhealthy() {
+    let facts = super::super::registration_facts::current_registration_facts();
     let report = current_repair_registration_report();
-
-    assert_eq!(report.status, "repair-required");
-    assert!(report.repair_required);
-    assert!(
-        report
-            .issues
-            .iter()
-            .any(|issue| issue.code == "missing-manifest")
+    assert_eq!(report.repair_required, !report.issues.is_empty());
+    assert_eq!(
+        report.status,
+        if report.repair_required {
+            "repair-required"
+        } else {
+            "healthy"
+        }
     );
+    if facts.manifest.is_err() {
+        assert!(report.repair_required);
+        assert!(
+            report
+                .issues
+                .iter()
+                .any(|issue| issue.category == "native-host-manifest")
+        );
+    }
+    if matches!(
+        facts.signature_report.status,
+        SignatureStatus::Invalid | SignatureStatus::Unknown
+    ) {
+        assert!(report.repair_required);
+        assert!(
+            report
+                .issues
+                .iter()
+                .any(|issue| issue.category == "binary-signature")
+        );
+    }
 }

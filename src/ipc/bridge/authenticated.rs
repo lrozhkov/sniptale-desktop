@@ -9,12 +9,10 @@ use std::{error::Error, fmt};
 #[cfg(any(windows, test))]
 use super::AgentPipeReadShutdown;
 use super::BridgeForwardError;
-#[cfg(any(windows, test))]
+#[cfg(test)]
 use super::BridgeForwardLogSink;
 #[cfg(test)]
 use super::forward_native_host_stream;
-#[cfg(any(windows, test))]
-use super::forward_native_host_stream_duplex_with_shutdown;
 #[cfg(test)]
 use super::forward_native_host_stream_with_log;
 use crate::ipc::PipeHandshakeError;
@@ -129,14 +127,37 @@ pub(crate) fn forward_authenticated_native_host_stream_with_log_and_authenticate
         .map_err(AuthenticatedBridgeForwardError::Forward)
 }
 
-#[cfg(any(windows, test))]
+#[cfg(test)]
 pub(crate) fn forward_authenticated_native_host_stream_duplex_with_authenticated_hook<P>(
+    browser_reader: &mut (impl Read + Send),
+    browser_writer: &mut (impl Write + Send),
+    agent_pipe: P,
+    hello: &BridgeHello,
+    secret: &PipeSecret,
+    bridge_log: Option<BridgeForwardLogSink>,
+    on_authenticated: impl FnMut(),
+) -> Result<(), AuthenticatedBridgeForwardError>
+where
+    P: AuthenticatedDuplexAgentPipe,
+{
+    forward_authenticated_native_host_stream_duplex_with_runtime(
+        browser_reader,
+        browser_writer,
+        agent_pipe,
+        hello,
+        secret,
+        super::BridgeForwardRuntime::without_attachments(bridge_log),
+        on_authenticated,
+    )
+}
+
+pub(crate) fn forward_authenticated_native_host_stream_duplex_with_runtime<P>(
     browser_reader: &mut (impl Read + Send),
     browser_writer: &mut (impl Write + Send),
     mut agent_pipe: P,
     hello: &BridgeHello,
     secret: &PipeSecret,
-    bridge_log: Option<BridgeForwardLogSink>,
+    runtime: super::BridgeForwardRuntime,
     mut on_authenticated: impl FnMut(),
 ) -> Result<(), AuthenticatedBridgeForwardError>
 where
@@ -148,14 +169,13 @@ where
     let (agent_reader, agent_writer, shutdown) = agent_pipe
         .split_for_duplex()
         .map_err(AuthenticatedBridgeForwardError::Split)?;
-    let bridge_log = bridge_log;
-    forward_native_host_stream_duplex_with_shutdown(
+    super::duplex::forward_native_host_stream_duplex_with_runtime(
         browser_reader,
         browser_writer,
         agent_reader,
         agent_writer,
         shutdown,
-        bridge_log.as_ref(),
+        runtime,
     )
     .map_err(AuthenticatedBridgeForwardError::Forward)
 }

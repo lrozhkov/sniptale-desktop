@@ -24,6 +24,9 @@ qa_step "check windows-msvc release executable" \
 qa_step "check windows-msvc test compilation" \
   env SNIPTALE_WINDOWS_RESOURCES=check-skip \
   cargo check --target x86_64-pc-windows-msvc --tests --all-features
+qa_step "clippy windows-msvc" \
+  env SNIPTALE_WINDOWS_RESOURCES=check-skip \
+  cargo clippy --target x86_64-pc-windows-msvc --all-targets --all-features -- -D warnings
 qa_step "clippy" cargo clippy --all-targets --all-features -- -D warnings
 if command -v cargo-nextest >/dev/null 2>&1; then
   qa_step "tests nextest" \

@@ -116,7 +116,10 @@ def run(
     stream: bool = False,
     max_output_bytes: int = 64 * 1024 * 1024,
     health_check: Callable[[], None] | None = None,
+    line_callback: Callable[[str], None] | None = None,
 ) -> subprocess.CompletedProcess[str]:
+    if line_callback is not None and not stream:
+        raise ValueError("stream callback requires streamed output")
     merged = os.environ.copy()
     if env:
         merged.update(env)
@@ -166,8 +169,11 @@ def run(
                                     )
                                 discarding_overlong = False
                                 continue
+                            decoded = line.decode("utf-8", "replace")
+                            if line_callback is not None:
+                                line_callback(decoded)
                             print(
-                                redact_text(line.decode("utf-8", "replace")),
+                                redact_text(decoded),
                                 file=sys.stderr,
                                 flush=True,
                             )
@@ -198,6 +204,8 @@ def run(
                 log.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
                 log.write_text(redact_text(output.read(max_output_bytes).decode("utf-8", "replace")), encoding="utf-8")
         if stream and pending and not discarding_overlong:
+            if line_callback is not None:
+                line_callback(pending.decode("utf-8", "replace"))
             print(
                 redact_text(pending.decode("utf-8", "replace")),
                 file=sys.stderr,

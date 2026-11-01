@@ -40,13 +40,36 @@ class CodeSizeTests(unittest.TestCase):
         return errors, warnings
 
     def test_physical_file_boundaries(self):
-        for lines, blocked, warned in ((500, False, False), (501, False, True), (800, False, True), (801, True, False)):
+        for lines, blocked, warned in (
+            (500, False, False),
+            (501, False, True),
+            (800, False, True),
+            (801, True, False),
+        ):
             with self.subTest(lines=lines):
                 path = self.source("capture/source.rs", lines)
                 self.assertEqual(rules.line_count(path), lines)
                 errors, warnings = self.findings(path)
                 self.assertEqual(bool(errors), blocked)
                 self.assertEqual(bool(warnings), warned)
+
+    def test_build_script_uses_ordinary_physical_size_and_exact_exception_policy(self):
+        path = self.root / "build.rs"
+        path.write_text("// authored build context\n" * 801)
+        self.assertIn(path, rules.rust_source_files())
+        self.assertTrue(self.findings(path)[0])
+        exception = {
+            "path": "build.rs",
+            "maxLines": 850,
+            "reason": "One bounded resource declaration",
+        }
+        errors, warnings = self.findings(path, [exception])
+        self.assertFalse(errors)
+        self.assertTrue(warnings)
+        path.write_text("#![allow(clippy::too_many_lines)]\n")
+        errors = []
+        rules.check_function_size_exceptions(errors)
+        self.assertTrue(errors)
 
     def test_entrypoint_and_facade_limits_are_still_blocking(self):
         for name, limit in (("main.rs", 80), ("capture/mod.rs", 120)):
@@ -67,7 +90,11 @@ class CodeSizeTests(unittest.TestCase):
 
     def test_exact_exception_warns_but_cannot_hide_overflow_or_sibling(self):
         path = self.source("capture/tests.rs", 801)
-        entry = {"path": "src/capture/tests.rs", "maxLines": 900, "reason": "One scenario with shared ports"}
+        entry = {
+            "path": "src/capture/tests.rs",
+            "maxLines": 900,
+            "reason": "One scenario with shared ports",
+        }
         errors, warnings = self.findings(path, [entry])
         self.assertFalse(errors)
         self.assertTrue(warnings)
@@ -79,7 +106,11 @@ class CodeSizeTests(unittest.TestCase):
 
     def test_stale_missing_duplicate_wildcard_and_unjustified_exceptions_fail(self):
         path = self.source("capture/tests.rs", 801)
-        valid = {"path": "src/capture/tests.rs", "maxLines": 900, "reason": "Existing scenario"}
+        valid = {
+            "path": "src/capture/tests.rs",
+            "maxLines": 900,
+            "reason": "Existing scenario",
+        }
         for change in (
             {"reason": " "},
             {"path": "src/capture/*.rs"},
@@ -121,6 +152,7 @@ class CodeSizeTests(unittest.TestCase):
             '#[allow(clippy::too_many_lines, reason = "test")]',
             "#[expect(clippy::too_many_lines)]",
             '#[expect(clippy::too_many_lines, reason = " ")]',
+            '#[cfg_attr(windows, allow(clippy::too_many_lines, reason = "broad"))]',
         ):
             path.write_text(attribute + "\nfn example() {}\n")
             errors = []
@@ -136,7 +168,9 @@ class CodeSizeTests(unittest.TestCase):
         rules.check_function_size_exceptions(errors)
         self.assertFalse(errors)
 
-    def test_warning_survives_parallel_capture_without_failing_under_warnings_as_errors(self):
+    def test_warning_survives_parallel_capture_without_failing_under_warnings_as_errors(
+        self,
+    ):
         from tooling.qa.runtime import parallel
         import sys
 
@@ -150,11 +184,42 @@ class CodeSizeTests(unittest.TestCase):
             mock.patch.dict(os.environ, {"PYTHONWARNINGS": "error", "RUSTFLAGS": "-D warnings"}),
             contextlib.redirect_stderr(output),
         ):
-            code = parallel.run_group([("boundary", [sys.executable, "-c", f"print({warning!r})"])], record, log, 1)
+            code = parallel.run_group(
+                [("boundary", [sys.executable, "-c", f"print({warning!r})"])],
+                record,
+                log,
+                1,
+            )
         self.assertEqual(code, 0)
         self.assertIn(warning, output.getvalue())
         self.assertIn(warning, log.read_text())
         self.assertEqual(storage.read_json(record)["steps"][0]["exitCode"], 0)
+
+    def test_checkpoint_cannot_omit_or_weaken_windows_clippy(self):
+        from tooling.qa.rules import verify_test_policy
+
+        checkpoint = verify_test_policy.CHECKPOINT_WRAPPER.read_text()
+        command = "cargo clippy --target x86_64-pc-windows-msvc --all-targets --all-features -- -D warnings"
+        self.assertIn(command, checkpoint)
+        for changed in (
+            "true",
+            command.replace("--all-targets", "--bin sniptale-native-agent"),
+            command.replace("-D warnings", "-W warnings"),
+        ):
+            with self.subTest(changed=changed):
+                wrapper = self.root / "checkpoint.sh"
+                wrapper.write_text(checkpoint.replace(command, changed))
+                output = io.StringIO()
+                with (
+                    mock.patch.object(verify_test_policy, "CHECKPOINT_WRAPPER", wrapper),
+                    contextlib.redirect_stdout(output),
+                    self.assertRaises(SystemExit),
+                ):
+                    verify_test_policy.check_release_wrapper_contract()
+                self.assertIn(
+                    "checkpoint must run native Clippy on Windows-only functions",
+                    output.getvalue(),
+                )
 
 
 class NativeClippySizeTests(unittest.TestCase):
@@ -168,7 +233,13 @@ class NativeClippySizeTests(unittest.TestCase):
                 (100, "", "", True, None),
                 (101, "", "", False, "too_many_lines"),
                 (100, "\n// comment\n/* multi\nline comment */\n", "", True, None),
-                (101, "", '#[expect(clippy::too_many_lines, reason = "One transaction")]\n', True, None),
+                (
+                    101,
+                    "",
+                    '#[expect(clippy::too_many_lines, reason = "One transaction")]\n',
+                    True,
+                    None,
+                ),
                 (
                     100,
                     "",
@@ -177,29 +248,38 @@ class NativeClippySizeTests(unittest.TestCase):
                     "unfulfilled_lint_expectations",
                 ),
             )
-            for lines, padding, attribute, accepted, diagnostic in cases:
-                with self.subTest(lines=lines, padding=bool(padding), attribute=bool(attribute)):
-                    source.write_text(attribute + "pub fn probe(\n) {\n" + padding + (body + padding) * lines + "}\n")
-                    env = os.environ | {"CLIPPY_CONF_DIR": str(root)}
-                    result = subprocess.run(
-                        [
-                            "clippy-driver",
-                            "--edition=2024",
-                            "--crate-type=lib",
-                            "--emit=metadata",
-                            "-Dwarnings",
-                            "-Dclippy::too_many_lines",
-                            str(source),
-                            "-o",
-                            str(Path(directory) / "probe.rmeta"),
-                        ],
-                        cwd=root,
-                        env=env,
-                        capture_output=True,
-                        text=True,
-                        check=False,
-                        timeout=30,
-                    )
-                    self.assertEqual(result.returncode == 0, accepted, result.stderr)
-                    if diagnostic:
-                        self.assertIn(diagnostic, result.stderr)
+            for target in (None, "x86_64-pc-windows-msvc"):
+                for lines, padding, attribute, accepted, diagnostic in cases:
+                    with self.subTest(
+                        target=target,
+                        lines=lines,
+                        padding=bool(padding),
+                        attribute=bool(attribute),
+                    ):
+                        source.write_text(
+                            attribute + "pub fn probe(\n) {\n" + padding + (body + padding) * lines + "}\n"
+                        )
+                        env = os.environ | {"CLIPPY_CONF_DIR": str(root)}
+                        result = subprocess.run(
+                            [
+                                "clippy-driver",
+                                *(["--target", target] if target else []),
+                                "--edition=2024",
+                                "--crate-type=lib",
+                                "--emit=metadata",
+                                "-Dwarnings",
+                                "-Dclippy::too_many_lines",
+                                str(source),
+                                "-o",
+                                str(Path(directory) / "probe.rmeta"),
+                            ],
+                            cwd=root,
+                            env=env,
+                            capture_output=True,
+                            text=True,
+                            check=False,
+                            timeout=30,
+                        )
+                        self.assertEqual(result.returncode == 0, accepted, result.stderr)
+                        if diagnostic:
+                            self.assertIn(diagnostic, result.stderr)

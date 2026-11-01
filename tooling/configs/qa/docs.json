@@ -9,6 +9,7 @@
     "docs/architecture/adr/0002-dpapi-owner-local-adapters.md",
     "docs/architecture/adr/0003-transfer-lifecycle-ownership.md",
     "docs/architecture/adr/0005-dual-settings-authority-and-local-asset-delivery.md",
+    "docs/architecture/adr/0006-cursor-trajectory-blocks.md",
     "docs/engineering/implementation-rules.md",
     "docs/engineering/testing-policy.md",
     "docs/design/index.md",
@@ -23,7 +24,8 @@
     "docs/operations/diagnostics.md",
     "docs/tooling/qa.md",
     "docs/oss/provenance.md",
-    "docs/oss/release.md"
+    "docs/oss/release.md",
+    "docs/architecture/adr/0007-recording-events-blocks.md"
   ],
   "repositoryMarkdown": [
     "AGENTS.md",
@@ -44,6 +46,14 @@
     ".agents/skills/desktop-e2e-lab/references/linux.md",
     ".agents/skills/desktop-e2e-lab/references/troubleshooting.md"
   ],
-  "legalText": ["LICENSE", "NOTICE"],
-  "forbiddenFragments": [".tmp/task/", "/home/", "\\\\wsl$\\", "scripts/qa/"]
+  "legalText": [
+    "LICENSE",
+    "NOTICE"
+  ],
+  "forbiddenFragments": [
+    ".tmp/task/",
+    "/home/",
+    "\\\\wsl$\\",
+    "scripts/qa/"
+  ]
 }

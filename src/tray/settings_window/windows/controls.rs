@@ -1,7 +1,14 @@
 //! Native child-control ownership and adaptive presentation.
 #![allow(unsafe_code)]
 
-use super::*;
+use super::{
+    APPLY_ID, ASK_DESTINATION_ID, AUDIO_BITRATE_ID, AUDIO_SOURCE_ID, BROWSE_DESTINATION_ID,
+    BROWSER_DESTINATION_ID, CANCEL_ID, CONFIRM_DISCARD_ID, EXTENSION_MODE_ID, HOTKEY_FIRST_ID,
+    KEEP_EDITING_ID, MICROPHONE_DEVICE_ID, NAV_FIRST_ID, POINTER_TELEMETRY_ID,
+    REFRESH_MICROPHONES_ID, REFRESH_TARGETS_ID, SAVE_DESTINATION_ID, SCREENSHOT_CURSOR_ID,
+    THEME_ID, VIDEO_BITRATE_ID, VIDEO_CURSOR_ID, VIDEO_DURATION_ID, VIDEO_FPS_ID,
+    VIDEO_HARDWARE_ID, VIDEO_QUALITY_ID, copy, to_io_error, wide_null,
+};
 use std::io;
 use windows::Win32::{
     Foundation::{HWND, LPARAM, LRESULT, WPARAM},
@@ -117,12 +124,15 @@ impl SettingsNativeWindow {
         };
         window.apply_fonts();
         window.apply_theme();
-        presentation::refresh(&mut window)?;
+        presentation::refresh(&mut window, true)?;
         Ok(window)
     }
 
     pub(super) fn refresh(&mut self, presentation: SettingsWindowPresentation) -> io::Result<()> {
         self.capture.cancel();
+        let relayout = self.presentation.section() != presentation.section()
+            || self.presentation.view() != presentation.view()
+            || self.presentation.manual().is_some() != presentation.manual().is_some();
         if self.presentation.section() != presentation.section() {
             self.scroll = 0;
         }
@@ -138,7 +148,7 @@ impl SettingsNativeWindow {
                 ControlBackgroundBrush::create(self.palette.opaque_controls().panel);
             self.apply_theme();
         }
-        presentation::refresh(self)
+        presentation::refresh(self, relayout)
     }
 
     pub(super) fn resize(&mut self, width: u32, height: u32) {
@@ -181,11 +191,13 @@ impl SettingsNativeWindow {
             self.handle,
             client_size(self.handle),
             self.dpi,
-            self.palette,
-            self.current_layout(),
-            self.presentation.section(),
-            self.presentation.view(),
-            self.scroll,
+            super::render::SettingsPaintFrame {
+                palette: self.palette,
+                layout: self.current_layout(),
+                section: self.presentation.section(),
+                view: self.presentation.view(),
+                scroll: self.scroll,
+            },
         )
     }
 
@@ -213,14 +225,14 @@ impl SettingsNativeWindow {
 
     pub(super) fn draw_item(&self, item: &DRAWITEMSTRUCT) {
         let id = item.CtlID as usize;
-        let selected = self.nav_section(id) == Some(self.presentation.section())
+        let selected = Self::nav_section(id) == Some(self.presentation.section())
             || id
                 .checked_sub(HOTKEY_FIRST_ID)
                 .and_then(|index| self.pages.shortcuts.hotkeys.get(index))
                 .is_some_and(|(action, _, _)| self.capture.active_action() == Some(*action));
         let visual = if id == APPLY_ID {
             ButtonVisual::Primary
-        } else if self.nav_section(id).is_some() {
+        } else if Self::nav_section(id).is_some() {
             ButtonVisual::Navigation { selected }
         } else if (HOTKEY_FIRST_ID..HOTKEY_FIRST_ID + 8).contains(&id) {
             ButtonVisual::Hotkey { active: selected }
@@ -241,7 +253,7 @@ impl SettingsNativeWindow {
         )
     }
 
-    fn nav_section(&self, id: usize) -> Option<SettingsWindowSection> {
+    fn nav_section(id: usize) -> Option<SettingsWindowSection> {
         id.checked_sub(NAV_FIRST_ID)
             .and_then(|index| SettingsWindowSection::ALL.get(index).copied())
     }

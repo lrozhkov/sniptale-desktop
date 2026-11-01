@@ -78,6 +78,7 @@ fn dispatch_settings_event_with_paths<Source: TrayCommandSource>(
         SettingsWindowEvent::SetVideoBitrate(value) => model.set_video_bitrate(value),
         SettingsWindowEvent::SetVideoHardware(value) => model.set_video_hardware(value),
         SettingsWindowEvent::ToggleVideoCursor => model.toggle_video_cursor(),
+        SettingsWindowEvent::TogglePointerTelemetry => model.toggle_pointer_telemetry(),
         SettingsWindowEvent::SetVideoDuration(value) => model.set_video_duration(value),
         SettingsWindowEvent::SetAudioSource(value) => model.set_audio_source(value),
         SettingsWindowEvent::SelectMicrophone(selection) => model.select_microphone(selection),
@@ -85,6 +86,20 @@ fn dispatch_settings_event_with_paths<Source: TrayCommandSource>(
         SettingsWindowEvent::SetHotkey { action, chord } => model.set_hotkey(action, chord),
         SettingsWindowEvent::CancelHotkeyCapture(action) => model.cancel_hotkey_edit(action),
         SettingsWindowEvent::RefreshMicrophones => refresh_audio_capabilities(model),
+        SettingsWindowEvent::SelectBrowserDestination(index) => {
+            model.select_browser_destination(index);
+        }
+        SettingsWindowEvent::ToggleAskAfterCapture => model.toggle_ask_after_capture(),
+        SettingsWindowEvent::RefreshBrowserTargets => {
+            model.refresh_browser_targets(active_settings);
+        }
+        SettingsWindowEvent::SaveBrowserDestination => {
+            if recording_status == TrayRecordingStatus::Idle {
+                model.save_browser_destination(active_settings);
+            } else {
+                model.set_apply_feedback(SettingsWindowFeedback::RecordingBusy);
+            }
+        }
         SettingsWindowEvent::SelectAppearanceTheme(theme) => {
             if crate::settings::persist_appearance_theme_from_path(paths.appearance, theme).is_ok()
             {
@@ -204,13 +219,8 @@ fn finish_apply(
     manual_senders: &ManualWorkerSenders,
     source: &mut impl TrayCommandSource,
 ) -> bool {
-    match profile.operating_mode() {
-        crate::settings::OperatingMode::Manual if manual_dispatcher.is_none() => {
-            *manual_dispatcher = Some(manual_senders.dispatcher(active_settings.clone()));
-        }
-        crate::settings::OperatingMode::ExtensionManaged => *manual_dispatcher = None,
-        crate::settings::OperatingMode::Manual => {}
-    }
+    let _ = profile;
+    *manual_dispatcher = Some(manual_senders.dispatcher(active_settings.clone()));
     model.discard_and_hide();
     let _ = source.hide_settings_window();
     true

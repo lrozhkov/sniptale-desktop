@@ -118,11 +118,12 @@ impl RecordingTransferStore {
     }
 
     #[cfg(any(windows, test))]
-    pub(crate) fn finalize_manual_recording_at(
+    pub(crate) fn finalize_manual_recording_with_telemetry_at(
         &self,
         recording_id: &str,
         metadata: RecordingMediaMetadata,
         now_ms: u64,
+        telemetry: Option<crate::protocol::NativeRecordingTelemetrySnapshot>,
     ) -> Result<(), RecordingTransferStoreError> {
         let mut record = self
             .disk
@@ -135,7 +136,7 @@ impl RecordingTransferStore {
             (&record.authority, &record.delivery_route),
             (
                 Some(OperationAuthority::Manual { .. }),
-                Some(DeliveryRoute::LocalAsset { .. })
+                Some(DeliveryRoute::LocalAsset { .. } | DeliveryRoute::DesktopDelivery { .. })
             )
         ) {
             return Err(RecordingTransferStoreError::InvalidState(
@@ -156,9 +157,20 @@ impl RecordingTransferStore {
                 now_ms,
             )
             .map_err(RecordingTransferStoreError::InvalidState)?;
+        record.telemetry = telemetry;
         self.disk
             .write_record(&record)
             .map_err(RecordingTransferStoreError::Disk)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn finalize_manual_recording_at(
+        &self,
+        recording_id: &str,
+        metadata: RecordingMediaMetadata,
+        now_ms: u64,
+    ) -> Result<(), RecordingTransferStoreError> {
+        self.finalize_manual_recording_with_telemetry_at(recording_id, metadata, now_ms, None)
     }
 
     pub(crate) fn recording_media_path(

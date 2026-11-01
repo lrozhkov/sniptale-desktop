@@ -198,8 +198,9 @@ pub(super) fn dispatch_manual_command(
             return true;
         }
     };
-    if result.is_some_and(|result| result.is_err()) {
-        let _ = source.show_notice(TrayNoticeKind::ActionRejected);
+    if let Some(Err(error)) = result {
+        let notice = if error == crate::app::resident::control::manual_dispatch::ManualDispatchError::DestinationRequired { TrayNoticeKind::DestinationRequired } else { TrayNoticeKind::ActionRejected };
+        let _ = source.show_notice(notice);
     }
     result.is_some()
 }

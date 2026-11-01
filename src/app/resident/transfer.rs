@@ -168,7 +168,9 @@ fn run_transfer_worker_with_cleaner(
                 | WorkerCommand::DiscardRecordingTelemetry { .. }
                 | WorkerCommand::SnapshotRecordingTelemetry { .. }
                 | WorkerCommand::PrepareManualAsset { .. }
-                | WorkerCommand::PublishManualAsset { .. },
+                | WorkerCommand::PublishManualAsset { .. }
+                | WorkerCommand::RecoverPendingAssets
+                | WorkerCommand::ChooseMediaDestination { .. },
             ) => {}
             #[cfg(test)]
             Ok(WorkerCommand::TrayMenuCommandSelected { .. }) => {}

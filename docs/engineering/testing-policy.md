@@ -32,6 +32,8 @@ The corpus at `contracts/security/redaction-corpus.json` is checked against logs
 
 `coverage-floor.py` is the only owner of numeric aggregate and owner floors. Floors ratchet upward and are not copied into documentation. Coverage supplements negative proof and never replaces it.
 
+Nextest preserves the complete result matrix and failing-test output in the JUnit report configured by `.config/nextest.toml`; the bounded QA console log is not a complete test-result inventory.
+
 ## Platform proof
 
 Deterministic owner tests run on Linux where possible. Windows-target check/test compilation is required in checkpoint. Privileged API, MSI, Native Messaging registration, tray, DPI, capture, recording, audio, consent, and accessibility behavior uses Windows smoke or isolated desktop E2E evidence when unit tests cannot prove the OS result.

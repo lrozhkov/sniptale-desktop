@@ -16,6 +16,12 @@ impl RecordingTransferStore {
         &self,
         now_ms: u64,
     ) -> Result<StartupRecoverySummary, RecordingTransferStoreError> {
+        self.cursor_trajectory_catalog()
+            .recover_interrupted()
+            .map_err(|_| RecordingTransferStoreError::Protection)?;
+        self.recording_events_catalog()
+            .recover_interrupted()
+            .map_err(|_| RecordingTransferStoreError::Protection)?;
         self.cleanup_records_at(now_ms, true)
     }
 

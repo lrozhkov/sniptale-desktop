@@ -198,3 +198,68 @@ fn available_audio(
         unavailable_reasons: Vec::new(),
     }
 }
+
+#[test]
+fn configured_legacy_extension_profile_exposes_desktop_controls_without_migration()
+-> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempdir()?;
+    let path = directory.path().join("profile.json");
+    let profile = ensure_local_profile_from_path(Some(path.clone())).map_err(debug_error)?;
+    let active = ActiveSettings::from_profile(&profile);
+    let mut manual = ManualProfileDraft::with_defaults(
+        "legacy-destination".to_owned(),
+        directory.path().to_string_lossy().into_owned(),
+    );
+    manual.set_screenshot_include_cursor(false);
+    crate::settings::apply_local_profile_draft_from_path(
+        Some(path.clone()),
+        &active,
+        &LocalProfileDraft::manual(manual),
+    )
+    .map_err(debug_error)?;
+    let mut value = serde_json::to_value(active.profile_snapshot().map_err(debug_error)?)?;
+    value["operatingMode"] = serde_json::json!("extension-managed");
+    std::fs::write(&path, serde_json::to_vec(&value)?)?;
+    let before = crate::settings::load_local_profile_from_path(Some(path.clone()))
+        .map_err(debug_error)?
+        .ok_or("legacy profile missing")?;
+    let legacy = ensure_local_profile_from_path(Some(path.clone())).map_err(debug_error)?;
+    let active = ActiveSettings::from_profile(&legacy);
+    let mut model = SettingsWindowModel::default();
+    assert_eq!(
+        model
+            .show(&active, crate::settings::UiPreferencesHealth::Missing)
+            .map_err(debug_error)?,
+        SettingsWindowView::ManualDraft
+    );
+    assert!(model.presentation().shows_navigation());
+    assert!(model.presentation().shows_footer());
+    assert!(!model.dirty());
+    assert_eq!(model.presentation().apply_label(), "Save changes");
+    assert_eq!(
+        crate::settings::load_local_profile_from_path(Some(path.clone())).map_err(debug_error)?,
+        Some(before.clone())
+    );
+    model.refresh_audio_capabilities(available_audio(Vec::new()));
+    let destination = directory.path().join("new-output");
+    model.stage_manual_destination(
+        "new-destination".to_owned(),
+        destination.to_string_lossy().into_owned(),
+    );
+    let candidate = model.apply_candidate().map_err(debug_error)?;
+    assert_eq!(
+        candidate.target_mode(),
+        crate::settings::OperatingMode::ExtensionManaged
+    );
+    let manual = candidate.manual_view().ok_or("manual values lost")?;
+    assert!(!manual.screenshot_include_cursor);
+    assert_eq!(
+        manual.destination_path,
+        destination.to_string_lossy().into_owned()
+    );
+    assert_eq!(
+        crate::settings::load_local_profile_from_path(Some(path.clone())).map_err(debug_error)?,
+        Some(before.clone())
+    );
+    Ok(())
+}

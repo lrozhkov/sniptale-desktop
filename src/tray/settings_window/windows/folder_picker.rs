@@ -15,7 +15,7 @@ use windows::{
     core::{HRESULT, PWSTR},
 };
 
-const HRESULT_CANCELLED: HRESULT = HRESULT(0x8007_04C7_u32 as i32);
+const HRESULT_CANCELLED: HRESULT = HRESULT(0x8007_04C7_u32.cast_signed());
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum FolderPickerError {

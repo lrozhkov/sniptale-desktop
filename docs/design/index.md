@@ -6,7 +6,7 @@ This index owns routing for Sniptale Desktop design. [Foundations](foundations.m
 
 The scope is the settings window and tray menu. The existing settings, mode, recording, consent, and installation owners retain their authority. Presentation belongs to `tray/**` as defined by [module ownership](../architecture/module-ownership.md). Design work does not introduce account, gallery, editor, cloud, OCR, transcript, or AI surfaces.
 
-Settings must distinguish Manual drafts, accepted settings, ExtensionManaged read-only information, unavailable settings, pending operations, and recoverable failure. Appearance preferences must remain separate from capture authority. Tray presentation must distinguish idle, recording, unavailable actions, selected mode, and warnings without relying on color alone.
+Settings must distinguish Desktop drafts, saved settings, registered and selected browser destinations, unavailable settings, pending operations, and recoverable failure under [ADR 0005](../architecture/adr/0005-dual-settings-authority-and-local-asset-delivery.md). Appearance preferences must remain separate from capture authority. Tray presentation must distinguish idle, recording, unavailable actions, destination selection, and warnings without relying on color alone.
 
 ## Reference adaptation
 

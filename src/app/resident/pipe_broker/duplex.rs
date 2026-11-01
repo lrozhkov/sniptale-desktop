@@ -30,7 +30,7 @@ use crate::{
 };
 
 use self::readiness::wait_for_session_ready;
-use self::report::{increment_accepted, increment_failed, join_finished_sessions, report_snapshot};
+use self::report::{increment_failed, join_finished_sessions, report_snapshot};
 pub(crate) use self::runtime::{AgentPipeServerRuntime, AgentPipeSessionEffectsFactory};
 use self::session_result::{record_accept_rejection, record_session_result};
 
@@ -86,6 +86,10 @@ where
     let report = Arc::new(Mutex::new(AgentPipeServerReport::default()));
     let shared_auth = Arc::new(Mutex::new(auth.clone()));
     let shared_state = NativeHostSharedState::default();
+    let shared_state = runtime
+        .active_settings
+        .clone()
+        .map_or(shared_state, NativeHostSharedState::with_desktop_settings);
     let shutdowns = AgentPipeSessionShutdowns::default();
     let max_active_sessions = auth.max_sessions();
     let log = runtime.log;
@@ -128,18 +132,7 @@ where
                 SessionAdmission::Admitted(gate) => gate,
                 SessionAdmission::Rejected => continue,
             };
-            let accepted = increment_accepted(&report)?;
-            tracing::info!(
-                target: "sniptale_native_agent::resident_pipe",
-                accepted,
-                "resident pipe accepted native-host session"
-            );
-            log_resident_pipe_event(
-                log,
-                "session-accepted",
-                "resident pipe accepted native-host session",
-                None,
-            );
+            report::record_session_accepted(&report, log)?;
 
             let session_auth = Arc::clone(&shared_auth);
             let session_report = Arc::clone(&report);

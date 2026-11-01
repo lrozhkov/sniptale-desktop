@@ -339,6 +339,8 @@ class ArtifactResultTests(unittest.TestCase):
             "passed": True,
             "connectionState": "connected",
             "settingsApplied": True,
+            "selected": True,
+            "selectionStatus": "selected",
             "browserVersion": ["Chrome/156.0.0.0"],
             "automation": automation,
         }
@@ -349,6 +351,7 @@ class ArtifactResultTests(unittest.TestCase):
             "width": 1280,
             "height": 800,
             "mimeType": "image/png",
+            "storageKind": "opfs",
             "automation": automation,
         }
         chrome = {
@@ -356,23 +359,96 @@ class ArtifactResultTests(unittest.TestCase):
             "profile_reused": True,
             "capture_trigger": "native-tray-current-screen",
             "connection": connection,
+            "selected": connection,
             "reconnect": connection,
             "resident_restart": connection,
             "media": media,
+            "recovery": {
+                "cancelledRetained": True,
+                "localPreserved": True,
+                "explicitRecovery": True,
+                "sourceReleased": True,
+                "media": copy.deepcopy(media),
+            },
+            "recording": {
+                "media": {
+                    **media,
+                    "mimeType": "video/mp4",
+                    "durationMs": 6000,
+                    "cursorSamples": 9,
+                    "clickEvents": 3,
+                    "normalization": "milliseconds-to-seconds-once",
+                    "sourceCursorEmbedded": False,
+                },
+                "editor": {
+                    "passed": True,
+                    "historySegments": 1,
+                    "canvasWidth": 640,
+                    "canvasHeight": 400,
+                    "playbackAdvanced": True,
+                    "automation": automation,
+                },
+            },
         }
         edge = copy.deepcopy(chrome)
         edge["browser"] = "edge"
-        for name in ("connection", "reconnect", "resident_restart"):
+        for name in ("connection", "selected", "reconnect", "resident_restart"):
             edge[name] = {**connection, "browserVersion": ["Chrome/150.0.0.0", "Edg/150.0.0.0"]}
         valid = [chrome, edge]
         self.assertEqual(sanitize_real_extension(valid), valid)
+        observer = copy.deepcopy(valid)
+        observer[0]["connection"] = {
+            "passed": True,
+            "selected": False,
+            "settingsApplied": False,
+            "connectionState": "selection-required",
+            "selectionStatus": "selection-required",
+            "automation": automation,
+        }
+        self.assertEqual(sanitize_real_extension(observer), observer)
         rejected = [valid[:1], [chrome, chrome], {"browsers": valid}]
+        for section, key, bad in [
+            ("media", "cursorSamples", True),
+            ("media", "cursorSamples", 4097),
+            ("media", "clickEvents", 2),
+            ("media", "sourceCursorEmbedded", True),
+            ("media", "normalization", "milliseconds"),
+            ("media", "sha256", "private"),
+            ("media", "durationMs", 0),
+            ("media", "secret", "private"),
+            ("editor", "playbackAdvanced", False),
+            ("editor", "historySegments", 0),
+            ("editor", "canvasWidth", 0),
+            ("editor", "private", "private"),
+        ]:
+            invalid_recording = copy.deepcopy(valid)
+            invalid_recording[0]["recording"][section][key] = bad
+            rejected.append(invalid_recording)
+        invalid_recovery = copy.deepcopy(valid)
+        invalid_recovery[0]["recovery"]["media"]["bytes"] = 0
+        rejected.append(invalid_recovery)
+        for name in ("selected", "reconnect", "resident_restart"):
+            candidate = copy.deepcopy(observer)
+            candidate[0][name] = observer[0]["connection"]
+            rejected.append(candidate)
         for path, bad in [
+            (("recovery", "cancelledRetained"), False),
+            (("recovery", "localPreserved"), False),
+            (("recovery", "explicitRecovery"), False),
+            (("recovery", "sourceReleased"), False),
+            (("recovery", "private"), "private"),
             (("media", "bytes"), True),
             (("media", "width"), 0),
             (("media", "sha256"), "invalid"),
             (("media", "mimeType"), "text/plain"),
+            (("media", "storageKind"), "untrusted"),
+            (("media", "storageKind"), []),
+            (("media", "storageKind"), {}),
+            (("media", "storageKind"), True),
             (("connection", "settingsApplied"), False),
+            (("selected", "selected"), False),
+            (("selected", "selectionStatus"), "available"),
+            (("selected", "controllerLeaseId"), "private-lease"),
             (("reconnect", "passed"), False),
             (("resident_restart", "browserVersion"), ["https://private.invalid/"]),
             (("media", "secret"), "private"),

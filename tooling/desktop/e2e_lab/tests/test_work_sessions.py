@@ -58,6 +58,103 @@ class WorkSessionTests(unittest.TestCase):
     def tearDown(self):
         self.temp.cleanup()
 
+    def test_targeted_gc_only_removes_identified_closed_evidence_and_is_idempotent(self):
+        self.vms.orphan_pids.return_value = [55]
+        identity = "20261029T140000Z"
+        directory = self.paths.lab / "sessions" / identity
+        write_json(
+            directory / "session.json",
+            {
+                **self.state,
+                "id": identity,
+                "pid": 99,
+                "started_epoch": 1,
+                "mode": "development-session",
+                "release_admissible": False,
+            },
+        )
+        (directory / "diagnostic.bin").write_bytes(b"synthetic evidence")
+        active = self.paths.lab / "sessions" / self.state["id"] / "keep"
+        active.parent.mkdir()
+        active.write_bytes(b"active evidence")
+        cached = self.paths.cache / "keep"
+        cached.write_bytes(b"verified work image")
+        result = self.sessions.purge_closed_session(identity)
+        self.assertEqual(result["closed_sessions_removed"], 1)
+        self.assertGreater(result["bytes_reclaimed"], 0)
+        self.assertFalse(directory.exists())
+        self.assertEqual(active.read_bytes(), b"active evidence")
+        self.assertEqual(cached.read_bytes(), b"verified work image")
+        self.assertEqual(self.loaded_state(), self.state)
+        self.assertEqual(self.sessions.purge_closed_session(identity)["closed_sessions_removed"], 0)
+
+    def test_targeted_gc_rejects_active_running_generation_and_unknown_vm_ownership(self):
+        active_directory = self.paths.lab / "sessions" / self.state["id"]
+        write_json(
+            active_directory / "session.json",
+            {
+                **self.state,
+                "pid": 99,
+                "mode": "development-session",
+                "release_admissible": False,
+            },
+        )
+        with self.assertRaises(UsageError):
+            self.sessions.purge_closed_session(self.state["id"])
+        self.assertTrue(active_directory.exists())
+        identity = "20261029T140000Z"
+        directory = self.paths.lab / "sessions" / identity
+        stamp = {**self.state, "id": identity, "mode": "development-session", "release_admissible": False}
+        write_json(directory / "session.json", stamp)
+        with self.assertRaises(UsageError):
+            self.sessions.purge_closed_session(identity)
+        self.assertTrue(directory.exists())
+        stamp["pid"] = 99
+        write_json(directory / "session.json", stamp)
+        self.vms.orphan_pids.return_value = [55, 99]
+        with self.assertRaises(IntegrityError):
+            self.sessions.purge_closed_session(identity)
+        self.assertTrue(directory.exists())
+        self.vms.current.return_value = None
+        self.vms.orphan_pids.return_value = [55]
+        with self.assertRaises(IntegrityError):
+            self.sessions.purge_closed_session(identity)
+        self.assertTrue(directory.exists())
+
+    def test_targeted_gc_rejects_traversal_redirects_and_unidentified_evidence(self):
+        for identity in ("../outside", "", "20261029T140000Z/child"):
+            with self.assertRaises(UsageError):
+                self.sessions.purge_closed_session(identity)
+        identity = "20261029T140000Z"
+        directory = self.paths.lab / "sessions" / identity
+        directory.mkdir(parents=True)
+        sentinel = directory / "keep"
+        sentinel.write_bytes(b"unidentified")
+        with self.assertRaises(IntegrityError):
+            self.sessions.purge_closed_session(identity)
+        stamp = {**self.state, "id": identity, "pid": 99, "mode": "development-session", "release_admissible": True}
+        write_json(directory / "session.json", stamp)
+        with self.assertRaises(IntegrityError):
+            self.sessions.purge_closed_session(identity)
+        self.assertEqual(sentinel.read_bytes(), b"unidentified")
+        redirected = self.paths.lab / "sessions" / "20261029T150000Z"
+        external = self.paths.lab / "other-diagnostic-data"
+        write_json(
+            external / "session.json",
+            {
+                **self.state,
+                "id": redirected.name,
+                "pid": 99,
+                "mode": "development-session",
+                "release_admissible": False,
+            },
+        )
+        redirected.symlink_to(external, target_is_directory=True)
+        with self.assertRaises(IntegrityError):
+            self.sessions.purge_closed_session(redirected.name)
+        self.assertTrue(directory.exists())
+        self.assertTrue((external / "session.json").exists())
+
     def test_watchdog_records_why_its_owned_session_ends(self):
         import session_watchdog
         from state import read_json

@@ -87,3 +87,75 @@ fn extension_admission_allowed() -> bool {
         crate::app::platform::local_profile_path(),
     )
 }
+
+/// Static fields prevent untrusted parser details from entering process logs.
+#[cfg(any(windows, test))]
+pub(super) struct NativeHostFailureSummary {
+    pub(super) code: &'static str,
+    pub(super) message: &'static str,
+}
+
+#[cfg(any(windows, test))]
+pub(super) fn native_host_failure_summary(
+    error: &crate::app::bridge::NativeHostRunError,
+) -> NativeHostFailureSummary {
+    use crate::app::bridge::NativeHostRunError;
+    let code = match error {
+        NativeHostRunError::AuthenticatedBridge(error) => match error {
+            crate::ipc::AuthenticatedBridgeForwardError::Handshake(_) => "native_host.pipe_auth",
+            crate::ipc::AuthenticatedBridgeForwardError::Split(_) => "native_host.pipe_split",
+            crate::ipc::AuthenticatedBridgeForwardError::Forward(_) => "native_host.forward",
+        },
+        #[cfg(all(windows, not(test)))]
+        NativeHostRunError::InstallIdentityDrift(_) => "native_host.install_identity_drift",
+        #[cfg(all(windows, not(test)))]
+        NativeHostRunError::PipeAuthenticationUnavailable => "native_host.pipe_auth_unavailable",
+        #[cfg(any(not(windows), test))]
+        NativeHostRunError::Frame(_) => "native_host.frame",
+        #[cfg(any(not(windows), test))]
+        NativeHostRunError::Protocol(_) => "native_host.protocol",
+        #[cfg(any(not(windows), test))]
+        NativeHostRunError::Json(_) => "native_host.json",
+    };
+    NativeHostFailureSummary {
+        code,
+        message: "native host bridge failed",
+    }
+}
+
+#[cfg(test)]
+mod log_privacy_tests {
+    use super::*;
+    #[test]
+    fn parser_details_cannot_enter_native_host_failure_fields()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let needle = "private-never-log.invalid";
+        let payload = br#"{"type":"https://private-never-log.invalid/token","protocolVersion":2}"#;
+        let Err(error) = crate::protocol::parse_wire_message(payload) else {
+            return Err("malformed message unexpectedly accepted".into());
+        };
+        let errors = [
+            (
+                crate::app::bridge::NativeHostRunError::Protocol(error.clone()),
+                "native_host.protocol",
+            ),
+            (
+                crate::app::bridge::NativeHostRunError::AuthenticatedBridge(
+                    crate::ipc::AuthenticatedBridgeForwardError::Forward(
+                        crate::ipc::BridgeForwardError::BrowserProtocol(error),
+                    ),
+                ),
+                "native_host.forward",
+            ),
+        ];
+        for (error, expected) in errors {
+            assert!(format!("{error:?}").contains(needle));
+            let summary = native_host_failure_summary(&error);
+            assert_eq!(summary.code, expected);
+            assert!(!summary.message.contains(needle));
+            assert!(!summary.message.contains("token"));
+            assert!(summary.message.len() < 128);
+        }
+        Ok(())
+    }
+}

@@ -98,9 +98,9 @@ mod platform {
                 MFT_CATEGORY_VIDEO_ENCODER,
                 flags,
                 None,
-                Some(&output_type),
-                &mut activates,
-                &mut count,
+                Some(&raw const output_type),
+                &raw mut activates,
+                &raw mut count,
             )
         };
         if result.is_err() || activates.is_null() {

@@ -147,12 +147,12 @@ fn mode_submenu_marks_the_active_authority_and_routes_only_the_other_choice() ->
         "mode-manual",
         true,
     )?;
-    assert_mode_entries(
-        manual.entries(),
-        "mode-manual",
-        "mode-extension-managed",
-        true,
-    )?;
+    assert!(find_item(manual.entries(), "mode-extension-managed").is_none());
+    assert!(find_item(manual.entries(), "mode-manual").is_none());
+    assert!(
+        find_item(manual.entries(), "retry-pending-saves")
+            .is_some_and(crate::tray::TrayMenuItem::enabled)
+    );
     Ok(())
 }
 
@@ -167,12 +167,8 @@ fn mode_picker_disables_transitions_while_media_is_active() -> Result<(), String
         "mode-manual",
         false,
     )?;
-    assert_mode_entries(
-        manual.entries(),
-        "mode-manual",
-        "mode-extension-managed",
-        false,
-    )?;
+    assert!(find_item(manual.entries(), "mode-extension-managed").is_none());
+    assert!(find_item(manual.entries(), "retry-pending-saves").is_some_and(|item| !item.enabled()));
     Ok(())
 }
 

@@ -48,6 +48,28 @@ fn hook_event_queue_zero_capacity_counts_all_drops() {
 }
 
 #[test]
+fn lifecycle_cutoff_drains_only_the_accepted_prefix_and_retains_future_facts() {
+    let mut queue = TelemetryHookEventQueue::new(4);
+    for time in [10, 20, 30, 40] {
+        queue.push(time);
+    }
+    queue.push(50);
+    let before_pause = queue.drain_while(|time| *time <= 20);
+    assert_eq!(before_pause.events, [10, 20]);
+    assert_eq!(before_pause.dropped_events, 1);
+    assert_eq!(queue.front(), Some(&30));
+    let paused = queue.drain_while(|time| *time <= 35);
+    assert_eq!(paused.events, [30]);
+    assert_eq!(paused.dropped_events, 0);
+    assert_eq!(queue.front(), Some(&40));
+    assert_eq!(
+        queue.drain_while(|time| *time <= 35).events,
+        Vec::<i32>::new()
+    );
+    assert_eq!(queue.drain().events, [40]);
+}
+
+#[test]
 fn telemetry_hook_drop_counters_accumulate_saturated_burst_without_growth() {
     let mut queue = TelemetryHookEventQueue::new(3);
 

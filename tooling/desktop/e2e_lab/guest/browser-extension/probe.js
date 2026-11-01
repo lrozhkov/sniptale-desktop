@@ -25,9 +25,14 @@ function probe() {
   }, 45000);
   port.onMessage.addListener((message) => {
     if (message && message.type === 'app.hello') {
+      if (message.protocolVersion !== 2 || message.settingsAuthority !== 'desktop' || !/^[0-9a-f]{64}$/.test(message.appIdentity?.clientId ?? '')) {
+        completed = true; clearTimeout(timeout);
+        report(browser, 'fail', 'Desktop identity or authority mismatch').finally(() => port.disconnect()).catch(() => { document.title = 'sniptale-e2e-report-failed'; });
+        return;
+      }
       port.postMessage({
         type: 'extension.controller.acquire',
-        protocolVersion: 1,
+        protocolVersion: 2,
         connectionId: `e2e-${browser}-connection`,
         browserFamily: browser,
         profileKey: 'e2e-profile',
@@ -35,16 +40,14 @@ function probe() {
         requestedAtEpochMs: Date.now(),
         reason: 'initial-connect',
       });
-    } else if (message && message.type === 'app.controller.lease' && message.status === 'granted' && message.controllerLeaseId && !staleCommandSent) {
+    } else if (message && message.type === 'app.controller.lease' && ['selected', 'available', 'selection-required'].includes(message.selectionStatus) && !staleCommandSent) {
       staleCommandSent = true;
       port.postMessage({
-        type: 'extension.recording.control',
-        protocolVersion: 1,
+        type: 'extension.screenshot.chunkRequest',
+        protocolVersion: 2,
         controllerLeaseId: 'lease:stale-e2e',
-        commandId: 'command-record-e2e',
-        recordingId: 'recording-e2e',
-        control: 'stop',
-        requestedAtEpochMs: Date.now(),
+        captureId: 'capture-e2e',
+        chunkIndex: 0,
       });
     } else if (message && message.type === 'app.operation.failed') {
       const code = message.error?.code || message.code || 'missing-error-code';
@@ -65,12 +68,14 @@ function probe() {
   });
   port.postMessage({
     type: 'extension.hello',
-    protocolVersion: 1,
+    protocolVersion: 2,
     settingsSchemaVersion: 1,
+    connectionIntent: 'user-requested',
+    capabilities: ['desktop-settings-v1', 'durable-media-ack-v1'],
     extensionVersion: '0.1.0',
     extensionId: chrome.runtime.id,
     minAppVersion: '0.1.0',
-    supportedProtocolVersions: [1],
+    supportedProtocolVersions: [2],
     supportedSettingsSchemaVersions: [1],
   });
 }

@@ -89,7 +89,7 @@ impl NativeTooltip {
 
     fn tool_info(&mut self) -> TTTOOLINFOW {
         TTTOOLINFOW {
-            cbSize: std::mem::size_of::<TTTOOLINFOW>() as u32,
+            cbSize: u32::try_from(std::mem::size_of::<TTTOOLINFOW>()).unwrap_or(0),
             uFlags: TTF_IDISHWND | TTF_SUBCLASS,
             hwnd: self.owner,
             uId: self.tool.0 as usize,

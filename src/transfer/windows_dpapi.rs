@@ -30,13 +30,13 @@ pub(crate) fn protect_current_user_media_key(key: &[u8]) -> Result<Vec<u8>, Medi
     // reserved pointers are null; `output` is immediately wrapped for LocalFree ownership.
     unsafe {
         CryptProtectData(
-            &input,
+            &raw const input,
             w!("Sniptale temp media key"),
             None,
             None,
             None,
             CRYPTPROTECT_UI_FORBIDDEN,
-            &mut output,
+            &raw mut output,
         )
     }
     .map_err(|_| MediaDpapiError::ProtectFailed)?;
@@ -54,13 +54,13 @@ pub(crate) fn unprotect_current_user_media_key(
     // is immediately wrapped and wiped before LocalFree on drop.
     unsafe {
         CryptUnprotectData(
-            &input,
+            &raw const input,
             None,
             None,
             None,
             None,
             CRYPTPROTECT_UI_FORBIDDEN,
-            &mut output,
+            &raw mut output,
         )
     }
     .map_err(|_| MediaDpapiError::UnprotectFailed)?;

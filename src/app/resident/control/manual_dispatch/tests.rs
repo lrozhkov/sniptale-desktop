@@ -55,7 +55,11 @@ fn screenshot_waits_for_durable_manual_asset_bind_before_capture_enqueue()
     assert_eq!(extension_controller_lease_id, None);
     assert!(matches!(
         request.delivery_route,
-        DeliveryRoute::LocalAsset { .. }
+        DeliveryRoute::DesktopDelivery {
+            target_id: None,
+            ask_after_capture: false,
+            ..
+        }
     ));
     Ok(())
 }

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import hashlib
 import json
 from typing import Any
@@ -35,6 +36,8 @@ def validate(value: Any, schema: dict[str, Any]) -> None:
 
 
 def self_test() -> None:
+    history_record_shapes_self_test()
+    keyboard_hold_schema_self_test()
     schema = {
         "type": "object",
         "required": ["enabled"],
@@ -60,6 +63,64 @@ def self_test() -> None:
         print("OK JSON duplicate-key and schema rejection proof")
         return
     raise ValueError("JSON duplicate keys were accepted")
+
+
+def history_record_shapes_self_test() -> None:
+    contracts = decode(REGISTRY.read_bytes())["contracts"]
+    for family in ("positive", "negative"):
+        name = f"contracts/native/fixtures/{family}/contract-fixtures.json"
+        fixtures = decode((ROOT / name).read_bytes())
+        for contract in ("CursorTrajectoryBlock", "RecordingEventsBlock"):
+            schema = contracts[name]["properties"][contract]
+            block = fixtures[contract]
+            validate(block, schema)
+            for index in range(len(block["records"])):
+                mutated = copy.deepcopy(block)
+                mutated["records"][index]["unexpectedPrivateField"] = "forbidden"
+                mutations = [mutated]
+                record = block["records"][index]
+                if record["kind"] == "action-update" and "gestureType" in record["data"]:
+                    for field in ("ctrlKey", "altKey", "shiftKey", "metaKey"):
+                        mutated = copy.deepcopy(block)
+                        del mutated["records"][index]["data"][field]
+                        mutations.append(mutated)
+                    mutated = copy.deepcopy(block)
+                    mutated["records"][index]["data"]["clickCount"] = 2
+                    mutations.append(mutated)
+                for mutated in mutations:
+                    try:
+                        validate(mutated, schema)
+                    except jsonschema.ValidationError:
+                        continue
+                    raise ValueError(f"history record schema accepted invalid fields: {contract}/{index}")
+
+
+def keyboard_hold_schema_self_test() -> None:
+    contracts = decode(REGISTRY.read_bytes())["contracts"]
+    schema = contracts["contracts/native/fixtures/positive/contract-fixtures.json"]["properties"][
+        "RecordingEventsBlock"
+    ]
+    fixture = decode((ROOT / "contracts/native/fixtures/recording-events-keyboard-hold-v1.json").read_bytes())
+    accepted = [decode(case["utf8"].encode()) for case in fixture["cases"] if case["accepted"]]
+    for block in accepted:
+        validate(block, schema)
+    block = accepted[0]
+    for field in block["records"][1]["signal"]["data"]:
+        mutated = copy.deepcopy(block)
+        del mutated["records"][1]["signal"]["data"][field]
+        try:
+            validate(mutated, schema)
+        except jsonschema.ValidationError:
+            continue
+        raise ValueError(f"keyboard-hold schema accepted a missing field: {field}")
+    for field in ("label", "key", "groupId", "targetId"):
+        mutated = copy.deepcopy(block)
+        mutated["records"][1]["signal"]["data"][field] = "forbidden"
+        try:
+            validate(mutated, schema)
+        except jsonschema.ValidationError:
+            continue
+        raise ValueError(f"keyboard-hold schema accepted a forbidden field: {field}")
 
 
 def main() -> int:

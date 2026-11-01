@@ -1,6 +1,11 @@
 //! Typed settings events derived from native control ids and virtual keys.
 
-use super::*;
+use super::{
+    ASK_DESTINATION_ID, AUDIO_BITRATE_ID, BROWSER_DESTINATION_ID, CONFIRM_DISCARD_ID,
+    EXTENSION_MODE_ID, KEEP_EDITING_ID, NAV_FIRST_ID, POINTER_TELEMETRY_ID, REFRESH_MICROPHONES_ID,
+    REFRESH_TARGETS_ID, SAVE_DESTINATION_ID, SCREENSHOT_CURSOR_ID, SettingsWindowEvent, THEME_ID,
+    VIDEO_CURSOR_ID, VIDEO_FPS_ID, VIDEO_HARDWARE_ID, VIDEO_QUALITY_ID,
+};
 use crate::tray::settings_window::{hotkey_capture::CaptureKey, model::SettingsWindowSection};
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     VIRTUAL_KEY, VK_BACK, VK_CONTROL, VK_DELETE, VK_ESCAPE, VK_LCONTROL, VK_LMENU, VK_LSHIFT,
@@ -15,6 +20,10 @@ pub(super) fn button(id: usize) -> Option<SettingsWindowEvent> {
         EXTENSION_MODE_ID => Some(SettingsWindowEvent::UseExtensionManaged),
         SCREENSHOT_CURSOR_ID => Some(SettingsWindowEvent::ToggleScreenshotCursor),
         VIDEO_CURSOR_ID => Some(SettingsWindowEvent::ToggleVideoCursor),
+        POINTER_TELEMETRY_ID => Some(SettingsWindowEvent::TogglePointerTelemetry),
+        ASK_DESTINATION_ID => Some(SettingsWindowEvent::ToggleAskAfterCapture),
+        SAVE_DESTINATION_ID => Some(SettingsWindowEvent::SaveBrowserDestination),
+        REFRESH_TARGETS_ID => Some(SettingsWindowEvent::RefreshBrowserTargets),
         REFRESH_MICROPHONES_ID => Some(SettingsWindowEvent::RefreshMicrophones),
         CONFIRM_DISCARD_ID => Some(SettingsWindowEvent::ConfirmDiscard),
         KEEP_EDITING_ID => Some(SettingsWindowEvent::KeepEditing),
@@ -29,6 +38,7 @@ pub(super) fn button(id: usize) -> Option<SettingsWindowEvent> {
 pub(super) fn combo(id: usize, index: usize) -> Option<SettingsWindowEvent> {
     match id {
         THEME_ID => theme(index),
+        BROWSER_DESTINATION_ID => Some(SettingsWindowEvent::SelectBrowserDestination(index)),
         VIDEO_QUALITY_ID | VIDEO_FPS_ID | VIDEO_HARDWARE_ID => video_combo(id, index),
         AUDIO_BITRATE_ID => audio_combo(id, index),
         _ => None,
@@ -105,7 +115,9 @@ pub(super) fn capture_key(key: VIRTUAL_KEY) -> CaptureKey {
         _ if (0x30..=0x39).contains(&key.0) || (0x41..=0x5a).contains(&key.0) => {
             char::from_u32(u32::from(key.0)).map_or(CaptureKey::Unsupported, CaptureKey::Character)
         }
-        _ if (0x70..=0x87).contains(&key.0) => CaptureKey::Function((key.0 - 0x70 + 1) as u8),
+        _ if (0x70..=0x87).contains(&key.0) => {
+            u8::try_from(key.0 - 0x70 + 1).map_or(CaptureKey::Unsupported, CaptureKey::Function)
+        }
         _ => CaptureKey::Unsupported,
     }
 }

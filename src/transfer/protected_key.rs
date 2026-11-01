@@ -13,7 +13,7 @@ pub(crate) enum MediaKeyProtection {
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(crate) struct ProtectedMediaKey {
     pub(crate) algorithm: String,
     pub(crate) key_protection: MediaKeyProtection,

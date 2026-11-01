@@ -1,7 +1,12 @@
 mod collector;
+mod events;
 mod hook_policy;
 mod redaction_output_surface;
 mod runtime;
 mod sanitizer;
 mod snapshot;
 mod timebase;
+mod trajectory;
+mod trajectory_clock;
+mod trajectory_producer;
+mod trajectory_stream;

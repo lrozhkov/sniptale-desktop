@@ -38,6 +38,8 @@ pub(super) fn handshake_capability_snapshot() -> NativeAppCapabilities {
 pub(in crate::app) fn capabilities_from_facts(facts: CapabilityFacts) -> NativeAppCapabilities {
     let audio_unavailable_reasons = audio_unavailable_reasons(&facts.audio);
     NativeAppCapabilities {
+        event_attachments: None,
+        attachments: None,
         capture: NativeCaptureCapabilities {
             screenshot_modes: screenshot_modes(facts.capture, facts.region_overlay),
             video_modes: video_modes(facts.capture, facts.region_overlay, facts.recording),

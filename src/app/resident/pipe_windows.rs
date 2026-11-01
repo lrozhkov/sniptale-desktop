@@ -83,7 +83,7 @@ impl AgentPipeDuplexListener for WindowsAgentPipeListener {
                 crate::ipc::create_resident_pipe_listener(
                     &self.install_id,
                     &self.current_user_sid,
-                    PIPE_MAX_SESSIONS as u32,
+                    u32::try_from(PIPE_MAX_SESSIONS).map_err(|_| AgentPipeServerError::Accept)?,
                 )
                 .map_err(|_| AgentPipeServerError::Accept)?,
             );
@@ -96,9 +96,8 @@ impl AgentPipeDuplexListener for WindowsAgentPipeListener {
             return Ok(AgentPipeAccept::Pending);
         }
         let pipe = self.pending.take().ok_or(AgentPipeServerError::Accept)?;
-        let peer = match pipe.connected_client_identity() {
-            Ok(peer) => peer,
-            Err(_) => return Ok(AgentPipeAccept::Rejected(PEER_IDENTITY_UNAVAILABLE)),
+        let Ok(peer) = pipe.connected_client_identity() else {
+            return Ok(AgentPipeAccept::Rejected(PEER_IDENTITY_UNAVAILABLE));
         };
         let context = match verify_connected_pipe_peer(&peer) {
             Ok(context) => context,
@@ -253,7 +252,7 @@ impl WindowsAgentPipeServer {
 
     pub(crate) fn run_with_effects_events_and_log<E, F>(
         &mut self,
-        effects: E,
+        effects: &E,
         events: &AgentEventHub,
         log: Option<&AgentPipeServerLogSink>,
         control: F,
@@ -266,7 +265,7 @@ impl WindowsAgentPipeServer {
             &mut self.listener,
             &mut self.auth,
             &mut self.configs,
-            &effects,
+            effects,
             events,
             &AgentPipeServerRuntime {
                 log,

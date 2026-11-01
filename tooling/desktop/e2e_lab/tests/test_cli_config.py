@@ -15,7 +15,7 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from config import LANES, LabConfig
-from errors import RunFailed
+from errors import IntegrityError, RunFailed
 import main as lab_main_module
 from main import gc as lab_gc, parser
 from paths import LabPaths
@@ -37,6 +37,7 @@ class CliConfigTests(unittest.TestCase):
             (["reset", "linux-x11"], "reset"),
             (["stop", "--all"], "stop"),
             (["gc"], "gc"),
+            (["gc", "--closed-session", "20261029T140000Z"], "gc"),
             (["destroy", "windows-11", "--yes"], "destroy"),
         )
         for arguments, expected in cases:
@@ -203,6 +204,9 @@ class CliConfigTests(unittest.TestCase):
             abandoned.mkdir()
             complete.mkdir()
             (complete / "receipt.json").write_text("{}", encoding="utf-8")
+            pins = root / "tooling/configs/qa/tool-versions.json"
+            pins.parent.mkdir(parents=True, exist_ok=True)
+            pins.write_text(json.dumps({"rust": {"channel": "1.99.1"}}), encoding="utf-8")
             result = lab_gc(paths, LabConfig.load(root))
             self.assertEqual(result["incomplete_runs_removed"], 1)
             self.assertFalse(abandoned.exists())
@@ -251,12 +255,46 @@ class CliConfigTests(unittest.TestCase):
             os.utime(newer, (stamp - 1, stamp - 1))
             os.utime(acceptance, (stamp, stamp))
 
+            pins = root / "tooling/configs/qa/tool-versions.json"
+            pins.parent.mkdir(parents=True, exist_ok=True)
+            pins.write_text(json.dumps({"rust": {"channel": "1.99.1"}}), encoding="utf-8")
             result = lab_gc(paths, LabConfig.load(root))
 
             self.assertEqual(result["redundant_build_runs_removed"], 1)
             self.assertFalse(older.exists())
             self.assertTrue(newer.exists())
             self.assertTrue(acceptance.exists())
+
+    def test_gc_only_removes_identified_obsolete_compiler_caches(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            paths = LabPaths.discover(Path(directory) / "repo")
+            paths.ensure()
+            pins = paths.root / "tooling/configs/qa/tool-versions.json"
+            pins.parent.mkdir(parents=True)
+            pins.write_text(json.dumps({"rust": {"channel": "1.99.1"}}), encoding="utf-8")
+            root = paths.cache / "session-dependencies"
+            for version in ("1.96.0", "1.99.1", "1.97.0"):
+                cache = root / ("rust-" + version)
+                cache.mkdir(parents=True)
+                if version != "1.97.0":
+                    (cache / "toolchain.json").write_text(
+                        json.dumps({"policy": {"rust_version": version}}), encoding="utf-8"
+                    )
+            unrelated = root / "browser-automation"
+            unrelated.mkdir()
+            config = LabConfig.load(Path(__file__).resolve().parents[4])
+            result = lab_gc(paths, config)
+            self.assertEqual(result["compiler_caches_removed"], 1)
+            self.assertFalse((root / "rust-1.96.0").exists())
+            self.assertTrue((root / "rust-1.99.1").exists())
+            self.assertTrue((root / "rust-1.97.0").exists())
+            self.assertTrue(unrelated.exists())
+            external = Path(directory) / "external"
+            external.mkdir()
+            (root / "rust-1.95.0").symlink_to(external, target_is_directory=True)
+            with self.assertRaises(IntegrityError):
+                lab_gc(paths, config)
+            self.assertTrue(external.exists())
 
 
 if __name__ == "__main__":

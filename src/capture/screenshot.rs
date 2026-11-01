@@ -92,13 +92,17 @@ pub(crate) fn default_screenshot_capture_runner(
 }
 
 #[cfg(windows)]
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "This platform implementation returns a runner; the shared factory contract also represents unsupported platforms with None."
+)]
 fn platform_screenshot_capture_runner(
     store: ScreenshotTransferStore,
 ) -> Option<Box<dyn ScreenshotCaptureRunner>> {
     Some(Box::new(
         ScreenshotCaptureService::new_with_region_selector(
             store,
-            super::wgc::WindowsWgcFrameProvider::default(),
+            super::wgc::WindowsWgcFrameProvider,
             WindowsWicPngWriter,
             WindowsRegionSelector,
         ),
@@ -165,7 +169,7 @@ where
                 DeliveryRoute::ExtensionTransfer
             ) | (
                 OperationAuthority::Manual { .. },
-                DeliveryRoute::LocalAsset { .. }
+                DeliveryRoute::LocalAsset { .. } | DeliveryRoute::DesktopDelivery { .. }
             )
         ) {
             return Err(ScreenshotCaptureError::UnsupportedDeliveryRoute);

@@ -40,7 +40,7 @@ impl WindowsPipeSecurityAttributes {
     }
 
     pub(crate) const fn as_ptr(&self) -> *const SECURITY_ATTRIBUTES {
-        &self.attributes
+        &raw const self.attributes
     }
 }
 
@@ -65,7 +65,7 @@ fn security_descriptor_from_sddl(sddl: &str) -> io::Result<PSECURITY_DESCRIPTOR>
         ConvertStringSecurityDescriptorToSecurityDescriptorW(
             PCWSTR(sddl.as_ptr()),
             SDDL_REVISION,
-            &mut descriptor,
+            &raw mut descriptor,
             None,
         )
     }

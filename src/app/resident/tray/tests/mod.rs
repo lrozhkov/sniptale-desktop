@@ -702,7 +702,8 @@ fn tray_worker_rejects_quit_during_finalization() -> Result<(), String> {
 }
 
 #[test]
-fn manual_mode_picker_opens_a_staged_extension_return() -> Result<(), Box<dyn std::error::Error>> {
+fn manual_settings_keep_desktop_authority_and_expose_recovery()
+-> Result<(), Box<dyn std::error::Error>> {
     let directory = tempfile::tempdir()?;
     let profile_path = directory.path().join("local-profile.json");
     let profile = crate::settings::ensure_local_profile_from_path(Some(profile_path.clone()))
@@ -734,11 +735,13 @@ fn manual_mode_picker_opens_a_staged_extension_return() -> Result<(), Box<dyn st
     let (shutdown_sender, _shutdown_receiver) = shutdown_channel();
 
     worker.render_fallback_menu(&mut source)?;
-    let extension_mode =
-        command_id_for(&worker, "mode-extension-managed").map_err(std::io::Error::other)?;
+    assert!(command_id_for(&worker, "mode-extension-managed").is_err());
+    assert!(command_id_for(&worker, "retry-pending-saves").is_ok());
+    let settings_command =
+        command_id_for(&worker, "open-settings").map_err(std::io::Error::other)?;
     worker.handle_command(
         WorkerCommand::TrayMenuCommandSelected {
-            command_id: extension_mode,
+            command_id: settings_command,
         },
         &events,
         &shutdown_sender,
@@ -747,7 +750,7 @@ fn manual_mode_picker_opens_a_staged_extension_return() -> Result<(), Box<dyn st
 
     assert_eq!(
         source.settings_views,
-        vec![crate::tray::settings_window::model::SettingsWindowView::ExtensionManagedDraft]
+        vec![crate::tray::settings_window::model::SettingsWindowView::ManualDraft]
     );
     assert_eq!(
         settings_probe.epoch()?.stable_mode(),

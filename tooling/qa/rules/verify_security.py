@@ -256,6 +256,33 @@ def check_forbidden_runtime_patterns(errors: list[str]) -> None:
             errors.append(f"{relative}: {reason}")
 
 
+def smoke_credential_owner_errors(root: Path = ROOT) -> list[str]:
+    relative = "tooling/release/windows/smoke/windows-smoke.ps1"
+    path = root / relative
+    if not path.exists():
+        return []
+    text = read(path)
+    if re.search(r"Provision-PipeSecret|ProtectedData|RandomNumberGenerator", text):
+        return [f"{relative}: smoke must let the installed resident provision and preserve pipe credentials"]
+    if "Assert-PipeSecretProvisioned $installDir (Get-InstallId $Channel)" not in text:
+        return [f"{relative}: smoke must verify the installed owner's pipe credential"]
+    return []
+
+
+def keyboard_modifier_source_errors(root: Path = ROOT) -> list[str]:
+    relative = "src/telemetry/windows/keyboard_hook.rs"
+    path = root / relative
+    if not path.exists():
+        return []
+    text = read(path)
+    errors = []
+    if re.search(r"\bGetAsyncKeyState\b", text):
+        errors.append(f"{relative}: modifier evidence must not use a later asynchronous key-state query")
+    if "from_observed_keys" not in text or "LLKHF_ALTDOWN" not in text:
+        errors.append(f"{relative}: modifiers require accepted transitions and original Alt context")
+    return errors
+
+
 def check_sensitive_logging_markers(errors: list[str]) -> None:
     log_pattern = re.compile(r"\b(trace|debug|info|warn|error)!\s*\(")
     for path in rust_files():
@@ -1097,6 +1124,28 @@ def run_self_tests() -> int:
         assert_contains(silent_failure_errors, "src/app/resident/transfer.rs")
         assert_contains(silent_failure_errors, "src/telemetry/runtime.rs")
 
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        path = root / "src/telemetry/windows/keyboard_hook.rs"
+        write_selftest_file(path, "fn observe() { from_observed_keys(LLKHF_ALTDOWN); }")
+        assert not keyboard_modifier_source_errors(root)
+        write_selftest_file(path, "fn observe() { GetAsyncKeyState(0x11); from_observed_keys(LLKHF_ALTDOWN); }")
+        assert_contains(keyboard_modifier_source_errors(root), "asynchronous key-state query")
+        write_selftest_file(path, "fn observe() {}")
+        assert_contains(keyboard_modifier_source_errors(root), "accepted transitions")
+
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        path = root / "tooling/release/windows/smoke/windows-smoke.ps1"
+        valid = "Start-Process $installedExe\nAssert-PipeSecretProvisioned $installDir (Get-InstallId $Channel)"
+        write_selftest_file(path, valid)
+        assert not smoke_credential_owner_errors(root)
+        for primitive in ("Provision-PipeSecret", "ProtectedData", "RandomNumberGenerator"):
+            write_selftest_file(path, valid + "\n" + primitive)
+            assert_contains(smoke_credential_owner_errors(root), "preserve pipe credentials")
+        write_selftest_file(path, "Start-Process $installedExe")
+        assert_contains(smoke_credential_owner_errors(root), "verify the installed owner's pipe credential")
+
     print("OK security guardrail self-tests")
     return 0
 
@@ -1108,6 +1157,8 @@ def main() -> int:
     check_required_security_docs(errors)
     check_pipe_secret_auth_algorithm_drift(errors)
     check_forbidden_runtime_patterns(errors)
+    errors.extend(smoke_credential_owner_errors())
+    errors.extend(keyboard_modifier_source_errors())
     check_sensitive_logging_markers(errors)
     check_audit11_raw_dpapi_does_not_expand_allowlist(errors)
     check_audit11_dpapi_owner_invariants(errors)

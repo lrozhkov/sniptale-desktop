@@ -23,6 +23,9 @@ mod tests;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ManualDispatchError {
+    DestinationRequired,
+    #[cfg(windows)]
+    RegionCancelled,
     ModeUnavailable,
     WorkerUnavailable,
     WorkerBusy,
@@ -100,6 +103,17 @@ impl ManualActionDispatcher {
             requested_at_epoch_ms,
         )
         .map_err(map_binding_error)?;
+        #[cfg(windows)]
+        let request = if request.source.mode == VideoMode::Region {
+            let mut request = request;
+            request.source.region = Some(
+                crate::capture::choose_recording_region()
+                    .map_err(|_| ManualDispatchError::RegionCancelled)?,
+            );
+            request
+        } else {
+            request
+        };
         let recording_id = derived_media_id("recording", &operation_id);
         self.prepare_asset(binding.job.clone())?;
         send_worker(
@@ -166,8 +180,13 @@ impl ManualActionDispatcher {
     }
 }
 
-fn map_binding_error(_error: manual_binding::ManualOperationBindError) -> ManualDispatchError {
-    ManualDispatchError::ModeUnavailable
+fn map_binding_error(error: manual_binding::ManualOperationBindError) -> ManualDispatchError {
+    match error {
+        manual_binding::ManualOperationBindError::DestinationUnavailable => {
+            ManualDispatchError::DestinationRequired
+        }
+        _ => ManualDispatchError::ModeUnavailable,
+    }
 }
 
 fn send_worker(

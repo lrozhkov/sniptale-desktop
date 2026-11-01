@@ -4,6 +4,8 @@ use crate::settings::{AppearanceThemePreference, ManualHotkeyAction, ManualProfi
 
 #[path = "presentation/options.rs"]
 mod options;
+#[cfg(windows)]
+pub(crate) use options::{SettingsVideoBitrateOption, SettingsVideoDurationOption};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum SettingsWindowView {
@@ -137,6 +139,9 @@ impl SettingsAudioSourceOption {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct SettingsWindowPresentation {
+    pub(super) browser_targets: Vec<(String, String)>,
+    pub(super) browser_destination: Option<String>,
+    pub(super) ask_after_capture: bool,
     pub(super) view: SettingsWindowView,
     pub(super) manual: Option<ManualProfileDraftView>,
     pub(super) microphones: Vec<SettingsMicrophoneOption>,
@@ -150,6 +155,24 @@ pub(crate) struct SettingsWindowPresentation {
 }
 
 impl SettingsWindowPresentation {
+    pub(crate) fn browser_destination_labels(&self) -> Vec<&str> {
+        std::iter::once("Local folder")
+            .chain(self.browser_targets.iter().map(|(_, label)| label.as_str()))
+            .collect()
+    }
+    pub(crate) fn selected_browser_destination_index(&self) -> usize {
+        self.browser_destination
+            .as_ref()
+            .and_then(|id| {
+                self.browser_targets
+                    .iter()
+                    .position(|(target, _)| target == id)
+            })
+            .map_or(0, |index| index + 1)
+    }
+    pub(crate) const fn ask_after_capture(&self) -> bool {
+        self.ask_after_capture
+    }
     #[must_use]
     pub(crate) const fn view(&self) -> SettingsWindowView {
         self.view

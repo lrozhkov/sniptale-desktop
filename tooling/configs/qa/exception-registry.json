@@ -66,6 +66,9 @@
           "src/app/resident/pipe_windows.rs": [
             "PIPE_ACCEPT_POLL_INTERVAL"
           ],
+          "src/app/resident/tray/dispatch/quit.rs": [
+            "QUIT_DRAIN_POLL_INTERVAL"
+          ],
           "src/capture/wgc/windows/readback.rs": [
             "FRAME_WAIT_INTERVAL"
           ],

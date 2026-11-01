@@ -11,9 +11,17 @@ mod command_events;
 #[cfg(any(windows, test))]
 pub(crate) mod control;
 #[cfg(any(windows, test))]
+mod cursor_writer;
+#[cfg(any(windows, test))]
+mod delivery;
+#[cfg(any(windows, test))]
 mod effects;
 #[cfg(any(windows, test))]
 mod events;
+#[cfg(any(windows, test))]
+mod events_writer;
+#[cfg(any(windows, test))]
+mod history_writer;
 #[cfg(any(windows, test))]
 mod hotkeys;
 #[cfg(windows)]
@@ -114,7 +122,13 @@ pub(super) enum WorkerCommand {
     PublishManualAsset {
         job_id: crate::assets::AssetJobId,
         source: Box<dyn crate::assets::FinalizedArtifactSource>,
+        delivery: Option<Box<delivery::DesktopMediaDelivery>>,
     },
+    ChooseMediaDestination {
+        request: Box<delivery::DesktopMediaDelivery>,
+        local_saved: bool,
+    },
+    RecoverPendingAssets,
     CaptureScreenshot {
         request: Box<crate::capture::ScreenshotCaptureRequest>,
         extension_controller_lease_id: Option<String>,
@@ -131,6 +145,7 @@ pub(super) enum WorkerCommand {
     },
     StartRecordingTelemetry {
         policy: crate::telemetry::RecordingTelemetryPolicy,
+        trajectory_context: Option<crate::telemetry::RecordingTrajectoryContext>,
         recording_id: String,
         started_at_monotonic_ns: u64,
     },
@@ -204,12 +219,17 @@ pub(crate) fn run_resident_agent_with_log(
 ) -> Result<AgentRunReport, AgentRunError> {
     #[cfg(all(windows, not(test)))]
     let _singleton = acquire_resident_agent_singleton()?;
+    #[cfg(all(windows, not(test)))]
+    if let Some(path) = crate::settings::browser_startup_preference_path() {
+        crate::settings::persist_browser_start_allowed(&path, true)
+            .map_err(|_| AgentRunError::ResidentSingletonUnavailable)?;
+    }
     let (_shutdown_sender, shutdown) = mpsc::sync_channel(1);
     let inputs = AgentRunInputs {
         startup: runtime_agent_startup_inputs(),
         shutdown,
     };
-    run_resident_agent_until_shutdown_with_log(&inputs, log)
+    run_resident_agent_until_shutdown_with_log(&inputs, log, worker_start::start_worker)
 }
 
 #[cfg(all(windows, not(test)))]
@@ -227,13 +247,18 @@ fn acquire_resident_agent_singleton() -> Result<crate::ipc::WindowsPipe, AgentRu
 pub(crate) fn run_resident_agent_until_shutdown(
     inputs: &AgentRunInputs,
 ) -> Result<AgentRunReport, AgentRunError> {
-    run_resident_agent_until_shutdown_with_log(inputs, None)
+    run_resident_agent_until_shutdown_with_log(
+        inputs,
+        None,
+        worker_start::start_lifecycle_test_worker,
+    )
 }
 
 #[cfg(any(windows, test))]
 fn run_resident_agent_until_shutdown_with_log(
     inputs: &AgentRunInputs,
     log: Option<&AgentProcessLogSink>,
+    worker_starter: worker_start::WorkerStarter,
 ) -> Result<AgentRunReport, AgentRunError> {
     let plan = plan_agent_start(&inputs.startup);
     let (event_sender, event_receiver) = mpsc::sync_channel(plan.components.len());
@@ -245,6 +270,7 @@ fn run_resident_agent_until_shutdown_with_log(
         &event_sender,
         &shutdown_sender,
         log,
+        worker_starter,
     );
     let started_components = wait_for_worker_starts(&plan.components, &event_receiver)?;
 

@@ -28,12 +28,20 @@ impl TrayWorker {
             match dispatch::quit::dispatch(self.icon_state.recording, &self.manual_senders, source)
             {
                 dispatch::quit::QuitDisposition::ShutdownNow => {
-                    let _ = shutdown_sender.try_send(AgentShutdownSignal::Stop);
+                    if dispatch::quit::prepare_user_quit(events, source) {
+                        let _ = shutdown_sender.try_send(AgentShutdownSignal::Stop);
+                    }
                 }
                 dispatch::quit::QuitDisposition::WaitForRecordingIdle => {
-                    self.exit_after_recording = true;
+                    self.exit_after_recording = dispatch::quit::prepare_user_quit(events, source);
                 }
                 dispatch::quit::QuitDisposition::Continue => {}
+            }
+            return;
+        }
+        if command.action_id == ShellActionId::RetryPendingSaves.as_str() {
+            if self.manual_senders.recover_pending_assets().is_err() {
+                let _ = source.show_notice(crate::tray::TrayNoticeKind::ActionRejected);
             }
             return;
         }

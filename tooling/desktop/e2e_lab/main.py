@@ -88,7 +88,8 @@ def parser() -> argparse.ArgumentParser:
     stop_group = stop_parser.add_mutually_exclusive_group(required=True)
     stop_group.add_argument("--all", action="store_true")
     stop_group.add_argument("--lane", choices=LANES)
-    sub.add_parser("gc")
+    gc_parser = sub.add_parser("gc")
+    gc_parser.add_argument("--closed-session", help="Remove one closed development session's diagnostic evidence")
     destroy_parser = sub.add_parser("destroy")
     destroy_parser.add_argument("lane", choices=LANES)
     destroy_parser.add_argument("--yes", action="store_true")
@@ -596,6 +597,25 @@ def gc(paths: LabPaths, config: LabConfig) -> dict[str, int]:
     from work_sessions import gc_sessions
 
     sessions_removed = gc_sessions(paths, config)
+    compiler_caches_removed = 0
+    versions = read_json(paths.root / "tooling/configs/qa/tool-versions.json")
+    compiler = versions.get("rust", {}).get("channel") if isinstance(versions, dict) else None
+    if not isinstance(compiler, str) or re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", compiler) is None:
+        raise IntegrityError("cannot clean compiler caches without the pinned compiler version")
+    dependencies = paths.cache / "session-dependencies"
+    if dependencies.is_symlink():
+        raise IntegrityError("session dependency cache is redirected")
+    for cached in dependencies.glob("rust-*"):
+        if re.fullmatch(r"rust-[0-9]+\.[0-9]+\.[0-9]+", cached.name) is None or cached.name == "rust-" + compiler:
+            continue
+        if cached.is_symlink() or not cached.is_dir():
+            raise IntegrityError("obsolete compiler cache is redirected or not a directory")
+        stamp = read_json(cached / "toolchain.json")
+        policy = stamp.get("policy") if isinstance(stamp, dict) else None
+        if not isinstance(policy, dict) or policy.get("rust_version") != cached.name[5:]:
+            continue
+        shutil.rmtree(paths.scoped(cached))
+        compiler_caches_removed += 1
     source_images = cleanup_source_images(paths)
     return {
         "runs_removed": removed,
@@ -605,6 +625,7 @@ def gc(paths: LabPaths, config: LabConfig) -> dict[str, int]:
         "partials_removed": partials,
         "package_archives_removed": package_archives,
         "build_caches_removed": build_caches_removed,
+        "compiler_caches_removed": compiler_caches_removed,
         **storage,
         **source_images,
     }
@@ -686,7 +707,7 @@ def main(argv: list[str] | None = None) -> int:
                 # Explicit recovery remains available even when the lease is corrupted.
                 manager.reset("windows-11")
                 session_state_path(paths).unlink(missing_ok=True)
-            elif load_session(paths) is not None:
+            elif load_session(paths) is not None and not (args.command == "gc" and args.closed_session is not None):
                 raise UsageError("close the development session before clean lab operations")
             if args.command == "bootstrap":
                 print_json(bootstrap(paths))
@@ -711,7 +732,10 @@ def main(argv: list[str] | None = None) -> int:
                     shutil.rmtree(golden)
                 print_json({"destroyed": args.lane})
             elif args.command == "gc":
-                print_json(gc(paths, config))
+                if args.closed_session is not None:
+                    print_json(WorkSessions(paths, config).purge_closed_session(args.closed_session))
+                else:
+                    print_json(gc(paths, config))
             elif args.command == "build":
                 run_id, built = execute_build(paths, config, args.lane, args.profile)
                 print_json({"run_id": run_id, "artifacts": [str(path) for path in built]})

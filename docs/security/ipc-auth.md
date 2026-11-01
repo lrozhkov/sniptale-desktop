@@ -12,7 +12,9 @@ Parent-process facts are diagnostic provenance and prompt context, not an author
 
 ## Session authorization
 
-The server bounds concurrent sessions, frame sizes, pending challenges, replay memory, queues, and waits. Backpressure returns typed failure. Every operational command after handshake requires the active controller lease and current mode epoch; stale, replayed, duplicate, observer, and wrong-owner commands cannot start a second operation.
+The server bounds concurrent sessions, frame sizes, pending challenges, replay memory, queues, and waits. Backpressure returns typed failure. Protocol v2 requires connection intent and compatible Desktop-settings/durable-ACK capabilities. Native settings and capture controls remain Desktop-owned. A trusted observer may register a browser/profile target but cannot select it, mutate settings, or start/control capture. Only explicit Desktop selection grants a matching target lease; stale, retired, observer, replayed, and wrong-target transfer requests fail closed. Media assignment and verified durable receipts govern source cleanup, not registration or heartbeat. Pending announcements are batched and forget acknowledged IDs; a new lease resets the announcement projection.
+
+Hello, trust, and heartbeat waits are bounded independently; a heartbeat does not extend the trust-consent deadline. Explicit Quit persists a startup guard before notifying live browser connections, and automatic reconnect cannot bypass it. User-requested reconnect and manual resident launch remain explicit startup actions.
 
 Corrupt, oversized, wrong-user, wrong-install, unsupported-algorithm, or unprotectable credentials fail closed and are never silently replaced by startup. Explicit uninstall and clean reinstall remove authorization state and permit a fresh credential; previous sessions cannot authenticate against it.
 

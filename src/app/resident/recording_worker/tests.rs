@@ -508,9 +508,13 @@ impl RecordingRunner for FakeRecordingRunner {
         _request: &crate::recording::RecordingControlRequest,
     ) -> Result<Vec<RecordingCommandEvent>, RecordingRuntimeError> {
         self.result?;
-        Ok(vec![RecordingCommandEvent::Stopped(
+        Ok(vec![RecordingCommandEvent::Stopped(Box::new(
             RecordingStoppedEvent {
                 pending: PendingRecordingTransfer {
+                    recording_events: None,
+                    cursor_trajectory: None,
+                    telemetry: None,
+                    delivery_route: Some(crate::protocol::DeliveryRoute::ExtensionTransfer),
                     recording_id: "recording-1".to_owned(),
                     filename: "recording-1.mp4".to_owned(),
                     duration_ms: 1_000,
@@ -526,7 +530,7 @@ impl RecordingRunner for FakeRecordingRunner {
                 },
                 telemetry: None,
             },
-        )])
+        ))])
     }
 }
 

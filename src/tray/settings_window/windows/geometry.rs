@@ -24,11 +24,11 @@ pub(super) fn initial_bounds() -> io::Result<RECT> {
     let mut rect = RECT {
         left: 0,
         top: 0,
-        right: 960 * dpi as i32 / 96,
-        bottom: 720 * dpi as i32 / 96,
+        right: 960 * i32::try_from(dpi).unwrap_or(96) / 96,
+        bottom: 720 * i32::try_from(dpi).unwrap_or(96) / 96,
     };
     // SAFETY: rect is initialized and adjusted synchronously for this style/DPI.
-    unsafe { AdjustWindowRectExForDpi(&mut rect, style, false, WS_EX_CONTROLPARENT, dpi) }
+    unsafe { AdjustWindowRectExForDpi(&raw mut rect, style, false, WS_EX_CONTROLPARENT, dpi) }
         .map_err(super::support::to_io_error)?;
     let area = work_area();
     let width = (rect.right - rect.left).min((area.right - area.left) * 9 / 10);
@@ -60,9 +60,12 @@ pub(super) fn dpi_changed(window: HWND, lparam: LPARAM) -> LRESULT {
     };
     let mut client = RECT::default();
     // SAFETY: GetClientRect initializes one RECT for this live HWND.
-    if unsafe { GetClientRect(window, &mut client) }.is_ok() {
+    if unsafe { GetClientRect(window, &raw mut client) }.is_ok() {
         let _ = super::with_state(window, |state| {
-            state.resize(client.right as u32, client.bottom as u32)
+            state.resize(
+                u32::try_from(client.right).unwrap_or(0),
+                u32::try_from(client.bottom).unwrap_or(0),
+            );
         });
     }
     LRESULT(0)
@@ -79,8 +82,8 @@ pub(super) fn minmax(window: HWND, lparam: LPARAM) -> LRESULT {
     let area = work_area();
     let max_width = ((area.right - area.left) * 9 / 10).max(480);
     let max_height = ((area.bottom - area.top) * 9 / 10).max(360);
-    info.ptMinTrackSize.x = (MIN_WIDTH * dpi as i32 / 96).min(max_width);
-    info.ptMinTrackSize.y = (MIN_HEIGHT * dpi as i32 / 96).min(max_height);
+    info.ptMinTrackSize.x = (MIN_WIDTH * i32::try_from(dpi).unwrap_or(96) / 96).min(max_width);
+    info.ptMinTrackSize.y = (MIN_HEIGHT * i32::try_from(dpi).unwrap_or(96) / 96).min(max_height);
     LRESULT(0)
 }
 

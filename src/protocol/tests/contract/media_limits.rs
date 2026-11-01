@@ -4,7 +4,7 @@ use super::*;
 fn invalid_filename_is_rejected() {
     let payload = br#"{
         "type": "app.screenshot.start",
-        "protocolVersion": 1,
+        "protocolVersion": 2,
         "controllerLeaseId": "lease-1",
         "captureId": "capture-1",
         "mode": "screen",

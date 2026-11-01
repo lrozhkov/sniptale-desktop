@@ -209,7 +209,9 @@ fn ignore_non_recording_command(command: &WorkerCommand) {
         | WorkerCommand::DiscardRecordingTelemetry { .. }
         | WorkerCommand::SnapshotRecordingTelemetry { .. }
         | WorkerCommand::PrepareManualAsset { .. }
-        | WorkerCommand::PublishManualAsset { .. } => {}
+        | WorkerCommand::PublishManualAsset { .. }
+        | WorkerCommand::RecoverPendingAssets
+        | WorkerCommand::ChooseMediaDestination { .. } => {}
         #[cfg(test)]
         WorkerCommand::TrayMenuCommandSelected { .. } => {}
         WorkerCommand::Stop

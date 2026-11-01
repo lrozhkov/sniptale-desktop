@@ -67,8 +67,19 @@ impl AssetPublishService {
         source: &mut dyn FinalizedArtifactSource,
     ) -> Result<PublishReceipt, AssetPublishServiceError> {
         let mut job = self.load(job_id)?;
-        job.attach_finalized_artifact(source.total_bytes(), source.sha256().to_owned())
+        job.prepare_recovery(source.total_bytes(), source.sha256())
             .map_err(|_| AssetPublishServiceError::Store(AssetJobStoreError::InvalidJob))?;
+        if let Some(receipt) =
+            super::recovery::existing_receipt(&job).map_err(AssetPublishServiceError::Publish)?
+        {
+            job.begin_publish()
+                .and_then(|()| job.mark_published())
+                .map_err(|_| AssetPublishServiceError::Store(AssetJobStoreError::InvalidJob))?;
+            self.store
+                .save(&job)
+                .map_err(AssetPublishServiceError::Store)?;
+            return Ok(receipt);
+        }
         self.publish(&mut job, source)
     }
 

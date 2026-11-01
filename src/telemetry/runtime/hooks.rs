@@ -57,6 +57,11 @@ impl RuntimeRecordingTelemetrySource {
 
     fn record_hook_warning(&mut self, recording_id: &str, failure: HookFailure, monotonic_ns: u64) {
         let (source, code) = hook_failure_signal(failure);
+        if source == "mouse-hook"
+            && let Some(cursor) = self.cursor_trajectory.as_mut()
+        {
+            cursor.fail();
+        }
         self.record_telemetry_warning_best_effort(recording_id, source, code, monotonic_ns);
     }
 }

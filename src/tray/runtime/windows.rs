@@ -71,6 +71,12 @@ impl WindowsTrayCommandSource {
 }
 
 impl TrayCommandSource for WindowsTrayCommandSource {
+    fn choose_delivery_destination(
+        &mut self,
+        request: &crate::tray::delivery::DeliveryPromptRequest,
+    ) -> crate::tray::delivery::DeliveryChoice {
+        crate::tray::delivery::choose_delivery_destination(request)
+    }
     fn apply_render_plan(
         &mut self,
         plan: &TrayMenuRenderPlan,
@@ -105,7 +111,7 @@ impl TrayCommandSource for WindowsTrayCommandSource {
             icon.update_tooltip(tooltip)
                 .map_err(|_| TrayRuntimeError::RenderFailed)?;
         }
-        self.tooltip = tooltip.to_owned();
+        tooltip.clone_into(&mut self.tooltip);
         self.icon_variant = icon_variant;
         Ok(())
     }
@@ -126,7 +132,7 @@ impl TrayCommandSource for WindowsTrayCommandSource {
             // SAFETY: both the hidden tray window and the modeless settings window are owned by
             // this thread. Draining the thread queue ensures their commands are dispatched.
             let has_message =
-                unsafe { PeekMessageW(&mut message, None, 0, 0, PM_REMOVE) }.as_bool();
+                unsafe { PeekMessageW(&raw mut message, None, 0, 0, PM_REMOVE) }.as_bool();
             if !has_message {
                 break;
             }
@@ -135,15 +141,13 @@ impl TrayCommandSource for WindowsTrayCommandSource {
                     icon.restore_after_taskbar_restart(&self.tooltip)
                         .map_err(|_| TrayRuntimeError::PollFailed)?;
                 }
-            } else {
-                if !self.settings_window.dispatch_dialog_message(&message) {
-                    // SAFETY: the message came from this adapter's thread queue. Translation and
-                    // dispatch are synchronous and cover both owned top-level HWNDs.
-                    unsafe {
-                        let _ = TranslateMessage(&message);
-                        DispatchMessageW(&message);
-                    };
-                }
+            } else if !self.settings_window.dispatch_dialog_message(&message) {
+                // SAFETY: the message came from this adapter's thread queue. Translation and
+                // dispatch are synchronous and cover both owned top-level HWNDs.
+                unsafe {
+                    let _ = TranslateMessage(&raw const message);
+                    DispatchMessageW(&raw const message);
+                };
             }
             self.drain_tray_callbacks(&mut events)?;
         }

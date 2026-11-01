@@ -33,7 +33,7 @@ HOT_FILE_THRESHOLD = 501
 APP_MEDIA_WORKER_EXECUTION_FILES = {
     "src/app/resident/capture_worker.rs",
     "src/app/resident/recording_worker.rs",
-    "src/app/resident/telemetry_worker.rs",
+    "src/app/resident/telemetry_worker/runtime.rs",
 }
 DEFERRED_EVALUATION_ALLOWED_FILES = {
     "src/protocol/validation/warnings.rs",

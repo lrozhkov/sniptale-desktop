@@ -9,7 +9,8 @@ use std::path::Path;
 #[cfg(windows)]
 use std::path::PathBuf;
 
-use serde::{Deserialize, Serialize};
+mod store;
+use store::{TrustedConnectionKey, TrustedConnectionStore, load_trust_store, save_trust_store};
 
 use crate::app::bridge::session::AgentPipeConsentRequest;
 #[cfg(windows)]
@@ -123,12 +124,31 @@ where
     P: ConnectionConsentPrompt,
 {
     fn confirm_connection(&self, request: &AgentPipeConsentRequest) -> AgentPipeConsentDecision {
-        confirm_connection_with_store(
+        if self.allow_persisted_trust {
+            return confirm_connection_core(
+                &self.store_path,
+                &self.prompt,
+                self.timeout_ms,
+                request,
+                true,
+                None,
+            )
+            .into();
+        }
+        let identity = crate::install::expected_install_identity();
+        let Ok(secret) = crate::install::load_current_user_pipe_secret(identity.install_id) else {
+            return AgentPipeConsentDecision::Denied {
+                code: CONSENT_STORE_UNAVAILABLE_CODE,
+                message: CONSENT_STORE_UNAVAILABLE_MESSAGE,
+            };
+        };
+        confirm_connection_core(
             &self.store_path,
             &self.prompt,
             self.timeout_ms,
             request,
-            self.allow_persisted_trust,
+            true,
+            Some(secret.secret_material.as_bytes()),
         )
         .into()
     }
@@ -138,6 +158,7 @@ where
     }
 }
 
+#[cfg(test)]
 pub(crate) fn confirm_connection_with_store(
     path: &Path,
     prompt: &dyn ConnectionConsentPrompt,
@@ -145,9 +166,27 @@ pub(crate) fn confirm_connection_with_store(
     request: &AgentPipeConsentRequest,
     allow_persisted_trust: bool,
 ) -> ConnectionConsentStoreDecision {
+    confirm_connection_core(
+        path,
+        prompt,
+        timeout_ms,
+        request,
+        allow_persisted_trust,
+        None,
+    )
+}
+
+fn confirm_connection_core(
+    path: &Path,
+    prompt: &dyn ConnectionConsentPrompt,
+    timeout_ms: u64,
+    request: &AgentPipeConsentRequest,
+    allow_persisted_trust: bool,
+    authentication_key: Option<&[u8]>,
+) -> ConnectionConsentStoreDecision {
     let key = TrustedConnectionKey::from_request(request);
     let mut store = if allow_persisted_trust {
-        match load_trust_store(path) {
+        match load_trust_store(path, authentication_key) {
             Ok(store) => store,
             Err(ConnectionTrustStoreError::Io(error))
                 if error.kind() == std::io::ErrorKind::NotFound =>
@@ -185,7 +224,7 @@ pub(crate) fn confirm_connection_with_store(
                 return ConnectionConsentStoreDecision::Allowed;
             }
             store.insert(key);
-            if save_trust_store(path, &store).is_err() {
+            if save_trust_store(path, &store, authentication_key).is_err() {
                 return ConnectionConsentStoreDecision::AllowedWithoutPersist;
             }
             ConnectionConsentStoreDecision::Allowed
@@ -237,64 +276,4 @@ fn trusted_connections_file_path() -> Option<PathBuf> {
         path.push(segment);
     }
     Some(path)
-}
-
-fn load_trust_store(path: &Path) -> Result<TrustedConnectionStore, ConnectionTrustStoreError> {
-    let payload = std::fs::read(path).map_err(ConnectionTrustStoreError::Io)?;
-    let store: TrustedConnectionStore =
-        serde_json::from_slice(&payload).map_err(|_| ConnectionTrustStoreError::Json)?;
-    if store.format_version == TRUST_FORMAT_VERSION {
-        Ok(store)
-    } else {
-        Err(ConnectionTrustStoreError::UnsupportedFormat)
-    }
-}
-
-fn save_trust_store(
-    path: &Path,
-    store: &TrustedConnectionStore,
-) -> Result<(), ConnectionTrustStoreError> {
-    let payload = serde_json::to_vec_pretty(store).map_err(|_| ConnectionTrustStoreError::Json)?;
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).map_err(ConnectionTrustStoreError::Io)?;
-    }
-    std::fs::write(path, payload).map_err(ConnectionTrustStoreError::Io)
-}
-
-#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct TrustedConnectionStore {
-    format_version: u8,
-    trusted: Vec<TrustedConnectionKey>,
-}
-
-impl TrustedConnectionStore {
-    fn contains(&self, key: &TrustedConnectionKey) -> bool {
-        self.trusted.iter().any(|trusted| trusted == key)
-    }
-
-    fn insert(&mut self, key: TrustedConnectionKey) {
-        self.format_version = TRUST_FORMAT_VERSION;
-        if !self.contains(&key) {
-            self.trusted.push(key);
-        }
-    }
-}
-
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct TrustedConnectionKey {
-    extension_origin: String,
-    host_exe_sha256: String,
-    parent_fingerprint: String,
-}
-
-impl TrustedConnectionKey {
-    fn from_request(request: &AgentPipeConsentRequest) -> Self {
-        Self {
-            extension_origin: request.extension_origin.clone(),
-            host_exe_sha256: request.connection.host_exe_sha256.clone(),
-            parent_fingerprint: request.connection.parent_fingerprint.clone(),
-        }
-    }
 }

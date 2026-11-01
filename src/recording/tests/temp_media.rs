@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn finalized_temp_media_reports_pending_until_ack_or_ttl() -> Result<(), TempStoreError> {
+fn finalized_temp_media_survives_timeout_until_durable_ack() -> Result<(), TempStoreError> {
     let mut record = TempMediaRecord::start_writing("recording-1", 1_000)?;
     record.finalize(
         1024,
@@ -15,7 +15,7 @@ fn finalized_temp_media_reports_pending_until_ack_or_ttl() -> Result<(), TempSto
     );
     assert_eq!(
         record.recovery_decision(70_001, 500, 60_000)?,
-        StartupRecoveryDecision::Delete
+        StartupRecoveryDecision::ReportPending
     );
 
     record.ack(70_002)?;
@@ -42,7 +42,7 @@ fn temp_media_reject_can_retain_diagnostics_but_never_replay() -> Result<(), Tem
     );
     assert_eq!(
         record.recovery_decision(10_000, 500, 60_000)?,
-        StartupRecoveryDecision::Delete
+        StartupRecoveryDecision::RetainRejected
     );
     Ok(())
 }
@@ -138,6 +138,12 @@ fn reconnect_reporting_only_includes_finalized_pending_recordings() -> Result<()
         recording_metadata("recording-2.mp4"),
         2_000,
     )?;
+    finalized.telemetry = Some(crate::protocol::NativeRecordingTelemetrySnapshot {
+        viewport: Some(serde_json::json!({"width":1920,"height":1080,"devicePixelRatio":1})),
+        cursor_track: None,
+        action_events: Vec::new(),
+        signals: Vec::new(),
+    });
     let writing = TempMediaRecord::start_writing("recording-1", 1_000)?;
     let mut acked = TempMediaRecord::start_writing("recording-3", 1_000)?;
     acked.finalize(
@@ -166,6 +172,23 @@ fn reconnect_reporting_only_includes_finalized_pending_recordings() -> Result<()
     assert_eq!(pending[0].chunk_count, 2);
     assert_eq!(pending[0].next_missing_chunk_index, 0);
     assert!(pending[0].open_editor);
+    let viewport = pending[0]
+        .telemetry
+        .as_ref()
+        .and_then(|snapshot| snapshot.viewport.as_ref())
+        .ok_or(TempStoreError::InvalidTransition)?;
+    assert_eq!(viewport["scrollX"], 0);
+    assert_eq!(viewport["scrollY"], 0);
+    assert!(
+        recovered[1]
+            .record
+            .telemetry
+            .as_ref()
+            .and_then(|snapshot| snapshot.viewport.as_ref())
+            .is_some_and(
+                |viewport| viewport.get("scrollX").is_none() && viewport.get("scrollY").is_none()
+            )
+    );
     assert_eq!(
         pending[0].sha256,
         "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
@@ -224,6 +247,8 @@ fn recovered(record: TempMediaRecord, decision: StartupRecoveryDecision) -> Reco
 
 fn recording_metadata(filename: &str) -> RecordingMediaMetadata {
     RecordingMediaMetadata {
+        recording_events: None,
+        cursor_trajectory: None,
         filename: filename.to_owned(),
         duration_ms: 4_000,
         width: 1920,
@@ -253,15 +278,10 @@ fn recording_transfer_store_reads_pending_chunks_from_temp_media()
     assert_eq!(chunk.base64, "aGVsbG8gd29ybGQ=");
     let pending = store.pending_recordings_for_reconnect_at(3_000)?;
     assert_eq!(pending[0].next_missing_chunk_index, 1);
-    assert!(matches!(
-        store.recording_chunk_at("recording-1", 0, 3_000),
-        Err(RecordingTransferStoreError::Transfer(
-            crate::transfer::error::TransferError::OutOfOrderChunk {
-                expected: 1,
-                actual: 0
-            }
-        ))
-    ));
+    assert_eq!(
+        store.recording_chunk_at("recording-1", 0, 3_000)?,
+        Some(chunk)
+    );
     assert!(matches!(
         store.recording_chunk_at("recording-1", 1, 3_000),
         Err(RecordingTransferStoreError::Transfer(
@@ -310,24 +330,9 @@ fn recording_finalize_chunk_read_path_handles_bounded_multi_chunk_media()
 }
 
 #[test]
-fn recording_transfer_store_chunk_lookup_deletes_expired_record_and_media()
+fn finalized_recording_timeout_keeps_verified_media_readable()
 -> Result<(), RecordingTransferStoreError> {
     let temp = tempfile::tempdir()
-        .map_err(|_| RecordingTransferStoreError::Disk(TempStoreDiskError::Io))?;
-    let disk = TempMediaDiskStore::open(temp.path()).map_err(RecordingTransferStoreError::Disk)?;
-    let mut record = TempMediaRecord::start_writing("recording-1", 1_000)
-        .map_err(RecordingTransferStoreError::InvalidState)?;
-    record
-        .finalize_recording(
-            11,
-            &sha256_hex(b"hello world"),
-            recording_metadata("recording-1.mp4"),
-            2_000,
-        )
-        .map_err(RecordingTransferStoreError::InvalidState)?;
-    disk.write_record(&record)
-        .map_err(RecordingTransferStoreError::Disk)?;
-    std::fs::write(temp.path().join("recording-1.mp4"), b"hello world")
         .map_err(|_| RecordingTransferStoreError::Disk(TempStoreDiskError::Io))?;
     let store = RecordingTransferStore::open(
         temp.path(),
@@ -337,10 +342,16 @@ fn recording_transfer_store_chunk_lookup_deletes_expired_record_and_media()
             rejected_retention: 60_000,
         },
     )?;
-
-    assert_eq!(store.recording_chunk_at("recording-1", 0, 3_000)?, None);
-    assert!(!temp.path().join("recording-1.json").exists());
-    assert!(!temp.path().join("recording-1.mp4").exists());
+    let path = store.start_recording_at("recording-1", 1_000)?;
+    std::fs::write(&path, b"hello world")
+        .map_err(|_| RecordingTransferStoreError::Disk(TempStoreDiskError::Io))?;
+    store.finalize_recording_at("recording-1", recording_metadata("recording-1.mp4"), 2_000)?;
+    let chunk = store.recording_chunk_at("recording-1", 0, 3_000)?.ok_or(
+        RecordingTransferStoreError::Transfer(crate::transfer::error::TransferError::EmptyTransfer),
+    )?;
+    assert_eq!(chunk.chunk_sha256, sha256_hex(b"hello world"));
+    assert!(temp.path().join("recording-1.json").exists());
+    assert!(temp.path().join("recording-1.mp4").exists());
     Ok(())
 }
 

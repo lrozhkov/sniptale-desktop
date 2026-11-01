@@ -7,5 +7,7 @@ pub(super) fn wide_null(value: &str) -> Vec<u16> {
 }
 
 pub(super) fn to_io_error(error: windows::core::Error) -> io::Error {
-    io::Error::from_raw_os_error(error.code().0)
+    let code = error.code().0;
+    drop(error);
+    io::Error::from_raw_os_error(code)
 }

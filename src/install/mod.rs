@@ -35,8 +35,10 @@ pub(crate) use dev_local_trust::{
 pub(crate) use health::{
     InstallPackageIntegrity, InstallRuntimeHealth, current_install_runtime_health,
 };
+#[cfg(all(windows, not(test)))]
+pub(crate) use identity::current_desktop_client_id;
 pub(crate) use identity::expected_install_identity;
-#[cfg(windows)]
+#[cfg(all(windows, not(test)))]
 pub(crate) use pipe_secret_store::initialize_current_user_pipe_secret;
 #[cfg(windows)]
 pub(crate) use pipe_secret_store::load_current_user_pipe_secret;

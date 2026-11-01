@@ -1,19 +1,25 @@
-# ADR 0005: Dual settings authority and local asset delivery
+# ADR 0005: Desktop settings authority and recoverable media delivery
 
-Status: Accepted, 2026-07-11.
+Status: Accepted, 2026-07-11; authority and delivery revised 2026-10-31 for the explicitly requested Desktop/extension integration.
 
 ## Decision
 
-`OperatingMode` is either `ExtensionManaged` or `Manual`; exactly one settings authority is active. ExtensionManaged accepts versioned extension snapshots and uses `ExtensionTransfer`. Manual uses the versioned local profile and `LocalAsset`, admits no controller pipe session, and sends no media or metadata through Native Messaging.
+Desktop owns the local capture/recording profile, effective settings, hotkeys, and native controls. The persisted `OperatingMode` variants `ExtensionManaged` and `Manual` and schema-1 cache remain compatibility state; they do not grant a browser product authority. Production Native Messaging rejects browser settings mutation and native capture/control commands. A selected browser receives read-only Desktop snapshots and no extension-owned tray actions.
 
-Every capture or recording persists its `ModeEpoch`, authority, and delivery route before media side effects. The snapshot remains immutable through the terminal state. Mode switches fence ingress, wait for bounded owner acknowledgements, and fail while an operation is active or finalizing.
+Protocol v2 requires an explicit connection intent, compatible capabilities, stable per-install Desktop identity, authenticated origin, and a registered browser/profile identity. Native consent and the browser's explicit installation pin are separate trust decisions. Registration never selects a default. Desktop selects a known target; a fresh lease then authorizes only media assigned to that target. Reconnect changes ephemeral connection and lease identities while preserving the explicit target selection. A retired connection cannot reclaim a newer same-profile connection's lease.
 
-`assets/**` publishes only user-selected PNG/MP4 files through durable atomic jobs. `ShellActionId` is native-only; extension intents use `ExtensionIntentActionId` and an explicit mapping. Manual v1 disables telemetry because no approved local sidecar format exists.
+Every capture or recording persists its authority and delivery route before media side effects. `DesktopDelivery` freezes its local asset job, initial browser target, and post-capture choice preference. `assets/**` publishes only user-selected PNG/MP4 files through durable atomic jobs. A separate transfer-owned per-media browser assignment can bind the frozen job to one known target after capture; it cannot silently retarget an existing assignment.
+
+A validated local folder is required before capture or recording. Local publication remains the fallback when the browser is absent or no verified durable receipt arrives. The optional native destination prompt can select Local, a registered browser, or Later. Cancellation, failed publication, failed transfer, and rejected transfer preserve recoverable protected source media. Cleanup requires verified local publication for the same frozen job or an authorized browser receipt matching the source hash and total byte count. Timeouts do not prove durable publication. The [data-handling policy](../../security/data-handling.md) owns retention and disclosure rules.
+
+`ModeEpoch` still fences immutable operation snapshots. The DTOs retain `ExtensionTransfer` and `LocalAsset` for legacy compatibility; new production capture uses the Desktop-owned route. `ShellActionId` remains native-only, separate from the explicit `ExtensionIntentActionId` mapping. Recording pointer/click telemetry is opt-in, active-time based, normalized to the captured frame, sanitized, bounded, and validated again before retained data can be sent to a browser. The extension converts milliseconds to seconds once. This does not authorize a local telemetry sidecar format.
 
 ## Trade-off
 
-Manual mode remains usable without extension availability, but it creates plaintext output at the selected destination and adds a second settings authority. Mutual exclusion, frozen routes, destination validation, and owner separation prevent silent authority mixing. The decision does not authorize accounts, gallery, editor, cloud sync, or a general file store.
+The local fallback permits capture with a closed browser and preserves user output across transfer failure. Protected recovery state can outlive a browser session and needs explicit recovery; queue, media-size, disk-headroom, and parsing limits still apply. A selected trusted browser can read only its assigned media and can claim durable storage; the native process can verify the receipt fields but cannot independently prove the browser's physical storage durability. A compromised Windows user session remains outside the DPAPI and pipe boundary.
+
+This decision does not authorize native accounts, gallery, editor, cloud sync, OCR, transcript, AI behavior, or a general file store. The independent design-system and native-sandbox UI goal remains active.
 
 ## Proof
 
-Settings mode/profile tests, asset publication/recovery tests, app ingress tests, redaction tests, coverage floors, and Windows desktop E2E scenarios cover transitions and route isolation.
+Settings registry persistence and failed-write tests, Desktop authority/selection/retired-connection tests, asset publication/crash-recovery tests, durable-ACK mismatch tests, transfer replay/retention tests, telemetry frame/privacy tests, redaction tests, coverage floors, Windows smoke, and real-extension Windows E2E cover the contract. Runtime acceptance requires collected Windows evidence; deterministic tests alone do not establish it.

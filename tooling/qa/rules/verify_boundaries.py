@@ -64,8 +64,25 @@ ROOT_FACADE_FORBIDDEN = [
 
 OWNER_IMPORT_DENY = {
     "protocol": OWNERS - {"protocol"},
-    "ipc": {"capture", "recording", "audio", "tray", "hotkeys", "transfer", "diagnostics"},
-    "settings": {"ipc", "capture", "recording", "audio", "assets", "tray", "hotkeys", "transfer"},
+    "ipc": {
+        "capture",
+        "recording",
+        "audio",
+        "tray",
+        "hotkeys",
+        "transfer",
+        "diagnostics",
+    },
+    "settings": {
+        "ipc",
+        "capture",
+        "recording",
+        "audio",
+        "assets",
+        "tray",
+        "hotkeys",
+        "transfer",
+    },
     "assets": {"ipc", "capture", "recording", "audio", "settings", "tray", "hotkeys"},
     "transfer": {"ipc", "capture", "recording", "audio", "tray", "hotkeys"},
     "diagnostics": {"capture", "recording", "audio", "transfer", "tray", "hotkeys"},
@@ -336,10 +353,14 @@ def file_size_limit(path: Path) -> int:
 def file_size_findings(files: list[Path], exceptions: list[dict], errors: list[str], warnings: list[str]) -> None:
     limits: dict[str, int] = {}
     for entry in exceptions:
-        relative, maximum, reason = entry.get("path"), entry.get("maxLines"), entry.get("reason")
+        relative, maximum, reason = (
+            entry.get("path"),
+            entry.get("maxLines"),
+            entry.get("reason"),
+        )
         if (
             not isinstance(relative, str)
-            or not relative.startswith("src/")
+            or not (relative.startswith("src/") or relative == "build.rs")
             or not relative.endswith(".rs")
             or any(part in relative for part in ("*", "?", "[", "..", "\\"))
             or relative in limits
@@ -363,16 +384,24 @@ def file_size_findings(files: list[Path], exceptions: list[dict], errors: list[s
             warnings.append(f"{relative} has {lines} physical lines; review cohesion above {WARN_RUST_FILE_LINES}")
 
 
+def rust_source_files() -> list[Path]:
+    files = list(SRC.rglob("*.rs"))
+    build_script = ROOT / "build.rs"
+    if build_script.is_file():
+        files.append(build_script)
+    return files
+
+
 def check_file_sizes(errors: list[str], warnings: list[str]) -> None:
     catalog = json.loads((ROOT / "tooling/configs/qa/code-size-exceptions.json").read_text(encoding="utf-8"))
-    file_size_findings(list(SRC.rglob("*.rs")), catalog["files"], errors, warnings)
+    file_size_findings(rust_source_files(), catalog["files"], errors, warnings)
 
 
 def check_function_size_exceptions(errors: list[str]) -> None:
     # This validates suppression scope only. Clippy alone measures function length.
-    for path in SRC.rglob("*.rs"):
+    for path in rust_source_files():
         text = read(path)
-        for match in re.finditer(r"#(!?)\[(allow|expect)\((.*?)\)\]", text, re.S):
+        for match in re.finditer(r"#(!?)\[(allow|expect|cfg_attr)\((.*?)\)\]", text, re.S):
             if "clippy::too_many_lines" not in match[3]:
                 continue
             following = text[match.end() :].lstrip()
@@ -380,7 +409,10 @@ def check_function_size_exceptions(errors: list[str]) -> None:
                 match[1]
                 or match[2] != "expect"
                 or not re.search(r'reason\s*=\s*"[^"\n]*\S[^"\n]*"', match[3])
-                or not re.match(r"(?:pub(?:\([^)]*\))?\s+)?(?:async\s+)?(?:unsafe\s+)?fn\s+", following)
+                or not re.match(
+                    r"(?:pub(?:\([^)]*\))?\s+)?(?:async\s+)?(?:unsafe\s+)?fn\s+",
+                    following,
+                )
             ):
                 errors.append(f"{rel(path)}: too_many_lines requires function-local #[expect] with a reason")
 

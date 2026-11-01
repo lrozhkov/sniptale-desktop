@@ -1,7 +1,7 @@
 //! Disk-backed temporary media metadata store.
 use std::{
     fs::{self, File},
-    io::BufReader,
+    io::{Read, Write},
     path::{Path, PathBuf},
 };
 
@@ -32,6 +32,12 @@ pub(crate) struct TempMediaDiskStore {
 }
 
 impl TempMediaDiskStore {
+    pub(crate) fn cursor_trajectory_root(&self) -> PathBuf {
+        self.root.join("cursor-trajectories")
+    }
+    pub(crate) fn recording_events_root(&self) -> PathBuf {
+        self.root.join("recording-events")
+    }
     pub(crate) fn open(root: impl Into<PathBuf>) -> Result<Self, TempStoreDiskError> {
         let root = root.into();
         fs::create_dir_all(&root).map_err(|_| TempStoreDiskError::Io)?;
@@ -43,8 +49,12 @@ impl TempMediaDiskStore {
         let final_path = self.metadata_path(&record.media_id)?;
         let temp_path = self.temp_metadata_path(&record.media_id)?;
         {
-            let file = File::create(&temp_path).map_err(|_| TempStoreDiskError::Io)?;
-            serde_json::to_writer(file, record).map_err(|_| TempStoreDiskError::InvalidMetadata)?;
+            let mut file = File::create(&temp_path).map_err(|_| TempStoreDiskError::Io)?;
+            serde_json::to_writer(&mut file, record)
+                .map_err(|_| TempStoreDiskError::InvalidMetadata)?;
+            file.flush()
+                .and_then(|()| file.sync_all())
+                .map_err(|_| TempStoreDiskError::InvalidMetadata)?;
         }
         fs::rename(temp_path, final_path).map_err(|_| TempStoreDiskError::Io)
     }
@@ -150,7 +160,17 @@ impl TempMediaDiskStore {
 
 fn read_record(path: &Path) -> Result<TempMediaRecord, TempStoreDiskError> {
     let file = File::open(path).map_err(|_| TempStoreDiskError::Io)?;
-    serde_json::from_reader(BufReader::new(file)).map_err(|_| TempStoreDiskError::InvalidMetadata)
+    {
+        let mut bytes = Vec::new();
+        file.take(1_048_577)
+            .read_to_end(&mut bytes)
+            .map_err(|_| TempStoreDiskError::InvalidMetadata)?;
+        if bytes.len() > 1_048_576 {
+            return Err(TempStoreDiskError::InvalidMetadata);
+        }
+        serde_json::from_slice(&bytes)
+    }
+    .map_err(|_| TempStoreDiskError::InvalidMetadata)
 }
 
 fn validate_record_for_disk(record: &TempMediaRecord) -> Result<(), TempStoreDiskError> {

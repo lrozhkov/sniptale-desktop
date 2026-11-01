@@ -1,6 +1,6 @@
 //! Protocol, settings schema, and native cache version constants.
 
-pub(crate) const PROTOCOL_VERSION: u16 = 1;
+pub(crate) const PROTOCOL_VERSION: u16 = 2;
 pub(crate) const SETTINGS_SCHEMA_VERSION: u16 = 1;
 pub(crate) const CACHE_SCHEMA_VERSION: u16 = 1;
 

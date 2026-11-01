@@ -1,4 +1,6 @@
 mod chunking;
+mod events_catalog;
+mod events_store;
 mod hashing;
 mod identity;
 mod lifecycle;
@@ -6,3 +8,5 @@ mod messages;
 mod pending;
 mod protected_file;
 mod protected_key;
+mod trajectory_crypto;
+mod trajectory_store;

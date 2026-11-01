@@ -126,6 +126,14 @@ $compileTimer = [Diagnostics.Stopwatch]::StartNew()
 $compileTimer.Stop()
 if ($LASTEXITCODE -ne 0) { throw "Windows cargo build failed" }
 
+Write-Output "[build-progress] rust-tests status=started"
+$unitTestTimer = [Diagnostics.Stopwatch]::StartNew()
+$testCommand = "cd /d `"$work`" && cargo test --locked --target x86_64-pc-windows-msvc --all-targets --all-features -- --test-threads=1"
+& cmd.exe /d /s /c $testCommand
+$unitTestTimer.Stop()
+if ($LASTEXITCODE -ne 0) { throw "Windows Rust owner tests failed" }
+Write-Output "[build-progress] rust-tests status=pass"
+
 $profileDir = if ($BuildProfile -eq "release") { "release" } else { "debug" }
 $targetRoot = if ($WorkspaceMode -eq "warm") { $env:CARGO_TARGET_DIR } else { Join-Path $work "target" }
 $exe = Join-Path $targetRoot "x86_64-pc-windows-msvc\$profileDir\sniptale-native-agent.exe"
@@ -189,7 +197,7 @@ $entries = Get-ChildItem -LiteralPath $outputPath -File | ForEach-Object {
 $os = Get-CimInstance Win32_OperatingSystem
 $value = [ordered]@{
   schema_version = 1; profile = $BuildProfile; artifacts = @($entries)
-  timings_ms = [ordered]@{ tools = $toolsTimer.ElapsedMilliseconds; compile = $compileTimer.ElapsedMilliseconds; package = $packageTimer.ElapsedMilliseconds }
+  timings_ms = [ordered]@{ tools = $toolsTimer.ElapsedMilliseconds; compile = $compileTimer.ElapsedMilliseconds; package = $packageTimer.ElapsedMilliseconds; tests = $unitTestTimer.ElapsedMilliseconds }
   environment = [ordered]@{
     os_version = $os.Version; os_build = $os.BuildNumber
     rustc = (& rustc --version); cargo = (& cargo --version); wix = $wixVersion

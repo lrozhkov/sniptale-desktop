@@ -94,6 +94,7 @@ pub(crate) struct ManualDestinationSnapshot {
 #[cfg(any(windows, test))]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct ManualRecordingSettings {
+    pub(crate) collect_pointer_events: bool,
     pub(crate) microphone_device_id: Option<String>,
     pub(crate) requested_quality: NativeRequestedQualitySettings,
     pub(crate) max_duration_ms: u64,
@@ -114,6 +115,7 @@ impl ManualProfile {
     #[cfg(any(windows, test))]
     pub(crate) fn recording_settings(&self) -> ManualRecordingSettings {
         ManualRecordingSettings {
+            collect_pointer_events: self.video.collect_pointer_events,
             microphone_device_id: self.audio.microphone_device_id.clone(),
             requested_quality: NativeRequestedQualitySettings {
                 audio_bitrate_kbps: self.audio.bitrate_kbps,
@@ -150,6 +152,8 @@ pub(crate) struct ManualScreenshot {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(crate) struct ManualVideo {
+    #[serde(default)]
+    pub(crate) collect_pointer_events: bool,
     pub(crate) quality: ManualVideoQuality,
     pub(crate) fps: ManualFps,
     pub(crate) bitrate_override_mbps: Option<u16>,

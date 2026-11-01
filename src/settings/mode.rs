@@ -57,10 +57,7 @@ impl ModeEpoch {
 
     #[must_use]
     pub(crate) const fn allows_extension_ingress(self) -> bool {
-        matches!(
-            self.phase,
-            ModePhase::Stable(OperatingMode::ExtensionManaged)
-        )
+        matches!(self.phase, ModePhase::Stable(_))
     }
 
     #[must_use]

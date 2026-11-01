@@ -32,6 +32,7 @@ fn typed_events_map_every_manual_field_and_immediate_theme()
             crate::settings::ManualHardwarePreference::ForceSoftware,
         ),
         SettingsWindowEvent::ToggleVideoCursor,
+        SettingsWindowEvent::TogglePointerTelemetry,
         SettingsWindowEvent::SetVideoDuration(7_200),
         SettingsWindowEvent::SetAudioSource(crate::settings::ManualAudioSource::System),
         SettingsWindowEvent::SelectMicrophone(SettingsMicrophoneSelection::SystemDefault),
@@ -146,7 +147,7 @@ fn apply_covers_manual_and_extension_mode_flows() -> Result<(), Box<dyn std::err
         active.profile_snapshot()?.operating_mode(),
         OperatingMode::ExtensionManaged
     );
-    assert!(dispatcher.is_none());
+    assert!(dispatcher.is_some());
     Ok(())
 }
 
@@ -373,4 +374,81 @@ impl TrayCommandSource for Source {
     fn open_save_folder(&mut self, _destination: &Path) -> Result<(), TrayRuntimeError> {
         Ok(())
     }
+}
+
+#[test]
+fn browser_choice_is_explicit_persisted_and_blocked_while_recording()
+-> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempdir()?;
+    let (active, mut model, profile_path) = setup(directory.path())?;
+    let path = directory.path().join("browser-targets.json");
+    let active = active
+        .with_browser_target_store(path.clone())
+        .map_err(|_| "registry")?;
+    let identity = crate::protocol::NativeControllerIdentity {
+        extension_id: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".to_owned(),
+        browser_family: crate::protocol::BrowserFamily::Chrome,
+        profile_key: "profile-one".to_owned(),
+        document_id: None,
+        connection_id: "connection-one".to_owned(),
+    };
+    let target = active
+        .register_browser_target(&identity)
+        .map_err(|_| "register")?;
+    let mut source = Source::default();
+    let mut dispatcher = None;
+    let senders = ManualWorkerSenders::default();
+    for (event, status) in [
+        (
+            SettingsWindowEvent::RefreshBrowserTargets,
+            TrayRecordingStatus::Idle,
+        ),
+        (
+            SettingsWindowEvent::SelectBrowserDestination(1),
+            TrayRecordingStatus::Idle,
+        ),
+        (
+            SettingsWindowEvent::ToggleAskAfterCapture,
+            TrayRecordingStatus::Idle,
+        ),
+        (
+            SettingsWindowEvent::SaveBrowserDestination,
+            TrayRecordingStatus::Recording,
+        ),
+    ] {
+        dispatch_settings_event_with_paths(
+            event,
+            SettingsEventContext {
+                active_settings: &active,
+                model: &mut model,
+                manual_dispatcher: &mut dispatcher,
+                manual_senders: &senders,
+                recording_status: status,
+                source: &mut source,
+                paths: SettingsPersistencePaths {
+                    profile: Some(profile_path.clone()),
+                    appearance: None,
+                },
+            },
+        );
+    }
+    assert_eq!(
+        active
+            .browser_targets()
+            .map_err(|_| "registry")?
+            .default_target_id(),
+        None
+    );
+    assert!(model.save_browser_destination(&active));
+    let presentation = model.presentation();
+    assert_eq!(
+        presentation.browser_destination_labels(),
+        vec!["Local folder", "Chrome — profile-one"]
+    );
+    assert_eq!(presentation.selected_browser_destination_index(), 1);
+    assert!(presentation.ask_after_capture());
+    let reloaded = crate::settings::BrowserTargetRegistry::load(path).map_err(|_| "reload")?;
+    assert_eq!(reloaded.default_target_id(), Some(target.id.as_str()));
+    assert!(reloaded.ask_after_capture());
+    Ok(())
 }

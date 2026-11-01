@@ -11,6 +11,7 @@ pub(super) fn is_expected_shutdown_forward_error(error: &BridgeForwardError) -> 
         | BridgeForwardError::AgentProtocol(_)
         | BridgeForwardError::AgentResponseHeader(_)
         | BridgeForwardError::AgentResponseMissing
-        | BridgeForwardError::ForwardThread => false,
+        | BridgeForwardError::ForwardThread
+        | BridgeForwardError::AttachmentRead => false,
     }
 }

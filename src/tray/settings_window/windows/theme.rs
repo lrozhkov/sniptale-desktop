@@ -71,14 +71,14 @@ pub(super) fn apply_title_bar(window: HWND, theme: EffectiveTheme) {
             window,
             DWMWA_USE_IMMERSIVE_DARK_MODE,
             (&raw const enabled).cast(),
-            size_of::<u32>() as u32,
+            u32::BITS / 8,
         )
     };
 }
 
 fn high_contrast_enabled() -> bool {
     let mut contrast = HIGHCONTRASTW {
-        cbSize: size_of::<HIGHCONTRASTW>() as u32,
+        cbSize: u32::try_from(size_of::<HIGHCONTRASTW>()).unwrap_or(0),
         ..HIGHCONTRASTW::default()
     };
     // SAFETY: `contrast` is initialized with the required size and writable for this call.
@@ -109,7 +109,7 @@ fn read_current_user_dword(subkey: &str, name: &str) -> Option<u32> {
             PCWSTR(subkey.as_ptr()),
             Some(0),
             KEY_READ,
-            &mut handle,
+            &raw mut handle,
         )
     } != ERROR_SUCCESS
     {
@@ -118,20 +118,19 @@ fn read_current_user_dword(subkey: &str, name: &str) -> Option<u32> {
     let key = RegistryKey(handle);
     let mut value_type = REG_VALUE_TYPE(0);
     let mut value = 0_u32;
-    let mut size = size_of::<u32>() as u32;
+    let mut size = u32::BITS / 8;
     // SAFETY: the DWORD buffer and byte count match; the key is live through this query.
     let status = unsafe {
         RegQueryValueExW(
             key.0,
             PCWSTR(name.as_ptr()),
             None,
-            Some(&mut value_type),
+            Some(&raw mut value_type),
             Some((&raw mut value).cast()),
-            Some(&mut size),
+            Some(&raw mut size),
         )
     };
-    (status == ERROR_SUCCESS && value_type == REG_DWORD && size == size_of::<u32>() as u32)
-        .then_some(value)
+    (status == ERROR_SUCCESS && value_type == REG_DWORD && size == u32::BITS / 8).then_some(value)
 }
 
 fn system_contrast_colors() -> SystemContrastColors {

@@ -76,6 +76,18 @@ pub(crate) enum RecordingTransferStoreError {
 }
 
 impl RecordingTransferStore {
+    pub(crate) fn recording_events_catalog(
+        &self,
+    ) -> crate::transfer::events_catalog::EventsCatalog {
+        crate::transfer::events_catalog::EventsCatalog::open(self.disk.recording_events_root())
+    }
+    pub(crate) fn cursor_trajectory_catalog(
+        &self,
+    ) -> crate::transfer::trajectory_catalog::TrajectoryCatalog {
+        crate::transfer::trajectory_catalog::TrajectoryCatalog::open(
+            self.disk.cursor_trajectory_root(),
+        )
+    }
     pub(crate) fn open(
         root: impl Into<PathBuf>,
         config: RecordingTransferStoreConfig,
@@ -223,7 +235,9 @@ impl RecordingTransferStore {
             record
                 .reject(now_ms, None)
                 .map_err(RecordingTransferStoreError::InvalidState)?;
-            self.delete_recording(recording_id)?;
+            self.disk
+                .write_record(&record)
+                .map_err(RecordingTransferStoreError::Disk)?;
         }
         Ok(true)
     }

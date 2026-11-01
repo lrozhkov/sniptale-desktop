@@ -1,3 +1,4 @@
+use crate::app::resident::{AgentComponent, WorkerEvent};
 use std::{
     sync::{Arc, Mutex, mpsc},
     thread,

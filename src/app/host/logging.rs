@@ -9,18 +9,18 @@ pub(super) fn write_native_host_run_error_log(
     logger: &mut crate::diagnostics::ProcessLogger,
     error: &crate::app::bridge::NativeHostRunError,
 ) {
+    let summary = super::native_host::native_host_failure_summary(error);
     let error_fields = crate::diagnostics::LogErrorFields {
-        code: native_host_run_error_code(error).to_owned(),
+        code: summary.code.to_owned(),
         recoverable: true,
     };
-    let message = format!("native host bridge failed: {error:?}");
     let _ = logger.write_event_now(crate::diagnostics::ProcessLogEvent {
         level: crate::diagnostics::LogLevel::Error,
         target: "sniptale_native_agent::native_host",
         operation: "bridge",
         operation_id: None,
         phase: "bridge-run",
-        message: &message,
+        message: summary.message,
         duration_ms: None,
         error: Some(&error_fields),
     });
@@ -102,30 +102,6 @@ fn agent_run_error_code(error: &crate::app::resident::AgentRunError) -> &'static
             "agent.command_channel_closed"
         }
         crate::app::resident::AgentRunError::JoinFailed(_) => "agent.join_failed",
-    }
-}
-
-fn native_host_run_error_code(error: &crate::app::bridge::NativeHostRunError) -> &'static str {
-    match error {
-        crate::app::bridge::NativeHostRunError::AuthenticatedBridge(error) => {
-            authenticated_bridge_error_code(error)
-        }
-        crate::app::bridge::NativeHostRunError::InstallIdentityDrift(_) => {
-            "native_host.install_identity_drift"
-        }
-        crate::app::bridge::NativeHostRunError::PipeAuthenticationUnavailable => {
-            "native_host.pipe_auth_unavailable"
-        }
-    }
-}
-
-fn authenticated_bridge_error_code(
-    error: &crate::ipc::AuthenticatedBridgeForwardError,
-) -> &'static str {
-    match error {
-        crate::ipc::AuthenticatedBridgeForwardError::Handshake(_) => "native_host.pipe_auth",
-        crate::ipc::AuthenticatedBridgeForwardError::Split(_) => "native_host.pipe_split",
-        crate::ipc::AuthenticatedBridgeForwardError::Forward(_) => "native_host.forward",
     }
 }
 

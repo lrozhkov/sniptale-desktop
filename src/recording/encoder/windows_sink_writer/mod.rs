@@ -172,7 +172,7 @@ fn create_sink_writer(output_path: &[u16]) -> Result<IMFSinkWriter, Mp4SinkWrite
     let mut attributes = None;
     // SAFETY: attributes is a valid out-parameter. The returned COM owner remains live through
     // sink-writer creation and is released by windows-rs after the call.
-    unsafe { MFCreateAttributes(&mut attributes, 1) }.map_err(to_error)?;
+    unsafe { MFCreateAttributes(&raw mut attributes, 1) }.map_err(to_error)?;
     let attributes = attributes.ok_or(Mp4SinkWriterError::Windows(E_POINTER.0))?;
     // SAFETY: the attribute store is exclusively initialized here. Recording owns pacing and
     // bounds audio against the published video timeline, so WriteSample must remain stop-aware
@@ -201,7 +201,9 @@ fn wide_path(path: &Path) -> Result<Vec<u16>, Mp4SinkWriterError> {
 }
 
 fn to_error(error: windows::core::Error) -> Mp4SinkWriterError {
-    Mp4SinkWriterError::Windows(error.code().0)
+    let code = error.code().0;
+    drop(error);
+    Mp4SinkWriterError::Windows(code)
 }
 
 fn worker_error(error: Mp4SinkWriterError) -> RecordingWorkerError {

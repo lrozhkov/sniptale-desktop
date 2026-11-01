@@ -211,7 +211,7 @@ fn settings_sync(
 ) -> Result<(ExtensionSettingsSyncMessage, Value), Box<dyn Error>> {
     let value = json!({
         "type": "extension.settings.sync",
-        "protocolVersion": 1,
+        "protocolVersion": 2,
         "controllerLeaseId": "lease:connection-1",
         "revision": revision,
         "schemaVersion": 1,
@@ -286,21 +286,21 @@ fn connect_and_sync_settings(
 
 fn extension_hello() -> &'static [u8] {
     br#"{
-        "type": "extension.hello",
-        "protocolVersion": 1,
+        "type": "extension.hello", "connectionIntent": "automatic",
+        "protocolVersion": 2,
         "settingsSchemaVersion": 1,
         "extensionVersion": "0.1.0",
         "extensionId": "abcdefghijklmnopqrstuvwxzyabcdef",
         "minAppVersion": "0.1.0",
-        "supportedProtocolVersions": [1],
-        "supportedSettingsSchemaVersions": [1]
+        "supportedProtocolVersions": [2],
+        "supportedSettingsSchemaVersions": [1], "capabilities": ["desktop-settings-v1", "durable-media-ack-v1"]
     }"#
 }
 
 fn extension_controller_acquire() -> &'static [u8] {
     br#"{
         "type": "extension.controller.acquire",
-        "protocolVersion": 1,
+        "protocolVersion": 2,
         "connectionId": "connection-1",
         "browserFamily": "chrome",
         "profileKey": "profile-1",

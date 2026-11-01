@@ -33,7 +33,6 @@ if ($Cases) {
 }
 $tests = [Collections.Generic.List[object]]::new()
 $installed = Join-Path $env:LOCALAPPDATA "Sniptale\NativeAgent\sniptale-native-agent.exe"
-$settingsTitle = "Sniptale $([char]0x2014) Manual settings"
 $agent = $null
 $script:manualProfileTemplate = $null
 $script:browserProbeAttempt = 0
@@ -381,7 +380,7 @@ function Invoke-BrowserNativeProbe(
       throw "$Name native probe expected $ExpectedStatus, got $($result.status): $($result.detail)"
     }
     if ($ExpectedStatus -eq "pass") { "$Name connectNative received app.hello" }
-    else { "$Name connectNative was rejected while Manual authority was active" }
+    else { "$Name connectNative was rejected as expected" }
   } finally {
     if ($browser -and -not $browser.HasExited) { Stop-Process -Id $browser.Id -Force -ErrorAction SilentlyContinue }
     try { Stop-ProbeBrowser } catch { Write-Verbose 'Browser cleanup failed; VM teardown verifies process exit.' }
@@ -610,41 +609,23 @@ public static class SniptaleHotkeyInput {
 }
 
 Add-Test "tray" {
-  Initialize-SniptaleTrayProbe
-  $trayWindow = [SniptaleTrayProbe]::FindWindow("SniptaleTrayCommandSource", $null)
-  if ($trayWindow -eq [IntPtr]::Zero) { throw "tray callback window is unavailable" }
-  [SniptaleTrayProbe]::SetCursorPos(640, 400) | Out-Null
-  $contextCallback = [IntPtr]((1 -shl 16) -bor 0x007b)
-  if (-not [SniptaleTrayProbe]::PostMessage($trayWindow, 0x8001, [UIntPtr]::Zero, $contextCallback)) {
-    throw "tray context callback could not be posted"
-  }
+  Show-SniptaleTrayMenu
   Start-Sleep -Seconds 1
   Save-Desktop "tray-context-menu"
-  # UI Automation does not expose native #32768 menu items consistently on
-  # current Windows 11 builds. Click the fixed Manual-menu Settings row inside
-  # the actual popup HWND after validating its geometry.
-  $menuWindow = [SniptaleTrayProbe]::FindWindow("#32768", $null)
-  if ($menuWindow -eq [IntPtr]::Zero) { throw "native tray popup window is unavailable" }
-  $menuBounds = [SniptaleTrayProbe+Rect]::new()
-  if (-not [SniptaleTrayProbe]::GetWindowRect($menuWindow, [ref]$menuBounds)) { throw "native tray popup bounds are unavailable" }
-  $menuWidth = $menuBounds.Right - $menuBounds.Left
-  $menuHeight = $menuBounds.Bottom - $menuBounds.Top
-  if ($menuWidth -lt 100 -or $menuHeight -lt 150) { throw "native tray popup bounds are invalid" }
-  [SniptaleTrayProbe]::SetCursorPos($menuBounds.Left + [int]($menuWidth / 2), $menuBounds.Top + [int]($menuHeight * 0.69)) | Out-Null
-  [SniptaleTrayProbe]::mouse_event(2, 0, 0, 0, [UIntPtr]::Zero)
-  [SniptaleTrayProbe]::mouse_event(4, 0, 0, 0, [UIntPtr]::Zero)
-  $null = Find-Ui $settingsTitle 10
+  # Activate the current semantic menu entry; layout changes must not change the tested command.
+  Invoke-SniptaleMenuItem "Settings$([char]0x2026)"
+  $null = Find-DesktopSettingsWindow 10
   "tray icon and context menu invoked"
 }
 Add-Test "settings" {
-  $window = Find-Ui $settingsTitle 20
+  $window = Find-DesktopSettingsWindow 20
   $transform = $window.GetCurrentPattern([System.Windows.Automation.TransformPattern]::Pattern)
   if (-not $transform.Current.CanResize) { throw "settings window is not resizable" }
   $beforeBounds = $window.Current.BoundingRectangle
   if ([Math]::Abs($beforeBounds.Width - 1000) -lt 50) { $transform.Resize(1120, 800) }
   else { $transform.Resize(1000, 720) }
   Start-Sleep -Seconds 2
-  $window = Find-Ui $settingsTitle 5
+  $window = Find-DesktopSettingsWindow 5
   $afterBounds = $window.Current.BoundingRectangle
   if ([Math]::Abs($afterBounds.Width - $beforeBounds.Width) -lt 50 -or [Math]::Abs($afterBounds.Height - $beforeBounds.Height) -lt 50) {
     throw "settings window bounds did not change after resize"
@@ -667,7 +648,7 @@ public static class SniptaleDpi {
   & rundll32.exe user32.dll,UpdatePerUserSystemParameters
   [SniptaleDpi]::PostMessage([IntPtr]$window.Current.NativeWindowHandle, 0x031a, [UIntPtr]::Zero, [IntPtr]::Zero) | Out-Null
   Start-Sleep -Seconds 3
-  $window = Find-Ui $settingsTitle 5
+  $window = Find-DesktopSettingsWindow 5
   Save-UiWindow $window "settings-dark-theme"
   $darkHash = (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $outputPath "screenshots\settings-dark-theme.png")).Hash
   if ($darkHash -eq $lightHash) { throw "settings pixels did not change after the dark-theme transition" }
@@ -720,7 +701,7 @@ Add-Test "native-messaging" {
     (Join-Path ${env:ProgramFiles(x86)} "Microsoft\Edge\Application\msedge.exe"),
     (Join-Path $env:ProgramFiles "Microsoft\Edge\Application\msedge.exe")
   ) | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
-  $manualResult = Invoke-BrowserNativeProbeWithRetry -Name "chrome" -Executable $chrome -ExtensionPath $extensionPath -ExpectedStatus "fail"
+  $manualResult = Invoke-BrowserNativeProbeWithRetry -Name "chrome" -Executable $chrome -ExtensionPath $extensionPath -ExpectedStatus "pass"
   try {
     Restart-AgentWithMode "extension-managed"
     $chromeResult = Invoke-BrowserNativeProbeWithRetry -Name "chrome" -Executable $chrome -ExtensionPath $extensionPath -ExpectedStatus "pass" -ProgressScenario "native-messaging"

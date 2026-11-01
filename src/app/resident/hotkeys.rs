@@ -146,7 +146,9 @@ impl<Handle> HotkeyWorker<Handle> {
             | WorkerCommand::DiscardRecordingTelemetry { .. }
             | WorkerCommand::SnapshotRecordingTelemetry { .. }
             | WorkerCommand::PrepareManualAsset { .. }
-            | WorkerCommand::PublishManualAsset { .. } => Ok(HotkeyWorkerControl::Continue),
+            | WorkerCommand::PublishManualAsset { .. }
+            | WorkerCommand::RecoverPendingAssets
+            | WorkerCommand::ChooseMediaDestination { .. } => Ok(HotkeyWorkerControl::Continue),
             #[cfg(test)]
             WorkerCommand::TrayMenuCommandSelected { .. } => Ok(HotkeyWorkerControl::Continue),
             WorkerCommand::Stop => Ok(HotkeyWorkerControl::Stop),

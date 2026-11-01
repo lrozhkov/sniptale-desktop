@@ -178,7 +178,7 @@ fn finish_pending_read(
         }
         match wait_for_event(event, READ_CANCEL_POLL_MS)? {
             WaitState::Completed => return finish_pending_operation(handle, overlapped),
-            WaitState::Pending => continue,
+            WaitState::Pending => {}
         }
     }
 }

@@ -1,7 +1,10 @@
 //! Raw Win32 child-control, font, and scroll operations.
 #![allow(unsafe_code)]
 
-use super::*;
+use super::{
+    ControlBackgroundBrush, CreateWindowExW, HWND, LPARAM, LRESULT, PCWSTR, WINDOW_EX_STYLE,
+    WPARAM, io, to_io_error, wide_null,
+};
 use windows::Win32::{
     Foundation::{COLORREF, RECT},
     Graphics::Gdi::{
@@ -13,10 +16,11 @@ use windows::Win32::{
         Controls::{SetScrollInfo, SetWindowTheme, ShowScrollBar},
         Input::KeyboardAndMouse::{EnableWindow, SetFocus},
         WindowsAndMessaging::{
-            BM_SETCHECK, CB_ADDSTRING, CB_RESETCONTENT, CB_SETCURSEL, CB_SETITEMHEIGHT,
-            GetClientRect, HMENU, SB_VERT, SCROLLINFO, SIF_PAGE, SIF_POS, SIF_RANGE, SW_HIDE,
-            SW_SHOWNORMAL, SendMessageW, SetWindowPos, SetWindowTextW, ShowWindow, WINDOW_STYLE,
-            WM_SETFONT, WS_CHILD, WS_VISIBLE,
+            BM_SETCHECK, CB_ADDSTRING, CB_GETCOUNT, CB_GETCURSEL, CB_GETLBTEXT, CB_GETLBTEXTLEN,
+            CB_RESETCONTENT, CB_SETCURSEL, CB_SETITEMHEIGHT, GetClientRect, HMENU, SB_VERT,
+            SCROLLINFO, SIF_PAGE, SIF_POS, SIF_RANGE, SW_HIDE, SW_SHOWNORMAL, SendMessageW,
+            SetWindowPos, SetWindowTextW, ShowWindow, WINDOW_STYLE, WM_SETFONT, WS_CHILD,
+            WS_VISIBLE,
         },
     },
 };
@@ -36,9 +40,9 @@ pub(super) struct NativeFonts {
 impl NativeFonts {
     pub(super) fn create(dpi: u32) -> Self {
         Self {
-            normal: font(dpi, 10, FW_NORMAL.0 as i32),
-            title: font(dpi, 18, FW_SEMIBOLD.0 as i32),
-            section: font(dpi, 15, FW_SEMIBOLD.0 as i32),
+            normal: font(dpi, 10, FW_NORMAL.0.cast_signed()),
+            title: font(dpi, 18, FW_SEMIBOLD.0.cast_signed()),
+            section: font(dpi, 15, FW_SEMIBOLD.0.cast_signed()),
         }
     }
 
@@ -83,7 +87,7 @@ pub(super) fn create_control(
             1,
             1,
             Some(parent),
-            (id != 0).then(|| HMENU(id as *mut _)),
+            (id != 0).then_some(HMENU(id as *mut _)),
             None,
             None,
         )
@@ -113,7 +117,7 @@ pub(super) fn set_checked(handle: HWND, state: usize) {
 }
 
 pub(super) fn set_combo_metrics(handles: &[HWND], dpi: u32) {
-    let scale = |value: i32| value.saturating_mul(dpi as i32) / 96;
+    let scale = |value: i32| value.saturating_mul(i32::try_from(dpi).unwrap_or(96)) / 96;
     for handle in handles {
         // SAFETY: CB_SETITEMHEIGHT synchronously updates adapter-owned fixed-height combo items.
         unsafe {
@@ -134,6 +138,17 @@ pub(super) fn set_combo_metrics(handles: &[HWND], dpi: u32) {
 }
 
 pub(super) fn set_combo_items(handle: HWND, labels: &[&str], selected: usize) {
+    // Preserve the open dropdown and keyboard focus while projecting unchanged choices.
+    if combo_items_match(handle, labels) {
+        // SAFETY: the adapter owns the live combo; this read retains no pointers.
+        if unsafe { SendMessageW(handle, CB_GETCURSEL, None, None) }.0
+            != isize::try_from(selected).unwrap_or(-1)
+        {
+            // SAFETY: the adapter-owned combo consumes the bounded selection synchronously.
+            unsafe { SendMessageW(handle, CB_SETCURSEL, Some(WPARAM(selected)), None) };
+        }
+        return;
+    }
     // SAFETY: every message is synchronous and temporary UTF-16 strings outlive its call.
     unsafe { SendMessageW(handle, CB_RESETCONTENT, None, None) };
     for label in labels {
@@ -150,8 +165,36 @@ pub(super) fn set_combo_items(handle: HWND, labels: &[&str], selected: usize) {
     unsafe { SendMessageW(handle, CB_SETCURSEL, Some(WPARAM(selected)), None) };
 }
 
+fn combo_items_match(handle: HWND, labels: &[&str]) -> bool {
+    // SAFETY: querying this adapter-owned combo retains no pointers.
+    let count = unsafe { SendMessageW(handle, CB_GETCOUNT, None, None) }.0;
+    if usize::try_from(count) != Ok(labels.len()) {
+        return false;
+    }
+    labels.iter().enumerate().all(|(index, label)| {
+        // SAFETY: index refers to an existing item in the live UI-thread-owned combo.
+        let length = unsafe { SendMessageW(handle, CB_GETLBTEXTLEN, Some(WPARAM(index)), None) }.0;
+        let Ok(length @ 0..=4096) = usize::try_from(length) else {
+            return false;
+        };
+        let mut text = vec![0_u16; length + 1];
+        // SAFETY: the UI thread cannot mutate this combo between these synchronous reads;
+        // storage includes the queried UTF-16 text length and terminating null.
+        let copied = unsafe {
+            SendMessageW(
+                handle,
+                CB_GETLBTEXT,
+                Some(WPARAM(index)),
+                Some(LPARAM(text.as_mut_ptr() as isize)),
+            )
+        }
+        .0;
+        copied == isize::try_from(length).unwrap_or(-1) && text == wide_null(label)
+    })
+}
+
 pub(super) fn move_dip(handle: HWND, rect: DipRect, dpi: u32) {
-    let scale = |value: i32| value.saturating_mul(dpi as i32) / 96;
+    let scale = |value: i32| value.saturating_mul(i32::try_from(dpi).unwrap_or(96)) / 96;
     // SAFETY: the child HWND is live and no z-order/activation change is requested.
     let _ = unsafe {
         SetWindowPos(
@@ -170,7 +213,7 @@ pub(super) fn move_dip(handle: HWND, rect: DipRect, dpi: u32) {
 pub(super) fn client_size(handle: HWND) -> (u32, u32) {
     let mut rect = RECT::default();
     // SAFETY: GetClientRect writes one initialized RECT for this live HWND.
-    if unsafe { GetClientRect(handle, &mut rect) }.is_ok() {
+    if unsafe { GetClientRect(handle, &raw mut rect) }.is_ok() {
         (
             u32::try_from(rect.right.max(0)).unwrap_or(0),
             u32::try_from(rect.bottom.max(0)).unwrap_or(0),
@@ -182,7 +225,7 @@ pub(super) fn client_size(handle: HWND) -> (u32, u32) {
 
 pub(super) fn update_scrollbar(handle: HWND, layout: SettingsLayout, scroll: i32) {
     let mut info = SCROLLINFO {
-        cbSize: std::mem::size_of::<SCROLLINFO>() as u32,
+        cbSize: u32::try_from(std::mem::size_of::<SCROLLINFO>()).unwrap_or(0),
         fMask: SIF_RANGE | SIF_PAGE | SIF_POS,
         nMin: 0,
         nMax: layout.content_height + crate::tray::settings_window::layout::PAGE_GUTTER * 2,
@@ -245,7 +288,7 @@ pub(super) fn focus(handle: HWND) {
 
 fn font(dpi: u32, points: i32, weight: i32) -> HFONT {
     let face = wide_null("Segoe UI Variable Text");
-    let height = -(points.saturating_mul(dpi as i32) / 72).max(1);
+    let height = -(points.saturating_mul(i32::try_from(dpi).unwrap_or(96)) / 72).max(1);
     // SAFETY: CreateFontW copies the face name and returns an owned GDI object.
     unsafe {
         CreateFontW(

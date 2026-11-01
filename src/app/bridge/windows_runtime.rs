@@ -28,6 +28,10 @@ use super::{
 const PIPE_CONNECT_ATTEMPTS: u8 = 100;
 const PIPE_CONNECT_RETRY_DELAY: Duration = Duration::from_millis(100);
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "Keep install validation, initial hello, explicit-Quit guard, and pipe authentication in one auditable startup order."
+)]
 pub(super) fn run_pipe_forwarding_bridge(
     reader: &mut (impl Read + Send),
     writer: &mut (impl Write + Send),
@@ -40,12 +44,57 @@ pub(super) fn run_pipe_forwarding_bridge(
         "verifying native host install identity",
     );
     verify_current_runtime_manifest_identity().map_err(NativeHostRunError::InstallIdentityDrift)?;
+    log_phase(log, "hello-read", "reading initial browser handshake");
+    let identity = expected_install_identity();
+    let initial = crate::ipc::with_blocking_read_deadline(Duration::from_secs(15), || {
+        super::startup::read_initial_browser_handshake(reader, extension_origin)
+    })
+    .map_err(|_| super::startup::InitialBrowserHandshakeError::Frame)
+    .and_then(|result| result)
+    .map_err(|error| {
+        log_phase(
+            log,
+            error.phase(),
+            &format!("initial browser handshake rejected: {error:?}"),
+        );
+        NativeHostRunError::PipeAuthenticationUnavailable
+    })?;
+    log_phase(
+        log,
+        "browser-startup-preference",
+        "checking browser startup preference",
+    );
+    let startup_path = crate::settings::browser_startup_preference_path()
+        .ok_or(NativeHostRunError::PipeAuthenticationUnavailable)?;
+    let start_allowed = crate::settings::browser_start_allowed(&startup_path)
+        .map_err(|_| NativeHostRunError::PipeAuthenticationUnavailable)?;
+    if !start_allowed && initial.intent == crate::protocol::ConnectionIntent::Automatic {
+        for value in [
+            crate::app::responses::app_hello(),
+            crate::app::responses::connection_closed(),
+        ] {
+            let payload = serde_json::to_vec(&value)
+                .map_err(|_| NativeHostRunError::PipeAuthenticationUnavailable)?;
+            crate::ipc::write_payload(
+                writer,
+                &payload,
+                crate::protocol::HOST_TO_EXTENSION_MAX_MESSAGE_BYTES,
+            )
+            .map_err(|_| NativeHostRunError::PipeAuthenticationUnavailable)?;
+        }
+        return Ok(());
+    }
+    let mut frame = u32::try_from(initial.payload.len())
+        .map_err(|_| NativeHostRunError::PipeAuthenticationUnavailable)?
+        .to_le_bytes()
+        .to_vec();
+    frame.extend(initial.payload);
+    let mut replay = std::io::Cursor::new(frame).chain(reader);
     log_phase(
         log,
         "pipe-secret-load",
         "loading resident pipe authentication material",
     );
-    let identity = expected_install_identity();
     let secret = load_current_user_pipe_secret(identity.install_id)
         .map_err(|_| NativeHostRunError::PipeAuthenticationUnavailable)?;
     let pipe_secret = PipeSecret::new(&secret.secret_material)
@@ -81,7 +130,13 @@ pub(super) fn run_pipe_forwarding_bridge(
         secret: pipe_secret,
     };
     log_phase(log, "pipe-auth", "authenticating resident agent pipe");
-    run_authenticated_pipe_forwarding_bridge_with_log(reader, writer, agent_pipe, &config, log)?;
+    run_authenticated_pipe_forwarding_bridge_with_log(
+        &mut replay,
+        writer,
+        agent_pipe,
+        &config,
+        log,
+    )?;
     log_phase(log, "forwarded", "native messaging forwarding completed");
     Ok(())
 }

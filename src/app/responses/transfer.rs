@@ -8,7 +8,7 @@ use crate::protocol::{OperationFailedOperation, OperationalErrorKind, WireMessag
 
 use self::chunks::{recording_chunk_response, screenshot_chunk_response};
 use super::{
-    NativeHostSideEffects,
+    NativeHostSideEffectError, NativeHostSideEffects,
     outbound::{OperationFailure, operation_failed},
     session::ActiveLeaseValidation,
 };
@@ -18,16 +18,16 @@ pub(super) struct TransferInputs<'a> {
     pub(super) controller_lease_id: &'a str,
     pub(super) operation: OperationFailedOperation,
     pub(super) operation_id: &'a str,
-    pub(super) action: TransferAction,
+    pub(super) action: TransferAction<'a>,
 }
 
 #[derive(Clone, Copy)]
-pub(super) enum TransferAction {
+pub(super) enum TransferAction<'a> {
     ScreenshotChunkRequest { chunk_index: u32 },
-    ScreenshotAck,
+    ScreenshotAck(&'a crate::protocol::DurableMediaReceipt),
     ScreenshotReject { retain_for_diagnostics: bool },
     RecordingChunkRequest { chunk_index: u32 },
-    RecordingAck,
+    RecordingAck(&'a crate::protocol::DurableMediaReceipt),
     RecordingReject { retain_for_diagnostics: bool },
 }
 
@@ -38,7 +38,7 @@ impl<'a> TransferInputs<'a> {
                 controller_lease_id: &ack.controller_lease_id,
                 operation: OperationFailedOperation::Screenshot,
                 operation_id: &ack.capture_id,
-                action: TransferAction::ScreenshotAck,
+                action: TransferAction::ScreenshotAck(&ack.receipt),
             }),
             WireMessage::ExtensionScreenshotReject(reject) => Some(Self {
                 controller_lease_id: &reject.controller_lease_id,
@@ -68,7 +68,7 @@ impl<'a> TransferInputs<'a> {
                 controller_lease_id: &ack.controller_lease_id,
                 operation: OperationFailedOperation::Recording,
                 operation_id: &ack.recording_id,
-                action: TransferAction::RecordingAck,
+                action: TransferAction::RecordingAck(&ack.receipt),
             }),
             WireMessage::ExtensionRecordingReject(reject) => Some(Self {
                 controller_lease_id: &reject.controller_lease_id,
@@ -98,11 +98,24 @@ pub(super) fn transfer_response(
             return vec![lease_state_unavailable_failure(observed_epoch_ms, &inputs)];
         }
     }
+    if matches!(
+        inputs.action,
+        TransferAction::ScreenshotReject { .. } | TransferAction::RecordingReject { .. }
+    ) {
+        match reject_target_visible(effects, &inputs) {
+            Ok(true) => {}
+            Ok(false) => return vec![no_pending_transfer_failure(observed_epoch_ms, &inputs)],
+            Err(_) => return vec![transfer_state_storage_failure(observed_epoch_ms, &inputs)],
+        }
+    }
     match inputs.action {
         TransferAction::ScreenshotChunkRequest { chunk_index } => {
             screenshot_chunk_response(observed_epoch_ms, inputs, chunk_index, effects)
         }
-        TransferAction::ScreenshotAck => {
+        TransferAction::ScreenshotAck(receipt) => {
+            if !valid_screenshot_receipt(effects, inputs.operation_id, receipt) {
+                return vec![transfer_state_storage_failure(observed_epoch_ms, &inputs)];
+            }
             screenshot_ack_response(observed_epoch_ms, inputs, effects)
         }
         TransferAction::ScreenshotReject {
@@ -111,10 +124,74 @@ pub(super) fn transfer_response(
         TransferAction::RecordingChunkRequest { chunk_index } => {
             recording_chunk_response(observed_epoch_ms, inputs, chunk_index, effects)
         }
-        TransferAction::RecordingAck => recording_ack_response(observed_epoch_ms, inputs, effects),
+        TransferAction::RecordingAck(receipt) => {
+            if !effects
+                .pending_recordings_for_reconnect()
+                .is_ok_and(|items| {
+                    items.iter().any(|item| {
+                        item.recording_id == inputs.operation_id
+                            && receipt.durable
+                            && item.total_bytes == receipt.total_bytes
+                            && item.sha256 == receipt.sha256
+                    })
+                })
+            {
+                return vec![transfer_state_storage_failure(observed_epoch_ms, &inputs)];
+            }
+            recording_ack_response(observed_epoch_ms, inputs, effects)
+        }
         TransferAction::RecordingReject {
             retain_for_diagnostics,
         } => recording_reject_response(observed_epoch_ms, inputs, retain_for_diagnostics, effects),
+    }
+}
+
+fn reject_target_visible(
+    effects: &mut impl NativeHostSideEffects,
+    inputs: &TransferInputs<'_>,
+) -> Result<bool, NativeHostSideEffectError> {
+    match inputs.operation {
+        OperationFailedOperation::Recording => {
+            effects.pending_recordings_for_reconnect().map(|items| {
+                items
+                    .iter()
+                    .any(|item| item.recording_id == inputs.operation_id)
+            })
+        }
+        #[cfg(any(windows, test))]
+        OperationFailedOperation::Screenshot => {
+            effects.pending_screenshots_for_reconnect().map(|items| {
+                items
+                    .iter()
+                    .any(|item| item.capture_id == inputs.operation_id)
+            })
+        }
+        _ => Ok(false),
+    }
+}
+
+fn valid_screenshot_receipt(
+    effects: &mut impl NativeHostSideEffects,
+    capture_id: &str,
+    receipt: &crate::protocol::DurableMediaReceipt,
+) -> bool {
+    #[cfg(any(windows, test))]
+    {
+        effects
+            .pending_screenshots_for_reconnect()
+            .is_ok_and(|items| {
+                items.iter().any(|item| {
+                    item.capture_id == capture_id
+                        && receipt.durable
+                        && item.total_bytes == receipt.total_bytes
+                        && item.sha256 == receipt.sha256
+                })
+            })
+    }
+    #[cfg(not(any(windows, test)))]
+    {
+        let _ = (effects, capture_id, receipt);
+        false
     }
 }
 

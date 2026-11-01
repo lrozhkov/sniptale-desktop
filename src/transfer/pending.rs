@@ -79,7 +79,7 @@ impl PendingTransfer {
                 chunk_count: self.chunk_count,
             });
         }
-        if index != self.next_missing_chunk_index {
+        if index > self.next_missing_chunk_index {
             return Err(TransferError::OutOfOrderChunk {
                 expected: self.next_missing_chunk_index,
                 actual: index,
@@ -90,7 +90,9 @@ impl PendingTransfer {
 
     pub(crate) fn record_next_chunk(&mut self, index: u64) -> Result<(), TransferError> {
         self.ensure_expected_chunk(index)?;
-        self.next_missing_chunk_index += 1;
+        if index == self.next_missing_chunk_index {
+            self.next_missing_chunk_index += 1;
+        }
         Ok(())
     }
 

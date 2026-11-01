@@ -57,4 +57,13 @@ pub(crate) struct AppControllerLeaseMessage {
     pub(crate) controller: NativeControllerIdentity,
     pub(crate) expires_at_epoch_ms: u64,
     pub(crate) status: ControllerLeaseStatus,
+    pub(crate) selection_status: TargetSelectionStatus,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub(crate) enum TargetSelectionStatus {
+    Selected,
+    Available,
+    SelectionRequired,
 }

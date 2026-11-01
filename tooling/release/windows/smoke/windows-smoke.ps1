@@ -136,10 +136,6 @@ function Import-VsDevEnvironment {
   }
 }
 
-function ConvertTo-Hex($Bytes) {
-  -join ($Bytes | ForEach-Object { $_.ToString("x2") })
-}
-
 function Get-InstallId($ChannelName) {
   switch ($ChannelName) {
     "stable" { return "install-stable" }
@@ -200,39 +196,6 @@ function Get-Sha256Hex($Path) {
     throw "Cannot hash missing file: $Path"
   }
   return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
-}
-
-function Provision-PipeSecret($InstallDir, $ChannelName) {
-  Add-Type -AssemblyName System.Security
-  $installId = Get-InstallId $ChannelName
-  $sid = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value
-  $secretBytes = New-Object byte[] 32
-  $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
-  try {
-    $rng.GetBytes($secretBytes)
-  }
-  finally {
-    $rng.Dispose()
-  }
-  $plain = [System.Text.Encoding]::UTF8.GetBytes((ConvertTo-Hex $secretBytes))
-  $protected = [System.Security.Cryptography.ProtectedData]::Protect(
-    $plain,
-    $null,
-    [System.Security.Cryptography.DataProtectionScope]::CurrentUser
-  )
-  $payload = [ordered]@{
-    installId = $installId
-    currentUserSid = $sid
-    authAlgorithm = "pipe-auth-v2-hmac-sha256"
-    protection = "current-user-dpapi"
-    protectedSecretHex = ConvertTo-Hex $protected
-  } | ConvertTo-Json -Depth 5
-  [System.IO.File]::WriteAllText(
-    (Join-Path $InstallDir "pipe-secret.json"),
-    $payload + [Environment]::NewLine,
-    [System.Text.UTF8Encoding]::new($false)
-  )
-  Assert-PipeSecretProvisioned $InstallDir $installId
 }
 
 function Assert-PipeSecretProvisioned($InstallDir, $ExpectedInstallId) {
@@ -534,6 +497,29 @@ function Read-NativeMessageFrame([byte[]] $Payload) {
   return $frames.ToArray()
 }
 
+function Read-NativeHostProbeBuffer($Stream, [byte[]] $Bytes, $Timer, $TimeoutMs) {
+  $offset = 0
+  while ($offset -lt $Bytes.Length) {
+    $remaining = $TimeoutMs - $Timer.ElapsedMilliseconds
+    if ($remaining -le 0) { throw "Native-host response deadline exceeded" }
+    $read = $Stream.ReadAsync($Bytes, $offset, $Bytes.Length - $offset)
+    if (-not $read.Wait([int] $remaining)) { throw "Native-host response deadline exceeded" }
+    $count = $read.GetAwaiter().GetResult()
+    if ($count -eq 0) { throw "Native-host response ended before the expected frame" }
+    $offset += $count
+  }
+}
+
+function Read-NativeHostProbeFrame($Stream, $Timer, $TimeoutMs) {
+  $header = New-Object byte[] 4
+  Read-NativeHostProbeBuffer -Stream $Stream -Bytes $header -Timer $Timer -TimeoutMs $TimeoutMs
+  $length = [BitConverter]::ToUInt32($header, 0)
+  if ($length -eq 0 -or $length -gt 1048576) { throw "Native-host response frame exceeds its bound" }
+  $body = New-Object byte[] $length
+  Read-NativeHostProbeBuffer -Stream $Stream -Bytes $body -Timer $Timer -TimeoutMs $TimeoutMs
+  return $header + $body
+}
+
 function Invoke-NativeHostProbe($Exe, [string[]] $Arguments, [byte[]] $InputBytes, $TimeoutMs) {
   $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
   $startInfo.FileName = $Exe
@@ -548,21 +534,29 @@ function Invoke-NativeHostProbe($Exe, [string[]] $Arguments, [byte[]] $InputByte
   if (-not $process.Start()) {
     throw "Failed to start native-host probe"
   }
-  $process.StandardInput.BaseStream.Write($InputBytes, 0, $InputBytes.Length)
-  $process.StandardInput.Close()
-  if (-not $process.WaitForExit($TimeoutMs)) {
-    try {
-      $process.Kill()
-    }
-    catch {
-      if (-not $process.HasExited) { throw "Timed-out process could not be terminated" }
-    }
-    throw "Timed out waiting for native-host probe"
-  }
   $stdout = [System.IO.MemoryStream]::new()
+  $timer = [Diagnostics.Stopwatch]::StartNew()
   try {
-    $process.StandardOutput.BaseStream.CopyTo($stdout)
-    $stderr = $process.StandardError.ReadToEnd()
+    $stderrTask = $process.StandardError.ReadToEndAsync()
+    $process.StandardInput.BaseStream.Write($InputBytes, 0, $InputBytes.Length)
+    $process.StandardInput.BaseStream.Flush()
+    # A browser keeps its port open through native consent and both hello/lease responses.
+    foreach ($response in 1..2) {
+      [byte[]] $frame = Read-NativeHostProbeFrame -Stream $process.StandardOutput.BaseStream -Timer $timer -TimeoutMs $TimeoutMs
+      $stdout.Write($frame, 0, $frame.Length)
+    }
+    $process.StandardInput.Close()
+    $remaining = $TimeoutMs - $timer.ElapsedMilliseconds
+    if ($remaining -le 0 -or -not $process.WaitForExit([int] $remaining)) {
+      throw "Timed out waiting for native-host probe shutdown"
+    }
+    $buffer = New-Object byte[] 8192
+    while (($count = $process.StandardOutput.BaseStream.Read($buffer, 0, $buffer.Length)) -gt 0) {
+      if ($stdout.Length + $count -gt 4MB) { throw "Native-host response stream exceeds its bound" }
+      $stdout.Write($buffer, 0, $count)
+    }
+    $stderr = $stderrTask.GetAwaiter().GetResult()
+    if ($stderr.Length -gt 1MB) { throw "Native-host stderr exceeds its bound" }
     return [ordered]@{
       exitCode = $process.ExitCode
       stdout = $stdout.ToArray()
@@ -570,8 +564,44 @@ function Invoke-NativeHostProbe($Exe, [string[]] $Arguments, [byte[]] $InputByte
     }
   }
   finally {
+    if (-not $process.HasExited) { $process.Kill() }
     $stdout.Dispose()
     $process.Dispose()
+  }
+}
+
+function Test-NativeHostProbeRead {
+  [byte[]] $valid = [BitConverter]::GetBytes([uint32] 2) + [Text.Encoding]::UTF8.GetBytes('{}')
+  $stream = [IO.MemoryStream]::new([byte[]] ($valid + $valid))
+  try {
+    foreach ($response in 1..2) {
+      [byte[]] $actual = Read-NativeHostProbeFrame -Stream $stream -Timer ([Diagnostics.Stopwatch]::StartNew()) -TimeoutMs 1000
+      if ([Convert]::ToBase64String($actual) -cne [Convert]::ToBase64String($valid)) {
+        throw "Native-host response framing self-test changed bytes"
+      }
+    }
+    if ($stream.Position -ne $stream.Length) { throw "Native-host response framing left unread bytes" }
+  }
+  finally { $stream.Dispose() }
+  $cases = @(
+    @{ Bytes = [byte[]] @(1); Timeout = 1000; Error = 'ended before' },
+    @{ Bytes = [BitConverter]::GetBytes([uint32] 0); Timeout = 1000; Error = 'exceeds its bound' },
+    @{ Bytes = [BitConverter]::GetBytes([uint32] 1048577); Timeout = 1000; Error = 'exceeds its bound' },
+    @{ Bytes = [byte[]] ([BitConverter]::GetBytes([uint32] 2) + @(123)); Timeout = 1000; Error = 'ended before' },
+    @{ Bytes = $valid; Timeout = 0; Error = 'deadline exceeded' }
+  )
+  foreach ($case in $cases) {
+    $stream = [IO.MemoryStream]::new([byte[]] $case.Bytes)
+    $rejected = $false
+    try {
+      $null = Read-NativeHostProbeFrame -Stream $stream -Timer ([Diagnostics.Stopwatch]::StartNew()) -TimeoutMs $case.Timeout
+    }
+    catch {
+      if (-not $_.Exception.Message.Contains($case.Error)) { throw }
+      $rejected = $true
+    }
+    finally { $stream.Dispose() }
+    if (-not $rejected) { throw "Native-host response framing self-test accepted invalid input" }
   }
 }
 
@@ -585,17 +615,19 @@ function Assert-NativeHostSessionProbe($Exe, $ExtensionOrigin, $ExtensionVersion
     $connectionId = "smoke-connection-$index"
     $hello = [ordered]@{
       type = "extension.hello"
-      protocolVersion = 1
+      protocolVersion = 2
       settingsSchemaVersion = 1
+      connectionIntent = "user-requested"
+      capabilities = @("desktop-settings-v1", "durable-media-ack-v1")
       extensionVersion = $ExtensionVersion
       extensionId = $extensionId
       minAppVersion = "0.1.0"
-      supportedProtocolVersions = @(1)
+      supportedProtocolVersions = @(2)
       supportedSettingsSchemaVersions = @(1)
     }
     $acquire = [ordered]@{
       type = "extension.controller.acquire"
-      protocolVersion = 1
+      protocolVersion = 2
       connectionId = $connectionId
       browserFamily = "chrome"
       profileKey = "smoke-profile"
@@ -621,9 +653,19 @@ function Assert-NativeHostSessionProbe($Exe, $ExtensionOrigin, $ExtensionVersion
     if (@($frames | Where-Object { $_.type -eq "app.hello" }).Count -ne 1) {
       throw "native-host probe $index did not return exactly one app.hello"
     }
+    $appHello = @($frames | Where-Object { $_.type -eq "app.hello" })[0]
+    if ($appHello.protocolVersion -ne 2 -or $appHello.settingsAuthority -ne "desktop" -or $appHello.appIdentity.clientId -notmatch '^[0-9a-f]{64}$' -or $appHello.appIdentity.trustVersion -ne 1) {
+      throw "native-host probe $index returned invalid Desktop identity or authority"
+    }
     $leases = @($frames | Where-Object { $_.type -eq "app.controller.lease" })
-    if ($leases.Count -ne 1 -or [string]::IsNullOrWhiteSpace([string] $leases[0].controllerLeaseId)) {
-      throw "native-host probe $index did not return a controller lease"
+    if ($leases.Count -ne 1 -or $leases[0].controller.connectionId -ne $connectionId -or $leases[0].selectionStatus -notin @("selected", "available", "selection-required")) {
+      throw "native-host probe $index did not return its target-selection result"
+    }
+    if ($leases[0].selectionStatus -eq "selected" -and ($leases[0].status -ne "granted" -or [string]::IsNullOrWhiteSpace([string] $leases[0].controllerLeaseId))) {
+      throw "native-host probe $index returned an invalid selected lease"
+    }
+    if ($leases[0].selectionStatus -ne "selected" -and $leases[0].status -eq "granted") {
+      throw "native-host probe $index granted authority to an unselected observer"
     }
     Add-SmokeEvidence -Category "native-host-session" -Probe "installed app.hello/controller probe $index" -Evidence "framed session completed"
   }
@@ -720,7 +762,7 @@ function Assert-SupportModeOutput($Exe, $TimeoutMs) {
   if ($version.platformKind -ne "windows") {
     throw "version-json platformKind mismatch: expected windows, got $($version.platformKind)"
   }
-  Assert-ContainsNumber -Values @($version.protocolVersion) -Expected 1 -Description "version-json protocolVersion"
+  Assert-ContainsNumber -Values @($version.protocolVersion) -Expected 2 -Description "version-json protocolVersion"
   Assert-ContainsNumber -Values @($version.settingsSchemaVersion) -Expected 1 -Description "version-json settingsSchemaVersion"
   Assert-ContainsNumber -Values @($version.appCacheSchemaVersion) -Expected 1 -Description "version-json appCacheSchemaVersion"
   if (-not $version.appVersion) {
@@ -820,6 +862,9 @@ function Assert-TempMediaAclStatus($Exe, $TimeoutMs, $Grant, $ExpectedStatus) {
   }
 }
 
+
+Test-NativeHostProbeRead
+Write-Host "OK native-host probe framing self-tests"
 
 if ($ExtensionOrigin -notmatch '^chrome-extension://([a-p]{32})/$') {
   throw "Extension origin must be exact chrome-extension://<32-letter-id>/: $ExtensionOrigin"
@@ -972,7 +1017,6 @@ try {
     python tooling/release/windows/verify_windows_pe_resources.py $installedExe
   }
   if ($DevLocalTrust) {
-    Provision-PipeSecret $installDir $Channel
     Write-DevLocalBrowserTrust $installDir $installedExe
   }
   else {
@@ -1006,6 +1050,7 @@ try {
 
   Invoke-Step "installed repeated native-host session probes" {
     Assert-NativeHostSessionProbe -Exe $installedExe -ExtensionOrigin $ExtensionOrigin -ExtensionVersion $ExtensionVersion -Count $ProbeCount -TimeoutMs $TimeoutMs
+    Assert-PipeSecretProvisioned $installDir (Get-InstallId $Channel)
   }
 
   $evidencePath = Write-SmokeEvidenceArtifact $outDir

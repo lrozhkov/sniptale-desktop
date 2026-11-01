@@ -1,6 +1,10 @@
 //! Projection of staged settings into the adaptive native control tree.
 
-use super::*;
+#[path = "presentation/hotkeys.rs"]
+mod hotkeys;
+pub(super) use hotkeys::refresh_hotkeys;
+
+use super::{HWND, SettingsNativeWindow, copy, io, layout, native};
 use crate::{
     settings::{
         AppearanceThemePreference, ManualAudioSource, ManualFps, ManualHardwarePreference,
@@ -10,7 +14,7 @@ use crate::{
 };
 use windows::Win32::UI::Controls::{BST_CHECKED, BST_UNCHECKED};
 
-pub(super) fn refresh(window: &mut SettingsNativeWindow) -> io::Result<()> {
+pub(super) fn refresh(window: &mut SettingsNativeWindow, relayout: bool) -> io::Result<()> {
     native::set_text(
         window.shell.headline,
         copy::headline(window.presentation.view()),
@@ -35,7 +39,9 @@ pub(super) fn refresh(window: &mut SettingsNativeWindow) -> io::Result<()> {
     )?;
     fill_theme(window.shell.theme, window.presentation.theme());
     let manual = window.presentation.manual().cloned();
-    set_content_visibility(window);
+    if relayout {
+        set_content_visibility(window);
+    }
     set_confirmation_visibility(window, window.presentation.confirm_discard());
     native::set_enabled(window.shell.apply, window.presentation.can_apply());
     native::set_text(
@@ -45,7 +51,9 @@ pub(super) fn refresh(window: &mut SettingsNativeWindow) -> io::Result<()> {
     if let Some(manual) = manual {
         refresh_manual(window, &manual);
     }
-    layout::apply(window);
+    if relayout {
+        layout::apply(window);
+    }
     native::invalidate(window.handle);
     Ok(())
 }
@@ -56,7 +64,7 @@ fn set_content_visibility(window: &SettingsNativeWindow) {
     for (_, handle) in &window.shell.navigation {
         native::set_visible(*handle, manual);
     }
-    native::set_visible(window.shell.extension_mode, manual);
+    native::set_visible(window.shell.extension_mode, false);
     for handle in [
         window.shell.landing_badge,
         window.shell.landing_title,
@@ -65,19 +73,17 @@ fn set_content_visibility(window: &SettingsNativeWindow) {
     ] {
         native::set_visible(handle, landing);
     }
+    let selected_handles = window.pages.page_handles(window.presentation.section());
     for handle in window.pages.all_handles() {
-        native::set_visible(handle, false);
+        let visible = if manual {
+            selected_handles.contains(&handle)
+        } else {
+            handle == window.pages.capture.browse && window.presentation.shows_manual_setup()
+        };
+        native::set_visible(handle, visible);
     }
-    if manual {
-        for handle in window.pages.page_handles(window.presentation.section()) {
-            native::set_visible(*handle, true);
-        }
-    } else {
-        native::set_visible(
-            window.pages.capture.browse,
-            window.presentation.shows_manual_setup(),
-        );
-        let _ = native::set_text(window.pages.capture.browse, "Set up Manual mode…");
+    if !manual {
+        let _ = native::set_text(window.pages.capture.browse, "Choose local folder…");
     }
     native::set_visible(window.shell.apply, window.presentation.shows_footer());
     native::set_visible(window.shell.cancel, window.presentation.shows_footer());
@@ -101,6 +107,15 @@ fn set_confirmation_visibility(window: &SettingsNativeWindow, visible: bool) {
 }
 
 fn refresh_manual(window: &SettingsNativeWindow, manual: &crate::settings::ManualProfileDraftView) {
+    native::set_combo_items(
+        window.pages.capture.browser_destination,
+        &window.presentation.browser_destination_labels(),
+        window.presentation.selected_browser_destination_index(),
+    );
+    set_check(
+        window.pages.capture.ask_destination,
+        window.presentation.ask_after_capture(),
+    );
     let _ = native::set_text(window.pages.capture.browse, "Change folder…");
     let _ = native::set_text(
         window.pages.capture.destination_path,
@@ -111,6 +126,10 @@ fn refresh_manual(window: &SettingsNativeWindow, manual: &crate::settings::Manua
         manual.screenshot_include_cursor,
     );
     set_check(window.pages.video.cursor, manual.video_include_cursor);
+    set_check(
+        window.pages.video.pointer_telemetry,
+        manual.collect_pointer_events,
+    );
     refresh_video(window, manual);
     refresh_audio(window, manual);
     refresh_hotkeys(window);
@@ -130,7 +149,7 @@ fn refresh_video(window: &SettingsNativeWindow, manual: &crate::settings::Manual
     let bitrates = window.presentation.video_bitrate_options();
     let bitrate_labels = bitrates
         .iter()
-        .map(|option| option.label())
+        .map(crate::tray::settings_window::model::SettingsVideoBitrateOption::label)
         .collect::<Vec<_>>();
     let selected_bitrate = bitrates
         .iter()
@@ -149,7 +168,7 @@ fn refresh_video(window: &SettingsNativeWindow, manual: &crate::settings::Manual
     let durations = window.presentation.video_duration_options();
     let duration_labels = durations
         .iter()
-        .map(|option| option.label())
+        .map(crate::tray::settings_window::model::SettingsVideoDurationOption::label)
         .collect::<Vec<_>>();
     let selected_duration = durations
         .iter()
@@ -181,7 +200,7 @@ fn refresh_audio(window: &SettingsNativeWindow, manual: &crate::settings::Manual
         .presentation
         .microphones()
         .iter()
-        .map(|option| option.label())
+        .map(crate::tray::settings_window::model::SettingsMicrophoneOption::label)
         .collect::<Vec<_>>();
     native::set_combo_items(
         window.pages.audio.microphone,
@@ -197,18 +216,6 @@ fn refresh_audio(window: &SettingsNativeWindow, manual: &crate::settings::Manual
         &["96 kbps", "128 kbps", "160 kbps", "192 kbps"],
         audio_bitrate_index(manual.audio_bitrate_kbps),
     );
-}
-
-pub(super) fn refresh_hotkeys(window: &SettingsNativeWindow) {
-    let hotkeys = window.presentation.manual().map(|manual| &manual.hotkeys);
-    for (action, _, control) in &window.pages.shortcuts.hotkeys {
-        let label = hotkeys
-            .and_then(|hotkeys| hotkeys.get(action.as_str()))
-            .and_then(|value| crate::settings::parse_manual_hotkey_chord(value))
-            .map_or_else(|| "Not set".to_owned(), |chord| chord.canonical_label());
-        let _ = native::set_text(*control, &label);
-        native::invalidate(*control);
-    }
 }
 
 fn fill_theme(control: HWND, theme: AppearanceThemePreference) {

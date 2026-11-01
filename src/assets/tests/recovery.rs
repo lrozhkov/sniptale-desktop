@@ -138,3 +138,119 @@ fn recovery_preserves_failed_jobs_for_integrity_and_format_retries() -> Result<(
     );
     Ok(())
 }
+
+fn bound_service(
+    root: &std::path::Path,
+) -> Result<(super::AssetPublishService, AssetJob, std::path::PathBuf), String> {
+    let output = root.join("published");
+    std::fs::create_dir(&output).map_err(|error| error.to_string())?;
+    let job = prepare_manual_asset_job(
+        "recovered-job".to_owned(),
+        AssetFormat::Png,
+        "selected-folder".to_owned(),
+        output.clone(),
+    )
+    .map_err(|error| format!("{error:?}"))?;
+    let service = super::AssetPublishService::open(root.join("jobs"))
+        .map_err(|error| format!("{error:?}"))?;
+    service
+        .save_prepared(&job)
+        .map_err(|error| format!("{error:?}"))?;
+    service
+        .bind_prepared(job.id())
+        .map_err(|error| format!("{error:?}"))?;
+    let path = output.join(job.destination_leaf());
+    Ok((service, job, path))
+}
+
+#[test]
+fn publication_recovery_verifies_existing_bytes_and_reuses_receipt_without_reading_source()
+-> Result<(), String> {
+    let directory = tempdir().map_err(|error| error.to_string())?;
+    let (service, job, path) = bound_service(directory.path())?;
+    let mut bytes = png();
+    bytes.resize(150_000, 7);
+    let first = service
+        .publish_finalized(job.id(), &mut BytesSource::new(bytes.clone()))
+        .map_err(|error| format!("first: {error:?}"))?;
+    let mut unavailable_source = BytesSource::failing(bytes.clone());
+    let recovered = service
+        .publish_finalized(job.id(), &mut unavailable_source)
+        .map_err(|error| format!("recover: {error:?}"))?;
+    assert_eq!(recovered, first);
+    assert_eq!(unavailable_source.offset, 0);
+    assert_eq!(
+        std::fs::read(path).map_err(|error| error.to_string())?,
+        bytes
+    );
+    let stored = AssetJobStore::open(directory.path().join("jobs"))
+        .map_err(|error| format!("{error:?}"))?
+        .load(job.id())
+        .map_err(|error| format!("{error:?}"))?;
+    assert_eq!(
+        stored.map(|job| job.state()),
+        Some(super::AssetJobState::Published)
+    );
+    Ok(())
+}
+
+#[test]
+fn publication_recovery_never_replaces_collisions_or_accepts_changed_source_metadata()
+-> Result<(), String> {
+    use super::super::AssetPublishServiceError;
+    let directory = tempdir().map_err(|error| error.to_string())?;
+    let (service, job, path) = bound_service(directory.path())?;
+    let bytes = png();
+    service
+        .publish_finalized(job.id(), &mut BytesSource::new(bytes.clone()))
+        .map_err(|error| format!("first: {error:?}"))?;
+    for replacement in [b"different-length".to_vec(), vec![b'x'; bytes.len()]] {
+        std::fs::write(&path, &replacement).map_err(|error| error.to_string())?;
+        assert!(matches!(
+            service.publish_finalized(job.id(), &mut BytesSource::new(bytes.clone())),
+            Err(AssetPublishServiceError::Publish(
+                AssetPublishError::NameCollision | AssetPublishError::IntegrityMismatch
+            ))
+        ));
+        assert_eq!(
+            std::fs::read(&path).map_err(|error| error.to_string())?,
+            replacement
+        );
+    }
+    assert!(matches!(
+        service.publish_finalized(job.id(), &mut BytesSource::new(b"changed-source".to_vec())),
+        Err(AssetPublishServiceError::Store(_))
+    ));
+    std::fs::remove_file(&path).map_err(|error| error.to_string())?;
+    std::fs::create_dir(&path).map_err(|error| error.to_string())?;
+    assert_eq!(
+        service.publish_finalized(job.id(), &mut BytesSource::new(bytes)),
+        Err(AssetPublishServiceError::Publish(
+            AssetPublishError::NameCollision
+        ))
+    );
+    Ok(())
+}
+
+#[cfg(unix)]
+#[test]
+fn publication_recovery_refuses_an_existing_leaf_symlink() -> Result<(), String> {
+    use super::super::AssetPublishServiceError;
+    let directory = tempdir().map_err(|error| error.to_string())?;
+    let (service, job, path) = bound_service(directory.path())?;
+    let bytes = png();
+    let outside = directory.path().join("outside.png");
+    std::fs::write(&outside, &bytes).map_err(|error| error.to_string())?;
+    std::os::unix::fs::symlink(&outside, &path).map_err(|error| error.to_string())?;
+    assert_eq!(
+        service.publish_finalized(job.id(), &mut BytesSource::new(bytes.clone())),
+        Err(AssetPublishServiceError::Publish(
+            AssetPublishError::NameCollision
+        ))
+    );
+    assert_eq!(
+        std::fs::read(&outside).map_err(|error| error.to_string())?,
+        bytes
+    );
+    Ok(())
+}

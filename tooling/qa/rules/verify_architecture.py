@@ -122,6 +122,7 @@ WINDOWS_API_ALLOWED_PREFIXES = (
 WINDOWS_API_ALLOWED_FILES = {
     "src/diagnostics/log/windows_exception.rs",
     "src/transfer/windows_dpapi.rs",
+    "src/transfer/windows_files.rs",
 }
 
 CONTROL_PIPE_FILES = [
@@ -573,7 +574,7 @@ AUD11_DIRECT_APP_MEDIA_EXECUTION_BASELINE = {}
 AUD11_APP_MEDIA_WORKER_EXECUTION_FILES = {
     "src/app/resident/capture_worker.rs",
     "src/app/resident/recording_worker.rs",
-    "src/app/resident/telemetry_worker.rs",
+    "src/app/resident/telemetry_worker/runtime.rs",
 }
 AUD11_DEFERRED_EVALUATION_ALLOWED_FILES = {
     "src/settings/effective.rs",  # target: Wave 1 removes placeholder producer
@@ -1384,13 +1385,23 @@ def check_windows_pipe_worker_event_bridge() -> None:
     if "_agent_events" in text:
         fail("windows pipe worker must not discard AgentEventHub")
     if not re.search(
-        r"\bserver\.run_with_effects_events_and_log\(\s*effects_factory,\s*&agent_events,\s*log\.as_ref\(\),",
+        r"\bserver\.run_with_effects_events_and_log\(\s*effects_factory,\s*agent_events,\s*log,",
         text,
         re.S,
     ):
         fail(
             "windows pipe worker must use event-aware session-factory pipe server path with process-log lifecycle proof"
         )
+    if not re.search(
+        r"run_active_pipe_server\(\s*&mut server,\s*&command_receiver,\s*&active_settings,\s*&effects_factory,\s*&agent_events,\s*log\.as_ref\(\),",
+        text,
+        re.S,
+    ) or not re.search(
+        r"fn run_active_pipe_server<E>\([^)]*agent_events: &AgentEventHub,\s*log: Option<&AgentProcessLogSink>",
+        text,
+        re.S,
+    ):
+        fail("windows pipe worker must pass its event hub and process log through borrowed active-server inputs")
     if "let effects_factory =" not in text:
         fail("windows pipe worker must create per-session side-effect adapters")
     if re.search(r"\bserver\.run_with_effects\(&mut effects", text):
@@ -1430,14 +1441,14 @@ def check_windows_pipe_allows_concurrent_instances() -> None:
         fail("windows pipe adapter must accept explicit max_instances")
     if re.search(r"CreateNamedPipeW\([\s\S]+?,\s*1\s*,", adapter_text):
         fail("windows pipe adapter must not hard-code one named-pipe instance")
-    if "PIPE_MAX_SESSIONS as u32" not in resident_text:
+    if "u32::try_from(PIPE_MAX_SESSIONS).map_err(|_| AgentPipeServerError::Accept)?" not in resident_text:
         fail("resident pipe listener must pass session limit as named-pipe max instances")
 
 
 def check_windows_native_host_uses_duplex_forwarding() -> None:
     path = ROOT / "src/app/bridge/runtime.rs"
     text = read(path)
-    if "forward_authenticated_native_host_stream_duplex_with_authenticated_hook" not in text:
+    if not re.search(r"\bforward_authenticated_native_host_stream_duplex_with_runtime\s*\(", text):
         fail("windows native-host runtime must use authenticated duplex pipe forwarding")
     if "forward_authenticated_native_host_stream_with_log_and_authenticated_hook" in text:
         fail("windows native-host runtime must not use turn-based pipe forwarding")

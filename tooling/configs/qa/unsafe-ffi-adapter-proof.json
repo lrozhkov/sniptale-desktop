@@ -215,11 +215,11 @@
     {
       "path": "src/ipc/pipe/windows_pipe_handles.rs",
       "owner": "ipc",
-      "boundary": "Duplicated thread/pipe HANDLE owner for cancellable blocking pipe reads",
-      "invariants": ["Pseudo-handles are duplicated before sharing with the canceller", "Duplicated handles are closed exactly once"],
-      "safeWrapper": "IPC pipe reader receives a safe cancellation handle without raw thread handles.",
-      "raiiWrapper": "BlockingReadCancel, BlockingReadGuard, and WindowsHandle",
-      "shutdownCancelProof": ["CancelSynchronousIo is issued by WindowsPipeShutdown", "src/ipc/tests/bridge.rs covers shutdown-forwarding behavior"],
+      "boundary": "Duplicated thread/pipe HANDLE owner for cancellable synchronous input reads",
+      "invariants": ["Pseudo-handles are duplicated before sharing with the canceller", "Duplicated handles are closed exactly once", "Each cancellation retains an Arc-owned duplicated thread handle until CancelSynchronousIo returns", "Initial Native Messaging reads have one deadline across header and body; repeated cancellation closes the register/read race", "The watchdog is joined before subsequent I/O and is signalled during read unwinding"],
+      "safeWrapper": "IPC pipe readers receive safe cancellation; the initial Native Messaging reader receives a bounded read result without raw thread handles.",
+      "raiiWrapper": "BlockingReadCancel, BlockingReadGuard, Arc-owned ReadThreadHandle, and ReadDeadlineCompletion",
+      "shutdownCancelProof": ["CancelSynchronousIo is issued by WindowsPipeShutdown", "src/ipc/tests/bridge.rs covers shutdown-forwarding behavior", "src/ipc/tests/windows_pipe_handles.rs covers handle retention, terminal cancellation, silent/partial frame deadlines, and success/error/panic watchdog teardown"],
       "reviews": ["security", "architecture"]
     },
     {
@@ -306,8 +306,8 @@
       "path": "src/telemetry/windows/keyboard_hook.rs",
       "owner": "telemetry",
       "boundary": "Win32 low-level keyboard hook for recording-only sanitized telemetry events",
-      "invariants": ["Hook callbacks copy only sanitized key facts and never typed text", "HHOOK is unhooked exactly once by the owner"],
-      "safeWrapper": "Telemetry owner receives sanitized key signal events.",
+      "invariants": ["Hook callbacks copy only key transition facts, original Alt context, message time and source sequence; injected input is rejected and invalidates tracked modifier certainty; typed text is never extracted", "Bounded per-key transition state starts unknown and is cleared after unobserved or injected transitions; Ctrl, Shift and Meta require accepted source transitions, unknown facts stay null, and the first uncertain down never fabricates an onset", "Original KBDLLHOOKSTRUCT.time is extended against the owner-local boot clock; bounded draining retains events beyond the lifecycle source cutoff", "HHOOK is unhooked exactly once by the owner"],
+      "safeWrapper": "Telemetry owner receives bounded source observations and sanitizes key labels independently from anonymous activity counts.",
       "raiiWrapper": "WindowsKeyboardTelemetryHook",
       "shutdownCancelProof": ["src/telemetry/tests/hook_policy.rs covers deterministic hook planning and release ordering", "src/telemetry/tests/redaction_output_surface.rs covers no typed text, clipboard, or URL output", "Drop unhooks the low-level keyboard hook"],
       "reviews": ["security", "architecture"]
@@ -315,11 +315,11 @@
     {
       "path": "src/telemetry/windows/mouse_hook.rs",
       "owner": "telemetry",
-      "boundary": "Win32 low-level mouse hook for recording-only sanitized cursor/click telemetry events",
-      "invariants": ["Hook callbacks copy only cursor/click facts", "HHOOK is unhooked exactly once by the owner"],
-      "safeWrapper": "Telemetry owner receives sanitized mouse events.",
+      "boundary": "Win32 low-level mouse hook for recording-only physical pointer observations and source-clock scalars",
+      "invariants": ["Hook callbacks copy only pointer coordinates, actual button down/up, original message time, sequence, and cursor visibility; injected input is rejected", "GetTickCount64 selects the wrap epoch of the copied message timestamp and never substitutes the drain time", "GetCursorInfo receives a fully initialized CURSORINFO; only its visibility flag is copied, and its borrowed HCURSOR is neither exposed nor destroyed", "HHOOK is unhooked exactly once by the owner", "The installing telemetry thread pumps nonqueued hook messages before taking event-queue locks; posted messages remain untouched"],
+      "safeWrapper": "Telemetry owner receives bounded scalar observations, preserves the source cutoff across lifecycle drains, and pumps its own hook callbacks without exposing Windows messages or handles.",
       "raiiWrapper": "WindowsMouseTelemetryHook",
-      "shutdownCancelProof": ["src/telemetry/tests/hook_policy.rs covers deterministic hook planning and release ordering", "src/telemetry/tests/redaction_output_surface.rs covers no typed text, clipboard, or URL output", "Drop unhooks the low-level mouse hook"],
+      "shutdownCancelProof": ["src/telemetry/tests/hook_policy.rs covers deterministic hook planning and release ordering", "src/telemetry/tests/redaction_output_surface.rs covers no typed text, clipboard, or URL output", "Drop unhooks the low-level mouse hook", "Windows real-extension pointer-recording case verifies physical USB HID cursor/click capture and browser time normalization while injected Win32 input remains rejected"],
       "reviews": ["security", "architecture"]
     },
     {
@@ -459,7 +459,7 @@
       "invariants": ["UTF-16 buffers remain live for synchronous child-window calls", "Combo and scroll indexes are narrowed from bounded presentation values", "The checkbox background brush is returned only during synchronous WM_CTLCOLORBTN handling", "Control handles remain children of the adapter-owned parent HWND"],
       "safeWrapper": "Control-tree code uses typed helpers for text, choices, checkbox state/color, visibility, focus, and bounds.",
       "raiiWrapper": "NativeFonts deletes created HFONT objects; the parent HWND owns child lifetime.",
-      "shutdownCancelProof": ["NativeFonts Drop releases fonts", "Windows-target type checking covers child-control signatures"],
+      "shutdownCancelProof": ["NativeFonts Drop releases fonts", "Windows-target type checking covers child-control signatures", "Windows real-extension case verifies that the browser dropdown stays open during keyboard selection and unchanged presentation refresh"],
       "reviews": ["security", "architecture"]
     },
     {
@@ -501,6 +501,26 @@
       "raiiWrapper": "LocalBlob",
       "shutdownCancelProof": ["Drop wipes secret blobs before LocalFree", "src/transfer/tests/protected_key.rs covers protected media-key validation", "src/transfer/tests/lifecycle.rs covers transfer cleanup and ack/reject behavior"],
       "reviews": ["security", "architecture"]
+    },
+    {
+      "path": "src/tray/delivery/windows.rs",
+      "owner": "tray",
+      "boundary": "Synchronous Win32 TaskDialog destination choice",
+      "invariants": [
+        "All UTF-16 strings, button storage and configuration remain live for the synchronous call",
+        "No callback, handle or pointer crosses the adapter boundary",
+        "Cancellation, close and failure retain captured media"
+      ],
+      "safeWrapper": "choose_delivery_destination returns a typed Local, Browser or Later choice.",
+      "raiiWrapper": "Stack-owned configuration and Vec-owned button strings; TaskDialog owns and destroys its window.",
+      "shutdownCancelProof": [
+        "Dialog close and failure return Later without deleting media",
+        "Desktop E2E destination dialog choice and cancellation scenarios"
+      ],
+      "reviews": [
+        "architecture",
+        "security"
+      ]
     }
   ]
 }

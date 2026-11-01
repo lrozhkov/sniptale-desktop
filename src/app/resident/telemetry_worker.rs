@@ -1,6 +1,9 @@
 //! Resident telemetry worker command broker.
 
-use std::sync::mpsc::{Receiver, RecvTimeoutError, SyncSender, TrySendError};
+mod runtime;
+pub(super) use runtime::run_telemetry_worker;
+
+use std::sync::mpsc::{RecvTimeoutError, SyncSender, TrySendError};
 
 use crate::{
     app::responses::NativeHostCommandFailureEvent,
@@ -10,7 +13,7 @@ use crate::{
     },
 };
 
-use super::{AgentComponent, AgentEventHub, RUNTIME_APPLY_ACK_TIMEOUT, WorkerCommand, WorkerEvent};
+use super::{AgentEventHub, RUNTIME_APPLY_ACK_TIMEOUT, WorkerCommand};
 
 #[derive(Clone, Debug)]
 pub(super) struct TelemetryWorkerCommandSink {
@@ -18,6 +21,7 @@ pub(super) struct TelemetryWorkerCommandSink {
     agent_events: AgentEventHub,
     controller_lease_id: Option<String>,
     policy: RecordingTelemetryPolicy,
+    trajectory_context: Option<crate::telemetry::RecordingTrajectoryContext>,
 }
 
 impl TelemetryWorkerCommandSink {
@@ -30,6 +34,7 @@ impl TelemetryWorkerCommandSink {
             agent_events,
             controller_lease_id: None,
             policy: RecordingTelemetryPolicy::default(),
+            trajectory_context: None,
         }
     }
 
@@ -108,6 +113,13 @@ impl RecordingTelemetrySource for TelemetryWorkerCommandSink {
         self.policy = policy;
     }
 
+    fn configure_trajectory(
+        &mut self,
+        context: Option<crate::telemetry::RecordingTrajectoryContext>,
+    ) {
+        self.trajectory_context = context;
+    }
+
     fn start_recording_with_policy(
         &mut self,
         policy: RecordingTelemetryPolicy,
@@ -118,6 +130,7 @@ impl RecordingTelemetrySource for TelemetryWorkerCommandSink {
         self.enqueue_required(
             WorkerCommand::StartRecordingTelemetry {
                 policy,
+                trajectory_context: self.trajectory_context.clone(),
                 recording_id: recording_id.to_owned(),
                 started_at_monotonic_ns,
             },
@@ -130,6 +143,7 @@ impl RecordingTelemetrySource for TelemetryWorkerCommandSink {
         self.enqueue_required(
             WorkerCommand::StartRecordingTelemetry {
                 policy: self.policy,
+                trajectory_context: self.trajectory_context.clone(),
                 recording_id: recording_id.to_owned(),
                 started_at_monotonic_ns,
             },
@@ -218,75 +232,6 @@ impl RecordingTelemetrySource for TelemetryWorkerCommandSink {
                 None
             }
             Err(RecvTimeoutError::Disconnected) => None,
-        }
-    }
-}
-
-pub(super) fn run_telemetry_worker(
-    component: AgentComponent,
-    event_sender: &SyncSender<WorkerEvent>,
-    command_receiver: &Receiver<WorkerCommand>,
-    mut source: Box<dyn RecordingTelemetrySource>,
-) {
-    let _ = event_sender.send(WorkerEvent::Started(component));
-    loop {
-        match command_receiver.recv() {
-            Ok(WorkerCommand::Stop) | Err(_) => break,
-            Ok(WorkerCommand::FenceMode { result_sender }) => {
-                let _ = result_sender.send(false);
-            }
-            Ok(WorkerCommand::StartRecordingTelemetry {
-                policy,
-                recording_id,
-                started_at_monotonic_ns,
-            }) => {
-                source.configure_recording(policy);
-                source.start_recording(&recording_id, started_at_monotonic_ns);
-            }
-            Ok(WorkerCommand::PauseRecordingTelemetry {
-                recording_id,
-                paused_at_monotonic_ns,
-            }) => source.pause_recording(&recording_id, paused_at_monotonic_ns),
-            Ok(WorkerCommand::ResumeRecordingTelemetry {
-                recording_id,
-                resumed_at_monotonic_ns,
-            }) => source.resume_recording(&recording_id, resumed_at_monotonic_ns),
-            Ok(WorkerCommand::FinishRecordingTelemetry {
-                recording_id,
-                stopped_at_monotonic_ns,
-            }) => source.finish_recording(&recording_id, stopped_at_monotonic_ns),
-            Ok(WorkerCommand::CancelRecordingTelemetry {
-                recording_id,
-                cancelled_at_monotonic_ns,
-            }) => source.cancel_recording(&recording_id, cancelled_at_monotonic_ns),
-            Ok(WorkerCommand::DiscardRecordingTelemetry { recording_id }) => {
-                source.discard_recording(&recording_id);
-            }
-            Ok(WorkerCommand::SnapshotRecordingTelemetry {
-                recording_id,
-                duration_ms,
-                result_sender,
-            }) => {
-                let _ =
-                    result_sender.send(source.snapshot_for_recording(&recording_id, duration_ms));
-            }
-            Ok(
-                WorkerCommand::ApplyHotkeyPlan { .. }
-                | WorkerCommand::ManualHotkeyAction { .. }
-                | WorkerCommand::RestoreHotkeys { .. }
-                | WorkerCommand::ApplyTrayRegistry { .. }
-                | WorkerCommand::ShowTrayNotice { .. }
-                | WorkerCommand::UpdateTrayRecordingStatus { .. }
-                | WorkerCommand::RefreshTrayConnectionStatus
-                | WorkerCommand::CaptureScreenshot { .. }
-                | WorkerCommand::StartRecording { .. }
-                | WorkerCommand::ControlRecording { .. }
-                | WorkerCommand::ControlActiveRecording { .. }
-                | WorkerCommand::PrepareManualAsset { .. }
-                | WorkerCommand::PublishManualAsset { .. },
-            ) => {}
-            #[cfg(test)]
-            Ok(WorkerCommand::TrayMenuCommandSelected { .. }) => {}
         }
     }
 }

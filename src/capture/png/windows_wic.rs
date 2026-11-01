@@ -103,7 +103,8 @@ fn create_png_encoder(
 fn create_frame(encoder: &IWICBitmapEncoder) -> Result<IWICBitmapFrameEncode, WicPngError> {
     let mut frame = None;
     // SAFETY: encoder is live; output pointers are initialized by WIC during the call.
-    unsafe { encoder.CreateNewFrame(&mut frame, std::ptr::null_mut()) }.map_err(to_wic_error)?;
+    unsafe { encoder.CreateNewFrame(&raw mut frame, std::ptr::null_mut()) }
+        .map_err(to_wic_error)?;
     let frame = frame.ok_or(WicPngError::MissingFrame)?;
     // SAFETY: the frame is newly created and accepts default encoder options.
     unsafe { frame.Initialize(None) }.map_err(to_wic_error)?;
@@ -146,5 +147,7 @@ fn wide_path(path: &Path) -> Result<Vec<u16>, WicPngError> {
 }
 
 fn to_wic_error(error: windows::core::Error) -> WicPngError {
-    WicPngError::Windows(error.code().0)
+    let code = error.code().0;
+    drop(error);
+    WicPngError::Windows(code)
 }

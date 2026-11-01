@@ -31,6 +31,7 @@ REQUIRED_CONTRACT_IDS = [
     "AppSettingsAcceptedMessage",
     "ExtensionPingMessage",
     "AppPongMessage",
+    "AppConnectionClosedMessage",
     "NativeTrayActionRegistry",
     "AppTrayActionRequestedMessage",
     "ExtensionTrayActionResultMessage",
@@ -55,6 +56,26 @@ REQUIRED_CONTRACT_IDS = [
     "NativeRecordingTimebase",
     "NativeRecordingTelemetrySnapshot",
     "AppOperationFailedMessage",
+    "CursorTrajectoryBlock",
+    "CursorTrajectoryDescriptor",
+    "CursorTrajectoryReceipt",
+    "NativeTrajectoryAttachmentCapabilities",
+    "ExtensionRecordingAttachmentManifestRequestMessage",
+    "AppRecordingAttachmentManifestMessage",
+    "ExtensionRecordingAttachmentChunkRequestMessage",
+    "AppRecordingAttachmentChunkMessage",
+    "ExtensionRecordingAttachmentAckMessage",
+    "AppRecordingAttachmentAvailableMessage",
+    "RecordingEventsBlock",
+    "RecordingEventsDescriptor",
+    "RecordingEventsReceipt",
+    "NativeEventAttachmentCapabilities",
+    "ExtensionRecordingEventsManifestRequestMessage",
+    "AppRecordingEventsManifestMessage",
+    "ExtensionRecordingEventsChunkRequestMessage",
+    "AppRecordingEventsChunkMessage",
+    "ExtensionRecordingEventsAckMessage",
+    "AppRecordingEventsAvailableMessage",
 ]
 
 REQUIRED_LIMITS = {
@@ -87,9 +108,13 @@ REQUIRED_CASES = [
     "settings-accepted",
     "operation-failure",
     "operation-error-catalog",
+    "recording-events-keyboard-hold",
 ]
 
 REQUIRED_COVERAGE_MARKERS = {
+    "recording-events-keyboard-hold": (
+        "src/protocol/tests/recording_events.rs::completed_anonymous_keyboard_holds_match_shared_original_byte_vectors"
+    ),
     "positive-fixtures": "src/protocol/tests/contract/fixtures.rs::positive_wire_contract_fixtures_parse",
     "negative-fixtures": "src/protocol/tests/contract/fixtures.rs::negative_wire_contract_fixtures_are_rejected",
     "malformed-json": "src/protocol/tests/contract/fixtures.rs::malformed_json_is_rejected",
@@ -176,8 +201,8 @@ def contract_guardrail_errors(root: Path) -> list[str]:
             if actual != expected:
                 errors.append(f"{key} must be {expected}, got {actual}")
 
-    if data.get("protocolVersion") != 1:
-        errors.append("protocolVersion must be 1")
+    if data.get("protocolVersion") != 2:
+        errors.append("protocolVersion must be 2")
     if data.get("settingsSchemaVersion") != 1:
         errors.append("settingsSchemaVersion must be 1")
     if data.get("cacheSchemaVersion") != 1:
@@ -283,7 +308,7 @@ def write_valid_selftest_repo(root: Path) -> None:
         json.dumps(
             {
                 "schemaVersion": 1,
-                "protocolVersion": 1,
+                "protocolVersion": 2,
                 "settingsSchemaVersion": 1,
                 "cacheSchemaVersion": 1,
                 "contractIds": REQUIRED_CONTRACT_IDS,

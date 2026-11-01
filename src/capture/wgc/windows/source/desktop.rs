@@ -65,7 +65,7 @@ unsafe extern "system" fn enum_monitor_proc(
 
 fn monitor_snapshot(monitor: HMONITOR, index: usize) -> Option<MonitorSnapshot> {
     let mut info = MONITORINFO {
-        cbSize: std::mem::size_of::<MONITORINFO>() as u32,
+        cbSize: u32::try_from(std::mem::size_of::<MONITORINFO>()).ok()?,
         ..MONITORINFO::default()
     };
     // SAFETY: info points to a properly initialized MONITORINFO with cbSize set as required by
@@ -123,7 +123,7 @@ fn window_capture_state(handle: HWND) -> WindowCaptureState {
             handle,
             DWMWA_CLOAKED,
             ptr::addr_of_mut!(cloaked).cast(),
-            std::mem::size_of::<u32>() as u32,
+            u32::BITS / 8,
         )
     }
     .is_ok()

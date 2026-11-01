@@ -45,7 +45,7 @@ fn transfer_lifecycle_policy_handles_common_capture_and_recording_recovery() {
     );
     assert_eq!(
         capture.recovery_decision(70_001, policy),
-        Ok(TransferRecoveryDecision::Delete)
+        Ok(TransferRecoveryDecision::ReportPending)
     );
     assert_eq!(
         recording.recovery_decision(1_500, policy),
@@ -61,7 +61,7 @@ fn transfer_lifecycle_policy_handles_common_capture_and_recording_recovery() {
     );
     assert_eq!(
         rejected.recovery_decision(10_000, policy),
-        Ok(TransferRecoveryDecision::Delete)
+        Ok(TransferRecoveryDecision::RetainRejected)
     );
 }
 
@@ -182,5 +182,48 @@ fn transfer_cleanup_scan_budget_classifies_batch_without_payload_access() {
         }
     }
 
-    assert_eq!(counts, (1, 1, 1, 1));
+    assert_eq!(counts, (1, 2, 1, 0));
+}
+
+#[test]
+fn rejected_retry_requires_rejection_valid_progress_and_forward_clock() {
+    let rejected = TransferLifecycleSnapshot {
+        transfer_id: "retained",
+        state: TransferLifecycleState::Rejected,
+        updated_at_ms: 3_000,
+        total_bytes: Some(CHUNK_RAW_BYTES + 1),
+        next_missing_chunk_index: 1,
+        retain_rejected_until_ms: None,
+    };
+    assert_eq!(rejected.validate_rejected_retry(3_000), Ok(()));
+    assert_eq!(
+        rejected.validate_rejected_retry(2_999),
+        Err(TransferLifecycleError::ClockMovedBackwards)
+    );
+    for state in [
+        TransferLifecycleState::Writing,
+        TransferLifecycleState::Finalized,
+        TransferLifecycleState::Acked,
+    ] {
+        assert_eq!(
+            TransferLifecycleSnapshot { state, ..rejected }.validate_rejected_retry(4_000),
+            Err(TransferLifecycleError::InvalidState)
+        );
+    }
+    assert!(
+        TransferLifecycleSnapshot {
+            total_bytes: None,
+            ..rejected
+        }
+        .validate_rejected_retry(4_000)
+        .is_err()
+    );
+    assert!(
+        TransferLifecycleSnapshot {
+            next_missing_chunk_index: 3,
+            ..rejected
+        }
+        .validate_rejected_retry(4_000)
+        .is_err()
+    );
 }

@@ -1,6 +1,6 @@
 //! Per-section placement inside the shared scrollable viewport.
 
-use super::*;
+use super::{SettingsLayout, SettingsNativeWindow, layout_page_heading, page_origin, place_page};
 
 pub(super) fn capture(window: &SettingsNativeWindow, layout: SettingsLayout) {
     let page = &window.pages.capture;
@@ -29,14 +29,15 @@ pub(super) fn capture(window: &SettingsNativeWindow, layout: SettingsLayout) {
         window,
         layout,
         page.screenshot_label,
-        (left + 20, top + 252, 200, 24),
+        (left + 20, top + 490, 200, 24),
     );
     place_page(
         window,
         layout,
         page.screenshot_cursor,
-        (left + 20, top + 284, 300, 30),
+        (left + 20, top + 522, 300, 30),
     );
+    delivery_controls(window, layout);
 }
 
 pub(super) fn video(window: &SettingsNativeWindow, layout: SettingsLayout) {
@@ -61,6 +62,12 @@ pub(super) fn video(window: &SettingsNativeWindow, layout: SettingsLayout) {
         place_page(window, layout, control, (x, y + 24, column, 240));
     }
     place_page(window, layout, page.cursor, (left + 20, top + 342, 280, 30));
+    place_page(
+        window,
+        layout,
+        page.pointer_telemetry,
+        (left + 20, top + 384, 360, 30),
+    );
 }
 
 pub(super) fn audio(window: &SettingsNativeWindow, layout: SettingsLayout) {
@@ -134,4 +141,40 @@ pub(super) fn shortcuts(window: &SettingsNativeWindow, layout: SettingsLayout) {
             ),
         );
     }
+}
+
+fn delivery_controls(window: &SettingsNativeWindow, layout: SettingsLayout) {
+    let page = &window.pages.capture;
+    let (left, top) = page_origin(window, layout);
+    let width = layout.content_width;
+    place_page(
+        window,
+        layout,
+        page.destination_label,
+        (left + 20, top + 248, width - 40, 24),
+    );
+    place_page(
+        window,
+        layout,
+        page.browser_destination,
+        (left + 20, top + 280, width - 40, 240),
+    );
+    place_page(
+        window,
+        layout,
+        page.ask_destination,
+        (left + 20, top + 324, width - 40, 30),
+    );
+    place_page(
+        window,
+        layout,
+        page.save_destination,
+        (left + 20, top + 372, 180, 38),
+    );
+    place_page(
+        window,
+        layout,
+        page.refresh_targets,
+        (left + 216, top + 372, 160, 38),
+    );
 }

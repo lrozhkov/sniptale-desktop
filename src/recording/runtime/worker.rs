@@ -162,6 +162,14 @@ impl<V, A, S> RecordingMediaPump<V, A, S> {
     pub(crate) fn into_parts(self) -> (V, A, S) {
         (self.video, self.audio, self.sink)
     }
+
+    pub(crate) fn finalized_duration_ms(&self, requested_duration_ms: u64) -> u64 {
+        // Only successfully written, pause-compacted video samples define playable media time.
+        // The stop clock remains an upper bound when a final sample extends past the request.
+        u64::try_from(self.video_timeline_end_100ns / 10_000)
+            .unwrap_or(0)
+            .min(requested_duration_ms)
+    }
 }
 
 impl<V, A, S> RecordingMediaPump<V, A, S>

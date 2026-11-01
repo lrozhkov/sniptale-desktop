@@ -1,7 +1,10 @@
 //! Resident agent side-effect adapter for authenticated pipe sessions.
 
 mod agent;
+mod attachments;
+mod events_attachments;
 mod media_dispatch;
+mod recording_receipts;
 mod transfer;
 mod worker_sinks;
 

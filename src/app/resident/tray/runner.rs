@@ -52,18 +52,15 @@ struct TrayWorkerRuntime<'a> {
 
 pub(crate) fn run_tray_worker(component: AgentComponent, inputs: TrayWorkerInputs<'_>) {
     #[cfg(windows)]
-    let mut source = match WindowsTrayCommandSource::new() {
-        Ok(source) => source,
-        Err(_) => {
-            log_tray_startup_failure(
-                inputs.log,
-                "source-create",
-                "tray.source_create_failed",
-                "tray command source creation failed",
-            );
-            let _ = inputs.event_sender.send(WorkerEvent::Failed(component));
-            return;
-        }
+    let Ok(mut source) = WindowsTrayCommandSource::new() else {
+        log_tray_startup_failure(
+            inputs.log,
+            "source-create",
+            "tray.source_create_failed",
+            "tray command source creation failed",
+        );
+        let _ = inputs.event_sender.send(WorkerEvent::Failed(component));
+        return;
     };
     #[cfg(not(windows))]
     let mut source = NoopTrayCommandSource;
@@ -202,9 +199,7 @@ fn activate_startup_manual_hotkeys(
     let profile = active_settings
         .profile_snapshot()
         .map_err(|_| ManualHotkeyApplyError::ProfileUnavailable)?;
-    if profile.operating_mode() == crate::settings::OperatingMode::Manual
-        && let Some(hotkeys) = profile.manual_hotkeys()
-    {
+    if let Some(hotkeys) = profile.manual_hotkeys() {
         manual_senders.apply_manual_hotkeys(&hotkeys)?;
     }
     Ok(())

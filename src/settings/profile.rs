@@ -1,6 +1,9 @@
 //! Versioned Manual-mode profile parsing and health classification.
 
 #[cfg(any(windows, test))]
+pub(super) mod desktop_snapshot;
+
+#[cfg(any(windows, test))]
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
@@ -122,8 +125,7 @@ pub(crate) fn local_profile_health_from_path(path: Option<PathBuf>) -> LocalProf
 pub(crate) fn extension_admission_allowed_from_path(path: Option<PathBuf>) -> bool {
     matches!(
         local_profile_health_from_path(path),
-        LocalProfileHealth::Missing
-            | LocalProfileHealth::Available(OperatingMode::ExtensionManaged)
+        LocalProfileHealth::Missing | LocalProfileHealth::Available(_)
     )
 }
 

@@ -1,6 +1,6 @@
 //! Capability-aware audio validity and presentation choices.
 
-use super::*;
+use super::{SettingsAudioSourceOption, SettingsMicrophoneOption, SettingsWindowModel};
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub(super) struct AudioSourceSupport {

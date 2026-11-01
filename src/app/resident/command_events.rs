@@ -38,7 +38,7 @@ pub(super) fn recording_command_event(
             })
         }
         RecordingCommandEvent::Stopped(event) => {
-            NativeHostCommandEvent::RecordingStopped(stopped_message(event, controller_lease_id))
+            NativeHostCommandEvent::RecordingStopped(stopped_message(*event, controller_lease_id))
         }
         RecordingCommandEvent::ManualFinalized(_) => return None,
     })
@@ -50,6 +50,8 @@ fn stopped_message(
 ) -> AppRecordingStoppedMessage {
     let pending = event.pending;
     AppRecordingStoppedMessage {
+        recording_events: pending.recording_events,
+        cursor_trajectory: pending.cursor_trajectory,
         protocol_version: PROTOCOL_VERSION,
         controller_lease_id: controller_lease_id.to_owned(),
         recording_id: pending.recording_id,

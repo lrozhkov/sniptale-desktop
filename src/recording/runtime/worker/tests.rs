@@ -125,6 +125,38 @@ fn media_pump_writes_available_video_and_audio_samples() {
 }
 
 #[test]
+fn finalized_duration_uses_written_media_and_excludes_paused_or_pending_time() {
+    let video = FakeVideoSource {
+        samples: vec![
+            video_sample(0),
+            video_sample(333_333),
+            video_sample(666_666),
+        ],
+        cursor: 0,
+        fail: false,
+    };
+    let audio = FakeAudioSource {
+        polls_to_return: Vec::new(),
+        cursor: 0,
+        polls: 0,
+    };
+    let mut pump = RecordingMediaPump::new(video, audio, FakeSink::default());
+    assert_eq!(pump.finalized_duration_ms(6000), 0);
+    assert!(pump.pump_once().is_ok());
+    assert_eq!(pump.finalized_duration_ms(6000), 33);
+    assert!(
+        pump.pump_once_with_state(RecordingPumpState::Paused)
+            .is_ok()
+    );
+    assert_eq!(pump.finalized_duration_ms(6000), 33);
+    assert!(pump.pump_once().is_ok());
+    assert_eq!(pump.finalized_duration_ms(6000), 66);
+    assert!(pump.pump_once().is_ok());
+    assert_eq!(pump.finalized_duration_ms(6000), 66);
+    assert_eq!(pump.finalized_duration_ms(50), 50);
+}
+
+#[test]
 fn media_pump_does_not_poll_audio_after_video_source_failure() {
     let video = FakeVideoSource {
         samples: Vec::new(),

@@ -95,7 +95,9 @@ pub(super) fn run_capture_worker(
                 | WorkerCommand::DiscardRecordingTelemetry { .. }
                 | WorkerCommand::SnapshotRecordingTelemetry { .. }
                 | WorkerCommand::PrepareManualAsset { .. }
-                | WorkerCommand::PublishManualAsset { .. },
+                | WorkerCommand::PublishManualAsset { .. }
+                | WorkerCommand::RecoverPendingAssets
+                | WorkerCommand::ChooseMediaDestination { .. },
             ) => {}
             #[cfg(test)]
             Ok(WorkerCommand::TrayMenuCommandSelected { .. }) => {}
@@ -123,7 +125,7 @@ fn run_capture_command(
         Ok(events) => {
             for event in events {
                 if let ScreenshotCaptureEvent::Completed(completion) = &event
-                    && let DeliveryRoute::LocalAsset { asset_job_id } = &completion.delivery_route
+                    && let Some(asset_job_id) = completion.delivery_route.local_asset_job_id()
                 {
                     enqueue_manual_asset_publish(asset_sender, completion, asset_job_id);
                 }
@@ -160,6 +162,11 @@ fn enqueue_manual_asset_publish(
         return;
     };
     let _ = sender.try_send(WorkerCommand::PublishManualAsset {
+        delivery: Some(Box::new(super::delivery::DesktopMediaDelivery {
+            media_id: completion.capture_id.clone(),
+            kind: crate::transfer::browser_delivery::BrowserMediaKind::Screenshot,
+            route: completion.delivery_route.clone(),
+        })),
         job_id,
         source: Box::new(reader),
     });

@@ -1,12 +1,22 @@
 //! Staged Manual settings mutations and local validation feedback.
 
-use super::*;
+use super::{
+    AudioSourceSupport, LocalProfileDraft, ManualProfileDraft, SettingsMicrophoneOption,
+    SettingsMicrophoneSelection, SettingsWindowFeedback, SettingsWindowModel,
+};
 use crate::settings::{
     ManualAudioSource, ManualFps, ManualHardwarePreference, ManualHotkeyAction, ManualHotkeyChord,
     ManualHotkeyUpdateError, ManualVideoQuality,
 };
 
 impl SettingsWindowModel {
+    pub(crate) fn toggle_pointer_telemetry(&mut self) {
+        if let Some(view) = self.manual_view() {
+            self.with_manual(|manual| {
+                manual.set_collect_pointer_events(!view.collect_pointer_events);
+            });
+        }
+    }
     pub(crate) fn set_screenshot_include_cursor(&mut self, include_cursor: bool) {
         self.with_manual(|manual| manual.set_screenshot_include_cursor(include_cursor));
     }

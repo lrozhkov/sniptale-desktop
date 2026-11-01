@@ -1,6 +1,8 @@
 //! Responsive placement of the native settings control tree.
 
-use super::*;
+use super::{
+    HWND, SettingsNativeWindow, SettingsWindowSection, move_dip, native, update_scrollbar,
+};
 use crate::tray::settings_window::layout::{DipRect, PAGE_GUTTER, SettingsLayout};
 
 #[path = "layout/pages.rs"]

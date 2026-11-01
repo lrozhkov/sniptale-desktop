@@ -136,6 +136,29 @@ impl ScreenshotTransferRecord {
         Ok(())
     }
 
+    #[cfg(any(windows, test))]
+    pub(super) fn retry_rejected_desktop(
+        &mut self,
+        now_ms: u64,
+    ) -> Result<(), ScreenshotTransferRecordError> {
+        if !matches!(
+            (&self.authority, &self.delivery_route),
+            (
+                Some(OperationAuthority::Manual { .. }),
+                Some(DeliveryRoute::DesktopDelivery { .. })
+            )
+        ) {
+            return Err(ScreenshotTransferRecordError::InvalidState);
+        }
+        self.lifecycle_snapshot()
+            .validate_rejected_retry(now_ms)
+            .map_err(Self::map_lifecycle_error)?;
+        self.state = ScreenshotTransferState::Finalized;
+        self.retain_rejected_until_ms = None;
+        self.updated_at_ms = now_ms;
+        Ok(())
+    }
+
     pub(super) fn validate(&self) -> Result<(), ScreenshotTransferRecordError> {
         validate_capture_id(&self.capture_id)?;
         validate_filename(&self.filename)?;
@@ -209,11 +232,11 @@ impl ScreenshotTransferRecord {
                 Some(OperationAuthority::ExtensionManaged { .. }),
                 Some(DeliveryRoute::ExtensionTransfer),
             ) => Ok(()),
-            (
-                Some(1),
-                Some(OperationAuthority::Manual { .. }),
-                Some(DeliveryRoute::LocalAsset { asset_job_id }),
-            ) if !asset_job_id.is_empty() => Ok(()),
+            (Some(1), Some(OperationAuthority::Manual { .. }), Some(route))
+                if route.valid_local_route() =>
+            {
+                Ok(())
+            }
             _ => Err(ScreenshotTransferRecordError::InvalidState),
         }
     }

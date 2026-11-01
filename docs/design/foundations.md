@@ -30,7 +30,7 @@ Activate a pointer command once on release inside its target. Press, hold, drag 
 
 Use checkboxes for values in a draft that requires Apply. Use switches only for a setting whose change commits immediately. A disabled checked value stays checked. Explain unavailable controls when the reason is necessary to proceed. Keep selected navigation distinct from hover. Dropdowns expose accepted values and support native keyboard selection; hotkey entry exposes capture, cancellation, invalid combination, and conflict states.
 
-A presentation change must preserve the existing timing of Apply, Cancel, theme persistence, and mode changes. Invalid input remains visible for correction. A failed Apply preserves the draft and exposes a useful retry path. Pending work prevents duplicate effects. Closing a dirty draft offers a clear discard decision and restores focus when editing continues. Do not silently turn a draft-backed value into an immediate write.
+A presentation change must preserve the existing timing of Apply, Cancel, theme persistence, and destination selection. Invalid input remains visible for correction. A failed Apply preserves the draft and exposes a useful retry path. Pending work prevents duplicate effects. Closing a dirty draft offers a clear discard decision and restores focus when editing continues. Do not silently turn a draft-backed value into an immediate write.
 
 ## Motion and responsiveness
 

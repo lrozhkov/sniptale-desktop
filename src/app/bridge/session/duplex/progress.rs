@@ -2,10 +2,11 @@
 
 use std::{
     sync::{
+        Mutex,
         atomic::{AtomicBool, AtomicU8, Ordering},
         mpsc::{Receiver, RecvTimeoutError},
     },
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use serde_json::Value;
@@ -13,15 +14,29 @@ use serde_json::Value;
 use super::logging::AgentPipeSessionLogSink;
 use crate::protocol::WireMessage;
 
-const CONTROLLER_ACQUIRE_TIMEOUT: Duration = Duration::from_secs(5);
-const SETTINGS_ACCEPT_TIMEOUT: Duration = Duration::from_secs(10);
-const SESSION_PROGRESS_STARTED: u8 = 0;
-const SESSION_PROGRESS_CONTROLLER: u8 = 1;
-const SESSION_PROGRESS_SETTINGS: u8 = 2;
+const HELLO_TIMEOUT: Duration = Duration::from_secs(15);
+const HUMAN_TRUST_TIMEOUT: Duration = Duration::from_secs(300);
+const HEARTBEAT_TIMEOUT: Duration = Duration::from_secs(45);
 
-#[derive(Default)]
+const SESSION_PROGRESS_STARTED: u8 = 0;
+const SESSION_PROGRESS_HELLO: u8 = 1;
+const SESSION_PROGRESS_CONTROLLER: u8 = 2;
+
 pub(crate) struct SessionProgress {
     state: AtomicU8,
+    started: Instant,
+    last_activity: Mutex<Instant>,
+}
+
+impl Default for SessionProgress {
+    fn default() -> Self {
+        let now = Instant::now();
+        Self {
+            state: AtomicU8::new(0),
+            started: now,
+            last_activity: Mutex::new(now),
+        }
+    }
 }
 
 pub(super) struct AuthenticatedSessionRuntime<'a, S> {
@@ -34,14 +49,46 @@ pub(super) struct AuthenticatedSessionRuntime<'a, S> {
 
 impl SessionProgress {
     pub(crate) fn observe_result(&self, message: &WireMessage, responses: &[Value]) {
+        if let Ok(mut activity) = self.last_activity.lock() {
+            *activity = Instant::now();
+        }
         match message {
-            WireMessage::ExtensionControllerAcquire(_) => {
+            WireMessage::ExtensionHello(_)
+                if responses.iter().any(|value| value["type"] == "app.hello") =>
+            {
+                self.mark_at_least(SESSION_PROGRESS_HELLO);
+            }
+            WireMessage::ExtensionControllerAcquire(_)
+                if responses
+                    .iter()
+                    .any(|value| value["type"] == "app.controller.lease") =>
+            {
                 self.mark_at_least(SESSION_PROGRESS_CONTROLLER);
             }
-            WireMessage::ExtensionSettingsSync(_) if includes_settings_accepted(responses) => {
-                self.mark_at_least(SESSION_PROGRESS_SETTINGS);
-            }
             _ => {}
+        }
+    }
+
+    fn timeout_category(&self, now: Instant) -> Option<&'static str> {
+        match self.current() {
+            SESSION_PROGRESS_STARTED
+                if now.saturating_duration_since(self.started) > HELLO_TIMEOUT =>
+            {
+                Some("hello-timeout")
+            }
+            SESSION_PROGRESS_HELLO
+                if now.saturating_duration_since(self.started) > HUMAN_TRUST_TIMEOUT =>
+            {
+                Some("trust-timeout")
+            }
+            SESSION_PROGRESS_CONTROLLER
+                if self.last_activity.lock().map_or(true, |activity| {
+                    now.saturating_duration_since(*activity) > HEARTBEAT_TIMEOUT
+                }) =>
+            {
+                Some("heartbeat-timeout")
+            }
+            _ => None,
         }
     }
 
@@ -63,15 +110,6 @@ impl SessionProgress {
     }
 }
 
-fn includes_settings_accepted(responses: &[Value]) -> bool {
-    responses.iter().any(|response| {
-        response
-            .get("type")
-            .and_then(Value::as_str)
-            .is_some_and(|message_type| message_type == "app.settings.accepted")
-    })
-}
-
 pub(super) fn run_session_progress_watchdog(
     progress: &SessionProgress,
     running: &AtomicBool,
@@ -79,37 +117,46 @@ pub(super) fn run_session_progress_watchdog(
     stop: &Receiver<()>,
     log: Option<&AgentPipeSessionLogSink>,
 ) {
-    if stop.recv_timeout(CONTROLLER_ACQUIRE_TIMEOUT) != Err(RecvTimeoutError::Timeout) {
-        return;
+    while running.load(Ordering::Acquire) {
+        if stop.recv_timeout(Duration::from_millis(100)) != Err(RecvTimeoutError::Timeout) {
+            return;
+        }
+        if let Some(category) = progress.timeout_category(Instant::now()) {
+            super::logging::log_pipe_session_event(
+                log,
+                category,
+                "resident pipe session progress deadline expired",
+                Some("resident_pipe.session_progress_timeout"),
+            );
+            shutdown.shutdown_agent_read();
+            return;
+        }
     }
-    if !running.load(Ordering::Acquire) {
-        return;
-    }
-    if progress.current() == SESSION_PROGRESS_STARTED {
-        super::logging::log_pipe_session_event(
-            log,
-            "session-timeout-no-controller",
-            "resident pipe session timed out before controller acquisition",
-            Some("resident_pipe.session_timeout_no_controller"),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn explicit_trust_wait_and_observer_heartbeat_have_separate_bounded_deadlines() {
+        let progress = SessionProgress::default();
+        assert_eq!(
+            progress.timeout_category(progress.started + Duration::from_secs(16)),
+            Some("hello-timeout")
         );
-        shutdown.shutdown_agent_read();
-        return;
-    }
-    if stop.recv_timeout(SETTINGS_ACCEPT_TIMEOUT.saturating_sub(CONTROLLER_ACQUIRE_TIMEOUT))
-        != Err(RecvTimeoutError::Timeout)
-    {
-        return;
-    }
-    if !running.load(Ordering::Acquire) {
-        return;
-    }
-    if progress.current() < SESSION_PROGRESS_SETTINGS {
-        super::logging::log_pipe_session_event(
-            log,
-            "session-timeout-no-settings",
-            "resident pipe session timed out before settings acceptance",
-            Some("resident_pipe.session_timeout_no_settings"),
+        progress.mark_at_least(SESSION_PROGRESS_HELLO);
+        assert_eq!(
+            progress.timeout_category(progress.started + Duration::from_secs(60)),
+            None
         );
-        shutdown.shutdown_agent_read();
+        assert_eq!(
+            progress.timeout_category(progress.started + Duration::from_secs(301)),
+            Some("trust-timeout")
+        );
+        progress.mark_at_least(SESSION_PROGRESS_CONTROLLER);
+        assert_eq!(
+            progress.timeout_category(progress.started + Duration::from_secs(46)),
+            Some("heartbeat-timeout")
+        );
     }
 }

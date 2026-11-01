@@ -41,10 +41,17 @@ pub(crate) use windows_runtime::WindowsRecordingRuntime;
 pub(crate) fn default_recording_runner(
     transfer_store: RecordingTransferStore,
 ) -> Option<Box<dyn RecordingRunner>> {
-    default_recording_runner_with_telemetry(transfer_store, default_recording_telemetry_source())
+    default_recording_runner_with_telemetry(
+        transfer_store,
+        default_recording_telemetry_source(super::recording_monotonic_ns, None, None),
+    )
 }
 
 #[cfg(windows)]
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "The shared worker factory represents unavailable platform runners with None; this Windows implementation constructs one."
+)]
 pub(crate) fn default_recording_runner_with_telemetry<T>(
     transfer_store: RecordingTransferStore,
     telemetry: T,
@@ -163,6 +170,7 @@ pub(crate) struct RecordingRuntimeStartRequest<'a> {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct StartedRecordingRuntime {
     pub(crate) effective_quality: NativeEffectiveQualitySettings,
+    pub(crate) frame_geometry: Option<crate::telemetry::RecordingFrameGeometry>,
 }
 
 pub(crate) struct RecordingRuntimeStopRequest<'a> {

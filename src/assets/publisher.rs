@@ -2,7 +2,7 @@
 
 use std::{
     fs::{self, OpenOptions},
-    io::Write,
+    io::{Read, Write},
     path::PathBuf,
 };
 
@@ -124,12 +124,21 @@ fn write_source(
 }
 
 fn matches_format(format: super::AssetFormat, path: &std::path::Path) -> bool {
-    let Ok(bytes) = fs::read(path) else {
+    let Ok(mut file) = fs::File::open(path) else {
         return false;
     };
+    let mut bytes = [0_u8; 12];
+    let required = if format == super::AssetFormat::Png {
+        8
+    } else {
+        12
+    };
+    if file.read_exact(&mut bytes[..required]).is_err() {
+        return false;
+    }
     match format {
         super::AssetFormat::Png => bytes.starts_with(b"\x89PNG\r\n\x1a\n"),
-        super::AssetFormat::Mp4 => bytes.len() >= 12 && &bytes[4..8] == b"ftyp",
+        super::AssetFormat::Mp4 => &bytes[4..8] == b"ftyp",
     }
 }
 

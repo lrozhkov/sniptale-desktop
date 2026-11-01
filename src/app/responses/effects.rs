@@ -109,6 +109,82 @@ pub(crate) struct NativeHostTransferChunk {
 }
 
 pub(crate) trait NativeHostSideEffects {
+    #[cfg(any(windows, test))]
+    fn recording_attachment_manifest(
+        &mut self,
+        _request: &crate::protocol::trajectory::ExtensionRecordingAttachmentManifestRequestMessage,
+    ) -> Result<
+        crate::protocol::trajectory::AppRecordingAttachmentManifestMessage,
+        NativeHostSideEffectError,
+    > {
+        Err(NativeHostSideEffectError::UnsupportedCapability)
+    }
+
+    #[cfg(any(windows, test))]
+    fn recording_attachment_read_grant(
+        &mut self,
+        _request: &crate::protocol::trajectory::ExtensionRecordingAttachmentChunkRequestMessage,
+    ) -> Result<crate::protocol::trajectory::CursorTrajectoryReadGrant, NativeHostSideEffectError>
+    {
+        Err(NativeHostSideEffectError::UnsupportedCapability)
+    }
+
+    #[cfg(any(windows, test))]
+    fn ack_recording_attachment(
+        &mut self,
+        _ack: &crate::protocol::trajectory::ExtensionRecordingAttachmentAckMessage,
+    ) -> Result<bool, NativeHostSideEffectError> {
+        Ok(false)
+    }
+
+    #[cfg(any(windows, test))]
+    fn pending_recording_attachments(
+        &mut self,
+    ) -> Result<
+        Vec<crate::transfer::trajectory_catalog::PendingTrajectory>,
+        NativeHostSideEffectError,
+    > {
+        Ok(Vec::new())
+    }
+    #[cfg(any(windows, test))]
+    fn recording_events_manifest(
+        &mut self,
+        _request: &crate::protocol::recording_events::ExtensionRecordingEventsManifestRequestMessage,
+    ) -> Result<
+        crate::protocol::recording_events::AppRecordingEventsManifestMessage,
+        NativeHostSideEffectError,
+    > {
+        Err(NativeHostSideEffectError::UnsupportedCapability)
+    }
+
+    #[cfg(any(windows, test))]
+    fn recording_events_read_grant(
+        &mut self,
+        _request: &crate::protocol::recording_events::ExtensionRecordingEventsChunkRequestMessage,
+    ) -> Result<
+        crate::protocol::recording_events::RecordingEventsReadGrant,
+        NativeHostSideEffectError,
+    > {
+        Err(NativeHostSideEffectError::UnsupportedCapability)
+    }
+
+    #[cfg(any(windows, test))]
+    fn ack_recording_events(
+        &mut self,
+        _ack: &crate::protocol::recording_events::ExtensionRecordingEventsAckMessage,
+    ) -> Result<bool, NativeHostSideEffectError> {
+        Ok(false)
+    }
+
+    #[cfg(any(windows, test))]
+    fn pending_recording_event_attachments(
+        &mut self,
+    ) -> Result<Vec<crate::transfer::events_catalog::PendingEvents>, NativeHostSideEffectError>
+    {
+        Ok(Vec::new())
+    }
+    #[cfg(any(windows, test))]
+    fn bind_browser_target(&mut self, _target_id: &str) {}
     fn apply_hotkey_plan(
         &mut self,
         plan: HotkeyRegistrationPlan,

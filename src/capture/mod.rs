@@ -23,6 +23,8 @@ mod transfer_record;
 mod transfer_store;
 mod wgc;
 
+#[cfg(windows)]
+pub(crate) use overlay::choose_recording_region;
 pub(crate) use overlay::{RegionOverlayAvailability, runtime_region_overlay_availability};
 #[cfg(windows)]
 pub(crate) use screenshot::default_screenshot_capture_runner;

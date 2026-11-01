@@ -28,9 +28,8 @@ pub(crate) fn read_string_value(
     subkey: &str,
     value_name: Option<&str>,
 ) -> Result<Option<String>, WindowsRegistryError> {
-    let key = match RegistryKey::open(hive, subkey)? {
-        Some(key) => key,
-        None => return Ok(None),
+    let Some(key) = RegistryKey::open(hive, subkey)? else {
+        return Ok(None);
     };
     key.read_string_value(value_name)
 }
@@ -52,7 +51,7 @@ impl RegistryKey {
                 PCWSTR(subkey.as_ptr()),
                 Some(0),
                 KEY_READ,
-                &mut handle,
+                &raw mut handle,
             )
         };
         if status == ERROR_FILE_NOT_FOUND {
@@ -80,9 +79,9 @@ impl RegistryKey {
                 self.handle,
                 value_name,
                 None,
-                Some(&mut value_type),
+                Some(&raw mut value_type),
                 None,
-                Some(&mut byte_len),
+                Some(&raw mut byte_len),
             )
         };
         if status == ERROR_FILE_NOT_FOUND {
@@ -107,9 +106,9 @@ impl RegistryKey {
                 self.handle,
                 value_name,
                 None,
-                Some(&mut value_type),
+                Some(&raw mut value_type),
                 Some(buffer.as_mut_ptr().cast::<u8>()),
-                Some(&mut byte_len),
+                Some(&raw mut byte_len),
             )
         };
         if status != ERROR_SUCCESS {

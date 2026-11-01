@@ -99,6 +99,7 @@ class GuestSsh:
         log: Path | None = None,
         stream: bool = False,
         health_check: Callable[[], None] | None = None,
+        line_callback: Callable[[str], None] | None = None,
     ):
         return run(
             # Windows PowerShell must observe EOF instead of inheriting the controller's open
@@ -108,6 +109,7 @@ class GuestSsh:
             log=log,
             stream=stream,
             health_check=health_check,
+            line_callback=line_callback,
         )
 
     def upload(self, source: Path, remote: str, *, timeout: int) -> None:

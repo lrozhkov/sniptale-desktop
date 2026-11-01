@@ -947,3 +947,76 @@ fn recording_disk_guard_rejects_pressure_before_temp_record() -> Result<(), Reco
     assert!(!temp.path().join(COMMAND_1_RECORDING_MP4).exists());
     Ok(())
 }
+
+#[derive(Clone, Copy, Debug)]
+struct MalformedOptionalTelemetry;
+
+impl RecordingTelemetrySource for MalformedOptionalTelemetry {
+    fn snapshot_for_recording(
+        &mut self,
+        _recording_id: &str,
+        _duration_ms: u64,
+    ) -> Option<SanitizedRecordingTelemetrySnapshot> {
+        Some(SanitizedRecordingTelemetrySnapshot::new(
+            vec![RecordingTelemetryActionEvent::Key {
+                label: "untrusted typed text".to_owned(),
+                time_ms: 1,
+            }],
+            vec![],
+        ))
+    }
+}
+
+#[test]
+fn invalid_optional_telemetry_does_not_discard_finalized_desktop_video()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temp = tempfile::tempdir()?;
+    let mut service = RecordingLifecycleService::new_with_test_inputs_and_telemetry(
+        recording_transfer_store(temp.path()).map_err(|error| format!("{error:?}"))?,
+        FakeRecordingRuntime,
+        MalformedOptionalTelemetry,
+        sufficient_disk_space_probe,
+        TestRecordingMonotonicClock::fixed(fixed_monotonic_ns),
+    );
+    let mut request = recording_start_command(VideoMode::Screen);
+    request.authority = OperationAuthority::Manual {
+        profile_revision: "frozen".to_owned(),
+    };
+    request.delivery_route = DeliveryRoute::DesktopDelivery {
+        asset_job_id: "frozen-job".to_owned(),
+        target_id: None,
+        ask_after_capture: true,
+    };
+    service
+        .start_recording(&request, RecordingStartPolicy::default())
+        .map_err(|error| format!("{error:?}"))?;
+    let mut stop = recording_control_command(
+        crate::protocol::RecordingControl::Stop,
+        COMMAND_1_RECORDING_ID,
+        6_000,
+    );
+    stop.delivery_session.controller_lease_id = None;
+    let messages = service
+        .control_recording(&stop)
+        .map_err(|error| format!("{error:?}"))?;
+    assert!(matches!(
+        messages.last(),
+        Some(RecordingCommandEvent::ManualFinalized(_))
+    ));
+    let record: TempMediaRecord =
+        serde_json::from_slice(&std::fs::read(temp.path().join(COMMAND_1_RECORDING_JSON))?)?;
+    assert_eq!(record.state, TempMediaState::Finalized);
+    assert_eq!(record.delivery_route, Some(request.delivery_route));
+    assert!(record.telemetry.is_none());
+    let store = recording_transfer_store(temp.path()).map_err(|error| format!("{error:?}"))?;
+    let mut reader = store
+        .manual_asset_reader(COMMAND_1_RECORDING_ID, "frozen-job")
+        .map_err(|error| format!("{error:?}"))?;
+    assert_eq!(
+        reader
+            .read_next_plaintext(64)
+            .map_err(|error| format!("{error:?}"))?,
+        Some(b"hello world".to_vec())
+    );
+    Ok(())
+}

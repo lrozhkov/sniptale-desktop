@@ -358,6 +358,42 @@ class WorkSessions:
             "cache_saved": bool(save and state is not None and vm is not None),
         }
 
+    def purge_closed_session(self, identity):
+        if not isinstance(identity, str) or re.fullmatch(r"[0-9]{8}T[0-9]{6}Z(?:-[0-9]{3})?", identity) is None:
+            raise UsageError("invalid closed development session identity")
+        active = load_session(self.paths)
+        if active is not None and active["id"] == identity:
+            raise UsageError("refusing to remove the active development session")
+        root = self.paths.lab / "sessions"
+        directory = root / identity
+        if root.resolve(strict=False) != root or directory.is_symlink():
+            raise IntegrityError("closed development session directory is redirected")
+        if not directory.exists():
+            return {"closed_sessions_removed": 0, "bytes_reclaimed": 0}
+        stamp = read_json(directory / "session.json")
+        if (
+            stamp is None
+            or stamp.get("id") != identity
+            or type(stamp.get("schema_version")) is not int
+            or stamp["schema_version"] != 1
+            or stamp.get("mode") != "development-session"
+            or stamp.get("release_admissible") is not False
+            or type(stamp.get("pid")) is not int
+            or stamp["pid"] < 2
+            or type(stamp.get("started_epoch")) is not int
+            or stamp["started_epoch"] <= 0
+        ):
+            raise IntegrityError("closed development session ownership is not established")
+        vm = self.vms.current(LANE, clean_stale=False)
+        if vm is not None and (vm.pid, vm.started_epoch) == (stamp["pid"], stamp["started_epoch"]):
+            raise UsageError("refusing to remove evidence for a running VM generation")
+        live_pids = set(self.vms.orphan_pids(LANE))
+        if live_pids - ({vm.pid} if vm is not None else set()):
+            raise IntegrityError("cannot remove session evidence while VM ownership is unresolved")
+        reclaimed = directory_allocated_bytes(directory)
+        shutil.rmtree(self.paths.scoped(directory))
+        return {"closed_sessions_removed": 1, "bytes_reclaimed": reclaimed}
+
     def recover(self):
         state = self.require(allow_failed=True)
         self.ssh.command(

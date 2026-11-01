@@ -48,6 +48,26 @@ impl TempMediaRecord {
         Ok(())
     }
 
+    #[cfg(any(windows, test))]
+    pub(crate) fn retry_rejected_desktop(&mut self, now_ms: u64) -> Result<(), TempStoreError> {
+        if !matches!(
+            (&self.authority, &self.delivery_route),
+            (
+                Some(crate::protocol::OperationAuthority::Manual { .. }),
+                Some(crate::protocol::DeliveryRoute::DesktopDelivery { .. })
+            )
+        ) {
+            return Err(TempStoreError::InvalidTransition);
+        }
+        self.lifecycle_snapshot()
+            .validate_rejected_retry(now_ms)
+            .map_err(|error| map_lifecycle_store_error(&error))?;
+        self.state = TempMediaState::Finalized;
+        self.retain_rejected_until_ms = None;
+        self.updated_at_ms = now_ms;
+        Ok(())
+    }
+
     pub(crate) fn recovery_decision(
         &self,
         now_ms: u64,

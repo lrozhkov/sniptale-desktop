@@ -121,6 +121,18 @@ impl TrayWorker {
                 let _ = result_sender.send(result);
                 TrayWorkerControl::Continue
             }
+            WorkerCommand::ChooseMediaDestination {
+                request,
+                local_saved,
+            } => {
+                super::delivery::finish_delivery(
+                    &request,
+                    local_saved,
+                    &self.active_settings,
+                    source,
+                );
+                TrayWorkerControl::Continue
+            }
             WorkerCommand::ShowTrayNotice { kind } => {
                 let _ = source.show_notice(kind);
                 TrayWorkerControl::Continue
@@ -160,7 +172,8 @@ impl TrayWorker {
             | WorkerCommand::DiscardRecordingTelemetry { .. }
             | WorkerCommand::SnapshotRecordingTelemetry { .. }
             | WorkerCommand::PrepareManualAsset { .. }
-            | WorkerCommand::PublishManualAsset { .. } => TrayWorkerControl::Continue,
+            | WorkerCommand::PublishManualAsset { .. }
+            | WorkerCommand::RecoverPendingAssets => TrayWorkerControl::Continue,
             WorkerCommand::Stop => TrayWorkerControl::Stop,
         }
     }

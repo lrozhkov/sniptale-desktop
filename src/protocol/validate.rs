@@ -15,9 +15,56 @@ pub(crate) fn validate_message_value(
     raw_len: usize,
 ) -> Result<(), ParseError> {
     validate_protocol_version(value)?;
-    validate_recursive(value, "$")?;
+    validate_desktop_contract(value, message_type)?;
+    validate_recursive(value, "$", message_type)?;
     validate_transfer_bounds(value, message_type, raw_len)?;
     Ok(())
+}
+
+fn validate_desktop_contract(value: &Value, message_type: &str) -> Result<(), ParseError> {
+    let valid = match message_type {
+        "app.hello" => {
+            let id = value["appIdentity"]["clientId"]
+                .as_str()
+                .unwrap_or_default();
+            id.len() == 64
+                && id
+                    .bytes()
+                    .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+                && value["appIdentity"]["trustVersion"] == 1
+                && value["settingsAuthority"] == "desktop"
+        }
+        "extension.hello" => value["capabilities"].as_array().is_some_and(|items| {
+            items.len() <= 16
+                && items
+                    .iter()
+                    .all(|item| item.as_str().is_some_and(|text| text.len() <= 64))
+                && ["desktop-settings-v1", "durable-media-ack-v1"]
+                    .iter()
+                    .all(|name| items.iter().any(|item| item == name))
+        }),
+        "app.controller.lease" => match value["selectionStatus"].as_str() {
+            Some("selected") => value["status"] == "granted",
+            Some("available" | "selection-required") => value["status"] != "granted",
+            _ => false,
+        },
+        "extension.screenshot.ack" | "extension.recording.ack" => {
+            value["receipt"]["durable"] == true
+                && value["receipt"]["totalBytes"]
+                    .as_u64()
+                    .is_some_and(|size| size > 0)
+        }
+        _ => true,
+    };
+    if valid {
+        Ok(())
+    } else {
+        Err(ParseError::new(
+            ParseErrorKind::MalformedJson,
+            "desktop-contract",
+            "Desktop contract requirements are missing or invalid",
+        ))
+    }
 }
 
 fn validate_protocol_version(value: &Value) -> Result<(), ParseError> {
@@ -43,19 +90,39 @@ fn validate_protocol_version(value: &Value) -> Result<(), ParseError> {
     }
 }
 
-fn validate_recursive(value: &Value, path: &str) -> Result<(), ParseError> {
+fn validate_recursive(value: &Value, path: &str, message_type: &str) -> Result<(), ParseError> {
+    // These closed typed shapes use trajectory counters, including valid empty prefixes.
+    // Their owner validates them after deserialization; video totalBytes stays positive.
+    if (matches!(path, "$.cursorTrajectory" | "$.recordingEvents")
+        && message_type == "app.recording.stopped")
+        || (path == "$.descriptor"
+            && matches!(
+                message_type,
+                "app.recording.attachment.manifest"
+                    | "app.recording.attachment.available"
+                    | "app.recording.events.manifest"
+                    | "app.recording.events.available"
+            ))
+        || (path == "$.receipt"
+            && matches!(
+                message_type,
+                "extension.recording.attachment.ack" | "extension.recording.events.ack"
+            ))
+    {
+        return Ok(());
+    }
     match value {
         Value::Object(map) => {
             for (key, child) in map {
                 let child_path = format!("{path}.{key}");
                 validate_named_value(key, child, &child_path)?;
-                validate_recursive(child, &child_path)?;
+                validate_recursive(child, &child_path, message_type)?;
             }
             Ok(())
         }
         Value::Array(items) => {
             for (index, child) in items.iter().enumerate() {
-                validate_recursive(child, &format!("{path}[{index}]"))?;
+                validate_recursive(child, &format!("{path}[{index}]"), message_type)?;
             }
             Ok(())
         }
@@ -92,8 +159,10 @@ fn validate_transfer_bounds(
 }
 
 fn validate_chunk_json_size(message_type: &str, raw_len: usize) -> Result<(), ParseError> {
-    if matches!(message_type, "app.screenshot.chunk" | "app.recording.chunk")
-        && raw_len > MESSAGE_TARGET_MAX_JSON_UTF8_BYTES.min(HOST_TO_EXTENSION_MAX_MESSAGE_BYTES)
+    if matches!(
+        message_type,
+        "app.screenshot.chunk" | "app.recording.chunk" | "app.recording.attachment.chunk"
+    ) && raw_len > MESSAGE_TARGET_MAX_JSON_UTF8_BYTES.min(HOST_TO_EXTENSION_MAX_MESSAGE_BYTES)
     {
         return Err(ParseError::new(
             ParseErrorKind::PayloadTooLarge,

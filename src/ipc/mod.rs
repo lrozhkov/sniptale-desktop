@@ -5,20 +5,32 @@ mod bridge;
 mod controller_lease;
 mod native_messaging;
 #[cfg(any(windows, test))]
+mod persisted_trust;
+#[cfg(any(windows, test))]
+pub(crate) use persisted_trust::{open_persisted_trust, seal_persisted_trust};
+#[cfg(any(windows, test))]
 mod pipe;
 #[cfg(test)]
 mod tests;
 
 #[cfg(any(windows, test))]
 pub(crate) use bridge::AuthenticatedBridgeForwardError;
+#[cfg(any(windows, test))]
+pub(crate) use bridge::BridgeForwardError;
 #[cfg(test)]
 pub(crate) use bridge::forward_authenticated_native_host_stream;
+#[cfg(all(windows, not(test)))]
+pub(crate) use bridge::forward_authenticated_native_host_stream_duplex_with_runtime;
 #[cfg(test)]
 pub(crate) use bridge::forward_authenticated_native_host_stream_with_authenticated_hook;
 #[cfg(test)]
 pub(crate) use bridge::forward_authenticated_native_host_stream_with_log_and_authenticated_hook;
 #[cfg(test)]
 pub(crate) use bridge::forward_native_host_stream;
+#[cfg(test)]
+pub(crate) use bridge::forward_native_host_stream_duplex;
+#[cfg(test)]
+pub(crate) use bridge::forward_native_host_stream_duplex_with_runtime;
 #[cfg(any(windows, test))]
 pub(crate) use bridge::{
     AGENT_PIPE_RESPONSE_HEADER_MAX_BYTES, AgentPipeReadShutdown, AgentPipeResponseHeaderError,
@@ -26,11 +38,8 @@ pub(crate) use bridge::{
 };
 #[cfg(any(windows, test))]
 pub(crate) use bridge::{
-    AuthenticatedDuplexAgentPipe,
-    forward_authenticated_native_host_stream_duplex_with_authenticated_hook,
+    AgentAttachmentReader, AuthenticatedDuplexAgentPipe, BridgeForwardRuntime,
 };
-#[cfg(test)]
-pub(crate) use bridge::{BridgeForwardError, forward_native_host_stream_duplex};
 #[cfg(any(windows, test))]
 pub(crate) use bridge::{BridgeForwardLog, BridgeForwardLogSink};
 pub(crate) use controller_lease::{
@@ -78,4 +87,9 @@ pub(crate) use pipe::windows_pipe::WindowsPipe;
 #[cfg(windows)]
 pub(crate) use pipe::windows_pipe::{WindowsPipeReader, WindowsPipeShutdown, WindowsPipeWriter};
 #[cfg(windows)]
+pub(crate) use pipe::windows_pipe_handles::with_blocking_read_deadline;
+#[cfg(windows)]
 pub(crate) use pipe::windows_pipe_peer::WindowsPipePeerIdentity;
+
+#[cfg(test)]
+pub(crate) use bridge::forward_authenticated_native_host_stream_duplex_with_authenticated_hook;

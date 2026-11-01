@@ -169,12 +169,12 @@ fn profile_rejects_malformed_and_duplicate_manual_hotkeys() -> Result<(), Box<dy
 }
 
 #[test]
-fn extension_admission_is_closed_for_manual_or_repair_required_profiles()
+fn browser_delivery_admission_accepts_manual_but_rejects_repair_required_profiles()
 -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
     let manual_path = directory.path().join("manual-profile.json");
     fs::write(&manual_path, serde_json::to_vec(&profile("manual"))?)?;
-    assert!(!extension_admission_allowed_from_path(Some(manual_path)));
+    assert!(extension_admission_allowed_from_path(Some(manual_path)));
 
     let invalid_path = directory.path().join("invalid-profile.json");
     fs::write(&invalid_path, b"not-json")?;

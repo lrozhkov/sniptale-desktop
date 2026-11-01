@@ -4,7 +4,7 @@
 
 Sniptale Desktop is a native companion for Sniptale and a standalone Windows capture application. It adds operating-system screenshot, screen-recording, audio, tray, and global-hotkey capabilities that a browser extension cannot reliably own by itself.
 
-The application can work independently in Manual mode, saving user-requested PNG and MP4 files to a selected local folder, or connect to a compatible Chromium extension through Native Messaging and return captured media to the browser workspace. It does not require a Sniptale account or hosted Sniptale backend.
+The application owns its capture settings and can save user-requested PNG and MP4 files to a selected local folder, or also deliver them to an explicitly selected compatible Chromium browser through Native Messaging. It does not require a Sniptale account or hosted Sniptale backend.
 
 > **Experimental preview.** The Windows implementation is functional and has deterministic architecture, security, and packaging checks, but it still needs broader product validation, compatibility testing, performance work, signed-release evidence, and real-world use before it should be treated as a stable production application. Do not rely on the current build as the only copy of important media.
 
@@ -13,7 +13,7 @@ The application can work independently in Manual mode, saving user-requested PNG
 | Area | Status |
 | --- | --- |
 | Windows | Experimental implementation; the current release target is `x86_64-pc-windows-msvc` |
-| Manual mode | Experimental standalone tray application with local PNG/MP4 publication |
+| Local capture | Experimental standalone tray application with local PNG/MP4 publication |
 | Browser integration | Experimental Chromium Native Messaging integration; requires a compatible extension build and matching extension origin |
 | Linux | Planned; no working Linux product build or package is included yet |
 | macOS | The owner and adapter boundaries leave room for a future port, but a macOS implementation is not currently planned |
@@ -98,7 +98,7 @@ The resident application exposes capture and recording actions through its tray 
 
 ### Work with or without the browser extension
 
-Manual mode owns its local settings and publishes only user-requested PNG/MP4 files beneath the selected destination. ExtensionManaged mode accepts versioned settings and commands from the compatible extension, then transfers finalized media through a bounded, integrity-checked delivery path. The two authorities are mutually exclusive for an operation.
+Desktop owns settings, hotkeys, and capture controls. A trusted extension registers a browser destination; the user selects it in Desktop. Completed media keeps a local fallback and uses bounded, integrity-checked browser delivery. The optional destination prompt supports Local, browser, or Later. [ADR 0005](docs/architecture/adr/0005-dual-settings-authority-and-local-asset-delivery.md) owns authority, legacy-profile compatibility, and recovery semantics.
 
 ### Produce bounded diagnostics
 
@@ -122,12 +122,12 @@ Wire contracts are platform-neutral, versioned, size-bounded, and parsed at thei
 
 Sniptale Desktop is local-first, but local software is not automatically safe. The current design includes the following controls:
 
-- screenshot and recording temp media is bounded, protected with per-media keys, and removed after acknowledgement, rejection, or retention expiry;
+- screenshot and recording temp media is bounded and protected with per-media keys; [data handling](docs/security/data-handling.md) defines authorized cleanup and finalized-source retention;
 - the per-install resident-pipe secret is protected for the current Windows user, and clients must complete a live HMAC challenge before commands are accepted;
 - extension origin, native consent, session limits, controller authority, freshness, and replay checks fail closed at the IPC boundary;
 - media chunks have explicit size limits and integrity hashes, and media bytes never traverse the resident control pipe;
 - logs, health output, and support bundles use typed categories and redaction rules instead of media, typed text, clipboard values, URLs, tokens, identifiers, raw payloads, or full paths;
-- Manual mode does not collect recording interaction telemetry and publishes plaintext media only to the user-selected local destination.
+- optional recording interaction telemetry is sanitized and frame-relative; plaintext local media is published only to the user-selected destination.
 
 These controls are engineering measures, not a security certification or independent penetration test. A compromised Windows user session remains outside the protection boundary, Manual output inherits the destination's ACL, backup, and sync behavior, and the current single-process runtime does not isolate a process-wide memory-safety or privileged-adapter failure. Stable public packages additionally require Authenticode and release-provenance evidence.
 

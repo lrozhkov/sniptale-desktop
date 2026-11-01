@@ -11,9 +11,44 @@ pub(super) struct HandshakeFailure {
     pub(super) message: &'static str,
 }
 
+pub(super) fn hello_responses(
+    session: &mut super::NativeHostSession,
+    hello: &ExtensionHelloMessage,
+) -> Vec<serde_json::Value> {
+    if !session.accepts_extension_id(&hello.extension_id) {
+        session.handshake_accepted = false;
+        return vec![super::handshake_failure(
+            HandshakeFailure {
+                kind: crate::protocol::OperationalErrorKind::MalformedMessage,
+                message: "extension identity does not match authenticated origin",
+            },
+            None,
+        )];
+    }
+    if let Some(failure) = hello_compatibility_failure(hello) {
+        session.handshake_accepted = false;
+        return vec![super::handshake_failure(failure, None)];
+    }
+    let response = super::app_hello();
+    session.handshake_accepted = response["type"] == "app.hello";
+    session.extension_id = session
+        .handshake_accepted
+        .then(|| hello.extension_id.clone());
+    vec![response]
+}
+
 pub(super) fn hello_compatibility_failure(
     hello: &ExtensionHelloMessage,
 ) -> Option<HandshakeFailure> {
+    if !["desktop-settings-v1", "durable-media-ack-v1"]
+        .iter()
+        .all(|required| hello.capabilities.iter().any(|value| value == required))
+    {
+        return Some(HandshakeFailure {
+            kind: OperationalErrorKind::HandshakeIncompatibleProtocol,
+            message: "required Desktop capabilities are missing",
+        });
+    }
     if !hello
         .supported_protocol_versions
         .contains(&PROTOCOL_VERSION)
@@ -76,6 +111,7 @@ mod tests {
 
     fn hello() -> ExtensionHelloMessage {
         ExtensionHelloMessage {
+            connection_intent: crate::protocol::ConnectionIntent::Automatic,
             protocol_version: PROTOCOL_VERSION,
             settings_schema_version: SETTINGS_SCHEMA_VERSION,
             extension_version: MIN_SUPPORTED_EXTENSION_VERSION.to_owned(),
@@ -83,6 +119,10 @@ mod tests {
             min_app_version: env!("CARGO_PKG_VERSION").to_owned(),
             supported_protocol_versions: vec![PROTOCOL_VERSION],
             supported_settings_schema_versions: vec![SETTINGS_SCHEMA_VERSION],
+            capabilities: vec![
+                "desktop-settings-v1".to_owned(),
+                "durable-media-ack-v1".to_owned(),
+            ],
         }
     }
 

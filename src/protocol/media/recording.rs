@@ -76,6 +76,10 @@ pub(crate) enum RecordingMimeType {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct AppRecordingStoppedMessage {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) recording_events: Option<crate::protocol::recording_events::EventDescriptor>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) cursor_trajectory: Option<crate::protocol::trajectory::CursorTrajectoryDescriptor>,
     pub(crate) protocol_version: u16,
     pub(crate) controller_lease_id: String,
     pub(crate) recording_id: String,
@@ -120,6 +124,7 @@ pub(crate) struct ExtensionRecordingAckMessage {
     pub(crate) protocol_version: u16,
     pub(crate) controller_lease_id: String,
     pub(crate) recording_id: String,
+    pub(crate) receipt: super::receipt::DurableMediaReceipt,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]

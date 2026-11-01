@@ -39,6 +39,12 @@ impl fmt::Display for TrayRuntimeError {
 impl Error for TrayRuntimeError {}
 
 pub(crate) trait TrayCommandSource {
+    fn choose_delivery_destination(
+        &mut self,
+        _request: &crate::tray::delivery::DeliveryPromptRequest,
+    ) -> crate::tray::delivery::DeliveryChoice {
+        crate::tray::delivery::DeliveryChoice::Later
+    }
     fn apply_render_plan(
         &mut self,
         plan: &TrayMenuRenderPlan,

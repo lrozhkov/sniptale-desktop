@@ -17,6 +17,16 @@ impl TempMediaRecord {
                 self.validate_finalized_shape()?;
                 if let Some(recording) = &self.recording {
                     validate_recording_metadata(recording)?;
+                    if self.telemetry.as_ref().is_some_and(|snapshot| {
+                        !crate::telemetry::valid_retained_telemetry(
+                            snapshot,
+                            recording.width,
+                            recording.height,
+                            recording.duration_ms,
+                        )
+                    }) {
+                        return Err(TempStoreError::InvalidTransition);
+                    }
                 }
                 Ok(())
             }
@@ -30,6 +40,7 @@ impl TempMediaRecord {
             && self.next_missing_chunk_index == 0
             && self.media_protection.is_none()
             && self.recording.is_none()
+            && self.telemetry.is_none()
         {
             Ok(())
         } else {
@@ -49,11 +60,11 @@ impl TempMediaRecord {
                 Some(crate::protocol::OperationAuthority::ExtensionManaged { .. }),
                 Some(crate::protocol::DeliveryRoute::ExtensionTransfer),
             ) => Ok(()),
-            (
-                Some(1),
-                Some(crate::protocol::OperationAuthority::Manual { .. }),
-                Some(crate::protocol::DeliveryRoute::LocalAsset { asset_job_id }),
-            ) if !asset_job_id.is_empty() => Ok(()),
+            (Some(1), Some(crate::protocol::OperationAuthority::Manual { .. }), Some(route))
+                if route.valid_local_route() =>
+            {
+                Ok(())
+            }
             _ => Err(TempStoreError::InvalidTransition),
         }
     }

@@ -63,7 +63,8 @@ proptest! {
 fn missing_controller_lease_is_rejected() {
     let payload = br#"{
         "type": "extension.screenshot.ack",
-        "protocolVersion": 1,
+        "protocolVersion": 2,
+        "receipt": {"durable": true, "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "totalBytes": 524289},
         "captureId": "capture-1",
         "assetId": "asset-1"
     }"#;
@@ -78,7 +79,8 @@ fn missing_controller_lease_is_rejected() {
 fn invalid_identifier_is_rejected() {
     let payload = br#"{
         "type": "extension.screenshot.ack",
-        "protocolVersion": 1,
+        "protocolVersion": 2,
+        "receipt": {"durable": true, "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "totalBytes": 524289},
         "controllerLeaseId": "../lease",
         "captureId": "capture-1",
         "assetId": "asset-1"
@@ -94,7 +96,8 @@ fn invalid_identifier_is_rejected() {
 fn non_string_identifier_is_rejected() {
     let payload = br#"{
         "type": "extension.screenshot.ack",
-        "protocolVersion": 1,
+        "protocolVersion": 2,
+        "receipt": {"durable": true, "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "totalBytes": 524289},
         "controllerLeaseId": 42,
         "captureId": "capture-1",
         "assetId": "asset-1"

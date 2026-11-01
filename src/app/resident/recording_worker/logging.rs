@@ -18,7 +18,7 @@ pub(super) fn log_recording_runtime_failure(
         |code| {
             format!(
                 "recording runtime failed nativeCode=0x{code:08x}",
-                code = code as u32
+                code = code.cast_unsigned()
             )
         },
     );

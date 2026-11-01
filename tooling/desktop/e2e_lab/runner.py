@@ -20,6 +20,7 @@ from errors import IntegrityError, LabError
 from limits import enforce_run_limits
 from linux_artifacts import build_current_linux_artifact, inspect_linux_artifact
 from paths import LabPaths
+from native_pointer import NativePointerFixture
 from progress import emit as emit_progress
 from receipt import redact_data, redact_text
 from results import GuestResult, parse_guest_result
@@ -399,6 +400,7 @@ class LaneRunner:
         if self.work_session:
             selected_cases -= {"install", "upgrade", "repair", "uninstall"}
         microphone_required = "recording-microphone" in selected_cases
+        pointer_fixture: NativePointerFixture | None = None
         pre_forced = False if self.work_session else self.vms.reset(lane_name)
         lane_dir = run_dir / "guest" / lane_name
         lane_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -538,6 +540,15 @@ class LaneRunner:
                 if self.real_extension is None:
                     raise LabError("real extension artifact is missing")
                 remote_command.extend(("-RealExtensionSha256", sha256_file(self.real_extension)))
+            if real_extension_requested:
+                pointer_vm = self.vms.current(lane_name)
+                if pointer_vm is None:
+                    raise LabError("native pointer fixture requires its owned running VM")
+
+                def send_pointer(events: dict[str, object]) -> None:
+                    self.vms.qmp(pointer_vm, "input-send-event", events)
+
+                pointer_fixture = NativePointerFixture(send_pointer)
             runner_error: LabError | None = None
             try:
                 ssh.command(
@@ -545,6 +556,7 @@ class LaneRunner:
                     timeout=self.config.timeouts.test,
                     log=run_dir / "logs" / f"{lane_name}.log",
                     stream=True,
+                    line_callback=pointer_fixture.observe if pointer_fixture is not None else None,
                 )
             except LabError as exc:
                 runner_error = exc
@@ -575,6 +587,8 @@ class LaneRunner:
         enforce_run_limits(run_dir, self.config.limits)
         result = parse_guest_result(result_path, expected_lane=lane_name, required_cases=required)
         self._verify_declared_artifacts(lane_dir, result)
+        if result.passed and pointer_fixture is not None:
+            pointer_fixture.require_complete()
         return result
 
     def _assert_windows_audio_backend(

@@ -75,19 +75,11 @@ impl TransferLifecycleSnapshot<'_> {
                 policy.writing_ttl_ms,
                 TransferRecoveryDecision::KeepWriting,
             ),
-            TransferLifecycleState::Finalized => expire_decision(
-                now_ms,
-                self.updated_at_ms,
-                policy.finalized_ttl_ms,
-                TransferRecoveryDecision::ReportPending,
-            ),
+            // A timeout is not evidence of durable browser storage. Finalized media remains
+            // recoverable until a verified receipt or explicit local publication authorizes cleanup.
+            TransferLifecycleState::Finalized => TransferRecoveryDecision::ReportPending,
             TransferLifecycleState::Acked => TransferRecoveryDecision::Delete,
-            TransferLifecycleState::Rejected => match self.retain_rejected_until_ms {
-                Some(retain_until_ms) if now_ms < retain_until_ms => {
-                    TransferRecoveryDecision::RetainRejected
-                }
-                _ => TransferRecoveryDecision::Delete,
-            },
+            TransferLifecycleState::Rejected => TransferRecoveryDecision::RetainRejected,
         })
     }
 
@@ -137,6 +129,20 @@ impl TransferLifecycleSnapshot<'_> {
         pending
             .reject(retain_for_diagnostics)
             .map_err(TransferLifecycleError::Transfer)
+    }
+
+    /// An explicit Desktop recovery action may resume a retained rejection.
+    #[cfg(any(windows, test))]
+    pub(crate) fn validate_rejected_retry(
+        &self,
+        now_ms: u64,
+    ) -> Result<(), TransferLifecycleError> {
+        self.ensure_time(now_ms)?;
+        if self.state != TransferLifecycleState::Rejected {
+            return Err(TransferLifecycleError::InvalidState);
+        }
+        self.pending_transfer()?;
+        Ok(())
     }
 
     pub(crate) fn validate_finalized_progress(&self) -> Result<(), TransferLifecycleError> {

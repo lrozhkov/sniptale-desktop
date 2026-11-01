@@ -3,6 +3,22 @@
 use serde_json::Value;
 
 #[cfg(any(windows, test))]
+pub(super) fn cursor_attachment_available(
+    message: crate::protocol::trajectory::AppRecordingAttachmentAvailableMessage,
+) -> Value {
+    wire_value(crate::protocol::WireMessage::AppRecordingAttachmentAvailable(Box::new(message)))
+}
+
+#[cfg(any(windows, test))]
+pub(super) fn events_attachment_available(
+    message: crate::protocol::recording_events::AppRecordingEventsAvailableMessage,
+) -> Value {
+    wire_value(crate::protocol::WireMessage::AppRecordingEventsAvailable(
+        Box::new(message),
+    ))
+}
+
+#[cfg(any(windows, test))]
 use super::NativeHostCommandEvent;
 #[cfg(any(windows, test))]
 use crate::protocol::{AcceptedOperation, AppCommandAcceptedMessage};
@@ -68,6 +84,19 @@ pub(super) fn controller_lease(
     decision: &ControllerLeaseDecision,
     requested_lease_id: &str,
 ) -> Value {
+    let selection = if decision.granted_lease_id.is_some() {
+        crate::protocol::TargetSelectionStatus::Selected
+    } else {
+        crate::protocol::TargetSelectionStatus::Available
+    };
+    controller_lease_with_selection(decision, requested_lease_id, selection)
+}
+
+pub(super) fn controller_lease_with_selection(
+    decision: &ControllerLeaseDecision,
+    requested_lease_id: &str,
+    selection_status: crate::protocol::TargetSelectionStatus,
+) -> Value {
     wire_value(WireMessage::AppControllerLease(Box::new(
         AppControllerLeaseMessage {
             protocol_version: PROTOCOL_VERSION,
@@ -78,6 +107,7 @@ pub(super) fn controller_lease(
             controller: decision.controller.clone(),
             expires_at_epoch_ms: decision.expires_at_epoch_ms,
             status: decision.status.clone(),
+            selection_status,
         },
     )))
 }
@@ -154,4 +184,14 @@ fn wire_value(message: WireMessage) -> Value {
             unreachable!("protocol wire DTO serialization should not fail: {error}")
         }
     }
+}
+
+#[cfg(any(windows, test))]
+pub(in crate::app) fn connection_closed() -> Value {
+    wire_value(WireMessage::AppConnectionClosed(Box::new(
+        crate::protocol::AppConnectionClosedMessage {
+            protocol_version: PROTOCOL_VERSION,
+            reason: crate::protocol::ConnectionClosedReason::UserQuit,
+        },
+    )))
 }

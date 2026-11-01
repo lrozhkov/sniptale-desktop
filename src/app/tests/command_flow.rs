@@ -7,7 +7,7 @@ fn native_host_fails_operational_commands_with_typed_error() -> Result<(), Box<d
         extension_hello(),
         br#"{
             "type": "extension.controller.acquire",
-            "protocolVersion": 1,
+            "protocolVersion": 2,
             "connectionId": "connection-1",
             "browserFamily": "chrome",
             "profileKey": "profile-1",
@@ -19,7 +19,7 @@ fn native_host_fails_operational_commands_with_typed_error() -> Result<(), Box<d
         extension_settings_sync(),
         br#"{
             "type": "extension.screenshot.capture",
-            "protocolVersion": 1,
+            "protocolVersion": 2,
             "controllerLeaseId": "lease:connection-1",
             "commandId": "command-1",
             "mode": "screen",
@@ -96,7 +96,7 @@ fn native_host_accepts_screenshot_command_with_start_message() -> Result<(), Box
     let mut effects = CommandDispatchEffects {
         screenshot_outcome: Ok(NativeHostCommandOutcome::AcceptedWithEvents(vec![
             NativeHostCommandEvent::ScreenshotStart(AppScreenshotStartMessage {
-                protocol_version: 1,
+                protocol_version: 2,
                 controller_lease_id: "lease:connection-1".to_owned(),
                 capture_id: "command-1".to_owned(),
                 mode: ScreenshotMode::Screen,
@@ -147,7 +147,7 @@ fn outbound_command_events_require_matching_controller_lease() -> Result<(), Box
     responses_for_message_with_effects(&mut owner, &acquire_message, &acquire_value, &mut effects);
 
     let event = NativeHostCommandEvent::ScreenshotStart(AppScreenshotStartMessage {
-        protocol_version: 1,
+        protocol_version: 2,
         controller_lease_id: "lease:connection-1".to_owned(),
         capture_id: "capture-1".to_owned(),
         mode: ScreenshotMode::Screen,
@@ -222,7 +222,7 @@ fn native_host_accepts_recording_start_with_followup_messages() -> Result<(), Bo
     let mut effects = CommandDispatchEffects {
         recording_outcome: Ok(NativeHostCommandOutcome::AcceptedWithEvents(vec![
             NativeHostCommandEvent::RecordingProgress(AppRecordingProgressMessage {
-                protocol_version: 1,
+                protocol_version: 2,
                 controller_lease_id: "lease:connection-1".to_owned(),
                 recording_id: "recording-command-1".to_owned(),
                 duration_ms: 0,
@@ -444,7 +444,7 @@ fn native_host_rejects_command_settings_revision_mismatch() -> Result<(), Box<dy
         extension_hello(),
         br#"{
             "type": "extension.controller.acquire",
-            "protocolVersion": 1,
+            "protocolVersion": 2,
             "connectionId": "connection-1",
             "browserFamily": "chrome",
             "profileKey": "profile-1",
@@ -456,7 +456,7 @@ fn native_host_rejects_command_settings_revision_mismatch() -> Result<(), Box<dy
         extension_settings_sync(),
         br#"{
             "type": "extension.screenshot.capture",
-            "protocolVersion": 1,
+            "protocolVersion": 2,
             "controllerLeaseId": "lease:connection-1",
             "commandId": "command-1",
             "mode": "screen",
@@ -503,7 +503,7 @@ fn native_host_rejects_command_after_controller_lease_expiry() -> Result<(), Box
         extension_hello(),
         br#"{
             "type": "extension.controller.acquire",
-            "protocolVersion": 1,
+            "protocolVersion": 2,
             "connectionId": "connection-1",
             "browserFamily": "chrome",
             "profileKey": "profile-1",
@@ -515,7 +515,7 @@ fn native_host_rejects_command_after_controller_lease_expiry() -> Result<(), Box
         extension_settings_sync(),
         br#"{
             "type": "extension.screenshot.capture",
-            "protocolVersion": 1,
+            "protocolVersion": 2,
             "controllerLeaseId": "lease:connection-1",
             "commandId": "command-expired-lease",
             "mode": "screen",
@@ -588,7 +588,7 @@ fn native_host_replays_previous_command_result_for_duplicate_id() -> Result<(), 
         extension_hello(),
         br#"{
             "type": "extension.controller.acquire",
-            "protocolVersion": 1,
+            "protocolVersion": 2,
             "connectionId": "connection-1",
             "browserFamily": "chrome",
             "profileKey": "profile-1",
@@ -600,7 +600,7 @@ fn native_host_replays_previous_command_result_for_duplicate_id() -> Result<(), 
         extension_settings_sync(),
         br#"{
             "type": "extension.screenshot.capture",
-            "protocolVersion": 1,
+            "protocolVersion": 2,
             "controllerLeaseId": "lease:connection-1",
             "commandId": "command-1",
             "mode": "screen",
@@ -611,7 +611,7 @@ fn native_host_replays_previous_command_result_for_duplicate_id() -> Result<(), 
         .as_slice(),
         br#"{
             "type": "extension.screenshot.capture",
-            "protocolVersion": 1,
+            "protocolVersion": 2,
             "controllerLeaseId": "lease:connection-1",
             "commandId": "command-1",
             "mode": "region",
@@ -657,7 +657,7 @@ fn native_host_does_not_replay_cached_command_after_lease_expiry() -> Result<(),
         extension_settings_sync(),
         br#"{
             "type": "extension.screenshot.capture",
-            "protocolVersion": 1,
+            "protocolVersion": 2,
             "controllerLeaseId": "lease:connection-1",
             "commandId": "command-1",
             "mode": "screen",
@@ -668,14 +668,14 @@ fn native_host_does_not_replay_cached_command_after_lease_expiry() -> Result<(),
         .as_slice(),
         br#"{
             "type": "extension.ping",
-            "protocolVersion": 1,
+            "protocolVersion": 2,
             "nonce": "nonce-expired",
             "sentAtEpochMs": 302000
         }"#
         .as_slice(),
         br#"{
             "type": "extension.screenshot.capture",
-            "protocolVersion": 1,
+            "protocolVersion": 2,
             "controllerLeaseId": "lease:connection-1",
             "commandId": "command-1",
             "mode": "screen",
@@ -723,7 +723,8 @@ fn native_host_rejects_unknown_screenshot_ack_with_typed_failure() -> Result<(),
         extension_settings_sync(),
         br#"{
             "type": "extension.screenshot.ack",
-            "protocolVersion": 1,
+            "protocolVersion": 2,
+        "receipt": {"durable": true, "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "totalBytes": 524289},
             "controllerLeaseId": "lease:connection-1",
             "captureId": "capture-not-pending",
             "assetId": "asset-1"
@@ -756,7 +757,7 @@ fn native_host_rejects_unknown_screenshot_ack_with_typed_failure() -> Result<(),
     assert_eq!(values[3]["operation"], "screenshot");
     assert_eq!(values[3]["operationId"], "capture-not-pending");
     assert_eq!(values[3]["phase"], "transfer-state");
-    assert_eq!(values[3]["error"]["code"], "duplicate-or-replay");
+    assert_eq!(values[3]["error"]["code"], "storage-failed");
     assert_eq!(values[3]["occurredAtEpochMs"], 2000);
     Ok(())
 }
@@ -770,14 +771,14 @@ fn native_host_rejects_recording_chunk_request_after_lease_expiry() -> Result<()
         extension_settings_sync(),
         br#"{
             "type": "extension.ping",
-            "protocolVersion": 1,
+            "protocolVersion": 2,
             "nonce": "nonce-expired",
             "sentAtEpochMs": 302000
         }"#
         .as_slice(),
         br#"{
             "type": "extension.recording.chunkRequest",
-            "protocolVersion": 1,
+            "protocolVersion": 2,
             "controllerLeaseId": "lease:connection-1",
             "recordingId": "recording-not-pending",
             "chunkIndex": 0
@@ -823,7 +824,7 @@ fn native_host_reports_unavailable_lease_state_for_transfer_validation()
     shared_state.poison_lease_book_for_tests();
     let request = br#"{
         "type": "extension.screenshot.chunkRequest",
-        "protocolVersion": 1,
+        "protocolVersion": 2,
         "controllerLeaseId": "lease:connection-1",
         "captureId": "capture-1",
         "chunkIndex": 0
@@ -854,7 +855,7 @@ fn native_host_returns_screenshot_chunk_for_pending_transfer() -> Result<(), Box
     let mut session = connected_native_host_session()?;
     let request = br#"{
         "type": "extension.screenshot.chunkRequest",
-        "protocolVersion": 1,
+        "protocolVersion": 2,
         "controllerLeaseId": "lease:connection-1",
         "captureId": "capture-1",
         "chunkIndex": 0
@@ -887,7 +888,7 @@ fn native_host_commits_screenshot_after_final_chunk() -> Result<(), Box<dyn Erro
     let mut session = connected_native_host_session()?;
     let request = br#"{
         "type": "extension.screenshot.chunkRequest",
-        "protocolVersion": 1,
+        "protocolVersion": 2,
         "controllerLeaseId": "lease:connection-1",
         "captureId": "capture-1",
         "chunkIndex": 0
@@ -917,7 +918,7 @@ fn native_host_rejects_replayed_screenshot_chunk_request_with_typed_failure()
     let mut session = connected_native_host_session()?;
     let request = br#"{
         "type": "extension.screenshot.chunkRequest",
-        "protocolVersion": 1,
+        "protocolVersion": 2,
         "controllerLeaseId": "lease:connection-1",
         "captureId": "capture-1",
         "chunkIndex": 0
@@ -953,7 +954,7 @@ fn native_host_rejects_screenshot_chunk_read_for_missing_transfer() -> Result<()
     let mut session = connected_native_host_session()?;
     let request = br#"{
         "type": "extension.screenshot.chunkRequest",
-        "protocolVersion": 1,
+        "protocolVersion": 2,
         "controllerLeaseId": "lease:connection-1",
         "captureId": "capture-1",
         "chunkIndex": 0
@@ -981,7 +982,7 @@ fn native_host_rejects_screenshot_chunk_index_with_typed_failure() -> Result<(),
     let mut session = connected_native_host_session()?;
     let request = br#"{
         "type": "extension.screenshot.chunkRequest",
-        "protocolVersion": 1,
+        "protocolVersion": 2,
         "controllerLeaseId": "lease:connection-1",
         "captureId": "capture-1",
         "chunkIndex": 7
@@ -1012,7 +1013,7 @@ fn native_host_returns_recording_chunk_for_pending_transfer() -> Result<(), Box<
     let mut session = connected_native_host_session()?;
     let request = br#"{
         "type": "extension.recording.chunkRequest",
-        "protocolVersion": 1,
+        "protocolVersion": 2,
         "controllerLeaseId": "lease:connection-1",
         "recordingId": "recording-1",
         "chunkIndex": 0
@@ -1046,7 +1047,7 @@ fn native_host_rejects_replayed_recording_chunk_request_with_typed_failure()
     let mut session = connected_native_host_session()?;
     let request = br#"{
         "type": "extension.recording.chunkRequest",
-        "protocolVersion": 1,
+        "protocolVersion": 2,
         "controllerLeaseId": "lease:connection-1",
         "recordingId": "recording-1",
         "chunkIndex": 0
@@ -1082,7 +1083,7 @@ fn native_host_rejects_recording_chunk_read_for_missing_transfer() -> Result<(),
     let mut session = connected_native_host_session()?;
     let request = br#"{
         "type": "extension.recording.chunkRequest",
-        "protocolVersion": 1,
+        "protocolVersion": 2,
         "controllerLeaseId": "lease:connection-1",
         "recordingId": "recording-1",
         "chunkIndex": 0
@@ -1110,7 +1111,7 @@ fn native_host_rejects_recording_chunk_index_with_typed_failure() -> Result<(), 
     let mut session = connected_native_host_session()?;
     let request = br#"{
         "type": "extension.recording.chunkRequest",
-        "protocolVersion": 1,
+        "protocolVersion": 2,
         "controllerLeaseId": "lease:connection-1",
         "recordingId": "recording-1",
         "chunkIndex": 7
@@ -1141,7 +1142,8 @@ fn native_host_accepts_recording_ack_for_pending_transfer() -> Result<(), Box<dy
     let mut session = connected_native_host_session()?;
     let ack = br#"{
         "type": "extension.recording.ack",
-        "protocolVersion": 1,
+        "protocolVersion": 2,
+        "receipt": {"durable": true, "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "totalBytes": 524289},
         "controllerLeaseId": "lease:connection-1",
         "recordingId": "recording-1"
     }"#;
@@ -1165,7 +1167,8 @@ fn native_host_accepts_screenshot_ack_for_pending_transfer() -> Result<(), Box<d
     let mut session = connected_native_host_session()?;
     let ack = br#"{
         "type": "extension.screenshot.ack",
-        "protocolVersion": 1,
+        "protocolVersion": 2,
+        "receipt": {"durable": true, "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "totalBytes": 524289},
         "controllerLeaseId": "lease:connection-1",
         "captureId": "capture-1",
         "assetId": "asset-1"
@@ -1190,7 +1193,7 @@ fn native_host_accepts_screenshot_reject_with_diagnostic_retention() -> Result<(
     let mut session = connected_native_host_session()?;
     let reject = br#"{
         "type": "extension.screenshot.reject",
-        "protocolVersion": 1,
+        "protocolVersion": 2,
         "controllerLeaseId": "lease:connection-1",
         "captureId": "capture-1",
         "reason": "user-cancelled",
@@ -1217,7 +1220,7 @@ fn native_host_accepts_recording_reject_with_diagnostic_retention() -> Result<()
     let mut session = connected_native_host_session()?;
     let reject = br#"{
         "type": "extension.recording.reject",
-        "protocolVersion": 1,
+        "protocolVersion": 2,
         "controllerLeaseId": "lease:connection-1",
         "recordingId": "recording-1",
         "reason": "user-cancelled",
@@ -1243,12 +1246,63 @@ fn native_host_accepts_recording_reject_with_diagnostic_retention() -> Result<()
 }
 
 #[test]
+fn screenshot_reject_cannot_mutate_media_outside_the_controller_projection()
+-> Result<(), Box<dyn Error>> {
+    let mut session = connected_native_host_session()?;
+    let value = serde_json::json!({"type":"extension.screenshot.reject", "protocolVersion":2,
+        "controllerLeaseId":"lease:connection-1", "captureId":"other-browser-capture", "reason":"user-cancelled",
+        "diagnosticRetentionRequested":true});
+    let message = parse_wire_message(&serde_json::to_vec(&value)?)?;
+    let mut effects = ScreenshotTerminalEffects {
+        reject_result: Ok(true),
+        ..ScreenshotTerminalEffects::default()
+    };
+    let responses =
+        responses_for_message_with_effects(&mut session, &message, &value, &mut effects);
+    assert!(effects.rejected_capture_id.is_none());
+    assert!(effects.retain_for_diagnostics.is_none());
+    assert_eq!(responses.len(), 1);
+    assert_eq!(responses[0]["error"]["code"], "duplicate-or-replay");
+    Ok(())
+}
+
+#[test]
+fn recording_reject_requires_visible_media_and_an_available_controller_projection()
+-> Result<(), Box<dyn Error>> {
+    let mut session = connected_native_host_session()?;
+    let value = serde_json::json!({"type":"extension.recording.reject", "protocolVersion":2,
+        "controllerLeaseId":"lease:connection-1", "recordingId":"other-browser-recording", "reason":"user-cancelled",
+        "diagnosticRetentionRequested":true});
+    let message = parse_wire_message(&serde_json::to_vec(&value)?)?;
+    let mut effects = RecordingTerminalEffects {
+        reject_result: Ok(true),
+        ..RecordingTerminalEffects::default()
+    };
+    let responses =
+        responses_for_message_with_effects(&mut session, &message, &value, &mut effects);
+    assert!(effects.rejected_recording_id.is_none());
+    assert!(effects.retain_for_diagnostics.is_none());
+    assert_eq!(responses.len(), 1);
+    assert_eq!(responses[0]["error"]["code"], "duplicate-or-replay");
+    let responses = responses_for_message_with_effects(
+        &mut session,
+        &message,
+        &value,
+        &mut FailingReconnectEffects,
+    );
+    assert_eq!(responses.len(), 1);
+    assert_eq!(responses[0]["error"]["code"], "storage-failed");
+    Ok(())
+}
+
+#[test]
 fn native_host_reports_storage_failure_when_recording_ack_state_fails() -> Result<(), Box<dyn Error>>
 {
     let mut session = connected_native_host_session()?;
     let ack = br#"{
         "type": "extension.recording.ack",
-        "protocolVersion": 1,
+        "protocolVersion": 2,
+        "receipt": {"durable": true, "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "totalBytes": 524289},
         "controllerLeaseId": "lease:connection-1",
         "recordingId": "recording-1"
     }"#;
@@ -1267,5 +1321,45 @@ fn native_host_reports_storage_failure_when_recording_ack_state_fails() -> Resul
     assert_eq!(responses[0]["operationId"], "recording-1");
     assert_eq!(responses[0]["phase"], "transfer-state");
     assert_eq!(responses[0]["error"]["code"], "storage-failed");
+    Ok(())
+}
+
+#[test]
+fn mismatched_durable_receipts_cannot_release_pending_sources() -> Result<(), Box<dyn Error>> {
+    let mut session = connected_native_host_session()?;
+    let screenshot = pending_screenshot_transfer();
+    for (sha256, total_bytes) in [
+        ("b".repeat(64), screenshot.total_bytes),
+        (screenshot.sha256.clone(), screenshot.total_bytes + 1),
+    ] {
+        let value = serde_json::json!({
+            "type": "extension.screenshot.ack", "protocolVersion": 2,
+            "controllerLeaseId": "lease:connection-1", "captureId": "capture-1", "assetId": "asset-1",
+            "receipt": { "durable": true, "sha256": sha256, "totalBytes": total_bytes }
+        });
+        let message = parse_wire_message(&serde_json::to_vec(&value)?)?;
+        let mut effects = ScreenshotTerminalEffects {
+            ack_result: Ok(true),
+            ..Default::default()
+        };
+        let response =
+            responses_for_message_with_effects(&mut session, &message, &value, &mut effects);
+        assert_eq!(response[0]["type"], "app.operation.failed");
+        assert_eq!(effects.acked_capture_id, None);
+    }
+    let recording = pending_recording_transfer();
+    let value = serde_json::json!({
+        "type": "extension.recording.ack", "protocolVersion": 2,
+        "controllerLeaseId": "lease:connection-1", "recordingId": "recording-1",
+        "receipt": { "durable": true, "sha256": "b".repeat(64), "totalBytes": recording.total_bytes }
+    });
+    let message = parse_wire_message(&serde_json::to_vec(&value)?)?;
+    let mut effects = RecordingTerminalEffects {
+        ack_result: Ok(true),
+        ..Default::default()
+    };
+    let response = responses_for_message_with_effects(&mut session, &message, &value, &mut effects);
+    assert_eq!(response[0]["type"], "app.operation.failed");
+    assert_eq!(effects.acked_recording_id, None);
     Ok(())
 }

@@ -6,7 +6,7 @@ use super::{
     AgentComponent, AgentEventHub, AgentProcessLogSink, AgentRunError, AgentStartupStatus,
     WORKER_START_TIMEOUT, WorkerCommand, WorkerEvent,
     tray::{TrayConnectionState, TrayRecordingState},
-    worker_start::{WorkerHandle, WorkerSenderRefs, WorkerStartContext, start_worker},
+    worker_start::{WorkerHandle, WorkerSenderRefs, WorkerStartContext, WorkerStarter},
 };
 
 pub(super) fn start_workers(
@@ -16,6 +16,7 @@ pub(super) fn start_workers(
     event_sender: &SyncSender<WorkerEvent>,
     shutdown_sender: &SyncSender<super::AgentShutdownSignal>,
     log: Option<&AgentProcessLogSink>,
+    start_worker: WorkerStarter,
 ) -> Vec<WorkerHandle> {
     let agent_events = AgentEventHub::default();
     let channels = components

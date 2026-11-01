@@ -5,24 +5,39 @@ const source = fs.readFileSync(process.argv[2], 'utf8');
 const target = 'chrome-extension://elhndangpenapadjimfoodlaenpcndpo/apps/extension/src/settings/index.html';
 async function run(patch = {}) {
   let output = '', error = '', code, connected = false, evaluated = false;
+  let playheadX=10, playing=false;
+  const screenshots=[];
   const page = {url:() => patch.url ?? target, evaluate:async expression => {
     evaluated = true;
+    if (typeof expression==='function') return patch.recordingId ?? 'video-1';
     assert.equal(expression, 'laboratory-expression');
     if (patch.evaluateFailure) throw Error('private failure must not be logged');
     return patch.value ?? {passed:true};
-  }};
+  },waitForTimeout:async()=>{}};
+  const locator = selector => ({
+    isVisible:async()=>true,waitFor:async()=>{if(patch.editorNotReady)throw Error('not-ready');},
+    count:async()=>patch.segments??1,first:()=>locator(selector),locator:()=>locator(selector),
+    click:async()=>{},boundingBox:async()=>({x:playheadX,y:20,width:8,height:8}),
+    evaluate:async()=>({width:patch.canvasWidth??640,height:400}),
+    screenshot:async options=>screenshots.push(options.path),
+  });
+  const editor = {url:()=>patch.editorUrl??'chrome-extension://elhndangpenapadjimfoodlaenpcndpo/apps/extension/src/video-editor/index.html?id=video-1',
+    bringToFront:async()=>{},waitForSelector:async()=>{if(patch.editorNotReady)throw Error('not-ready');},locator,
+    getByRole:(role,options)=>({click:async()=>{assert.equal(role,'button');playing=options.name==='Play';}}),
+    waitForTimeout:async()=>{if(playing&&!patch.playheadStuck)playheadX+=3;},screenshot:async options=>screenshots.push(options.path),
+  };
   const context = {
     require: name => {
       if (name === 'node:fs') return {
         statSync:() => ({size:patch.size ?? 100}),
-        readFileSync:path => path.endsWith('runtime-integrity.json') ? '{}' : '{"expression":"laboratory-expression"}',
+        readFileSync:path => path.endsWith('runtime-integrity.json') ? '{}' : JSON.stringify(patch.input??{expression:'laboratory-expression'}),
       };
       if (name === 'C:/SniptaleLab/browser-tools/package') return {chromium:{connectOverCDP:async (endpoint, options) => {
         connected = true;
         assert.equal(endpoint, 'http://127.0.0.1:9223');
         assert.equal(options.timeout, 10000);
         if (patch.connectFailure) throw Error('private connection details');
-        return {contexts:() => patch.contexts ?? [{pages:() => [page]}], close:() => assert.fail('persistent browser must remain open')};
+        return {contexts:() => patch.contexts ?? [{pages:() => patch.input?.scenario==='native-video-editor'?[page,editor]:[page]}], close:() => assert.fail('persistent browser must remain open')};
       }}};
       if (name.endsWith('/package/package.json')) return {version:'1.64.1'};
       if (name === 'node:crypto') return require('node:crypto');
@@ -35,14 +50,21 @@ async function run(patch = {}) {
       stderr:{write:(text, done) => {error += text; done();}}, exit:value => {code = value;}},
   };
   await vm.runInNewContext(source, context);
-  return {output, error, code, connected, evaluated};
+  return {output, error, code, connected, evaluated, screenshots};
 }
 (async () => {
   const good = await run();
   assert.equal(good.code, 0);
   assert.equal(JSON.parse(good.output).passed, true);
+  const native = await run({input:{scenario:'native-video-editor'}});
+  assert.equal(native.code,0);
+  assert.equal(JSON.parse(native.output).playbackAdvanced,true);
+  assert.equal(native.screenshots.length,2);
+  assert.ok(native.screenshots.every(name=>name.startsWith('screenshots/native-cursor-')&&name.endsWith('-chrome.png')));
   for (const patch of [{port:'1234'}, {size:65537}, {connectFailure:true}, {contexts:[]},
-    {contexts:[{},{}]}, {url:'https://untrusted.invalid/'}, {evaluateFailure:true}, {value:{data:'x'.repeat(1048576)}}]) {
+    {contexts:[{},{}]}, {url:'https://untrusted.invalid/'}, {evaluateFailure:true}, {value:{data:'x'.repeat(1048576)}},
+    {input:{scenario:'unknown'}},{input:{scenario:'native-video-editor',expression:'extra'}},
+    ...[{recordingId:'../escape'},{editorUrl:'https://untrusted.invalid/'},{editorNotReady:true},{segments:0},{playheadStuck:true},{canvasWidth:0}].map(patch=>({...patch,input:{scenario:'native-video-editor'}}))]) {
     const failed = await run(patch);
     assert.equal(failed.code, 1);
     assert.equal(failed.output, '');

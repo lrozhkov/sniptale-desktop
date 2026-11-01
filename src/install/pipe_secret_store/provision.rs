@@ -14,14 +14,14 @@ use crate::install::pipe_secret::{
 
 #[derive(Debug)]
 pub(crate) enum PipeSecretProvisionError {
-    #[cfg(windows)]
+    #[cfg(all(windows, not(test)))]
     Io,
     InvalidRecord,
-    #[cfg(windows)]
+    #[cfg(all(windows, not(test)))]
     Protection,
-    #[cfg(windows)]
+    #[cfg(all(windows, not(test)))]
     Randomness,
-    #[cfg(windows)]
+    #[cfg(all(windows, not(test)))]
     User,
 }
 
@@ -96,7 +96,7 @@ fn publish_if_missing(path: &Path, temporary: &Path, payload: &[u8]) -> io::Resu
     result.and(cleanup)
 }
 
-#[cfg(windows)]
+#[cfg(all(windows, not(test)))]
 pub(crate) fn initialize_current_user_pipe_secret(
     install_id: &str,
 ) -> Result<(), PipeSecretProvisionError> {

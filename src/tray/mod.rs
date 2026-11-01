@@ -2,6 +2,8 @@
 
 #[cfg(any(windows, test))]
 pub(crate) mod consent;
+#[cfg(any(windows, test))]
+pub(crate) mod delivery;
 mod icon;
 mod menu;
 #[cfg(any(windows, test))]

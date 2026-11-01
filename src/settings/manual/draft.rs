@@ -23,6 +23,7 @@ pub(crate) struct ManualProfileDraft {
     video_bitrate_override_mbps: Option<u16>,
     video_hardware_preference: ManualHardwarePreference,
     video_include_cursor: bool,
+    collect_pointer_events: bool,
     video_max_duration_seconds: u32,
     audio_source_mode: ManualAudioSource,
     microphone_device_id: Option<String>,
@@ -40,6 +41,7 @@ pub(crate) struct ManualProfileDraftView {
     pub(crate) video_bitrate_override_mbps: Option<u16>,
     pub(crate) video_hardware_preference: ManualHardwarePreference,
     pub(crate) video_include_cursor: bool,
+    pub(crate) collect_pointer_events: bool,
     pub(crate) video_max_duration_seconds: u32,
     pub(crate) audio_source_mode: ManualAudioSource,
     pub(crate) microphone_device_id: Option<String>,
@@ -48,6 +50,9 @@ pub(crate) struct ManualProfileDraftView {
 }
 
 impl ManualProfileDraft {
+    pub(crate) fn set_collect_pointer_events(&mut self, collect: bool) {
+        self.collect_pointer_events = collect;
+    }
     #[must_use]
     pub(crate) fn with_defaults(destination_id: String, destination_path: String) -> Self {
         Self {
@@ -59,6 +64,7 @@ impl ManualProfileDraft {
             video_bitrate_override_mbps: None,
             video_hardware_preference: ManualHardwarePreference::Prefer,
             video_include_cursor: true,
+            collect_pointer_events: false,
             video_max_duration_seconds: 3_600,
             audio_source_mode: ManualAudioSource::Mixed,
             microphone_device_id: None,
@@ -186,6 +192,7 @@ impl ManualProfileDraft {
             video_bitrate_override_mbps: self.video_bitrate_override_mbps,
             video_hardware_preference: self.video_hardware_preference,
             video_include_cursor: self.video_include_cursor,
+            collect_pointer_events: self.collect_pointer_events,
             video_max_duration_seconds: self.video_max_duration_seconds,
             audio_source_mode: self.audio_source_mode,
             microphone_device_id: self.microphone_device_id.clone(),
@@ -205,6 +212,7 @@ impl ManualProfileDraft {
             video_bitrate_override_mbps: profile.video.bitrate_override_mbps,
             video_hardware_preference: profile.video.hardware_preference,
             video_include_cursor: profile.video.include_cursor,
+            collect_pointer_events: profile.video.collect_pointer_events,
             video_max_duration_seconds: profile.video.max_duration_seconds,
             audio_source_mode: profile.audio.source_mode,
             microphone_device_id: profile.audio.microphone_device_id.clone(),
@@ -224,6 +232,7 @@ impl ManualProfileDraft {
                 include_cursor: self.screenshot_include_cursor,
             },
             video: ManualVideo {
+                collect_pointer_events: self.collect_pointer_events,
                 quality: self.video_quality,
                 fps: self.video_fps,
                 bitrate_override_mbps: self.video_bitrate_override_mbps,

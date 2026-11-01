@@ -35,7 +35,7 @@ where
                 DeliveryRoute::ExtensionTransfer
             ) | (
                 OperationAuthority::Manual { .. },
-                DeliveryRoute::LocalAsset { .. }
+                DeliveryRoute::LocalAsset { .. } | DeliveryRoute::DesktopDelivery { .. }
             )
         ) {
             return Err(RecordingRuntimeError::UnsupportedMode);
@@ -79,8 +79,22 @@ where
         let started_at_monotonic_ns = self.monotonic_clock.now_ns();
         self.session.start(&recording_id)?;
         self.session.begin_recording()?;
-        self.telemetry_enabled = matches!(request.delivery_route, DeliveryRoute::ExtensionTransfer);
+        self.frame_geometry = started.frame_geometry;
+        self.telemetry_enabled = matches!(
+            request.delivery_route,
+            DeliveryRoute::ExtensionTransfer | DeliveryRoute::DesktopDelivery { .. }
+        );
         if self.telemetry_enabled {
+            self.telemetry
+                .configure_trajectory(self.frame_geometry.map(|frame| {
+                    crate::telemetry::RecordingTrajectoryContext {
+                        frame,
+                        point_mapping: crate::telemetry::RecordingPointMapping::for_capture_mode(
+                            &request.source.mode,
+                        ),
+                        delivery_route: request.delivery_route.clone(),
+                    }
+                }));
             if let Some(controller_lease_id) = controller_lease_id {
                 self.telemetry.bind_controller_lease(controller_lease_id);
             }
@@ -102,11 +116,13 @@ where
             },
         );
 
-        let mut messages = vec![RecordingCommandEvent::Started(recording_started_event(
-            request,
-            recording_id.clone(),
-            started.effective_quality,
-            started_at_monotonic_ns.to_string(),
+        let mut messages = vec![RecordingCommandEvent::Started(Box::new(
+            recording_started_event(
+                request,
+                recording_id.clone(),
+                started.effective_quality,
+                started_at_monotonic_ns.to_string(),
+            ),
         ))];
         messages.push(progress_message(&recording_id, initial_progress));
         Ok(messages)

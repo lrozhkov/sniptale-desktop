@@ -20,19 +20,35 @@ use super::{
 };
 
 #[cfg(windows)]
-pub(super) fn run_windows_pipe_server_worker(
-    component: AgentComponent,
-    event_sender: SyncSender<WorkerEvent>,
-    command_receiver: Receiver<WorkerCommand>,
-    tray_command_sender: Option<SyncSender<WorkerCommand>>,
-    hotkey_command_sender: Option<SyncSender<WorkerCommand>>,
-    capture_command_sender: Option<SyncSender<WorkerCommand>>,
-    recording_command_sender: Option<SyncSender<WorkerCommand>>,
-    tray_connection: tray::TrayConnectionState,
-    active_settings: crate::settings::ActiveSettings,
-    agent_events: AgentEventHub,
-    log: Option<AgentProcessLogSink>,
-) {
+pub(super) struct WindowsPipeWorkerInputs {
+    pub(super) component: AgentComponent,
+    pub(super) event_sender: SyncSender<WorkerEvent>,
+    pub(super) command_receiver: Receiver<WorkerCommand>,
+    pub(super) tray_command_sender: Option<SyncSender<WorkerCommand>>,
+    pub(super) hotkey_command_sender: Option<SyncSender<WorkerCommand>>,
+    pub(super) capture_command_sender: Option<SyncSender<WorkerCommand>>,
+    pub(super) recording_command_sender: Option<SyncSender<WorkerCommand>>,
+    pub(super) tray_connection: tray::TrayConnectionState,
+    pub(super) active_settings: crate::settings::ActiveSettings,
+    pub(super) agent_events: AgentEventHub,
+    pub(super) log: Option<AgentProcessLogSink>,
+}
+
+#[cfg(windows)]
+pub(super) fn run_windows_pipe_server_worker(inputs: WindowsPipeWorkerInputs) {
+    let WindowsPipeWorkerInputs {
+        component,
+        event_sender,
+        command_receiver,
+        tray_command_sender,
+        hotkey_command_sender,
+        capture_command_sender,
+        recording_command_sender,
+        tray_connection,
+        active_settings,
+        agent_events,
+        log,
+    } = inputs;
     tracing::info!(
         target: "sniptale_native_agent::resident_pipe",
         "resident pipe worker started"
@@ -88,9 +104,9 @@ pub(super) fn run_windows_pipe_server_worker(
             &mut server,
             &command_receiver,
             &active_settings,
-            effects_factory.clone(),
-            agent_events.clone(),
-            log.clone(),
+            &effects_factory,
+            &agent_events,
+            log.as_ref(),
         );
     }
 }
@@ -100,20 +116,17 @@ fn run_active_pipe_server<E>(
     server: &mut platform_pipe::WindowsAgentPipeServer,
     command_receiver: &Receiver<WorkerCommand>,
     active_settings: &crate::settings::ActiveSettings,
-    effects_factory: E,
-    agent_events: AgentEventHub,
-    log: Option<AgentProcessLogSink>,
+    effects_factory: &E,
+    agent_events: &AgentEventHub,
+    log: Option<&AgentProcessLogSink>,
 ) -> bool
 where
     E: crate::app::resident::pipe_broker::AgentPipeSessionEffectsFactory,
 {
     let mut stop_requested = false;
     let mut fence_sender = None;
-    match server.run_with_effects_events_and_log(
-        effects_factory,
-        &agent_events,
-        log.as_ref(),
-        |_| match command_receiver.try_recv() {
+    match server.run_with_effects_events_and_log(effects_factory, agent_events, log, |_| {
+        match command_receiver.try_recv() {
             Ok(WorkerCommand::Stop) | Err(TryRecvError::Disconnected) => {
                 stop_requested = true;
                 AgentPipeServerControl::Stop
@@ -142,7 +155,9 @@ where
                 | WorkerCommand::DiscardRecordingTelemetry { .. }
                 | WorkerCommand::SnapshotRecordingTelemetry { .. }
                 | WorkerCommand::PrepareManualAsset { .. }
-                | WorkerCommand::PublishManualAsset { .. },
+                | WorkerCommand::PublishManualAsset { .. }
+                | WorkerCommand::RecoverPendingAssets
+                | WorkerCommand::ChooseMediaDestination { .. },
             ) => AgentPipeServerControl::Continue,
             #[cfg(test)]
             Ok(WorkerCommand::TrayMenuCommandSelected { .. }) => AgentPipeServerControl::Continue,
@@ -150,8 +165,8 @@ where
                 AgentPipeServerControl::Stop
             }
             Err(TryRecvError::Empty) => AgentPipeServerControl::Continue,
-        },
-    ) {
+        }
+    }) {
         Ok(report) => tracing::info!(
             target: "sniptale_native_agent::resident_pipe",
             accepted = report.accepted,
@@ -186,21 +201,20 @@ fn wait_for_mode_change_or_stop(command_receiver: &Receiver<WorkerCommand>) -> b
 fn open_screenshot_store_for_pipe(
     log: Option<&AgentProcessLogSink>,
 ) -> Option<crate::capture::ScreenshotTransferStore> {
-    match crate::capture::ScreenshotTransferStore::open_default() {
-        Ok(store) => Some(store),
-        Err(_) => {
-            tracing::warn!(
-                target: "sniptale_native_agent::resident_pipe",
-                "screenshot transfer store open failed"
-            );
-            log_pipe_worker_event(
-                log,
-                "screenshot-store-open",
-                "screenshot transfer store open failed",
-                Some("resident_pipe.screenshot_store_open_failed"),
-            );
-            None
-        }
+    if let Ok(store) = crate::capture::ScreenshotTransferStore::open_default() {
+        Some(store)
+    } else {
+        tracing::warn!(
+            target: "sniptale_native_agent::resident_pipe",
+            "screenshot transfer store open failed"
+        );
+        log_pipe_worker_event(
+            log,
+            "screenshot-store-open",
+            "screenshot transfer store open failed",
+            Some("resident_pipe.screenshot_store_open_failed"),
+        );
+        None
     }
 }
 
@@ -208,21 +222,20 @@ fn open_screenshot_store_for_pipe(
 fn open_recording_store_for_pipe(
     log: Option<&AgentProcessLogSink>,
 ) -> Option<crate::recording::RecordingTransferStore> {
-    match crate::recording::RecordingTransferStore::open_default() {
-        Ok(store) => Some(store),
-        Err(_) => {
-            tracing::warn!(
-                target: "sniptale_native_agent::resident_pipe",
-                "recording transfer store open failed"
-            );
-            log_pipe_worker_event(
-                log,
-                "recording-store-open",
-                "recording transfer store open failed",
-                Some("resident_pipe.recording_store_open_failed"),
-            );
-            None
-        }
+    if let Ok(store) = crate::recording::RecordingTransferStore::open_default() {
+        Some(store)
+    } else {
+        tracing::warn!(
+            target: "sniptale_native_agent::resident_pipe",
+            "recording transfer store open failed"
+        );
+        log_pipe_worker_event(
+            log,
+            "recording-store-open",
+            "recording transfer store open failed",
+            Some("resident_pipe.recording_store_open_failed"),
+        );
+        None
     }
 }
 

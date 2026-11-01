@@ -38,6 +38,15 @@ use crate::tray::settings_window::{
     palette::{Color, ThemePalette},
 };
 
+#[derive(Clone, Copy, Debug)]
+pub(super) struct SettingsPaintFrame {
+    pub(super) palette: ThemePalette,
+    pub(super) layout: SettingsLayout,
+    pub(super) section: SettingsWindowSection,
+    pub(super) view: SettingsWindowView,
+    pub(super) scroll: i32,
+}
+
 #[derive(Debug)]
 pub(super) struct SettingsRenderer {
     target: ID2D1HwndRenderTarget,
@@ -50,9 +59,10 @@ impl SettingsRenderer {
         let factory: ID2D1Factory =
             unsafe { D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, None) }
                 .map_err(to_io_error)?;
+        let dpi = render_dpi(dpi)?;
         let properties = D2D1_RENDER_TARGET_PROPERTIES {
-            dpiX: dpi as f32,
-            dpiY: dpi as f32,
+            dpiX: dpi,
+            dpiY: dpi,
             ..D2D1_RENDER_TARGET_PROPERTIES::default()
         };
         let window_properties = D2D1_HWND_RENDER_TARGET_PROPERTIES {
@@ -89,11 +99,12 @@ impl SettingsRenderer {
     }
 
     pub(super) fn resize(&self, width: u32, height: u32, dpi: u32) -> io::Result<()> {
+        let dpi = render_dpi(dpi)?;
         let size = D2D_SIZE_U { width, height };
         // SAFETY: the render target remains bound to the same live HWND and size is initialized.
         unsafe {
             self.target.Resize(&raw const size)?;
-            self.target.SetDpi(dpi as f32, dpi as f32);
+            self.target.SetDpi(dpi, dpi);
         }
         Ok(())
     }
@@ -116,27 +127,23 @@ impl SettingsRenderer {
         window: HWND,
         size: (u32, u32),
         dpi: u32,
-        palette: ThemePalette,
-        layout: SettingsLayout,
-        section: SettingsWindowSection,
-        view: SettingsWindowView,
-        scroll: i32,
+        frame: SettingsPaintFrame,
     ) -> io::Result<()> {
         crate::tray::settings_window::render_recovery::recover_once(
             self,
-            |renderer| renderer.paint(palette, layout, section, view, scroll),
+            |renderer| renderer.paint(frame),
             || Self::create(window, size.0.max(1), size.1.max(1), dpi),
         )
     }
 
-    pub(super) fn paint(
-        &self,
-        palette: ThemePalette,
-        layout: SettingsLayout,
-        section: SettingsWindowSection,
-        view: SettingsWindowView,
-        scroll: i32,
-    ) -> io::Result<()> {
+    pub(super) fn paint(&self, frame: SettingsPaintFrame) -> io::Result<()> {
+        let SettingsPaintFrame {
+            palette,
+            layout,
+            section,
+            view,
+            scroll,
+        } = frame;
         let panel = brush(&self.target, palette.panel)?;
         let border = brush(&self.target, palette.border)?;
         let accent = brush(&self.target, palette.accent)?;
@@ -273,12 +280,12 @@ unsafe fn draw_separator(
     width: i32,
     brush: &windows::Win32::Graphics::Direct2D::ID2D1SolidColorBrush,
 ) {
-    let rect = D2D_RECT_F {
-        left: 0.0,
-        top: top as f32,
-        right: width as f32,
-        bottom: top as f32 + 1.0,
-    };
+    let rect = rect(DipRect {
+        left: 0,
+        top,
+        width,
+        height: 1,
+    });
     // SAFETY: called only inside the active draw bracket with a live brush.
     unsafe { target.FillRectangle(&raw const rect, brush) };
 }
@@ -290,4 +297,13 @@ fn brush(
     let value = color(value);
     // SAFETY: color is initialized and copied by the render target.
     unsafe { target.CreateSolidColorBrush(&raw const value, None) }.map_err(to_io_error)
+}
+
+fn render_dpi(dpi: u32) -> io::Result<f32> {
+    u16::try_from(dpi).map(f32::from).map_err(|_| {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "settings DPI exceeds Windows message range",
+        )
+    })
 }

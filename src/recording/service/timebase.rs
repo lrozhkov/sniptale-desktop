@@ -38,3 +38,7 @@ fn process_monotonic_ns() -> u128 {
         .max(Duration::from_nanos(1))
         .as_nanos()
 }
+
+pub(crate) fn recording_monotonic_ns() -> u64 {
+    RecordingMonotonicClock::default().now_ns()
+}

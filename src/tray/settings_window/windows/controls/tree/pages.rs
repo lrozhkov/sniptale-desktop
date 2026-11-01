@@ -1,6 +1,12 @@
 //! Manual page child-control construction.
 
-use super::*;
+use super::{
+    ASK_DESTINATION_ID, AUDIO_BITRATE_ID, AUDIO_SOURCE_ID, AudioControls, BROWSE_DESTINATION_ID,
+    BROWSER_DESTINATION_ID, CaptureControls, HOTKEY_FIRST_ID, HWND, MICROPHONE_DEVICE_ID,
+    POINTER_TELEMETRY_ID, REFRESH_MICROPHONES_ID, REFRESH_TARGETS_ID, SAVE_DESTINATION_ID,
+    SCREENSHOT_CURSOR_ID, ShortcutControls, VIDEO_BITRATE_ID, VIDEO_CURSOR_ID, VIDEO_DURATION_ID,
+    VIDEO_FPS_ID, VIDEO_HARDWARE_ID, VIDEO_QUALITY_ID, VideoControls, create_control, io,
+};
 use windows::Win32::{
     System::SystemServices::{SS_NOPREFIX, SS_PATHELLIPSIS},
     UI::WindowsAndMessaging::{
@@ -11,10 +17,7 @@ use windows::Win32::{
 
 pub(super) fn create_capture(parent: HWND) -> io::Result<CaptureControls> {
     let title = label(parent, "Capture")?;
-    let subtitle = label(
-        parent,
-        "Choose where files are saved and how screenshots look.",
-    )?;
+    let subtitle = capture_subtitle(parent)?;
     let save_label = label(parent, "Save location")?;
     let destination_path = path_label(parent, "Choose a folder")?;
     let browse = owner_button(parent, "Change folder…", BROWSE_DESTINATION_ID)?;
@@ -24,8 +27,25 @@ pub(super) fn create_capture(parent: HWND) -> io::Result<CaptureControls> {
         "Include pointer in screenshots",
         SCREENSHOT_CURSOR_ID,
     )?;
+    let [
+        destination_label,
+        browser_destination,
+        ask_destination,
+        save_destination,
+        refresh_targets,
+    ] = delivery_controls(parent)?;
     Ok(CaptureControls {
+        destination_label,
+        browser_destination,
+        ask_destination,
+        save_destination,
+        refresh_targets,
         handles: vec![
+            destination_label,
+            browser_destination,
+            ask_destination,
+            save_destination,
+            refresh_targets,
             title,
             subtitle,
             save_label,
@@ -60,10 +80,24 @@ pub(super) fn create_video(parent: HWND) -> io::Result<VideoControls> {
     let hardware = combo(parent, VIDEO_HARDWARE_ID)?;
     let duration = combo(parent, VIDEO_DURATION_ID)?;
     let cursor = checkbox(parent, "Include pointer in video", VIDEO_CURSOR_ID)?;
+    let pointer_telemetry = checkbox(
+        parent,
+        "Collect cursor and click highlights",
+        POINTER_TELEMETRY_ID,
+    )?;
     let mut handles = vec![title, subtitle];
     handles.extend(labels);
-    handles.extend([quality, fps, bitrate, hardware, duration, cursor]);
+    handles.extend([
+        quality,
+        fps,
+        bitrate,
+        hardware,
+        duration,
+        cursor,
+        pointer_telemetry,
+    ]);
     Ok(VideoControls {
+        pointer_telemetry,
         handles,
         title,
         subtitle,
@@ -185,5 +219,31 @@ fn checkbox(parent: HWND, text: &str, id: usize) -> io::Result<HWND> {
         WS_TABSTOP.0 | u32::try_from(BS_AUTOCHECKBOX).unwrap_or(0),
         parent,
         id,
+    )
+}
+
+fn delivery_controls(parent: HWND) -> io::Result<[HWND; 5]> {
+    let destination_label = label(parent, "Default destination")?;
+    let browser_destination = combo(parent, BROWSER_DESTINATION_ID)?;
+    let ask_destination = checkbox(
+        parent,
+        "Ask where to save after each capture",
+        ASK_DESTINATION_ID,
+    )?;
+    let save_destination = owner_button(parent, "Save delivery choice", SAVE_DESTINATION_ID)?;
+    let refresh_targets = owner_button(parent, "Refresh browsers", REFRESH_TARGETS_ID)?;
+    Ok([
+        destination_label,
+        browser_destination,
+        ask_destination,
+        save_destination,
+        refresh_targets,
+    ])
+}
+
+fn capture_subtitle(parent: HWND) -> io::Result<HWND> {
+    label(
+        parent,
+        "Choose where files are saved and how screenshots look.",
     )
 }

@@ -21,6 +21,8 @@ mod session;
 #[cfg(any(windows, test))]
 mod temp_media;
 #[cfg(test)]
+pub(crate) use temp_media::metadata::RecordingMediaMetadata;
+#[cfg(test)]
 mod tests;
 #[cfg(any(windows, test))]
 mod transfer_store;
@@ -46,3 +48,6 @@ pub(crate) use service_contract::{
 };
 #[cfg(any(windows, test))]
 pub(crate) use transfer_store::{RecordingTransferStore, RecordingTransferStoreError};
+
+#[cfg(any(windows, test))]
+pub(crate) use service::recording_monotonic_ns;

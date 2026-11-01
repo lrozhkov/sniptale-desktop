@@ -25,6 +25,11 @@ pub(super) fn enqueue_manual_recording_publish(
         return;
     };
     let _ = sender.try_send(WorkerCommand::PublishManualAsset {
+        delivery: Some(Box::new(super::super::delivery::DesktopMediaDelivery {
+            media_id: event.recording_id.clone(),
+            kind: crate::transfer::browser_delivery::BrowserMediaKind::Recording,
+            route: event.delivery_route.clone(),
+        })),
         job_id,
         source: Box::new(reader),
     });

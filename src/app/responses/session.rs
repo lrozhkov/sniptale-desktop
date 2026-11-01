@@ -1,5 +1,8 @@
 //! Native-host session and resident shared state.
 
+mod authorization;
+mod desktop;
+
 use std::sync::{
     Arc, Mutex,
     atomic::{AtomicU64, Ordering},
@@ -20,6 +23,9 @@ use crate::{
 
 #[derive(Clone, Debug)]
 pub(crate) struct NativeHostSharedState {
+    desktop_authority: bool,
+    #[cfg(any(windows, test))]
+    desktop_settings: Option<crate::settings::ActiveSettings>,
     lease_book: Arc<Mutex<ControllerLeaseBook>>,
     accepted_state: Arc<Mutex<NativeHostAcceptedState>>,
     tray_connection_generation: Arc<AtomicU64>,
@@ -28,6 +34,9 @@ pub(crate) struct NativeHostSharedState {
 impl Default for NativeHostSharedState {
     fn default() -> Self {
         Self {
+            desktop_authority: !cfg!(test),
+            #[cfg(any(windows, test))]
+            desktop_settings: None,
             lease_book: Arc::new(Mutex::new(ControllerLeaseBook::default())),
             accepted_state: Arc::new(Mutex::new(NativeHostAcceptedState::default())),
             tray_connection_generation: Arc::new(AtomicU64::new(0)),
@@ -36,6 +45,14 @@ impl Default for NativeHostSharedState {
 }
 
 impl NativeHostSharedState {
+    #[cfg(any(windows, test))]
+    pub(crate) fn with_desktop_settings(settings: crate::settings::ActiveSettings) -> Self {
+        Self {
+            desktop_authority: true,
+            desktop_settings: Some(settings),
+            ..Self::default()
+        }
+    }
     #[cfg(test)]
     pub(crate) fn poison_lease_book_for_tests(&self) {
         let lease_book = self.lease_book.clone();
@@ -68,12 +85,25 @@ pub(super) struct NativeHostAcceptedState {
     pub(super) tray_registry: Option<TrayActionRegistry>,
 }
 
+#[derive(Clone, Debug, Default)]
+pub(super) struct NegotiatedRecordingFormats {
+    pub(super) cursor_trajectory: bool,
+    pub(super) recording_events: bool,
+}
+
 #[derive(Clone, Debug)]
 pub(crate) struct NativeHostSession {
     pub(super) handshake_accepted: bool,
+    pub(super) recording_formats: NegotiatedRecordingFormats,
     pub(super) extension_id: Option<String>,
     pub(super) controller_lease_id: Option<String>,
     pub(super) active_controller: Option<NativeControllerIdentity>,
+    pub(super) registered_controller: Option<NativeControllerIdentity>,
+    authenticated_extension_id: Option<String>,
+    #[cfg(any(windows, test))]
+    pub(super) connection_retired: bool,
+    #[cfg(any(windows, test))]
+    pub(super) announced_media: std::collections::BTreeSet<String>,
     tray_connection_generation: Option<u64>,
     shared_state: NativeHostSharedState,
     last_observed_epoch_ms: u64,
@@ -88,9 +118,16 @@ impl Default for NativeHostSession {
     fn default() -> Self {
         Self {
             handshake_accepted: false,
+            recording_formats: NegotiatedRecordingFormats::default(),
             extension_id: None,
             controller_lease_id: None,
             active_controller: None,
+            registered_controller: None,
+            authenticated_extension_id: None,
+            #[cfg(any(windows, test))]
+            connection_retired: false,
+            #[cfg(any(windows, test))]
+            announced_media: std::collections::BTreeSet::new(),
             tray_connection_generation: None,
             shared_state: NativeHostSharedState::default(),
             last_observed_epoch_ms: 0,
@@ -147,6 +184,7 @@ impl NativeHostSession {
 
     #[cfg(any(windows, test))]
     pub(crate) fn release_controller_lease(&mut self) -> Option<u64> {
+        self.announced_media.clear();
         let Some(controller) = self.active_controller.take() else {
             self.controller_lease_id = None;
             self.tray_connection_generation = None;
@@ -192,27 +230,6 @@ impl NativeHostSession {
                 telemetry_non_fatal: true,
             }
         })
-    }
-
-    pub(super) fn validate_active_lease(
-        &self,
-        controller_lease_id: &str,
-        now_epoch_ms: u64,
-    ) -> ActiveLeaseValidation {
-        let Some(controller) = self.active_controller.as_ref() else {
-            return ActiveLeaseValidation::Invalid;
-        };
-        let Ok(lease_book) = self.shared_state.lease_book.lock() else {
-            return ActiveLeaseValidation::StateUnavailable;
-        };
-        if lease_book
-            .validate(controller, controller_lease_id, now_epoch_ms)
-            .is_ok()
-        {
-            ActiveLeaseValidation::Valid
-        } else {
-            ActiveLeaseValidation::Invalid
-        }
     }
 
     pub(super) fn acquire_controller_lease(

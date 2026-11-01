@@ -385,6 +385,8 @@ def check_release_wrapper_contract() -> None:
         ["python3", "tooling/release/windows/verify_release_artifacts.py"],
     ) not in checks:
         fail("checkpoint catalog must call release artifact guardrails")
+    if "cargo clippy --target x86_64-pc-windows-msvc --all-targets --all-features -- -D warnings" not in checkpoint:
+        fail("checkpoint must run native Clippy on Windows-only functions")
     if "cargo check --release --target x86_64-pc-windows-msvc --bin sniptale-native-agent" not in checkpoint:
         fail("checkpoint wrapper must check the Windows MSVC release executable target")
     if "tooling/qa/wrappers/checkpoint.sh" not in pre_commit:

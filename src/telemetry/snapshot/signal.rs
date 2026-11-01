@@ -12,7 +12,13 @@ pub(crate) enum RecordingTelemetrySignal {
         start_time_ms: u64,
         end_time_ms: u64,
     },
-    #[cfg(any(windows, test))]
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "Legacy inline cursor-idle projection remains checked by compatibility fixtures; live history uses immutable blocks."
+        )
+    )]
     CursorIdle {
         start_time_ms: u64,
         end_time_ms: u64,
@@ -39,7 +45,7 @@ impl RecordingTelemetrySignal {
         }
     }
 
-    #[cfg(any(windows, test))]
+    #[cfg(test)]
     pub(crate) const fn cursor_idle(start_time_ms: u64, end_time_ms: u64, x: i32, y: i32) -> Self {
         Self::CursorIdle {
             start_time_ms,
@@ -64,7 +70,7 @@ impl RecordingTelemetrySignal {
         }
     }
 
-    pub(super) fn into_protocol(self, index: usize) -> Value {
+    pub(in crate::telemetry) fn into_protocol(self, index: usize) -> Value {
         #[cfg(not(any(windows, test)))]
         let _ = index;
         match self {
@@ -74,7 +80,6 @@ impl RecordingTelemetrySignal {
                 start_time_ms,
                 end_time_ms,
             } => typing_signal_protocol(index, count, start_time_ms, end_time_ms),
-            #[cfg(any(windows, test))]
             Self::CursorIdle {
                 start_time_ms,
                 end_time_ms,

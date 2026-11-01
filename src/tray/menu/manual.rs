@@ -2,10 +2,9 @@
 
 use super::{
     actions::{ShellActionId, TrayActionKind},
-    mode,
     model::{TrayMenu, TrayMenuEntry, TrayMenuItem},
 };
-use crate::{settings::OperatingMode, tray::TrayRecordingStatus};
+use crate::tray::TrayRecordingStatus;
 
 #[must_use]
 pub(crate) fn build_manual_menu(recording: TrayRecordingStatus) -> TrayMenu {
@@ -13,7 +12,7 @@ pub(crate) fn build_manual_menu(recording: TrayRecordingStatus) -> TrayMenu {
         TrayMenuEntry::item(
             TrayMenuItem::configured(
                 "manual-status",
-                "Sniptale — Manual",
+                "Sniptale Desktop",
                 TrayActionKind::OpenSettings,
             )
             .with_enabled(false),
@@ -34,10 +33,7 @@ pub(crate) fn build_manual_menu(recording: TrayRecordingStatus) -> TrayMenu {
         ),
         submenu("manual-video", "Video", video_items(recording)),
         TrayMenuEntry::Separator,
-        mode::submenu(
-            OperatingMode::Manual,
-            matches!(recording, TrayRecordingStatus::Idle),
-        ),
+        recovery_item(recording),
         TrayMenuEntry::item(item(
             ShellActionId::OpenSettings,
             "Settings…",
@@ -185,4 +181,15 @@ fn submenu(id: &'static str, label: &'static str, items: Vec<TrayMenuItem>) -> T
 
 fn item(id: ShellActionId, label: &str, kind: TrayActionKind) -> TrayMenuItem {
     TrayMenuItem::configured(id.as_str(), label, kind).with_offline_capable(true)
+}
+
+fn recovery_item(recording: TrayRecordingStatus) -> TrayMenuEntry {
+    TrayMenuEntry::item(
+        item(
+            ShellActionId::RetryPendingSaves,
+            "Recover pending results…",
+            TrayActionKind::OpenSettings,
+        )
+        .with_enabled(matches!(recording, TrayRecordingStatus::Idle)),
+    )
 }

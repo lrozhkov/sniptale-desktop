@@ -38,8 +38,8 @@ impl WindowsTrayMenu {
     fn append_entries(&self, parent: HMENU, entries: &[TrayMenuRenderEntry]) -> io::Result<()> {
         for entry in entries {
             match entry {
-                TrayMenuRenderEntry::Item(item) => self.append_item(parent, item)?,
-                TrayMenuRenderEntry::Separator => self.append_separator(parent)?,
+                TrayMenuRenderEntry::Item(item) => Self::append_item(parent, item)?,
+                TrayMenuRenderEntry::Separator => Self::append_separator(parent)?,
                 TrayMenuRenderEntry::Submenu {
                     label,
                     enabled,
@@ -51,7 +51,7 @@ impl WindowsTrayMenu {
         Ok(())
     }
 
-    fn append_item(&self, parent: HMENU, item: &TrayMenuRenderItem) -> io::Result<()> {
+    fn append_item(parent: HMENU, item: &TrayMenuRenderItem) -> io::Result<()> {
         let label = menu_label(item);
         let wide = wide_null(&label);
         let flags = menu_flags(item);
@@ -67,7 +67,7 @@ impl WindowsTrayMenu {
             .map_err(|error| to_io_error(&error))
     }
 
-    fn append_separator(&self, parent: HMENU) -> io::Result<()> {
+    fn append_separator(parent: HMENU) -> io::Result<()> {
         // SAFETY: `parent` is an owned popup menu handle in this menu tree.
         unsafe {
             AppendMenuW(

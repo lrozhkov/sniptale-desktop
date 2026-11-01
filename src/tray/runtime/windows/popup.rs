@@ -20,7 +20,7 @@ pub(super) fn track_command(
     };
     let mut point = POINT::default();
     // SAFETY: stack point and adapter-owned HWND/HMENU are valid for this synchronous call.
-    unsafe { GetCursorPos(&mut point) }.map_err(|_| TrayRuntimeError::PollFailed)?;
+    unsafe { GetCursorPos(&raw mut point) }.map_err(|_| TrayRuntimeError::PollFailed)?;
     // SAFETY: foreground activation is requested only for the adapter-owned hidden tray window.
     let _ = unsafe { SetForegroundWindow(owner) };
     // SAFETY: the menu and owner are adapter-owned; TrackPopupMenu retains neither handle.
@@ -39,5 +39,5 @@ pub(super) fn track_command(
     // consume the dismissal prevents the popup pixels from leaking into a capture/recording frame
     // dispatched by the selected command immediately afterward.
     unsafe { DwmFlush() }.map_err(|_| TrayRuntimeError::PollFailed)?;
-    Ok((command.0 != 0).then_some(command.0 as u32))
+    Ok((command.0 != 0).then_some(command.0.cast_unsigned()))
 }

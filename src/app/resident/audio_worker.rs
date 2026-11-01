@@ -36,7 +36,9 @@ pub(super) fn run_audio_worker(
                 | WorkerCommand::DiscardRecordingTelemetry { .. }
                 | WorkerCommand::SnapshotRecordingTelemetry { .. }
                 | WorkerCommand::PrepareManualAsset { .. }
-                | WorkerCommand::PublishManualAsset { .. },
+                | WorkerCommand::PublishManualAsset { .. }
+                | WorkerCommand::RecoverPendingAssets
+                | WorkerCommand::ChooseMediaDestination { .. },
             ) => {}
             #[cfg(test)]
             Ok(WorkerCommand::TrayMenuCommandSelected { .. }) => {}

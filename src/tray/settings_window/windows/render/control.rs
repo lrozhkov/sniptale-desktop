@@ -83,7 +83,7 @@ fn draw_combo(item: &DRAWITEMSTRUCT, palette: ThemePalette) {
     unsafe {
         let raw_brush = CreateSolidBrush(color_ref(background));
         let _brush = GdiObject(raw_brush.into());
-        let _ = FillRect(item.hDC, &item.rcItem, raw_brush);
+        let _ = FillRect(item.hDC, &raw const item.rcItem, raw_brush);
     }
     let text = combo_text(item);
     draw_text_buffer(
@@ -120,7 +120,7 @@ fn draw_text_buffer(
         let _ = DrawTextW(
             item.hDC,
             &mut text,
-            &mut rect,
+            &raw mut rect,
             align | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX,
         );
     }
@@ -191,7 +191,7 @@ fn window_text(item: &DRAWITEMSTRUCT) -> Vec<u16> {
     unsafe {
         let length = GetWindowTextLengthW(item.hwndItem).max(0);
         let mut text = vec![0_u16; usize::try_from(length).unwrap_or(0).saturating_add(1)];
-        let copied = GetWindowTextW(item.hwndItem, &mut text).max(0) as usize;
+        let copied = usize::try_from(GetWindowTextW(item.hwndItem, &mut text).max(0)).unwrap_or(0);
         text.truncate(copied);
         text
     }
@@ -207,7 +207,7 @@ fn combo_text(item: &DRAWITEMSTRUCT) -> Vec<u16> {
         let length = SendMessageW(item.hwndItem, CB_GETLBTEXTLEN, Some(WPARAM(index)), None)
             .0
             .max(0);
-        let mut text = vec![0_u16; length as usize + 1];
+        let mut text = vec![0_u16; length.cast_unsigned().saturating_add(1)];
         let copied = SendMessageW(
             item.hwndItem,
             CB_GETLBTEXT,
@@ -215,7 +215,8 @@ fn combo_text(item: &DRAWITEMSTRUCT) -> Vec<u16> {
             Some(LPARAM(text.as_mut_ptr() as isize)),
         )
         .0
-        .max(0) as usize;
+        .max(0)
+        .cast_unsigned();
         text.truncate(copied);
         text
     }

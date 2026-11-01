@@ -1,9 +1,15 @@
 //! Native Messaging protocol responses for the stdio bridge.
 
+#[cfg(any(windows, test))]
+mod attachments;
 mod clock;
 mod command;
 mod controller;
+#[cfg(any(windows, test))]
+mod desktop_settings;
 mod effects;
+#[cfg(any(windows, test))]
+mod events_attachments;
 mod handshake;
 mod hello;
 mod hotkeys;
@@ -41,9 +47,9 @@ pub(crate) use self::effects::{NativeHostCommandEvent, NativeHostCommandFailureE
 pub(crate) use self::effects::{
     NativeHostCommandOutcome, NativeHostSideEffectError, NativeHostSideEffects,
 };
-use self::handshake::{HandshakeFailure, hello_compatibility_failure};
+use self::handshake::HandshakeFailure;
 #[cfg(not(test))]
-use self::hello::app_hello;
+pub(in crate::app) use self::hello::app_hello;
 #[cfg(test)]
 pub(in crate::app) use self::hello::{
     CapabilityFacts, app_hello, capabilities_from_facts, install_state,
@@ -58,6 +64,9 @@ pub(crate) use self::session::NativeHostSession;
 pub(crate) use self::session::NativeHostSharedState;
 use self::settings_sync::settings_sync_message_responses;
 use self::transfer::{TransferInputs, transfer_response};
+
+#[cfg(any(windows, test))]
+pub(in crate::app) use self::outbound::connection_closed;
 #[cfg(any(windows, test))]
 pub(crate) use self::tray::{responses_for_synced_tray_action, responses_for_tray_action};
 
@@ -77,20 +86,39 @@ pub(crate) fn responses_for_message_with_effects(
     value: &Value,
     effects: &mut impl NativeHostSideEffects,
 ) -> Vec<Value> {
+    if session.desktop_owned()
+        && matches!(
+            message,
+            WireMessage::ExtensionSettingsSync(_)
+                | WireMessage::ExtensionScreenshotCaptureCommand(_)
+                | WireMessage::ExtensionRecordingStartCommand(_)
+                | WireMessage::ExtensionRecordingControlCommand(_)
+        )
+    {
+        return vec![operation_failed(OperationFailure {
+            controller_lease_id: session.controller_lease_id.as_deref(),
+            operation: OperationFailedOperation::SettingsSync,
+            operation_id: None,
+            phase: "desktop-authority",
+            kind: crate::protocol::OperationalErrorKind::UnsupportedCapability,
+            message: Some("Capture and recording are controlled in Desktop settings"),
+            occurred_at_epoch_ms: session.current_epoch_ms(),
+        })];
+    }
+    #[cfg(any(windows, test))]
+    if let Some(responses) = attachments::responses(session, message, effects) {
+        return responses;
+    }
+    #[cfg(any(windows, test))]
+    if let Some(responses) = events_attachments::responses(session, message, effects) {
+        return responses;
+    }
     if let Some(inputs) = TransferInputs::from_message(message) {
         return transfer_responses(session, inputs, effects);
     }
 
     match message {
-        WireMessage::ExtensionHello(hello) => {
-            if let Some(failure) = hello_compatibility_failure(hello) {
-                session.handshake_accepted = false;
-                return vec![handshake_failure(failure, None)];
-            }
-            session.handshake_accepted = true;
-            session.extension_id = Some(hello.extension_id.clone());
-            vec![app_hello()]
-        }
+        WireMessage::ExtensionHello(hello) => handshake::hello_responses(session, hello),
         WireMessage::ExtensionControllerAcquire(acquire) => {
             controller_acquire_responses(session, acquire, effects)
         }
@@ -98,7 +126,7 @@ pub(crate) fn responses_for_message_with_effects(
             settings_sync_message_responses(session, settings, value, effects)
         }
         WireMessage::ExtensionPing(ping) => {
-            ping_responses(session, &ping.nonce, ping.sent_at_epoch_ms)
+            ping_responses(session, &ping.nonce, ping.sent_at_epoch_ms, effects)
         }
         WireMessage::ExtensionTrayActionResult(result) => {
             tray_result::handle_tray_action_result(result.accepted, effects);
@@ -162,6 +190,32 @@ pub(crate) fn responses_for_command_event(
     {
         return Vec::new();
     }
+    let event = match event {
+        NativeHostCommandEvent::RecordingStopped(mut message) => {
+            if !session.recording_formats.cursor_trajectory
+                && message.cursor_trajectory.take().is_some()
+            {
+                message.telemetry = crate::telemetry::legacy_cursor_trajectory_warning(
+                    message.telemetry,
+                    message.width,
+                    message.height,
+                    message.duration_ms,
+                );
+            }
+            if !session.recording_formats.recording_events
+                && message.recording_events.take().is_some()
+            {
+                message.telemetry = crate::telemetry::legacy_recording_events_warning(
+                    message.telemetry,
+                    message.width,
+                    message.height,
+                    message.duration_ms,
+                );
+            }
+            NativeHostCommandEvent::RecordingStopped(message)
+        }
+        event => event,
+    };
     vec![outbound::command_event(event)]
 }
 

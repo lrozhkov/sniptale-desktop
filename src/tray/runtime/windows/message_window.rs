@@ -38,12 +38,12 @@ impl WindowsMessageWindow {
             ..WNDCLASSW::default()
         };
         // SAFETY: registration borrows the class for this call; duplicate registration is harmless.
-        let atom = unsafe { RegisterClassW(&class) };
+        let atom = unsafe { RegisterClassW(&raw const class) };
         if atom == 0 {
             // SAFETY: the error is read immediately after RegisterClassW reported failure.
             let error = unsafe { GetLastError() };
             if error != ERROR_CLASS_ALREADY_EXISTS {
-                return Err(io::Error::from_raw_os_error(error.0 as i32));
+                return Err(io::Error::from_raw_os_error(error.0.cast_signed()));
             }
         }
         // SAFETY: names are NUL-terminated and valid for the synchronous create call.
@@ -110,5 +110,7 @@ fn wide_null(value: &str) -> Vec<u16> {
 }
 
 fn to_io_error(error: windows::core::Error) -> io::Error {
-    io::Error::from_raw_os_error(error.code().0)
+    let code = error.code().0;
+    drop(error);
+    io::Error::from_raw_os_error(code)
 }

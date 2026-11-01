@@ -202,7 +202,7 @@ impl ScreenshotTransferStore {
             record
                 .reject(now_ms, None)
                 .map_err(screenshot_record_store_error)?;
-            self.disk.delete_capture(capture_id)?;
+            self.disk.write_record(&record)?;
         }
         Ok(true)
     }

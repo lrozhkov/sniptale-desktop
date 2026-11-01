@@ -9,7 +9,10 @@ fn native_host_app_hello_serializes_through_protocol_dto() -> Result<(), Box<dyn
     let WireMessage::AppHello(app_hello) = message else {
         return Err("expected app.hello message".into());
     };
-    assert_eq!(app_hello.protocol_version, 1);
+    assert_eq!(
+        app_hello.protocol_version,
+        crate::protocol::PROTOCOL_VERSION
+    );
     assert_eq!(app_hello.install.installer_version, "0.1.0");
     assert!(app_hello.install.rollback_protected);
     assert_eq!(
@@ -320,7 +323,7 @@ fn version_json_reports_contract_versions() -> Result<(), Box<dyn Error>> {
 
     assert_eq!(stderr.len(), 0);
     assert_eq!(value["appVersion"], env!("CARGO_PKG_VERSION"));
-    assert_eq!(value["protocolVersion"], 1);
+    assert_eq!(value["protocolVersion"], crate::protocol::PROTOCOL_VERSION);
     assert_eq!(value["settingsSchemaVersion"], 1);
     assert_eq!(value["appCacheSchemaVersion"], 1);
     assert_eq!(value["installerVersion"], "0.1.0");
@@ -559,10 +562,18 @@ fn assert_doctor_checks(value: &Value) -> Result<(), Box<dyn Error>> {
             .iter()
             .any(|check| check["name"] == "writable-directories" && check["status"] == "pass")
     );
+    let audio = crate::audio::runtime_audio_capability_summary();
+    let audio_status = if audio.supports_mixed_audio {
+        "pass"
+    } else if audio.supports_microphone || audio.supports_system_audio {
+        "warn"
+    } else {
+        "fail"
+    };
     assert!(
         checks
             .iter()
-            .any(|check| check["name"] == "audio-availability" && check["status"] == "fail")
+            .any(|check| check["name"] == "audio-availability" && check["status"] == audio_status)
     );
     assert!(
         checks

@@ -9,7 +9,9 @@ This index lists every active document. Code, tracked contracts, and machine pol
 - [ADR 0001](architecture/adr/0001-resident-media-worker-ownership.md) records the single-process resident worker boundary.
 - [ADR 0002](architecture/adr/0002-dpapi-owner-local-adapters.md) records the two owner-local DPAPI adapters and their trade-off.
 - [ADR 0003](architecture/adr/0003-transfer-lifecycle-ownership.md) records shared media-transfer lifecycle ownership.
-- [ADR 0005](architecture/adr/0005-dual-settings-authority-and-local-asset-delivery.md) records mutually exclusive extension-managed and Manual authority.
+- [ADR 0005](architecture/adr/0005-dual-settings-authority-and-local-asset-delivery.md) records Desktop-owned settings and recoverable local/browser delivery.
+- [ADR 0006](architecture/adr/0006-cursor-trajectory-blocks.md) fixes the jointly agreed cursor trajectory blocks, clock, integrity, and attachment contract.
+- [ADR 0007](architecture/adr/0007-recording-events-blocks.md) fixes lossless blocks for sanitized recording events and keyboard activity.
 
 ## Engineering and QA
 

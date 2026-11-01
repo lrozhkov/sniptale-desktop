@@ -20,6 +20,10 @@ pub(super) const fn color(value: Color) -> D2D1_COLOR_F {
     }
 }
 
+#[expect(
+    clippy::cast_precision_loss,
+    reason = "Direct2D requires f32 drawing coordinates; client-layout DIPs follow its native scalar precision."
+)]
 pub(super) fn rect(value: DipRect) -> D2D_RECT_F {
     D2D_RECT_F {
         left: value.left as f32,
@@ -55,7 +59,7 @@ pub(super) const fn inset_horizontal(rect: RECT, amount: i32) -> RECT {
 }
 
 pub(super) fn scale(value: i32, dpi: u32) -> i32 {
-    value.saturating_mul(dpi as i32) / 96
+    value.saturating_mul(i32::try_from(dpi).unwrap_or(96)) / 96
 }
 
 pub(super) const fn color_ref(value: Color) -> COLORREF {
