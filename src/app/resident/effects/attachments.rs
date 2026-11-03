@@ -91,6 +91,9 @@ impl AgentSideEffects {
         &self,
         ack: &ExtensionRecordingAttachmentAckMessage,
     ) -> Result<bool, NativeHostSideEffectError> {
+        if !self.recording_receipt_assignment_exists(&ack.recording_id)? {
+            return Ok(false);
+        }
         let mut archive = self.cursor_archive(&ack.recording_id, &ack.trajectory_id, true)?;
         archive
             .accept_attachment_receipt(&ack.receipt)

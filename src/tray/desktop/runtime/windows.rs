@@ -10,7 +10,7 @@ pub(super) fn trusted_location(url: &tauri::Url) -> bool {
         && url.port().is_none()
         && url.username().is_empty()
         && url.password().is_none()
-        && matches!(url.path(), "/" | "/index.html" | "/settings")
+        && matches!(url.path(), "/" | "/index.html" | "/settings" | "/dialog")
         && url.query().is_none()
 }
 
@@ -22,7 +22,7 @@ pub(super) fn show_settings(app: &AppHandle) -> Result<(), DesktopError> {
     show(app, "application-settings", "/settings", 680.0, 600.0, true)
 }
 
-fn show(
+pub(super) fn show(
     app: &AppHandle,
     label: &str,
     path: &str,

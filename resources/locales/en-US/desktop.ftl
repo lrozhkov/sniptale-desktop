@@ -300,3 +300,20 @@ web-scenario-window-lost = Window became unavailable
 
 native-settings-title = Sniptale Settings
 native-capture-title = Sniptale Capture
+
+web-dialog-connection-title = Allow this browser connection?
+web-dialog-connection-body = Allow this extension and launcher to connect to this installed app
+web-dialog-extension = Extension
+web-dialog-launcher = Launcher
+web-dialog-launcher-diagnostic = Launcher details are diagnostic information, not proof of browser identity
+web-dialog-allow = Allow
+web-dialog-deny = Deny
+web-dialog-destination-title = Where should this capture go?
+web-dialog-destination-body = A local copy is saved in your selected folder. You can also send it to a browser
+web-dialog-destination-retained = Local saving failed. Your capture is retained. Send it to a browser or keep it for later
+web-dialog-local-folder = Local folder
+web-dialog-later = Keep for later
+web-dialog-quit-recording-title = Stop recording and exit?
+web-dialog-quit-recording-body = Sniptale will stop and save the current recording before it exits
+web-dialog-stop-exit = Stop, save and exit
+web-dialog-unavailable = This dialog is no longer available. Close it and try the action again

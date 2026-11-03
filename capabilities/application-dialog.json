@@ -1,0 +1,16 @@
+{
+  "identifier": "application-dialog",
+  "description": "Application-owned prompt snapshot and one bounded reply only",
+  "local": true,
+  "windows": [
+    "application-dialog"
+  ],
+  "permissions": [
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "allow-desktop-preferences-snapshot",
+    "allow-desktop-prompt-snapshot",
+    "allow-desktop-prompt-reply",
+    "allow-desktop-prompt-dismiss"
+  ]
+}

@@ -125,17 +125,21 @@ pub(super) fn transfer_response(
             recording_chunk_response(observed_epoch_ms, inputs, chunk_index, effects)
         }
         TransferAction::RecordingAck(receipt) => {
-            if !effects
-                .pending_recordings_for_reconnect()
-                .is_ok_and(|items| {
-                    items.iter().any(|item| {
-                        item.recording_id == inputs.operation_id
-                            && receipt.durable
-                            && item.total_bytes == receipt.total_bytes
-                            && item.sha256 == receipt.sha256
-                    })
-                })
-            {
+            let Ok(items) = effects.pending_recordings_for_reconnect() else {
+                return vec![transfer_state_storage_failure(observed_epoch_ms, &inputs)];
+            };
+            if !receipt.durable {
+                return vec![transfer_state_storage_failure(observed_epoch_ms, &inputs)];
+            }
+            let Some(item) = items
+                .iter()
+                .find(|item| item.recording_id == inputs.operation_id)
+            else {
+                // An ACK for an absent pending source has no side effects. Retrying a
+                // completed transfer must not manufacture a storage failure or recreate it.
+                return Vec::new();
+            };
+            if item.total_bytes != receipt.total_bytes || item.sha256 != receipt.sha256 {
                 return vec![transfer_state_storage_failure(observed_epoch_ms, &inputs)];
             }
             recording_ack_response(observed_epoch_ms, inputs, effects)
@@ -284,8 +288,7 @@ fn recording_ack_response(
     effects: &mut impl NativeHostSideEffects,
 ) -> Vec<Value> {
     match effects.ack_recording_transfer(inputs.operation_id) {
-        Ok(true) => Vec::new(),
-        Ok(false) => vec![no_pending_transfer_failure(observed_epoch_ms, &inputs)],
+        Ok(_) => Vec::new(),
         Err(_) => vec![transfer_state_storage_failure(observed_epoch_ms, &inputs)],
     }
 }

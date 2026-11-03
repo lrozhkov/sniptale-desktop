@@ -117,12 +117,12 @@ function Invoke-RealExtensionScreenCapture {
 
 function Find-DeliveryDialog([int] $Seconds = 20, [ValidateSet("initial-cancel", "explicit-recovery")][string] $Stage = "initial-cancel", [switch] $AllowMissing) {
   $deadline = [DateTime]::UtcNow.AddSeconds($Seconds)
-  $condition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ClassNameProperty, "#32770")
+  $condition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::ProcessIdProperty, [int]$script:agent.Id)
+  $heading = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, "Where should this capture go?")
   while ([DateTime]::UtcNow -lt $deadline) {
     $windows = [System.Windows.Automation.AutomationElement]::RootElement.FindAll([System.Windows.Automation.TreeScope]::Children, $condition)
     foreach ($window in $windows) {
-      if ($window.Current.Name -ne "Sniptale" -or $window.Current.ProcessId -ne $script:agent.Id) { continue }
-      return $window
+      if (-not $window.Current.IsOffscreen -and $window.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $heading)) { return $window }
     }
     Start-Sleep -Milliseconds 250
   }

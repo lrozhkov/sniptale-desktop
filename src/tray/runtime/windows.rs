@@ -11,8 +11,8 @@ use std::{
 
 use windows::{
     Win32::UI::WindowsAndMessaging::{
-        DispatchMessageW, IDYES, MB_ICONQUESTION, MB_SETFOREGROUND, MB_YESNO, MSG, MessageBoxW,
-        PM_REMOVE, PeekMessageW, RegisterWindowMessageW, TranslateMessage, WM_APP,
+        DispatchMessageW, MSG, PM_REMOVE, PeekMessageW, RegisterWindowMessageW, TranslateMessage,
+        WM_APP,
     },
     core::PCWSTR,
 };
@@ -211,19 +211,10 @@ impl TrayCommandSource for WindowsTrayCommandSource {
     }
 
     fn confirm_stop_recording_and_exit(&mut self) -> Result<bool, TrayRuntimeError> {
-        let title = wide_null("Sniptale");
-        let content = wide_null("Stop and save the current recording, then exit Sniptale?");
-        // SAFETY: the hidden tray HWND is live and both UTF-16 buffers remain valid for the
-        // synchronous modal call. No pointer or raw handle crosses the adapter boundary.
-        let result = unsafe {
-            MessageBoxW(
-                Some(self.window.handle()),
-                PCWSTR(content.as_ptr()),
-                PCWSTR(title.as_ptr()),
-                MB_YESNO | MB_ICONQUESTION | MB_SETFOREGROUND,
-            )
-        };
-        Ok(result == IDYES)
+        Ok(crate::tray::desktop::show_prompt(
+            crate::tray::desktop::prompts::PromptContent::QuitRecording,
+            std::time::Duration::from_secs(30),
+        ) == Some(1))
     }
 
     fn show_settings_window(

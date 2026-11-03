@@ -48,6 +48,9 @@ fn prepare_tauri() -> Result<(), String> {
         "desktop_panel_frame",
         "desktop_close_panel",
         "desktop_drag_panel",
+        "desktop_prompt_snapshot",
+        "desktop_prompt_reply",
+        "desktop_prompt_dismiss",
     ];
     if env::var_os("TAURI_CONFIG").is_some() {
         return Err("Packaged builds require the canonical Tauri configuration".to_owned());

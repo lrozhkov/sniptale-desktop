@@ -13,9 +13,8 @@ use std::{
 use windows::Win32::{
     Foundation::{LPARAM, LRESULT, WPARAM},
     UI::WindowsAndMessaging::{
-        CallNextHookEx, HHOOK, KBDLLHOOKSTRUCT, LLKHF_ALTDOWN, LLKHF_INJECTED,
-        LLKHF_LOWER_IL_INJECTED, LLKHF_UP, SetWindowsHookExW, UnhookWindowsHookEx, WH_KEYBOARD_LL,
-        WM_KEYDOWN, WM_KEYUP, WM_SYSKEYDOWN, WM_SYSKEYUP,
+        CallNextHookEx, KBDLLHOOKSTRUCT, LLKHF_ALTDOWN, LLKHF_INJECTED, LLKHF_LOWER_IL_INJECTED,
+        LLKHF_UP, WH_KEYBOARD_LL, WM_KEYDOWN, WM_KEYUP, WM_SYSKEYDOWN, WM_SYSKEYUP,
     },
 };
 
@@ -56,7 +55,7 @@ pub(crate) enum WindowsKeyboardTelemetryHookError {
 
 #[derive(Debug)]
 pub(crate) struct WindowsKeyboardTelemetryHook {
-    handle: HHOOK,
+    thread: super::hook_thread::HookThread,
 }
 
 impl WindowsKeyboardTelemetryHook {
@@ -76,23 +75,20 @@ impl WindowsKeyboardTelemetryHook {
             state.hook_installed = true;
         }
 
-        // SAFETY: installs a low-level keyboard hook for this process callback. The callback does
-        // not retain raw LPARAM pointers, does not block, and only writes typed events into a
-        // bounded queue owned by this adapter.
-        let Ok(handle) =
-            (unsafe { SetWindowsHookExW(WH_KEYBOARD_LL, Some(keyboard_hook_proc), None, 0) })
+        let Ok(thread) =
+            super::hook_thread::HookThread::install(WH_KEYBOARD_LL, Some(keyboard_hook_proc))
         else {
             clear_installed_flag();
             return Err(WindowsKeyboardTelemetryHookError::InstallFailed);
         };
-        Ok(Self { handle })
+        Ok(Self { thread })
     }
 
     pub(crate) fn drain_events(
         &mut self,
         source_cutoff_ms: Option<u64>,
     ) -> io::Result<TelemetryHookQueueSnapshot<WindowsKeyObservation>> {
-        if self.handle.0.is_null() {
+        if self.thread.is_finished() {
             return Err(io::Error::other("telemetry hook is unavailable"));
         }
         keyboard_hook_state()
@@ -112,8 +108,7 @@ impl WindowsKeyboardTelemetryHook {
 
 impl Drop for WindowsKeyboardTelemetryHook {
     fn drop(&mut self) {
-        // SAFETY: RAII owner unhooks the HHOOK returned by SetWindowsHookExW exactly once.
-        let _ = unsafe { UnhookWindowsHookEx(self.handle) };
+        self.thread.stop();
         clear_installed_flag();
     }
 }

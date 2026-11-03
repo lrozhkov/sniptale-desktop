@@ -1,5 +1,7 @@
 //! Windows telemetry adapters and OS event normalization.
 
+#[cfg(windows)]
+mod hook_thread;
 mod key;
 #[cfg(windows)]
 mod keyboard_hook;
@@ -27,5 +29,3 @@ pub(crate) use mouse::{WindowsMouseEvent, WindowsMouseEventKind};
 pub(crate) use mouse_hook::WindowsMouseTelemetryHook;
 #[cfg(windows)]
 pub(crate) use mouse_hook::current_boot_ms;
-#[cfg(windows)]
-pub(crate) use mouse_hook::pump_current_thread_hook_messages;

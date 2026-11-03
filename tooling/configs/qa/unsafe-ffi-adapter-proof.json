@@ -601,7 +601,8 @@
         "Hook callbacks copy only key transition facts, original Alt context, message time and source sequence; injected input is rejected and invalidates tracked modifier certainty; typed text is never extracted",
         "Bounded per-key transition state starts unknown and is cleared after unobserved or injected transitions; Ctrl, Shift and Meta require accepted source transitions, unknown facts stay null, and the first uncertain down never fabricates an onset",
         "Original KBDLLHOOKSTRUCT.time is extended against the owner-local boot clock; bounded draining retains events beyond the lifecycle source cutoff",
-        "HHOOK is unhooked exactly once by the owner"
+        "HHOOK is unhooked exactly once by the owner",
+        "A dedicated hook thread dispatches independently of telemetry processing and is joined before queue state is cleared"
       ],
       "safeWrapper": "Telemetry owner receives bounded source observations and sanitizes key labels independently from anonymous activity counts.",
       "raiiWrapper": "WindowsKeyboardTelemetryHook",
@@ -624,9 +625,9 @@
         "GetTickCount64 selects the wrap epoch of the copied message timestamp and never substitutes the drain time",
         "GetCursorInfo receives a fully initialized CURSORINFO; only its visibility flag is copied, and its borrowed HCURSOR is neither exposed nor destroyed",
         "HHOOK is unhooked exactly once by the owner",
-        "The installing telemetry thread pumps nonqueued hook messages before taking event-queue locks; posted messages remain untouched"
+        "A dedicated hook thread pumps callbacks independently of telemetry polling, storage and UI work; teardown joins that thread before clearing the queue"
       ],
-      "safeWrapper": "Telemetry owner receives bounded scalar observations, preserves the source cutoff across lifecycle drains, and pumps its own hook callbacks without exposing Windows messages or handles.",
+      "safeWrapper": "Telemetry owner receives bounded scalar observations and preserves source cutoffs without exposing Windows messages or handles.",
       "raiiWrapper": "WindowsMouseTelemetryHook",
       "shutdownCancelProof": [
         "src/telemetry/tests/hook_policy.rs covers deterministic hook planning and release ordering",
@@ -674,26 +675,6 @@
         "Drop destroys the menu tree on success, cancellation, or tracking failure.",
         "src/tray/tests/menu.rs covers typed command mapping.",
         "The native sandbox requires dismissal, selection, duplicate-activation rejection, and owner-close proof."
-      ],
-      "reviews": [
-        "security",
-        "architecture"
-      ]
-    },
-    {
-      "path": "src/tray/consent/windows.rs",
-      "owner": "tray",
-      "boundary": "Win32 TaskDialogIndirect consent prompt with an owned approval deadline",
-      "invariants": [
-        "Prompt content is built from redacted labels only",
-        "Callback state remains stack-owned for the synchronous dialog lifetime",
-        "The timer clicks the deny button at the deadline so approval cannot arrive late"
-      ],
-      "safeWrapper": "Resident consent owner receives typed allow, deny, timeout, or UI-unavailable results.",
-      "raiiWrapper": "TaskDialogIndirect owns its synchronous modal window and callback lifetime",
-      "shutdownCancelProof": [
-        "Timer callback closes the dialog with deny at timeout",
-        "src/app/resident/pipe_peer/consent_tests.rs covers timeout and deny persistence behavior"
       ],
       "reviews": [
         "security",
@@ -820,26 +801,6 @@
       ]
     },
     {
-      "path": "src/tray/delivery/windows.rs",
-      "owner": "tray",
-      "boundary": "Synchronous Win32 TaskDialog destination choice",
-      "invariants": [
-        "All UTF-16 strings, button storage and configuration remain live for the synchronous call",
-        "No callback, handle or pointer crosses the adapter boundary",
-        "Cancellation, close and failure retain captured media"
-      ],
-      "safeWrapper": "choose_delivery_destination returns a typed Local, Browser or Later choice.",
-      "raiiWrapper": "Stack-owned configuration and Vec-owned button strings; TaskDialog owns and destroys its window.",
-      "shutdownCancelProof": [
-        "Dialog close and failure return Later without deleting media",
-        "Desktop E2E destination dialog choice and cancellation scenarios"
-      ],
-      "reviews": [
-        "architecture",
-        "security"
-      ]
-    },
-    {
       "path": "src/tray/runtime/windows/foreground.rs",
       "owner": "tray",
       "boundary": "External foreground target restoration before native capture",
@@ -853,6 +814,27 @@
       "shutdownCancelProof": [
         "Windows active-window capture evidence",
         "SAFETY comments above native calls"
+      ],
+      "reviews": [
+        "architecture",
+        "security"
+      ]
+    },
+    {
+      "path": "src/telemetry/windows/hook_thread.rs",
+      "owner": "telemetry",
+      "boundary": "Dedicated recording-only low-level hook message loop",
+      "invariants": [
+        "HHOOK is created, pumped and unhooked on one dedicated thread; raw handles never leave the adapter",
+        "Input wakes the message-aware wait immediately; its timeout only bounds shutdown",
+        "Callbacks only copy bounded scalar facts and never wait for telemetry processing or disk IO",
+        "Drop stops and joins dispatch before the hook owner clears shared queue state"
+      ],
+      "safeWrapper": "HookThread exposes installation, completion status and idempotent stop only.",
+      "raiiWrapper": "HookThread",
+      "shutdownCancelProof": [
+        "src/telemetry/windows/hook_thread.rs covers hook_dispatches_while_its_consumer_waits_and_can_be_reinstalled",
+        "Windows isolated input dispatch proof covers consumer blocking and repeated installation"
       ],
       "reviews": [
         "architecture",

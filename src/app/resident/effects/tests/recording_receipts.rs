@@ -224,6 +224,19 @@ fn every_receipt_order_preserves_unacknowledged_history_after_video_cleanup()
                 );
             }
         }
+        // Retransmitted receipts after complete cleanup do not reopen or recreate sources.
+        assert!(
+            !fixture
+                .effects
+                .ack_recording_attachment_in_store(&cursor_ack(fixture.cursor.clone()))
+                .map_err(|error| format!("{error:?}"))?
+        );
+        assert!(
+            !fixture
+                .effects
+                .ack_recording_events_in_store(&event_ack(fixture.events.clone()))
+                .map_err(|error| format!("{error:?}"))?
+        );
     }
     Ok(())
 }

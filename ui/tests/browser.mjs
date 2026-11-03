@@ -457,6 +457,47 @@ try {
     results.push({workflow:'real desktop panel host, transparent background, scaled frame request, above popup, feedback, separate settings and discard sizing', passed:true});
   } finally { await panelContext.close(); }
 
+
+  for (const locale of ['en-US', 'ru-RU']) for (const theme of ['light', 'dark']) {
+    const context = await browser.newContext({viewport:{width:460, height:480}, colorScheme:theme, locale});
+    try {
+      for (const kind of ['connection', 'destination', 'quit-recording']) {
+        const page = await context.newPage();
+        await page.goto(base.replace('/sandbox', `/dialog?preview=1&kind=${kind}`));
+        const prompt = page.getByRole('dialog');
+        await prompt.waitFor();
+        const buttons = prompt.getByRole('button');
+        await page.waitForFunction(() => document.activeElement?.tagName === 'BUTTON');
+        assert.equal(await page.locator('html').getAttribute('data-prompt-choice'), null, 'Prompt must never approve on opening');
+        assert.ok(await prompt.locator('footer button').first().evaluate((button) => button === document.activeElement), 'Default focus must be the safe action');
+        await page.screenshot({path:`${output}/dialog-${kind}-${locale}-${theme}.png`, omitBackground:true});
+        await page.keyboard.press('Tab');
+        await page.keyboard.press('Escape');
+        await page.waitForFunction(() => document.documentElement.dataset.promptChoice === '0');
+        assert.ok(await buttons.first().isDisabled(), 'Completed prompt cannot submit a second response');
+        assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Dialog must not overflow horizontally');
+        await page.close();
+      }
+      const failure = await context.newPage();
+      await failure.goto(base.replace('/sandbox', '/dialog?preview=1&failure=1'));
+      await failure.getByRole('alert').waitFor();
+      await failure.getByRole('dialog').locator('.close-button').click();
+      await failure.waitForFunction(() => document.documentElement.dataset.promptChoice === '0');
+      await failure.close();
+      const expanded = await context.newPage();
+      await expanded.goto(base.replace('/sandbox', '/dialog?preview=1&kind=destination&expanded=1'));
+      const destinations = expanded.locator('.dialog-destinations');
+      await destinations.getByRole('button').last().scrollIntoViewIfNeeded();
+      assert.ok(await destinations.evaluate((element) => element.scrollHeight > element.clientHeight), 'Large destination lists must scroll');
+      assert.ok(await expanded.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Expanded destinations must wrap');
+      await expanded.screenshot({path:`${output}/dialog-expanded-${locale}-${theme}.png`, omitBackground:true});
+      await destinations.getByRole('button').last().click();
+      await expanded.waitForFunction(() => document.documentElement.dataset.promptChoice === '17');
+      await expanded.close();
+    } finally { await context.close(); }
+    results.push({workflow:`shared application dialogs, safe focus, Escape, single reply and localized layout (${locale}, ${theme})`, passed:true});
+  }
+
 } finally {
   const cleanup = await Promise.allSettled([browser?.close(), server.close()]);
   await writeFile(`${output}/result.json`, JSON.stringify(results, null, 2));
