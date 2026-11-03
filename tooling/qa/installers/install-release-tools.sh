@@ -2,6 +2,9 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 source "$ROOT/tooling/qa/runtime/lib.sh"
+mode="${1:-all}"
+case "$mode" in all | --nextest-only) ;; *) exit 2 ;; esac
+export SNIPTALE_RELEASE_TOOLS_MODE="$mode"
 ensure_rust_env
 cd "$ROOT"
 python3 tooling/qa/runtime/toolchain.py --check
@@ -20,11 +23,14 @@ while read -r name version; do
 done < <(
   python3 - <<'PY'
 import json
+import os
 with open('tooling/configs/qa/tool-versions.json') as stream:
     for name, version in json.load(stream)['cargoSubcommands'].items():
-        print(name, version)
+        if os.environ['SNIPTALE_RELEASE_TOOLS_MODE'] != '--nextest-only' or name == 'cargo-nextest':
+            print(name, version)
 PY
 )
+if [[ "$mode" == --nextest-only ]]; then exit 0; fi
 rustup component add llvm-tools-preview
 tooling/qa/installers/install-gitleaks.sh
 

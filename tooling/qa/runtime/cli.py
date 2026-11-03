@@ -5,7 +5,7 @@ import shlex
 import sys
 from pathlib import Path
 
-from .repository import ROOT, fingerprint
+from .repository import ROOT, check_plan, fingerprint
 from .run import begin_shell_step, finish, finish_shell_step, run_step, start
 from .state import assert_run_inputs, assert_state, require_harness_if_needed, write_state
 
@@ -75,10 +75,28 @@ def _finish(args: argparse.Namespace) -> int:
 
 
 def _state(args: argparse.Namespace) -> int:
-    if args.action == "write":
+    if args.action == "clear":
+        from .state import state_path
+
+        state_path(ROOT, args.name).unlink(missing_ok=True)
+    elif args.action == "write":
         write_state(ROOT, args.name, args.run_id)
     else:
         assert_state(ROOT, args.name)
+    return 0
+
+
+def _plan(args: argparse.Namespace) -> int:
+    plan = check_plan(full=args.full)
+    if args.github_output:
+        import os
+
+        with Path(os.environ["GITHUB_OUTPUT"]).open("a") as stream:
+            for name in ("rust", "ui", "scripts", "full"):
+                stream.write(f"{name}={str(name in plan).lower()}\n")
+            stream.write(f"docs_only={str(plan == ['docs']).lower()}\n")
+    else:
+        print(" ".join(plan))
     return 0
 
 
@@ -138,7 +156,7 @@ def main() -> int:
     finish_parser.set_defaults(handler=_finish)
 
     state_parser = sub.add_parser("state")
-    state_parser.add_argument("action", choices=["write", "assert"])
+    state_parser.add_argument("action", choices=["write", "assert", "clear"])
     state_parser.add_argument("name")
     state_parser.add_argument("--run-id", default="")
     state_parser.set_defaults(handler=_state)
@@ -152,6 +170,10 @@ def main() -> int:
 
     fingerprint_parser = sub.add_parser("fingerprint")
     fingerprint_parser.set_defaults(handler=lambda _args: (print(fingerprint()), 0)[1])
+    plan_parser = sub.add_parser("plan")
+    plan_parser.add_argument("--full", action="store_true")
+    plan_parser.add_argument("--github-output", action="store_true")
+    plan_parser.set_defaults(handler=_plan)
     args = parser.parse_args()
     try:
         return int(args.handler(args))

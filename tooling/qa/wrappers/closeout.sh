@@ -41,28 +41,33 @@ coverage_wrapper="${SNIPTALE_QA_COVERAGE_WRAPPER:-tooling/qa/wrappers/coverage.s
 supply_chain_wrapper="${SNIPTALE_QA_SUPPLY_CHAIN_WRAPPER:-tooling/qa/wrappers/supply-chain.sh}"
 build_wrapper="${SNIPTALE_QA_BUILD_WRAPPER:-tooling/qa/wrappers/build.sh}"
 
-qa_require_harness
 initial_fingerprint="$(fingerprint_worktree)"
-qa_step "checkpoint" "$checkpoint_wrapper"
-ran_post_checkpoint_gate=false
+plan="$(python3 -m tooling.qa.runtime.cli plan)"
+if [[ " $plan " == *" rust "* ]]; then ensure_rust_env; fi
+if qa_assert_state checkpoint >/dev/null 2>&1; then
+  printf 'Reusing matching successful checkpoint.\n'
+else
+  qa_step "checkpoint" "$checkpoint_wrapper"
+fi
+qa_fail_if_any "closeout checkpoint admission"
+qa_require_harness
 if high_risk_files_changed; then
   qa_step "coverage" "$coverage_wrapper"
-  ran_post_checkpoint_gate=true
+  qa_fail_if_any "closeout coverage admission"
 fi
 if dependency_files_changed; then
   qa_step "supply chain" "$supply_chain_wrapper"
-  ran_post_checkpoint_gate=true
+  qa_fail_if_any "closeout supply-chain admission"
 fi
-if [[ "$ran_post_checkpoint_gate" == true ]]; then
-  qa_step "final checkpoint" "$checkpoint_wrapper"
-fi
-qa_step "build" "$build_wrapper" --profile dev
+if [[ " $plan " == *" rust "* ]]; then qa_step "build" "$build_wrapper" --profile dev; fi
 qa_fail_if_any "closeout proof summary"
 
 if [[ "$(fingerprint_worktree)" != "$initial_fingerprint" ]]; then
   printf 'Tracked worktree changed while QA proof was running. Rerun closeout.\n' >&2
   exit 1
 fi
+qa_assert_state checkpoint
+qa_require_harness
 
 if [[ "$commit" == true ]]; then
   if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then

@@ -10,6 +10,15 @@ path = "junit.xml"
 store-success-output = false
 store-failure-output = true
 
+# Full default/release proof retains both complete-hour integration scenarios.
+[profile.dev]
+default-filter = 'not test(=app::bridge::attachments::tests::a_full_hour_survives_protected_storage_paged_manifests_and_native_host_framing) and not test(=telemetry::tests::trajectory_stream::full_hour_through_rust_producer_matches_frozen_stream)'
+
+[profile.dev.junit]
+path = "junit.xml"
+store-success-output = false
+store-failure-output = true
+
 # The real one-hour producer/encryption/framing proof takes about 188s in a debug build.
 [[profile.default.overrides]]
 filter = "test(=app::bridge::attachments::tests::a_full_hour_survives_protected_storage_paged_manifests_and_native_host_framing)"

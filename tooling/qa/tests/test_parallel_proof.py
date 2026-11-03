@@ -10,11 +10,29 @@ from pathlib import Path
 import unittest.mock as mock
 
 from tooling.qa.runtime import parallel, run, storage
-from tooling.qa.runtime.checkpoint_checks import CHECKS
+from tooling.qa.runtime.checkpoint_checks import CHECKS, selected_checks
 from tooling.qa.runtime.metrics import compare, load_run, summarize
 
 
 class ParallelProofTests(unittest.TestCase):
+    def test_scoped_checks_retain_security_owners_and_resources_without_harness_duplicates(self) -> None:
+        for plan in (["docs"], ["docs", "scripts"], ["docs", "ui"], ["docs", "rust"]):
+            checks = selected_checks(plan)
+            labels = {label for label, _ in checks}
+            self.assertTrue(
+                {
+                    "security guardrails",
+                    "architecture guardrails",
+                    "boundary guardrails",
+                    "contract guardrails",
+                    "Windows resource guardrails",
+                }
+                <= labels
+            )
+            self.assertFalse(any("unittest" in cmd or "--self-test" in cmd for _, cmd in checks))
+            self.assertEqual("fmt" in labels, "rust" in plan)
+            self.assertEqual("shared UI browser behavior" in labels, "ui" in plan)
+
     def test_runs_every_check_and_preserves_order_failure_and_redaction(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -95,25 +113,19 @@ class ParallelProofTests(unittest.TestCase):
                 "open-source legal policy",
                 "audit11 architecture snapshot",
                 "tooling topology and exception registry",
-                "architecture guardrail self-tests",
                 "architecture guardrails",
                 "topology guardrails",
-                "boundary guardrail self-tests",
                 "boundary guardrails",
-                "contract guardrail self-tests",
                 "contract guardrails",
                 "release artifact guardrails",
                 "Windows resource guardrails",
-                "security guardrail self-tests",
                 "security guardrails",
                 "dev dependency guardrails",
                 "test policy",
-                "desktop E2E lab controller tests",
-                "QA runtime tests",
             },
         )
-        self.assertEqual(sum("--self-test" in cmd for _, cmd in CHECKS), 4)
-        self.assertEqual(sum("unittest" in cmd for _, cmd in CHECKS), 2)
+        self.assertEqual(sum("--self-test" in cmd for _, cmd in CHECKS), 0)
+        self.assertEqual(sum("unittest" in cmd for _, cmd in CHECKS), 0)
         self.assertTrue(all(cmd[:2] != ["cargo", "check"] for _, cmd in CHECKS))
 
     def test_release_artifact_check_cannot_be_removed_from_the_catalog(self):

@@ -13,7 +13,7 @@ tooling/qa/wrappers/checkpoint.sh
 tooling/qa/wrappers/supply-chain.sh
 ```
 
-Normal validation uses `licenses.sh --check` and never rewrites tracked legal output. `release.sh` always runs supply-chain/license proof, creates `.tmp/release/sbom.spdx.json`, and produces the release build. [OSS provenance](provenance.md) owns source and dependency-license policy.
+Normal validation uses `licenses.sh --check` and never rewrites tracked legal output. `release.sh` runs one full checkpoint and verifies unchanged inputs before building. Scoped PR proof cannot admit packaging. It always runs supply-chain/license proof, creates `.tmp/release/sbom.spdx.json`, and produces the release build. [OSS provenance](provenance.md) owns source and dependency-license policy.
 
 ## Secret audit
 

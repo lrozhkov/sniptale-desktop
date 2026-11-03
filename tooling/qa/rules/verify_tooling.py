@@ -357,6 +357,9 @@ def validate_hosted_qa_policy(errors: list[str]) -> None:
         "python3 tooling/qa/runtime/toolchain.py --install-rust",
         "tooling/qa/installers/install-release-tools.sh",
         "tooling/qa/wrappers/alpha-proof.sh",
+        "tooling/qa/wrappers/checkpoint.sh",
+        "tooling/qa/installers/install-release-tools.sh --nextest-only",
+        "python3 -m tooling.qa.runtime.cli plan --github-output",
         "tooling/qa/wrappers/environment-audit.sh",
         "tooling/qa/wrappers/fast.sh",
         "tooling/qa/installers/install-script-tools.sh",
@@ -375,7 +378,7 @@ def validate_hosted_qa_policy(errors: list[str]) -> None:
             workflow = load_object(workflow_root / name)
             triggers = set(workflow["on"])
             wanted = (
-                {"pull_request", "workflow_dispatch", "workflow_call"}
+                {"pull_request", "workflow_dispatch", "workflow_call", "schedule"}
                 if name == "checks.yml"
                 else {"workflow_dispatch"}
             )
@@ -463,7 +466,8 @@ def validate_hosted_qa_policy(errors: list[str]) -> None:
                         if (
                             name != "checks.yml"
                             or job_name != "qa"
-                            or step.get("if") != "always()"
+                            or step.get("if")
+                            != "always() && (inputs.release == true || github.event_name == 'schedule')"
                             or options
                             != {
                                 "name": "static-analysis-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}",
@@ -515,7 +519,10 @@ def validate_hosted_qa_policy(errors: list[str]) -> None:
                     or admission.get("if") != "github.ref == 'refs/heads/main'"
                 ):
                     errors.append("alpha publication must wait for a fresh read-only environment audit")
-            if name == "alpha.yml" and workflow["jobs"]["package"].get("needs") != "qa":
+            if name == "alpha.yml" and (
+                workflow["jobs"]["package"].get("needs") != "qa"
+                or workflow["jobs"]["qa"].get("with") != {"release": True}
+            ):
                 errors.append("alpha package must require canonical QA")
             if name == "checks.yml":
                 fast = workflow["jobs"].get("fast", {})
@@ -577,8 +584,39 @@ def validate_hosted_qa_policy(errors: list[str]) -> None:
                     or not cache[0] < invalidate[0] < proof[0] < invalidate[1]
                 ):
                     errors.append("Linux compilation cache requires application invalidation before full QA")
-                if any("if" in steps[i] or steps[i].get("continue-on-error", False) for i in invalidate + proof):
-                    errors.append("Linux cache invalidation and full QA must be unconditional and blocking")
+                if any(
+                    steps[i].get("if") != "steps.scope.outputs.rust == 'true'"
+                    or steps[i].get("continue-on-error", False)
+                    for i in invalidate
+                ):
+                    errors.append("Linux cache invalidation must precede each Rust proof")
+                release_condition = "inputs.release == true || github.event_name == 'schedule'"
+                if (
+                    len(proof) != 1
+                    or steps[proof[0]].get("if") != release_condition
+                    or steps[proof[0]].get("continue-on-error", False)
+                ):
+                    errors.append("release and nightly runs require full blocking proof")
+                scoped = [s for s in steps if s.get("run") == "tooling/qa/wrappers/checkpoint.sh"]
+                if (
+                    len(scoped) != 1
+                    or scoped[0].get("if") != "!(" + release_condition + ")"
+                    or scoped[0].get("continue-on-error", False)
+                ):
+                    errors.append("development runs require blocking checkpoint")
+                scope = [s for s in steps if s.get("id") == "scope"]
+                if (
+                    len(scope) != 1
+                    or scope[0].get("run") != "python3 -m tooling.qa.runtime.cli plan --github-output"
+                    or "if" in scope[0]
+                    or scope[0].get("continue-on-error", False)
+                ):
+                    errors.append("hosted scope must use the canonical fail-closed selector")
+                if workflow.get("env", {}).get("SNIPTALE_QA_BASE") != "${{ github.event.pull_request.base.sha || '' }}":
+                    errors.append("hosted scope must bind the pull request base")
+                for trigger in ("workflow_call", "workflow_dispatch"):
+                    if workflow["on"][trigger].get("inputs", {}).get("release", {}).get("type") != "boolean":
+                        errors.append("release selection must use a typed input")
     except (ValueError, KeyError, TypeError) as exc:
         errors.append("malformed hosted workflow policy: " + type(exc).__name__)
     package_script = ROOT / "tooling/release/windows/alpha-package.ps1"

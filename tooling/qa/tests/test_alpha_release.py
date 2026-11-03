@@ -102,8 +102,18 @@ class AlphaArtifactTests(unittest.TestCase):
                     artifacts.make_proof(root / "rejected")
                 for path in records.glob("*.json"):
                     record = json.loads(path.read_text())
-                    record["mode"] = "default"
+                    record["mode"] = {"qa:checkpoint": "full", "qa:fast": "release"}.get(record["wrapperId"], "default")
                     path.write_text(json.dumps(record))
+                for owner, mode in (("qa:checkpoint", "scoped"), ("qa:fast", "source")):
+                    path = next(p for p in records.glob("*.json") if json.loads(p.read_text())["wrapperId"] == owner)
+                    value = json.loads(path.read_text())
+                    accepted_mode = value["mode"]
+                    value["mode"] = mode
+                    path.write_text(json.dumps(value))
+                    with self.assertRaisesRegex(ValueError, "missing clean-commit canonical release gates"):
+                        artifacts.make_proof(root / "rejected")
+                    value["mode"] = accepted_mode
+                    path.write_text(json.dumps(value))
                 artifacts.make_proof(root / "accepted")
                 proof = artifacts.verify_proof(root / "accepted", self.commit)
                 self.assertIn("qa:static-analysis", proof["gates"])
