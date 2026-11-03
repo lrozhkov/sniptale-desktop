@@ -102,9 +102,21 @@ function Wait-TrayMenuItem(
     if ($entries.Count -eq 1) { $entries[0] }
   } -Seconds $Seconds -Now $Now -Delay $Delay
 }
-function Close-TrayMenu {
-  [System.Windows.Forms.SendKeys]::SendWait("{ESC}{ESC}")
-  Wait-For { [AlphaUi]::RightmostMenu() -eq [IntPtr]::Zero } | Out-Null
+function Close-TrayMenu(
+  [scriptblock] $Read = { [AlphaUi]::RightmostMenu() -eq [IntPtr]::Zero },
+  [scriptblock] $Cancel = {
+    $owner = [AlphaUi]::FindWindow("SniptaleTrayCommandSource",$null)
+    if ($owner -eq [IntPtr]::Zero) { throw "tray menu owner unavailable" }
+    # WM_CANCELMODE cancels the owner's menu without sending keys to the foreground window.
+    if (-not [AlphaUi]::PostMessage($owner,0x001f,[UIntPtr]::Zero,[IntPtr]::Zero)) { throw "tray menu cancellation failed" }
+  },
+  [int] $Seconds = 30,
+  [scriptblock] $Now = { [Diagnostics.Stopwatch]::GetTimestamp() / [Diagnostics.Stopwatch]::Frequency },
+  [scriptblock] $Delay = { Start-Sleep -Milliseconds 500 }
+) {
+  if (& $Read) { return }
+  & $Cancel
+  Wait-For -Probe $Read -Seconds $Seconds -Now $Now -Delay $Delay | Out-Null
 }
 function Tray([string[]] $Labels, [switch] $ProbeOnly) {
   Close-TrayMenu
@@ -218,6 +230,22 @@ function Test-TrayMenuPolicy {
   $rejected = $false
   try { Wait-For -Probe $neverReady -Seconds 3 -Now $now -Delay $delay | Out-Null } catch { $rejected = $_.Exception.Message -eq "release condition timed out" }
   if (-not $rejected -or $attempt.Value -ne 6 -or $clock.Value -ne 3) { throw "bounded wait timeout proof failed" }
+  $closed = [ref]$false
+  $cancelCount = [ref]0
+  $readClosed = { $closed.Value }.GetNewClosure()
+  $cancelMenu = { $cancelCount.Value++; $closed.Value = $true }.GetNewClosure()
+  Close-TrayMenu -Read $readClosed -Cancel $cancelMenu
+  if (-not $closed.Value -or $cancelCount.Value -ne 1) { throw "addressed menu cancellation proof failed" }
+  Close-TrayMenu -Read { $true } -Cancel { throw "closed menu must not receive cancellation" }
+  $rejected = $false
+  try { Close-TrayMenu -Read { $false } -Cancel { throw "tray menu cancellation failed" } } catch { $rejected = $_.Exception.Message -eq "tray menu cancellation failed" }
+  if (-not $rejected) { throw "failed menu cancellation rejection proof failed" }
+  $clock.Value = 0.0
+  $cancelCount.Value = 0
+  $cancelPersistent = { $cancelCount.Value++ }.GetNewClosure()
+  $rejected = $false
+  try { Close-TrayMenu -Read { $false } -Cancel $cancelPersistent -Seconds 3 -Now $now -Delay $delay } catch { $rejected = $_.Exception.Message -eq "release condition timed out" }
+  if (-not $rejected -or $cancelCount.Value -ne 1 -or $clock.Value -ne 3) { throw "persistent menu timeout proof failed" }
 }
 
 Test-TrayMenuPolicy
