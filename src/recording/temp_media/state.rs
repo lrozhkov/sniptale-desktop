@@ -42,6 +42,8 @@ pub(crate) enum TempStoreError {
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub(crate) struct TempMediaRecord {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) telemetry: Option<crate::protocol::NativeRecordingTelemetrySnapshot>,
     pub(crate) media_id: String,
     pub(crate) state: TempMediaState,
     pub(crate) created_at_ms: u64,
@@ -71,6 +73,7 @@ impl TempMediaRecord {
         validate_media_id(media_id)?;
         Ok(Self {
             media_id: media_id.to_owned(),
+            telemetry: None,
             state: TempMediaState::Writing,
             created_at_ms,
             updated_at_ms: created_at_ms,

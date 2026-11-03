@@ -240,3 +240,27 @@ impl ProcessMode {
         }
     }
 }
+
+#[cfg(test)]
+mod sandbox_tests {
+    use super::*;
+
+    #[test]
+    fn retired_catalog_does_not_run_the_agent_or_native_messaging() {
+        let mut input = io::Cursor::new(b"not native messaging");
+        let mut output = Vec::new();
+        let mut error = Vec::new();
+        assert_eq!(
+            run_with_streams(
+                ["sniptale", "--design-sandbox"].map(OsString::from),
+                &mut input,
+                &mut output,
+                &mut error
+            ),
+            Err(ModeError::UnsupportedArgument)
+        );
+        assert_eq!(input.position(), 0);
+        assert_eq!(output, [] as [u8; 0]);
+        assert_eq!(error, b"unsupported argument\n");
+    }
+}

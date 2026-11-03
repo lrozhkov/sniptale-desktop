@@ -8,6 +8,9 @@ import sys
 from pathlib import Path
 from urllib.parse import unquote
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+from tooling.qa.rules.english_docs import english_errors
+
 
 ROOT = Path(__file__).resolve().parents[3]
 POLICY = ROOT / "tooling/configs/qa/docs.json"
@@ -24,11 +27,7 @@ def git_paths(*args: str) -> list[str]:
 
 
 def visible_markdown() -> set[str]:
-    return {
-        path
-        for path in git_paths("ls-files", "-co", "--exclude-standard", "*.md")
-        if (ROOT / path).is_file()
-    }
+    return {path for path in git_paths("ls-files", "-co", "--exclude-standard", "*.md") if (ROOT / path).is_file()}
 
 
 def prose_errors(path: Path) -> list[str]:
@@ -128,10 +127,13 @@ def validate() -> list[str]:
     expected = active | set(policy["repositoryMarkdown"])
     actual = visible_markdown()
     if expected != actual:
-        errors.append(f"Markdown topology drift: unclassified={sorted(actual - expected)} stale={sorted(expected - actual)}")
+        errors.append(
+            f"Markdown topology drift: unclassified={sorted(actual - expected)} stale={sorted(expected - actual)}"
+        )
     for relative in sorted(expected):
         path = ROOT / relative
         errors.extend(prose_errors(path))
+        errors.extend(english_errors(path, relative))
         errors.extend(local_link_errors(path))
         text = path.read_text(encoding="utf-8")
         for fragment in policy["forbiddenFragments"]:
@@ -161,7 +163,7 @@ def main() -> int:
         for error in errors:
             print(f"FAIL {error}", file=sys.stderr)
         return 1
-    print("OK documentation topology, links, ignore policy, and natural paragraphs")
+    print("OK documentation topology, links, ignore policy, natural paragraphs, and English structural rules")
     return 0
 
 

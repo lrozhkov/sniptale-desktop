@@ -1,6 +1,5 @@
 use std::{
     sync::{
-        Arc,
         atomic::{AtomicBool, AtomicU64, Ordering},
         mpsc,
     },
@@ -23,11 +22,11 @@ const RECORDING_IDLE_POLL_INTERVAL: Duration = Duration::from_millis(2);
 
 pub(super) fn run_windows_recording_worker(
     start: WindowsRecordingWorkerStart,
-    startup_tx: mpsc::SyncSender<Result<(), RecordingRuntimeError>>,
-    stop_requested: Arc<AtomicBool>,
-    cancel_requested: Arc<AtomicBool>,
-    pause_requested: Arc<AtomicBool>,
-    duration_ms: Arc<AtomicU64>,
+    startup_tx: &mpsc::SyncSender<Result<(), RecordingRuntimeError>>,
+    stop_requested: &AtomicBool,
+    cancel_requested: &AtomicBool,
+    pause_requested: &AtomicBool,
+    duration_ms: &AtomicU64,
 ) -> Result<FinalizedRecordingArtifact, RecordingRuntimeError> {
     let mut artifact = start.artifact;
     let components = create_worker_components(start);
@@ -62,6 +61,7 @@ pub(super) fn run_windows_recording_worker(
                 phase = "recording-stop-observed",
                 "recording worker stopped media pumping"
             );
+            artifact.duration_ms = pump.finalized_duration_ms(duration_ms.load(Ordering::Acquire));
             let (video, audio, mut sink) = pump.into_parts();
             drop(video);
             drop(audio);
@@ -81,7 +81,6 @@ pub(super) fn run_windows_recording_worker(
                 phase = "recording-finalize-finish",
                 "recording sink finalization completed"
             );
-            artifact.duration_ms = duration_ms.load(Ordering::Acquire);
             Ok(artifact)
         }
         Err(error) => {

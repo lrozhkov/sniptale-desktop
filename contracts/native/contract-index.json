@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "protocolVersion": 1,
+  "protocolVersion": 2,
   "settingsSchemaVersion": 1,
   "cacheSchemaVersion": 1,
   "contractIds": [
@@ -41,7 +41,28 @@
     "ExtensionRecordingRejectMessage",
     "NativeRecordingTimebase",
     "NativeRecordingTelemetrySnapshot",
-    "AppOperationFailedMessage"
+    "AppOperationFailedMessage",
+    "AppConnectionClosedMessage",
+    "CursorTrajectoryBlock",
+    "CursorTrajectoryDescriptor",
+    "CursorTrajectoryReceipt",
+    "NativeTrajectoryAttachmentCapabilities",
+    "ExtensionRecordingAttachmentManifestRequestMessage",
+    "AppRecordingAttachmentManifestMessage",
+    "ExtensionRecordingAttachmentChunkRequestMessage",
+    "AppRecordingAttachmentChunkMessage",
+    "ExtensionRecordingAttachmentAckMessage",
+    "AppRecordingAttachmentAvailableMessage",
+    "RecordingEventsBlock",
+    "RecordingEventsDescriptor",
+    "RecordingEventsReceipt",
+    "NativeEventAttachmentCapabilities",
+    "ExtensionRecordingEventsManifestRequestMessage",
+    "AppRecordingEventsManifestMessage",
+    "ExtensionRecordingEventsChunkRequestMessage",
+    "AppRecordingEventsChunkMessage",
+    "ExtensionRecordingEventsAckMessage",
+    "AppRecordingEventsAvailableMessage"
   ],
   "nativeMessagingLimits": {
     "hostToExtensionMaxMessageBytes": 1048576,

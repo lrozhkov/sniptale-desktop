@@ -4,10 +4,12 @@ use std::collections::BTreeMap;
 
 use super::model::{
     ManualAudio, ManualAudioSource, ManualDestination, ManualFps, ManualHardwarePreference,
-    ManualHotkeyAction, ManualProfile, ManualScreenshot, ManualVideo, ManualVideoQuality,
+    ManualProfile, ManualScreenshot, ManualVideo, ManualVideoQuality,
 };
-use super::{ManualHotkeyChord, parse_manual_hotkey_chord};
+#[cfg(test)]
+use super::{ManualHotkeyChord, model::ManualHotkeyAction, parse_manual_hotkey_chord};
 
+#[cfg(test)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ManualHotkeyUpdateError {
     Duplicate(ManualHotkeyAction),
@@ -23,6 +25,7 @@ pub(crate) struct ManualProfileDraft {
     video_bitrate_override_mbps: Option<u16>,
     video_hardware_preference: ManualHardwarePreference,
     video_include_cursor: bool,
+    collect_pointer_events: bool,
     video_max_duration_seconds: u32,
     audio_source_mode: ManualAudioSource,
     microphone_device_id: Option<String>,
@@ -31,7 +34,8 @@ pub(crate) struct ManualProfileDraft {
 }
 
 /// Presentation-safe snapshot of a staged Manual profile.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, serde::Deserialize, Eq, PartialEq, serde::Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(crate) struct ManualProfileDraftView {
     pub(crate) destination_path: String,
     pub(crate) screenshot_include_cursor: bool,
@@ -40,6 +44,7 @@ pub(crate) struct ManualProfileDraftView {
     pub(crate) video_bitrate_override_mbps: Option<u16>,
     pub(crate) video_hardware_preference: ManualHardwarePreference,
     pub(crate) video_include_cursor: bool,
+    pub(crate) collect_pointer_events: bool,
     pub(crate) video_max_duration_seconds: u32,
     pub(crate) audio_source_mode: ManualAudioSource,
     pub(crate) microphone_device_id: Option<String>,
@@ -48,6 +53,30 @@ pub(crate) struct ManualProfileDraftView {
 }
 
 impl ManualProfileDraft {
+    pub(crate) fn from_view(
+        view: ManualProfileDraftView,
+        destination_id: String,
+    ) -> Result<Self, super::super::LocalProfileError> {
+        let draft = Self {
+            destination_id,
+            destination_path: view.destination_path,
+            screenshot_include_cursor: view.screenshot_include_cursor,
+            video_quality: view.video_quality,
+            video_fps: view.video_fps,
+            video_bitrate_override_mbps: view.video_bitrate_override_mbps,
+            video_hardware_preference: view.video_hardware_preference,
+            video_include_cursor: view.video_include_cursor,
+            collect_pointer_events: view.collect_pointer_events,
+            video_max_duration_seconds: view.video_max_duration_seconds,
+            audio_source_mode: view.audio_source_mode,
+            microphone_device_id: view.microphone_device_id,
+            audio_bitrate_kbps: view.audio_bitrate_kbps,
+            hotkeys: view.hotkeys,
+        };
+        super::model::validate_manual_profile(&draft.clone().into_profile())?;
+        Ok(draft)
+    }
+
     #[must_use]
     pub(crate) fn with_defaults(destination_id: String, destination_path: String) -> Self {
         Self {
@@ -59,6 +88,7 @@ impl ManualProfileDraft {
             video_bitrate_override_mbps: None,
             video_hardware_preference: ManualHardwarePreference::Prefer,
             video_include_cursor: true,
+            collect_pointer_events: false,
             video_max_duration_seconds: 3_600,
             audio_source_mode: ManualAudioSource::Mixed,
             microphone_device_id: None,
@@ -72,26 +102,27 @@ impl ManualProfileDraft {
         self.destination_path = destination_path;
     }
 
+    #[cfg(test)]
     pub(crate) fn set_screenshot_include_cursor(&mut self, include_cursor: bool) {
         self.screenshot_include_cursor = include_cursor;
     }
 
-    #[cfg(any(windows, test))]
+    #[cfg(test)]
     pub(crate) fn set_video_quality(&mut self, quality: ManualVideoQuality) {
         self.video_quality = quality;
     }
 
-    #[cfg(any(windows, test))]
+    #[cfg(test)]
     pub(crate) fn set_video_fps(&mut self, fps: ManualFps) {
         self.video_fps = fps;
     }
 
-    #[cfg(any(windows, test))]
+    #[cfg(test)]
     pub(crate) fn set_video_bitrate_override(&mut self, bitrate_override_mbps: Option<u16>) {
         self.video_bitrate_override_mbps = bitrate_override_mbps;
     }
 
-    #[cfg(any(windows, test))]
+    #[cfg(test)]
     pub(crate) fn set_video_hardware_preference(
         &mut self,
         hardware_preference: ManualHardwarePreference,
@@ -99,31 +130,32 @@ impl ManualProfileDraft {
         self.video_hardware_preference = hardware_preference;
     }
 
-    #[cfg(any(windows, test))]
+    #[cfg(test)]
     pub(crate) fn set_video_include_cursor(&mut self, include_cursor: bool) {
         self.video_include_cursor = include_cursor;
     }
 
-    #[cfg(any(windows, test))]
+    #[cfg(test)]
     pub(crate) fn set_video_max_duration_seconds(&mut self, max_duration_seconds: u32) {
         self.video_max_duration_seconds = max_duration_seconds;
     }
 
-    #[cfg(any(windows, test))]
+    #[cfg(test)]
     pub(crate) fn set_audio_source_mode(&mut self, source_mode: ManualAudioSource) {
         self.audio_source_mode = source_mode;
     }
 
-    #[cfg(any(windows, test))]
+    #[cfg(test)]
     pub(crate) fn set_microphone_device_id(&mut self, microphone_device_id: Option<String>) {
         self.microphone_device_id = microphone_device_id;
     }
 
-    #[cfg(any(windows, test))]
+    #[cfg(test)]
     pub(crate) fn set_audio_bitrate_kbps(&mut self, bitrate_kbps: u16) {
         self.audio_bitrate_kbps = bitrate_kbps;
     }
 
+    #[cfg(test)]
     pub(crate) fn set_hotkey(
         &mut self,
         action: ManualHotkeyAction,
@@ -186,6 +218,7 @@ impl ManualProfileDraft {
             video_bitrate_override_mbps: self.video_bitrate_override_mbps,
             video_hardware_preference: self.video_hardware_preference,
             video_include_cursor: self.video_include_cursor,
+            collect_pointer_events: self.collect_pointer_events,
             video_max_duration_seconds: self.video_max_duration_seconds,
             audio_source_mode: self.audio_source_mode,
             microphone_device_id: self.microphone_device_id.clone(),
@@ -205,6 +238,7 @@ impl ManualProfileDraft {
             video_bitrate_override_mbps: profile.video.bitrate_override_mbps,
             video_hardware_preference: profile.video.hardware_preference,
             video_include_cursor: profile.video.include_cursor,
+            collect_pointer_events: profile.video.collect_pointer_events,
             video_max_duration_seconds: profile.video.max_duration_seconds,
             audio_source_mode: profile.audio.source_mode,
             microphone_device_id: profile.audio.microphone_device_id.clone(),
@@ -224,6 +258,7 @@ impl ManualProfileDraft {
                 include_cursor: self.screenshot_include_cursor,
             },
             video: ManualVideo {
+                collect_pointer_events: self.collect_pointer_events,
                 quality: self.video_quality,
                 fps: self.video_fps,
                 bitrate_override_mbps: self.video_bitrate_override_mbps,

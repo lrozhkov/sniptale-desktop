@@ -94,6 +94,13 @@ pub(crate) fn release_order(active_hooks: &[TelemetryHookKind]) -> Vec<Telemetry
     release
 }
 
+#[cfg_attr(
+    not(test),
+    expect(
+        clippy::unnecessary_wraps,
+        reason = "The hook-plan interface is fallible for permission and policy denial; those injected availability variants exist in owner tests."
+    )
+)]
 fn add_hook(
     plan: &mut TelemetryHookPlan,
     kind: TelemetryHookKind,

@@ -1,7 +1,7 @@
 //! Crash-safe temporary recording media metadata and disk state.
 
 mod disk;
-mod metadata;
+pub(crate) mod metadata;
 mod state;
 
 pub(crate) use disk::{RecoveredTempMedia, TempMediaDiskStore, TempStoreDiskError};

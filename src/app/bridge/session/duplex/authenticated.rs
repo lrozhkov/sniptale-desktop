@@ -47,6 +47,10 @@ where
     let session = NativeHostSession::with_shared_state(shared_state);
     #[cfg(not(test))]
     let session = NativeHostSession::system_clocked_with_shared_state(shared_state);
+    let mut session = session;
+    if session.desktop_owned() {
+        session.bind_authenticated_origin(&authenticated.extension_origin);
+    }
     let session = Arc::new(Mutex::new(session));
     let writer = Arc::new(Mutex::new(writer));
     let running = Arc::new(AtomicBool::new(true));

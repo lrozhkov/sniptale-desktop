@@ -79,10 +79,7 @@ pub(crate) fn runtime_agent_startup_inputs() -> AgentStartupInputs {
     let install_repair_required =
         crate::install::current_repair_registration_report().repair_required;
     let (profile_repair_required, active_settings) = match profile {
-        Ok(profile) => (
-            false,
-            crate::settings::ActiveSettings::from_profile(&profile),
-        ),
+        Ok(profile) => active_settings_for_profile(&profile),
         Err(_) => (
             true,
             crate::settings::ActiveSettings::extension_managed_default(),
@@ -94,6 +91,29 @@ pub(crate) fn runtime_agent_startup_inputs() -> AgentStartupInputs {
         install_repair_required: install_repair_required || profile_repair_required,
         cache_schema_supported: cache.operations_supported,
         active_settings,
+    }
+}
+
+fn active_settings_for_profile(
+    profile: &crate::settings::LocalProfile,
+) -> (bool, crate::settings::ActiveSettings) {
+    let settings = crate::settings::ActiveSettings::from_profile(profile);
+    #[cfg(windows)]
+    {
+        let Some(path) = crate::app::platform::local_profile_path() else {
+            return (true, settings);
+        };
+        match settings
+            .clone()
+            .with_browser_target_store(path.with_file_name("browser-targets.json"))
+        {
+            Ok(settings) => (false, settings),
+            Err(_) => (true, settings),
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        (false, settings)
     }
 }
 

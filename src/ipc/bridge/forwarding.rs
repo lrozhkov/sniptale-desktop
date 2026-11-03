@@ -58,7 +58,7 @@ pub(super) fn forward_browser_payloads_to_agent(
     Ok(forwarded)
 }
 
-#[cfg(any(windows, test))]
+#[cfg(test)]
 pub(super) fn forward_agent_response_batches(
     agent_reader: &mut impl Read,
     browser_writer: &mut impl Write,
@@ -68,10 +68,36 @@ pub(super) fn forward_agent_response_batches(
     Ok(())
 }
 
+pub(super) fn forward_agent_response_batches_with_attachment_reader(
+    agent_reader: &mut impl Read,
+    browser_writer: &mut impl Write,
+    log: Option<&BridgeForwardLogSink>,
+    reader: &mut dyn super::AgentAttachmentReader,
+) -> Result<(), BridgeForwardError> {
+    while forward_agent_response_batch_with_reader(agent_reader, browser_writer, log, reader)? {}
+    Ok(())
+}
+
+#[cfg(test)]
 pub(super) fn forward_agent_response_batch(
     agent_reader: &mut impl Read,
     browser_writer: &mut impl Write,
     log: Option<&BridgeForwardLogSink>,
+) -> Result<bool, BridgeForwardError> {
+    let mut runtime = super::BridgeForwardRuntime::without_attachments(None);
+    forward_agent_response_batch_with_reader(
+        agent_reader,
+        browser_writer,
+        log,
+        runtime.attachment_reader.as_mut(),
+    )
+}
+
+fn forward_agent_response_batch_with_reader(
+    agent_reader: &mut impl Read,
+    browser_writer: &mut impl Write,
+    log: Option<&BridgeForwardLogSink>,
+    reader: &mut dyn super::AgentAttachmentReader,
 ) -> Result<bool, BridgeForwardError> {
     let Some(header_payload) = read_payload(agent_reader, AGENT_PIPE_RESPONSE_HEADER_MAX_BYTES)
         .map_err(BridgeForwardError::AgentFrame)?
@@ -84,9 +110,14 @@ pub(super) fn forward_agent_response_batch(
         format!("native-host bridge read agent response header responseCount={response_count}");
     log_bridge_event(log, "agent-response-header-read", &message);
     for _ in 0..response_count {
-        let response_payload = read_payload(agent_reader, HOST_TO_EXTENSION_MAX_MESSAGE_BYTES)
+        let mut response_payload = read_payload(agent_reader, HOST_TO_EXTENSION_MAX_MESSAGE_BYTES)
             .map_err(BridgeForwardError::AgentFrame)?
             .ok_or(BridgeForwardError::AgentResponseMissing)?;
+        if parse_wire_message_with_limit(&response_payload, HOST_TO_EXTENSION_MAX_MESSAGE_BYTES)
+            .is_err()
+        {
+            response_payload = super::attachments::resolve_grant(&response_payload, reader)?;
+        }
         let message =
             parse_wire_message_with_limit(&response_payload, HOST_TO_EXTENSION_MAX_MESSAGE_BYTES)
                 .map_err(BridgeForwardError::AgentProtocol)?;

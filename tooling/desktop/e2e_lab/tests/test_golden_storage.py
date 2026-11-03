@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import os
+import hashlib
+import stat
 import sys
 import tempfile
 import time
 import unittest
 from pathlib import Path
-from unittest import mock
+import unittest.mock as mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -52,6 +54,34 @@ class GoldenStorageTests(unittest.TestCase):
             self.assertEqual(result["goldens_skipped_running"], 1)
             self.assertEqual(result["goldens_compacted"], 0)
 
+    def test_compaction_keeps_disk_and_identity_private_and_readable_by_owner(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            paths = LabPaths.discover(Path(directory) / "repo")
+            paths.ensure()
+            golden = paths.golden / "windows-11"
+            golden.mkdir(parents=True)
+            disk = golden / "disk.qcow2"
+            disk.write_bytes(b"original golden")
+            write_json(golden / "identity.json", {"disk_sha256": hashlib.sha256(disk.read_bytes()).hexdigest()})
+            manager = mock.Mock()
+            manager.current.return_value = None
+            manager.orphan_pids.return_value = []
+
+            def convert(command, **_options):
+                if "convert" in command:
+                    Path(command[-1]).write_bytes(b"compressed golden")
+
+            with (
+                mock.patch("golden_storage._qemu_img", return_value="qemu-img"),
+                mock.patch("golden_storage.run", side_effect=convert),
+            ):
+                result = compact_existing_goldens(paths, mock.Mock(), manager)
+            self.assertEqual(result["goldens_compacted"], 1)
+            self.assertEqual(disk.read_bytes(), b"compressed golden")
+            for path in [disk, golden / "identity.json"]:
+                self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o400)
+                self.assertTrue(path.read_bytes())
+
     def test_bundled_host_tool_wrapper_is_relocatable(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             prefix = Path(directory) / "host-tools"
@@ -62,7 +92,7 @@ class GoldenStorageTests(unittest.TestCase):
             _write_wrapper(prefix, "qemu-img")
 
             wrapper = (prefix / "bin/qemu-img").read_text(encoding="utf-8")
-            self.assertIn('${BASH_SOURCE[0]}', wrapper)
+            self.assertIn("${BASH_SOURCE[0]}", wrapper)
             self.assertNotIn(str(prefix), wrapper)
 
     def test_bootstrap_repairs_relocated_qemu_data_symlink(self) -> None:
@@ -78,8 +108,10 @@ class GoldenStorageTests(unittest.TestCase):
             link = qemu_data / firmware.name
             link.symlink_to("/old/temporary/prefix/efi-e1000e.rom")
 
-            with mock.patch("host._host_tool", return_value="/usr/bin/tool"), \
-                 mock.patch("host._installed", return_value=True):
+            with (
+                mock.patch("host._host_tool", return_value="/usr/bin/tool"),
+                mock.patch("host._installed", return_value=True),
+            ):
                 bootstrap(paths)
 
             self.assertEqual(link.resolve(strict=False), firmware.resolve(strict=False))

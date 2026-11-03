@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)"
-# shellcheck disable=SC1091
+# shellcheck source=../../../qa/runtime/lib.sh
 source "$ROOT/tooling/qa/runtime/lib.sh"
 ensure_rust_env
 cd "$ROOT"
@@ -81,7 +81,7 @@ assert_native_host_origin_gate() {
 }
 
 case "$(uname -s)" in
-  MINGW*|MSYS*|CYGWIN*)
+  MINGW* | MSYS* | CYGWIN*)
     ;;
   *)
     printf 'windows-smoke.sh requires a Windows host with MSVC Build Tools and Windows SDK.\n' >&2

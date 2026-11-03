@@ -13,7 +13,7 @@ trap {
 }
 Remove-Item -LiteralPath (Join-Path $labRoot "provision-failed") -Force -ErrorAction SilentlyContinue
 Set-ProvisionStage "desktop"
-Set-LocalUser -Name lab -PasswordNeverExpires $true
+Set-LocalUser -Name lab -PasswordNeverExpires $true -FullName 'Sniptale Lab'
 powercfg /change monitor-timeout-ac 0
 powercfg /change standby-timeout-ac 0
 powercfg /change hibernate-timeout-ac 0
@@ -71,18 +71,25 @@ foreach ($entry in $packages) {
 }
 $env:Path = "$env:USERPROFILE\.cargo\bin;$env:USERPROFILE\.dotnet\tools;$env:ProgramFiles\dotnet;$env:Path"
 Set-ProvisionStage "rust-toolchain"
-& rustup.exe toolchain install stable --profile minimal
+& rustup.exe toolchain install {{RUST_VERSION}} --profile minimal --no-self-update
 if ($LASTEXITCODE -ne 0) { throw "rustup toolchain install failed" }
-& rustup.exe target add x86_64-pc-windows-msvc
+& rustup.exe target add --toolchain {{RUST_VERSION}} x86_64-pc-windows-msvc
 if ($LASTEXITCODE -ne 0) { throw "rustup target install failed" }
 Set-ProvisionStage "wix"
-& dotnet.exe tool install --global wix --version 4.*
+& dotnet.exe tool install --global wix --version {{WIX_VERSION}}
 if ($LASTEXITCODE -ne 0) { throw "WiX installation failed" }
 Set-NetIPInterface -InterfaceIndex $adapter.ifIndex -Dhcp Disabled
 Get-NetIPAddress -InterfaceIndex $adapter.ifIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue |
   Remove-NetIPAddress -Confirm:$false -ErrorAction SilentlyContinue
 New-NetIPAddress -InterfaceIndex $adapter.ifIndex -IPAddress "10.0.2.15" -PrefixLength 24 -DefaultGateway "10.0.2.2" | Out-Null
 Set-DnsClientServerAddress -InterfaceIndex $adapter.ifIndex -ServerAddresses "10.0.2.3"
+Set-ProvisionStage "evaluation-license"
+# Activation output can contain product identifiers. Keep only the typed validity decision.
+& cscript.exe //NoLogo "$env:SystemRoot\System32\slmgr.vbs" /ato *> $null
+$validLicense = @(Get-CimInstance SoftwareLicensingProduct -Filter "ApplicationID='55c92734-d682-4d71-983e-d6ec3f16059f' AND PartialProductKey IS NOT NULL" | Where-Object {
+  $_.LicenseStatus -in @(1, 2, 3) -and $_.GracePeriodRemaining -ge 245
+})
+if ($validLicense.Count -eq 0) { throw "Windows Evaluation has insufficient validity; refresh the approved installation image" }
 Set-ProvisionStage "complete"
 Set-Content -LiteralPath (Join-Path $labRoot "provisioned") -Value "windows-11" -Encoding ascii
 Remove-Item -LiteralPath (Join-Path $labRoot "provisioning") -Force

@@ -9,8 +9,14 @@
     "docs/architecture/adr/0002-dpapi-owner-local-adapters.md",
     "docs/architecture/adr/0003-transfer-lifecycle-ownership.md",
     "docs/architecture/adr/0005-dual-settings-authority-and-local-asset-delivery.md",
+    "docs/architecture/adr/0006-cursor-trajectory-blocks.md",
     "docs/engineering/implementation-rules.md",
     "docs/engineering/testing-policy.md",
+    "docs/design/index.md",
+    "docs/design/foundations.md",
+    "docs/design/localization.md",
+    "docs/design/research.md",
+    "docs/design/delivery-plan.md",
     "docs/engineering/unsafe-ffi-policy.md",
     "docs/security/threat-model.md",
     "docs/security/data-handling.md",
@@ -19,12 +25,15 @@
     "docs/operations/diagnostics.md",
     "docs/tooling/qa.md",
     "docs/oss/provenance.md",
-    "docs/oss/release.md"
+    "docs/oss/release.md",
+    "docs/architecture/adr/0007-recording-events-blocks.md",
+    "docs/architecture/adr/0008-tauri-presentation-boundary.md"
   ],
   "repositoryMarkdown": [
     "AGENTS.md",
     "README.md",
     "CONTRIBUTING.md",
+    "DESIGN.md",
     "THIRD_PARTY_NOTICES.md",
     "contracts/native/README.md",
     "installer/README.md",
@@ -37,8 +46,26 @@
     ".agents/skills/desktop-e2e-lab/references/topology.md",
     ".agents/skills/desktop-e2e-lab/references/windows.md",
     ".agents/skills/desktop-e2e-lab/references/linux.md",
-    ".agents/skills/desktop-e2e-lab/references/troubleshooting.md"
+    ".agents/skills/desktop-e2e-lab/references/troubleshooting.md",
+    ".agents/skills/asd-ste100/SKILL.md",
+    ".agents/skills/asd-ste100/references/writing-rules.md",
+    ".agents/skills/topology-plan-review/SKILL.md",
+    ".agents/skills/repo-audit/SKILL.md",
+    "PRODUCT.md",
+    "ui/README.md",
+    ".agents/skills/impeccable/SKILL.md",
+    ".agents/skills/impeccable/references/operate.md",
+    ".agents/skills/impeccable/references/quality.md",
+    ".agents/skills/impeccable/references/review.md"
   ],
-  "legalText": ["LICENSE", "NOTICE"],
-  "forbiddenFragments": [".tmp/task/", "/home/", "\\\\wsl$\\", "scripts/qa/"]
+  "legalText": [
+    "LICENSE",
+    "NOTICE"
+  ],
+  "forbiddenFragments": [
+    ".tmp/task/",
+    "/home/",
+    "\\\\wsl$\\",
+    "scripts/qa/"
+  ]
 }

@@ -25,7 +25,7 @@ fn writable_directory_report_checks_expected_categories() -> Result<(), Box<dyn 
             .collect::<Vec<_>>(),
         vec!["logs", "diagnostics", "temp-media", "cache"]
     );
-    assert!(report.failed_categories().is_empty());
+    assert_eq!(report.failed_categories().len(), 0);
     Ok(())
 }
 

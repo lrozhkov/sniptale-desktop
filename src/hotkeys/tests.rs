@@ -151,14 +151,14 @@ fn registry_plans_initial_registration_and_idempotent_reapply() -> Result<(), Ho
     let mut registry = HotkeyRegistry::default();
 
     let plan = registry.apply_bindings(vec![screenshot_binding()])?;
-    assert!(plan.unregister_ids.is_empty());
+    assert_eq!(plan.unregister_ids.len(), 0);
     assert_eq!(plan.register.len(), 1);
     assert_eq!(plan.register[0].registration_id, 1);
     assert_eq!(plan.register[0].action_id, "capture-screen");
 
     let plan = registry.apply_bindings(vec![screenshot_binding()])?;
-    assert!(plan.unregister_ids.is_empty());
-    assert!(plan.register.is_empty());
+    assert_eq!(plan.unregister_ids.len(), 0);
+    assert_eq!(plan.register.len(), 0);
     Ok(())
 }
 
@@ -187,7 +187,7 @@ fn registry_rejects_duplicate_bindings_before_registering() -> Result<(), Hotkey
 
     assert_eq!(result, Err(HotkeyError::DuplicateHotkey));
     let plan = registry.apply_bindings(vec![screenshot_binding()])?;
-    assert!(plan.register.is_empty());
+    assert_eq!(plan.register.len(), 0);
     Ok(())
 }
 
@@ -239,7 +239,7 @@ fn runtime_rolls_back_partially_registered_new_handles_on_failure() {
         Err(HotkeyRuntimeError::RegisterFailed { registration_id: 3 })
     );
     assert_eq!(*drops.borrow(), vec![2]);
-    assert!(runtime.active_registrations().is_empty());
+    assert_eq!(runtime.active_registrations().len(), 0);
 }
 
 #[test]

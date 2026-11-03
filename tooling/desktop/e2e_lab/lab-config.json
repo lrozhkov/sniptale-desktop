@@ -42,8 +42,8 @@
     "max_log_mib": 64,
     "max_screenshot_mib": 128,
     "max_recording_mib": 512,
-    "max_cache_gib": 8,
-    "max_temporary_gib": 4,
+    "max_cache_gib": 12,
+    "max_temporary_gib": 24,
     "max_persistent_gib": 32
   }
 }

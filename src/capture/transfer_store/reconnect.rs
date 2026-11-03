@@ -9,6 +9,7 @@ use crate::{protocol::ScreenshotMode, transfer::chunks::chunk_count};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct PendingScreenshotTransfer {
+    pub(crate) delivery_route: Option<crate::protocol::DeliveryRoute>,
     pub(crate) capture_id: String,
     pub(crate) mode: ScreenshotMode,
     pub(crate) filename: String,
@@ -44,6 +45,10 @@ impl ScreenshotTransferStore {
                         Some(crate::protocol::OperationAuthority::ExtensionManaged { .. }),
                         Some(crate::protocol::DeliveryRoute::ExtensionTransfer),
                     )
+                    | (
+                        Some(crate::protocol::OperationAuthority::Manual { .. }),
+                        Some(crate::protocol::DeliveryRoute::DesktopDelivery { .. })
+                    )
             ) {
                 continue;
             }
@@ -53,6 +58,7 @@ impl ScreenshotTransferStore {
             let chunks =
                 chunk_count(total_bytes).map_err(ScreenshotTransferStoreError::Transfer)?;
             pending.push(PendingScreenshotTransfer {
+                delivery_route: record.delivery_route,
                 capture_id: record.capture_id,
                 mode: record.mode,
                 filename: record.filename,

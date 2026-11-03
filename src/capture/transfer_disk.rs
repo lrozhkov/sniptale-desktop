@@ -2,7 +2,7 @@
 
 use std::{
     fs::{self, File},
-    io::BufReader,
+    io::{Read, Write},
     path::{Path, PathBuf},
 };
 
@@ -60,8 +60,12 @@ impl ScreenshotTransferDiskStore {
         let temp_path = self.temp_metadata_path(&record.capture_id)?;
         let final_path = self.metadata_path(&record.capture_id)?;
         {
-            let file = File::create(&temp_path).map_err(|_| ScreenshotTransferStoreError::Io)?;
-            serde_json::to_writer(file, record)
+            let mut file =
+                File::create(&temp_path).map_err(|_| ScreenshotTransferStoreError::Io)?;
+            serde_json::to_writer(&mut file, record)
+                .map_err(|_| ScreenshotTransferStoreError::InvalidMetadata)?;
+            file.flush()
+                .and_then(|()| file.sync_all())
                 .map_err(|_| ScreenshotTransferStoreError::InvalidMetadata)?;
         }
         fs::rename(temp_path, final_path).map_err(|_| ScreenshotTransferStoreError::Io)
@@ -113,8 +117,17 @@ impl ScreenshotTransferDiskStore {
 
 fn read_record(path: &Path) -> Result<ScreenshotTransferRecord, ScreenshotTransferStoreError> {
     let file = File::open(path).map_err(|_| ScreenshotTransferStoreError::Io)?;
-    let record: ScreenshotTransferRecord = serde_json::from_reader(BufReader::new(file))
-        .map_err(|_| ScreenshotTransferStoreError::InvalidMetadata)?;
+    let record: ScreenshotTransferRecord = {
+        let mut bytes = Vec::new();
+        file.take(65537)
+            .read_to_end(&mut bytes)
+            .map_err(|_| ScreenshotTransferStoreError::InvalidMetadata)?;
+        if bytes.len() > 65536 {
+            return Err(ScreenshotTransferStoreError::InvalidMetadata);
+        }
+        serde_json::from_slice(&bytes)
+    }
+    .map_err(|_| ScreenshotTransferStoreError::InvalidMetadata)?;
     record.validate()?;
     Ok(record)
 }

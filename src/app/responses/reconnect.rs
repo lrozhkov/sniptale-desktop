@@ -1,6 +1,10 @@
 //! Reconnect notifications for finalized media recovered by the resident agent.
 
 use serde_json::Value;
+#[cfg(any(windows, test))]
+mod history;
+#[cfg(any(windows, test))]
+pub(super) use history::append_history_notifications;
 
 #[cfg(any(windows, test))]
 use crate::capture::PendingScreenshotTransfer;
@@ -54,12 +58,19 @@ pub(super) fn append_pending_recording_notifications(
     responses: &mut Vec<Value>,
     controller_lease_id: &str,
     observed_epoch_ms: u64,
+    cursor_supported: bool,
+    events_supported: bool,
     effects: &mut impl NativeHostSideEffects,
 ) {
     match effects.pending_recordings_for_reconnect() {
         Ok(pending) => {
             for recording in pending {
-                match recording_stopped_message(controller_lease_id, recording) {
+                match recording_stopped_message(
+                    controller_lease_id,
+                    recording,
+                    cursor_supported,
+                    events_supported,
+                ) {
                     Ok(message) => responses.push(message),
                     Err(_) => responses.push(recording_recovery_failed(
                         controller_lease_id,
@@ -76,7 +87,7 @@ pub(super) fn append_pending_recording_notifications(
 }
 
 #[cfg(any(windows, test))]
-fn screenshot_start_message(
+pub(super) fn screenshot_start_message(
     controller_lease_id: &str,
     screenshot: PendingScreenshotTransfer,
 ) -> Value {
@@ -99,13 +110,39 @@ fn screenshot_start_message(
     ))
 }
 
-fn recording_stopped_message(
+pub(super) fn recording_stopped_message(
     controller_lease_id: &str,
-    recording: PendingRecordingTransfer,
+    mut recording: PendingRecordingTransfer,
+    cursor_supported: bool,
+    events_supported: bool,
 ) -> Result<Value, NativeHostSideEffectError> {
+    if !cursor_supported && recording.cursor_trajectory.take().is_some() {
+        #[cfg(any(windows, test))]
+        {
+            recording.telemetry = crate::telemetry::legacy_cursor_trajectory_warning(
+                recording.telemetry,
+                recording.width,
+                recording.height,
+                recording.duration_ms,
+            );
+        }
+    }
+    if !events_supported && recording.recording_events.take().is_some() {
+        #[cfg(any(windows, test))]
+        {
+            recording.telemetry = crate::telemetry::legacy_recording_events_warning(
+                recording.telemetry,
+                recording.width,
+                recording.height,
+                recording.duration_ms,
+            );
+        }
+    }
     let chunk_count = u32::try_from(recording.chunk_count)
         .map_err(|_| NativeHostSideEffectError::RecordingRecovery)?;
     Ok(recording_stopped(AppRecordingStoppedMessage {
+        cursor_trajectory: recording.cursor_trajectory,
+        recording_events: recording.recording_events,
         protocol_version: PROTOCOL_VERSION,
         controller_lease_id: controller_lease_id.to_owned(),
         recording_id: recording.recording_id,
@@ -118,6 +155,9 @@ fn recording_stopped_message(
         fps: recording.fps,
         chunk_count,
         sha256: recording.sha256,
+        #[cfg(any(windows, test))]
+        telemetry: recording.telemetry,
+        #[cfg(not(any(windows, test)))]
         telemetry: None,
         open_editor: recording.open_editor,
     }))

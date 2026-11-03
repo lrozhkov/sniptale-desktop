@@ -13,11 +13,15 @@ def directory_bytes(path: Path) -> int:
 
 
 def directory_allocated_bytes(path: Path) -> int:
-    return sum(
-        item.stat(follow_symlinks=False).st_blocks * 512
-        for item in path.rglob("*")
-        if item.is_file() and not item.is_symlink()
-    ) if path.exists() else 0
+    return (
+        sum(
+            item.stat(follow_symlinks=False).st_blocks * 512
+            for item in path.rglob("*")
+            if item.is_file() and not item.is_symlink()
+        )
+        if path.exists()
+        else 0
+    )
 
 
 def enforce_run_limits(run_dir: Path, limits: Limits) -> dict[str, int]:
@@ -30,3 +34,16 @@ def enforce_run_limits(run_dir: Path, limits: Limits) -> dict[str, int]:
         if actual > maximum_mib * 1024 * 1024:
             raise ResourceError(f"{name} evidence exceeds {maximum_mib} MiB run limit")
     return {name: actual for name, (_, actual) in categories.items()}
+
+
+def require_session_headroom(path: Path, limits: Limits, operation: str) -> None:
+    """Reject expensive work before its existing temporary budget is exhausted."""
+    reserve = (4 if operation in {"open", "build"} else 1) * 1024**3
+    used = directory_allocated_bytes(path)
+    maximum = limits.max_temporary_gib * 1024**3
+    if used + reserve > maximum:
+        raise ResourceError(
+            f"insufficient temporary headroom for {operation}: "
+            f"used={used} reserve={reserve} maximum={maximum}; "
+            "collect required evidence and use controller GC before retrying"
+        )

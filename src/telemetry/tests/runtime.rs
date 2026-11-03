@@ -50,56 +50,6 @@ fn runtime_telemetry_source_produces_sanitized_snapshot() -> Result<(), Telemetr
 }
 
 #[test]
-fn runtime_telemetry_source_records_cursor_click_and_static_signal()
--> Result<(), TelemetryCollectorError> {
-    let mut source = RuntimeRecordingTelemetrySource::default();
-    source.configure_recording(RecordingTelemetryPolicy::all_enabled_for_tests());
-    source.start_recording("recording-1", 1_000);
-    source.inject_mouse_event(
-        "recording-1",
-        WindowsMouseEvent {
-            x: 42,
-            y: 84,
-            kind: WindowsMouseEventKind::Move,
-        },
-        2_001_000,
-    )?;
-    source.inject_mouse_event(
-        "recording-1",
-        WindowsMouseEvent {
-            x: 45,
-            y: 88,
-            kind: WindowsMouseEventKind::Click(WindowsMouseButton::Left),
-        },
-        3_001_000,
-    )?;
-    source.finish_recording("recording-1", 4_001_000);
-
-    let snapshot = source
-        .snapshot_for_recording("recording-1", 5)
-        .ok_or(TelemetryCollectorError::NotRecording)?
-        .into_protocol();
-
-    assert_eq!(
-        snapshot
-            .cursor_track
-            .as_ref()
-            .and_then(|track| track["samples"][0]["x"].as_i64()),
-        Some(42)
-    );
-    assert_eq!(snapshot.action_events.len(), 1);
-    assert_eq!(snapshot.action_events[0]["kind"], "CLICK");
-    assert_eq!(snapshot.action_events[0]["data"]["button"], "left");
-    assert!(
-        snapshot
-            .signals
-            .iter()
-            .any(|signal| signal["kind"] == "cursor-idle")
-    );
-    Ok(())
-}
-
-#[test]
 fn runtime_telemetry_source_denies_events_by_default() -> Result<(), TelemetryCollectorError> {
     let mut source = RuntimeRecordingTelemetrySource::default();
     source.start_recording("recording-1", 1_000);
@@ -114,9 +64,12 @@ fn runtime_telemetry_source_denies_events_by_default() -> Result<(), TelemetryCo
     source.inject_mouse_event(
         "recording-1",
         WindowsMouseEvent {
+            sequence: 0,
+            source_time_ms: 0,
+            visible: Some(true),
             x: 42,
             y: 84,
-            kind: WindowsMouseEventKind::Click(WindowsMouseButton::Left),
+            kind: WindowsMouseEventKind::Down(WindowsMouseButton::Left),
         },
         3_001_000,
     )?;
@@ -128,8 +81,8 @@ fn runtime_telemetry_source_denies_events_by_default() -> Result<(), TelemetryCo
         .into_protocol();
 
     assert_eq!(snapshot.cursor_track, None);
-    assert!(snapshot.action_events.is_empty());
-    assert!(snapshot.signals.is_empty());
+    assert_eq!(snapshot.action_events.len(), 0);
+    assert_eq!(snapshot.signals.len(), 0);
     Ok(())
 }
 
@@ -155,6 +108,9 @@ fn runtime_telemetry_source_rejects_events_outside_active_recording() {
         source.inject_mouse_event(
             "recording-2",
             WindowsMouseEvent {
+                sequence: 0,
+                source_time_ms: 0,
+                visible: Some(true),
                 x: 42,
                 y: 84,
                 kind: WindowsMouseEventKind::Move,
@@ -186,8 +142,8 @@ fn runtime_telemetry_source_ignores_mid_session_policy_enable()
         .ok_or(TelemetryCollectorError::NotRecording)?
         .into_protocol();
 
-    assert!(snapshot.signals.is_empty());
-    assert!(snapshot.action_events.is_empty());
+    assert_eq!(snapshot.signals.len(), 0);
+    assert_eq!(snapshot.action_events.len(), 0);
     Ok(())
 }
 
@@ -241,9 +197,12 @@ fn runtime_telemetry_source_honors_telemetry_policy_flags() -> Result<(), Teleme
     source.inject_mouse_event(
         "recording-1",
         WindowsMouseEvent {
+            sequence: 0,
+            source_time_ms: 0,
+            visible: Some(true),
             x: 42,
             y: 84,
-            kind: WindowsMouseEventKind::Click(WindowsMouseButton::Left),
+            kind: WindowsMouseEventKind::Down(WindowsMouseButton::Left),
         },
         4_001_000,
     )?;
@@ -255,7 +214,7 @@ fn runtime_telemetry_source_honors_telemetry_policy_flags() -> Result<(), Teleme
         .into_protocol();
 
     assert_eq!(snapshot.cursor_track, None);
-    assert!(snapshot.action_events.is_empty());
+    assert_eq!(snapshot.action_events.len(), 0);
     assert_eq!(snapshot.signals.len(), 1);
     assert_eq!(snapshot.signals[0]["kind"], "typing");
     Ok(())

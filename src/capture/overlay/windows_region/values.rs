@@ -7,8 +7,9 @@ use windows::Win32::Foundation::LPARAM;
 use crate::capture::coordinates::{PhysicalPoint, PhysicalRect};
 
 pub(super) fn mouse_point(bounds: PhysicalRect, lparam: LPARAM) -> PhysicalPoint {
-    let x = (lparam.0 & 0xffff) as u16 as i16;
-    let y = ((lparam.0 >> 16) & 0xffff) as u16 as i16;
+    let bytes = lparam.0.to_le_bytes();
+    let x = i16::from_le_bytes([bytes[0], bytes[1]]);
+    let y = i16::from_le_bytes([bytes[2], bytes[3]]);
     PhysicalPoint {
         x: bounds.x + i32::from(x),
         y: bounds.y + i32::from(y),

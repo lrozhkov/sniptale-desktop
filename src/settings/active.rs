@@ -1,6 +1,10 @@
 //! Runtime pairing of the persisted profile with the single mode authority.
 
 #[cfg(any(windows, test))]
+#[path = "active/targets.rs"]
+mod targets;
+
+#[cfg(any(windows, test))]
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::{error::Error, fmt};
 
@@ -42,6 +46,8 @@ impl Error for SettingsApplyError {}
 #[derive(Clone, Debug)]
 pub(crate) struct ActiveSettings {
     #[cfg(any(windows, test))]
+    browser_targets: Arc<Mutex<super::BrowserTargetRegistry>>,
+    #[cfg(any(windows, test))]
     profile: Arc<Mutex<LocalProfile>>,
     mode: ModeAuthority,
 }
@@ -65,6 +71,8 @@ impl ActiveSettings {
         let mode = ModeAuthority::new(profile.operating_mode());
         Self {
             #[cfg(any(windows, test))]
+            browser_targets: Arc::default(),
+            #[cfg(any(windows, test))]
             profile: Arc::new(Mutex::new(profile.clone())),
             mode,
         }
@@ -75,6 +83,7 @@ impl ActiveSettings {
     pub(crate) fn for_test_mode(mode: OperatingMode) -> Self {
         let profile = super::profile::default_extension_profile();
         Self {
+            browser_targets: Arc::default(),
             profile: Arc::new(Mutex::new(profile)),
             mode: ModeAuthority::new(mode),
         }

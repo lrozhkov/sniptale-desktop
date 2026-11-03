@@ -1,34 +1,43 @@
-#[cfg(any(windows, test))]
+#[cfg(test)]
 mod cursor;
-mod signal;
+pub(super) mod signal;
 
 use crate::protocol::NativeRecordingTelemetrySnapshot;
 use serde_json::Value;
 #[cfg(any(windows, test))]
 use serde_json::json;
 
-use super::RecordingTelemetryPolicy;
 #[cfg(any(windows, test))]
 use super::sanitize::SanitizedKeySignal;
-#[cfg(any(windows, test))]
+use super::{RecordingTelemetryPolicy, RecordingTrajectoryContext};
+#[cfg(test)]
 pub(crate) use cursor::RecordingTelemetryCursorSample;
-#[cfg(any(windows, test))]
+#[cfg(test)]
 use cursor::cursor_track_from_samples;
 pub(crate) use signal::RecordingTelemetrySignal;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct SanitizedRecordingTelemetrySnapshot {
-    viewport: Option<Value>,
-    cursor_track: Option<Value>,
-    action_events: Vec<RecordingTelemetryActionEvent>,
-    signals: Vec<RecordingTelemetrySignal>,
+    pub(super) history_incomplete: bool,
+    pub(super) recording_events: Option<crate::protocol::recording_events::EventDescriptor>,
+    pub(super) cursor_trajectory: Option<crate::protocol::trajectory::CursorTrajectoryDescriptor>,
+    pub(super) viewport: Option<Value>,
+    pub(super) cursor_track: Option<Value>,
+    pub(super) action_events: Vec<RecordingTelemetryActionEvent>,
+    pub(super) signals: Vec<RecordingTelemetrySignal>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum RecordingTelemetryActionEvent {
     #[cfg(any(windows, test))]
     Key { label: String, time_ms: u64 },
-    #[cfg(any(windows, test))]
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "Legacy inline click projection remains checked by compatibility fixtures; live clicks use recording-events blocks."
+        )
+    )]
     Click {
         button: &'static str,
         time_ms: u64,
@@ -38,9 +47,12 @@ pub(crate) enum RecordingTelemetryActionEvent {
 }
 
 pub(crate) trait RecordingTelemetrySource {
+    fn poll_recording_events(&mut self, _observed_monotonic_ns: u64) {}
     fn bind_controller_lease(&mut self, _controller_lease_id: &str) {}
 
     fn configure_recording(&mut self, _policy: RecordingTelemetryPolicy) {}
+
+    fn configure_trajectory(&mut self, _context: Option<RecordingTrajectoryContext>) {}
 
     fn start_recording_with_policy(
         &mut self,
@@ -85,12 +97,26 @@ impl RecordingTelemetrySource for NoopRecordingTelemetrySource {
 }
 
 impl SanitizedRecordingTelemetrySnapshot {
+    pub(crate) fn take_recording_events(
+        &mut self,
+    ) -> Option<crate::protocol::recording_events::EventDescriptor> {
+        self.recording_events.take()
+    }
+    pub(crate) fn take_cursor_trajectory(
+        &mut self,
+    ) -> Option<crate::protocol::trajectory::CursorTrajectoryDescriptor> {
+        self.cursor_trajectory.take()
+    }
+
     #[cfg(any(windows, test))]
     pub(crate) fn new(
         action_events: Vec<RecordingTelemetryActionEvent>,
         signals: Vec<RecordingTelemetrySignal>,
     ) -> Self {
         Self {
+            history_incomplete: false,
+            recording_events: None,
+            cursor_trajectory: None,
             viewport: None,
             cursor_track: None,
             action_events,
@@ -98,7 +124,7 @@ impl SanitizedRecordingTelemetrySnapshot {
         }
     }
 
-    #[cfg(any(windows, test))]
+    #[cfg(test)]
     pub(crate) fn with_cursor_samples(
         mut self,
         samples: Vec<RecordingTelemetryCursorSample>,
@@ -151,7 +177,7 @@ impl RecordingTelemetryActionEvent {
         Some(Self::Key { label, time_ms })
     }
 
-    #[cfg(any(windows, test))]
+    #[cfg(test)]
     pub(crate) const fn click(button: &'static str, time_ms: u64, x: i32, y: i32) -> Self {
         Self::Click {
             button,
@@ -176,7 +202,6 @@ impl RecordingTelemetryActionEvent {
                 "data": {},
                 "preset": "NONE"
             }),
-            #[cfg(any(windows, test))]
             Self::Click {
                 button,
                 time_ms,

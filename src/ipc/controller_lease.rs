@@ -91,7 +91,37 @@ impl ControllerLeaseBook {
         }
     }
 
-    #[cfg(test)]
+    /// A time-bounded observer projection is not an authorization grant and never mutates ownership.
+    #[cfg(any(windows, test))]
+    pub(crate) fn observer_decision(
+        &self,
+        controller: NativeControllerIdentity,
+        now_epoch_ms: u64,
+    ) -> Result<ControllerLeaseDecision, ControllerLeaseError> {
+        Ok(ControllerLeaseDecision {
+            status: ControllerLeaseStatus::Rejected,
+            controller,
+            granted_lease_id: None,
+            expires_at_epoch_ms: self.expires_at(now_epoch_ms)?,
+        })
+    }
+
+    #[cfg(any(windows, test))]
+    pub(crate) fn same_profile_owned_elsewhere(
+        &self,
+        controller: &NativeControllerIdentity,
+        now_epoch_ms: u64,
+    ) -> bool {
+        self.active.as_ref().is_some_and(|active| {
+            !active.is_expired(now_epoch_ms)
+                && active.controller.extension_id == controller.extension_id
+                && active.controller.browser_family == controller.browser_family
+                && active.controller.profile_key == controller.profile_key
+                && &active.controller != controller
+        })
+    }
+
+    #[cfg(any(windows, test))]
     pub(crate) fn refresh(
         &mut self,
         controller: &NativeControllerIdentity,

@@ -61,7 +61,7 @@ fn startup_rejects_manual_authority_when_hotkeys_cannot_be_registered()
 }
 
 #[test]
-fn startup_does_not_apply_retained_manual_hotkeys_in_extension_managed_mode()
+fn startup_applies_retained_desktop_hotkeys_in_legacy_extension_mode()
 -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
     let profile_path = directory.path().join("profile.json");
@@ -91,10 +91,18 @@ fn startup_does_not_apply_retained_manual_hotkeys_in_extension_managed_mode()
     let (hotkey_sender, hotkey_receiver) = mpsc::sync_channel(1);
     let senders = ManualWorkerSenders::new(None, None, None, Some(hotkey_sender), None);
 
+    let runtime = thread::spawn(move || {
+        if let Ok(WorkerCommand::ApplyHotkeyPlan {
+            plan,
+            result_sender,
+            ..
+        }) = hotkey_receiver.recv()
+        {
+            assert_eq!(plan.register.len(), 1);
+            let _ = result_sender.send(Ok(()));
+        }
+    });
     assert_eq!(activate_startup_manual_hotkeys(&active, &senders), Ok(()));
-    assert!(matches!(
-        hotkey_receiver.try_recv(),
-        Err(mpsc::TryRecvError::Empty)
-    ));
+    runtime.join().map_err(|_| "hotkey worker")?;
     Ok(())
 }

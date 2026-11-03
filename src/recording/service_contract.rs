@@ -57,9 +57,9 @@ pub(crate) struct RecordingControlRequest {
 #[derive(Clone, Debug, Eq, PartialEq)]
 #[cfg(any(windows, test))]
 pub(crate) enum RecordingCommandEvent {
-    Started(RecordingStartedEvent),
+    Started(Box<RecordingStartedEvent>),
     Progress(RecordingProgressEvent),
-    Stopped(RecordingStoppedEvent),
+    Stopped(Box<RecordingStoppedEvent>),
     ManualFinalized(ManualRecordingFinalizedEvent),
 }
 
@@ -94,6 +94,7 @@ pub(crate) struct RecordingStoppedEvent {
 #[cfg(any(windows, test))]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct ManualRecordingFinalizedEvent {
+    pub(crate) delivery_route: crate::protocol::DeliveryRoute,
     pub(crate) recording_id: String,
     pub(crate) asset_job_id: String,
 }
@@ -109,6 +110,11 @@ impl Default for RecordingStartPolicy {
 
 #[cfg(any(windows, test))]
 pub(crate) trait RecordingRunner {
+    fn tick(
+        &mut self,
+        observed_epoch_ms: u64,
+    ) -> Result<Vec<RecordingCommandEvent>, RecordingRuntimeError>;
+
     fn start_recording(
         &mut self,
         request: &RecordingStartRequest,

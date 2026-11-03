@@ -1,4 +1,5 @@
 """Run independent proof commands with bounded concurrency and isolated logs."""
+
 from __future__ import annotations
 
 import tempfile
@@ -24,8 +25,7 @@ def run_group(checks: list[tuple[str, list[str]]], record: Path, log: Path, work
         def execute(item):
             index, (label, command) = item
             step_id = "qa.step." + "".join(
-                char if char.isascii() and (char.isalnum() or char in "._-") else "-"
-                for char in label.lower()
+                char if char.isascii() and (char.isalnum() or char in "._-") else "-" for char in label.lower()
             )
             child_record, child_log = work / f"{index}.json", work / f"{index}.log"
             atomic_write_json(child_record, {"steps": [], "log": {"path": str(child_log.relative_to(ROOT))}})

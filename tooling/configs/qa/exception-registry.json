@@ -1,5 +1,5 @@
 {
-  "$comment": "Reviewed exact-scope exceptions. Temporary debt is intentionally empty and count-only allowances are forbidden.",
+  "$comment": "Exact reviewed architecture exceptions and analyzer findings. Count-only scopes and broad suppressions are forbidden.",
   "schemaVersion": 1,
   "exceptions": [
     {
@@ -34,6 +34,7 @@
           "src/recording/temp_media/mod.rs",
           "src/telemetry/windows/mod.rs",
           "src/tray/consent/mod.rs",
+          "src/tray/desktop.rs",
           "src/tray/icon/mod.rs",
           "src/tray/menu/mod.rs",
           "src/tray/runtime/mod.rs",
@@ -54,14 +55,33 @@
       "owner": "runtime-lifecycle",
       "exactScope": {
         "pathTerms": {
-          "src/app/bridge/session/duplex/authenticated.rs": ["SESSION_MODE_EPOCH_POLL_INTERVAL"],
-          "src/app/bridge/windows_runtime.rs": ["PIPE_CONNECT_RETRY_DELAY"],
-          "src/app/resident/pipe_broker/duplex.rs": ["SESSION_BROKER_IDLE_POLL_INTERVAL"],
-          "src/app/resident/pipe_windows.rs": ["PIPE_ACCEPT_POLL_INTERVAL"],
-          "src/capture/wgc/windows/readback.rs": ["FRAME_WAIT_INTERVAL"],
-          "src/recording/runtime/windows_runtime/worker_loop.rs": ["RECORDING_IDLE_POLL_INTERVAL"],
-          "src/ipc/bridge/duplex.rs": ["BROWSER_EOF_RESPONSE_GRACE"],
-          "src/ipc/bridge/polling.rs": ["AGENT_RESPONSE_POLL_INTERVAL"]
+          "src/app/bridge/session/duplex/authenticated.rs": [
+            "SESSION_MODE_EPOCH_POLL_INTERVAL"
+          ],
+          "src/app/bridge/windows_runtime.rs": [
+            "PIPE_CONNECT_RETRY_DELAY"
+          ],
+          "src/app/resident/pipe_broker/duplex.rs": [
+            "SESSION_BROKER_IDLE_POLL_INTERVAL"
+          ],
+          "src/app/resident/pipe_windows.rs": [
+            "PIPE_ACCEPT_POLL_INTERVAL"
+          ],
+          "src/app/resident/tray/dispatch/quit.rs": [
+            "QUIT_DRAIN_POLL_INTERVAL"
+          ],
+          "src/capture/wgc/windows/readback.rs": [
+            "FRAME_WAIT_INTERVAL"
+          ],
+          "src/recording/runtime/windows_runtime/worker_loop.rs": [
+            "RECORDING_IDLE_POLL_INTERVAL"
+          ],
+          "src/ipc/bridge/duplex.rs": [
+            "BROWSER_EOF_RESPONSE_GRACE"
+          ],
+          "src/ipc/bridge/polling.rs": [
+            "AGENT_RESPONSE_POLL_INTERVAL"
+          ]
         }
       },
       "rationale": "These waits are named, bounded polling intervals owned by cancellable runtime loops.",
@@ -91,7 +111,2035 @@
         "docs/architecture/module-ownership.md",
         "docs/architecture/adr/0003-transfer-lifecycle-ownership.md"
       ]
+    },
+    {
+      "id": "qa.workflow-self-reference-compatibility",
+      "ruleId": "qa.workflow-self-reference-compatibility",
+      "classification": "tool-noise",
+      "owner": "qa-tooling",
+      "exactScope": {
+        "pathTerms": {
+          ".github/workflows/alpha.yml": [
+            "\"uses\": \"./.github/workflows/checks.yml\""
+          ]
+        }
+      },
+      "rationale": "Pinned actionlint 1.7.12 predates GitHub self-repository syntax. This same-commit reusable workflow has server-side resolution, and verify_tooling rejects any other target; zizmor ignores only the exact uses scalar.",
+      "risk": "The newer self-repository syntax must be adopted after an aged compatible actionlint release is available. No external Action or untrusted workspace checkout is allowed by this exception.",
+      "reviewBy": "2026-11-14",
+      "proofReferences": [
+        "tooling/qa/rules/verify_tooling.py",
+        "tooling/configs/qa/zizmor.yaml",
+        "tooling/qa/tests/test_compilation_cache.py"
+      ],
+      "removalCondition": "Remove when the pinned workflow checker accepts this exact canonical self-reference without the exception."
+    },
+    {
+      "id": "boundary.existing-scenario-file-sizes",
+      "ruleId": "architecture.rust-file-size",
+      "classification": "architectural-boundary",
+      "owner": "architecture-boundaries",
+      "exactScope": {
+        "catalog": "tooling/configs/qa/code-size-exceptions.json",
+        "array": "files",
+        "field": "path"
+      },
+      "rationale": "Preserve only the enumerated existing scenario-file limits. Each exact file has its own reason and ceiling; verify_boundaries rejects stale or over-limit entries.",
+      "risk": "Broad size exemptions can hide unrelated responsibilities and navigation costs.",
+      "proofReferences": [
+        "docs/engineering/implementation-rules.md",
+        "tooling/configs/qa/code-size-exceptions.json"
+      ]
+    },
+    {
+      "id": "boundary.desktop-ui-negative-fixtures",
+      "ruleId": "security.boundary-test-fixture",
+      "classification": "architectural-boundary",
+      "owner": "tray",
+      "exactScope": {
+        "pathTerms": {
+          "src/app/resident/tray/dispatch/settings/tests.rs": [
+            "std::fs::read"
+          ],
+          "src/app/resident/desktop/backend/tests.rs": [
+            "std::fs::read"
+          ],
+          "src/tray/desktop/model/tests.rs": [
+            "serde_json::from_value"
+          ],
+          "src/tray/desktop/settings/tests.rs": [
+            "serde_json::from_value"
+          ],
+          "src/app/resident/tray/dispatch/settings.rs": [
+            "#[cfg(test)]\n#[path = \"settings/tests.rs\"]\nmod tests;"
+          ],
+          "src/app/resident/desktop/backend.rs": [
+            "#[cfg(test)]\nmod tests;"
+          ],
+          "src/tray/desktop/model.rs": [
+            "#[cfg(test)]\nmod tests;"
+          ],
+          "src/tray/desktop/settings.rs": [
+            "#[cfg(test)]\n#[path = \"settings/tests.rs\"]\nmod tests;"
+          ]
+        }
+      },
+      "rationale": "These exact cfg(test) fixtures parse hostile presentation payloads and verify unchanged persisted bytes. Only the listed read/parse operations are admitted. Exact parent declarations prove test-only compilation and make removed gates stale.",
+      "risk": "A broad exception could admit production parsing outside its owner. Production parent paths receive no parse/read permission.",
+      "proofReferences": [
+        "docs/engineering/testing-policy.md",
+        "src/tray/desktop/model/tests.rs",
+        "src/tray/desktop/settings/tests.rs",
+        "src/app/resident/desktop/backend/tests.rs",
+        "src/app/resident/tray/dispatch/settings/tests.rs"
+      ]
+    },
+    {
+      "id": "boundary.tauri-internal-runtime",
+      "ruleId": "architecture.tauri-internal-runtime",
+      "classification": "architectural-boundary",
+      "owner": "tray",
+      "exactScope": {
+        "pathTerms": {
+          "deny.toml": [
+            "  { crate = \"tokio\", wrappers = [\n    \"tauri\",\n  ], reason = \"Only Tauri may own this runtime under ADR 0008. Product owners must not add a general async runtime.\" },"
+          ],
+          "Cargo.toml": [
+            "tauri = { version = \"=2.12.5\""
+          ]
+        }
+      },
+      "rationale": "ADR 0008 permits the Tauri-owned runtime for system WebView presentation. The direct product dependency ban remains enforced.",
+      "risk": "An additional caller could create a parallel runtime or bypass resident shutdown ownership.",
+      "proofReferences": [
+        "docs/architecture/adr/0008-tauri-presentation-boundary.md",
+        "tooling/qa/rules/verify_dev_dependencies.py",
+        "tooling/qa/wrappers/supply-chain.sh"
+      ],
+      "removalCondition": "Remove this exception when Tauri no longer needs Tokio. Review it if the pinned Tauri version or the exact wrapper scope changes."
     }
   ],
-  "technicalDebt": []
+  "technicalDebt": [
+    {
+      "id": "noise.jscpd.owner-local-dpapi",
+      "classification": "tool-noise",
+      "owner": "platform-owners",
+      "rationale": "ADR 0002 requires separate pipe-secret and media-key DPAPI authorities. A shared crypto helper would erase that boundary.",
+      "risk": "A broader exception could hide unrelated cryptographic duplication.",
+      "reviewBy": "2026-12-01",
+      "removalCondition": "Remove when this exact finding no longer exists or an accepted owner change replaces this rationale.",
+      "targetAction": "Retain these exact adapters and review them against ADR 0002.",
+      "source": {
+        "tool": "jscpd",
+        "rule": "duplicate-code",
+        "fingerprint": "ead2a2163da010a08a8284a6ed97a2a00f86cab9f0682e43b16a11961ef5d7bc"
+      },
+      "exactScope": {
+        "exactPaths": [
+          "src/install/windows/dpapi.rs",
+          "src/transfer/windows_dpapi.rs"
+        ],
+        "locations": [
+          {
+            "path": "src/install/windows/dpapi.rs",
+            "startLine": 100,
+            "endLine": 131,
+            "sourceSha256": "ec80905a0af7a238640513e1a44c6178fb08aa4c18038b0944e01e68b3bc40e0"
+          },
+          {
+            "path": "src/transfer/windows_dpapi.rs",
+            "startLine": 102,
+            "endLine": 133,
+            "sourceSha256": "d84ba95ddf82ed8031edb155653bc8ece75d501290e03b60e9c2ddb15f4f2bce"
+          }
+        ]
+      },
+      "proofReferences": [
+        "docs/architecture/adr/0002-dpapi-owner-local-adapters.md",
+        "src/install/windows/dpapi.rs",
+        "src/transfer/windows_dpapi.rs"
+      ]
+    },
+    {
+      "id": "noise.codeql.unused-variable.be3a9b01b471",
+      "classification": "tool-noise",
+      "owner": "telemetry",
+      "rationale": "This exact match arm uses imported Win32 constants, not variable bindings. Windows-target compilation and Clippy validate the pattern.",
+      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
+      "reviewBy": "2026-12-01",
+      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
+      "targetAction": "Recheck this constant pattern after a CodeQL Rust extractor update.",
+      "source": {
+        "tool": "codeql",
+        "rule": "rust/unused-variable",
+        "fingerprint": "be3a9b01b471add72b14b8a1bc097bc4ea659539ab65d0330c4e0995f060c77e"
+      },
+      "exactScope": {
+        "exactPaths": [
+          "src/telemetry/windows/mouse_hook.rs"
+        ],
+        "locations": [
+          {
+            "path": "src/telemetry/windows/mouse_hook.rs",
+            "startLine": 165,
+            "endLine": 165,
+            "sourceSha256": "d2a7a13833cf8ee941dc3970ee666780e69c9f11aaeb20a2d066f40f76339fd5"
+          }
+        ]
+      },
+      "proofReferences": [
+        "src/telemetry/windows/mouse_hook.rs",
+        "docs/engineering/testing-policy.md",
+        "tooling/qa/wrappers/checkpoint.sh"
+      ]
+    },
+    {
+      "id": "noise.codeql.unused-variable.dd7aeff4a143",
+      "classification": "tool-noise",
+      "owner": "telemetry",
+      "rationale": "This exact match arm uses imported Win32 constants, not variable bindings. Windows-target compilation and Clippy validate the pattern.",
+      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
+      "reviewBy": "2026-12-01",
+      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
+      "targetAction": "Recheck this constant pattern after a CodeQL Rust extractor update.",
+      "source": {
+        "tool": "codeql",
+        "rule": "rust/unused-variable",
+        "fingerprint": "dd7aeff4a1435a05b3b6464d3aa2f20e6d4844f066e672feefbd8abc0ffe6856"
+      },
+      "exactScope": {
+        "exactPaths": [
+          "src/telemetry/windows/mouse_hook.rs"
+        ],
+        "locations": [
+          {
+            "path": "src/telemetry/windows/mouse_hook.rs",
+            "startLine": 166,
+            "endLine": 166,
+            "sourceSha256": "ffc9eaf6db26155de54d7ff14736c567a45a477a12fc93e2f9597f9164749b91"
+          }
+        ]
+      },
+      "proofReferences": [
+        "src/telemetry/windows/mouse_hook.rs",
+        "docs/engineering/testing-policy.md",
+        "tooling/qa/wrappers/checkpoint.sh"
+      ]
+    },
+    {
+      "id": "noise.codeql.unused-variable.0a626e5684fc",
+      "classification": "tool-noise",
+      "owner": "telemetry",
+      "rationale": "This exact match arm uses imported Win32 constants, not variable bindings. Windows-target compilation and Clippy validate the pattern.",
+      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
+      "reviewBy": "2026-12-01",
+      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
+      "targetAction": "Recheck this constant pattern after a CodeQL Rust extractor update.",
+      "source": {
+        "tool": "codeql",
+        "rule": "rust/unused-variable",
+        "fingerprint": "0a626e5684fcfc426ea1f713d53762e50ed1da9b7e4028879171d4dbccfcef0f"
+      },
+      "exactScope": {
+        "exactPaths": [
+          "src/telemetry/windows/mouse_hook.rs"
+        ],
+        "locations": [
+          {
+            "path": "src/telemetry/windows/mouse_hook.rs",
+            "startLine": 167,
+            "endLine": 167,
+            "sourceSha256": "66f40cfa2b2efa2b8b852638055c876bbd8564df967d5dddf053cfa239dd0603"
+          }
+        ]
+      },
+      "proofReferences": [
+        "src/telemetry/windows/mouse_hook.rs",
+        "docs/engineering/testing-policy.md",
+        "tooling/qa/wrappers/checkpoint.sh"
+      ]
+    },
+    {
+      "id": "noise.codeql.unused-variable.ab82d5f05e68",
+      "classification": "tool-noise",
+      "owner": "telemetry",
+      "rationale": "This exact match arm uses imported Win32 constants, not variable bindings. Windows-target compilation and Clippy validate the pattern.",
+      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
+      "reviewBy": "2026-12-01",
+      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
+      "targetAction": "Recheck this constant pattern after a CodeQL Rust extractor update.",
+      "source": {
+        "tool": "codeql",
+        "rule": "rust/unused-variable",
+        "fingerprint": "ab82d5f05e68c95135ecff6623ba8d0a7e581d14f9d2e4e982f22923963a421d"
+      },
+      "exactScope": {
+        "exactPaths": [
+          "src/telemetry/windows/mouse_hook.rs"
+        ],
+        "locations": [
+          {
+            "path": "src/telemetry/windows/mouse_hook.rs",
+            "startLine": 168,
+            "endLine": 168,
+            "sourceSha256": "ec037886facb00cd48ea0881fc9ca60a54d4fb7b321de14ba2bd96162edc1612"
+          }
+        ]
+      },
+      "proofReferences": [
+        "src/telemetry/windows/mouse_hook.rs",
+        "docs/engineering/testing-policy.md",
+        "tooling/qa/wrappers/checkpoint.sh"
+      ]
+    },
+    {
+      "id": "noise.codeql.unused-variable.dc8195290f46",
+      "classification": "tool-noise",
+      "owner": "telemetry",
+      "rationale": "This exact match arm uses imported Win32 constants, not variable bindings. Windows-target compilation and Clippy validate the pattern.",
+      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
+      "reviewBy": "2026-12-01",
+      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
+      "targetAction": "Recheck this constant pattern after a CodeQL Rust extractor update.",
+      "source": {
+        "tool": "codeql",
+        "rule": "rust/unused-variable",
+        "fingerprint": "dc8195290f46374142e5655416469951eeaa01b5bd173345ff7bef781d186508"
+      },
+      "exactScope": {
+        "exactPaths": [
+          "src/telemetry/windows/mouse_hook.rs"
+        ],
+        "locations": [
+          {
+            "path": "src/telemetry/windows/mouse_hook.rs",
+            "startLine": 169,
+            "endLine": 169,
+            "sourceSha256": "8a5c9fdd3817343015aa0af0a49266bd1cdea0fd2036ec06378a6960c4ed17ed"
+          }
+        ]
+      },
+      "proofReferences": [
+        "src/telemetry/windows/mouse_hook.rs",
+        "docs/engineering/testing-policy.md",
+        "tooling/qa/wrappers/checkpoint.sh"
+      ]
+    },
+    {
+      "id": "noise.codeql.unused-variable.29f0d2bbb9fc",
+      "classification": "tool-noise",
+      "owner": "telemetry",
+      "rationale": "This exact match arm uses imported Win32 constants, not variable bindings. Windows-target compilation and Clippy validate the pattern.",
+      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
+      "reviewBy": "2026-12-01",
+      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
+      "targetAction": "Recheck this constant pattern after a CodeQL Rust extractor update.",
+      "source": {
+        "tool": "codeql",
+        "rule": "rust/unused-variable",
+        "fingerprint": "29f0d2bbb9fc7287cf897712f5ba548c59c02f38c7b9e15feed1251979092595"
+      },
+      "exactScope": {
+        "exactPaths": [
+          "src/telemetry/windows/mouse_hook.rs"
+        ],
+        "locations": [
+          {
+            "path": "src/telemetry/windows/mouse_hook.rs",
+            "startLine": 170,
+            "endLine": 170,
+            "sourceSha256": "b228e9da539ed7e566f28561e161bc417d6d97b37827cd0d51e179d255994ce3"
+          }
+        ]
+      },
+      "proofReferences": [
+        "src/telemetry/windows/mouse_hook.rs",
+        "docs/engineering/testing-policy.md",
+        "tooling/qa/wrappers/checkpoint.sh"
+      ]
+    },
+    {
+      "id": "noise.codeql.unused-variable.1ef68cc84fb1",
+      "classification": "tool-noise",
+      "owner": "telemetry",
+      "rationale": "This exact match arm uses imported Win32 constants, not variable bindings. Windows-target compilation and Clippy validate the pattern.",
+      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
+      "reviewBy": "2026-12-01",
+      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
+      "targetAction": "Recheck this constant pattern after a CodeQL Rust extractor update.",
+      "source": {
+        "tool": "codeql",
+        "rule": "rust/unused-variable",
+        "fingerprint": "1ef68cc84fb1d33dd1d965dcc6c13eceb59adfd52154fa71c58209bcb91dc0b8"
+      },
+      "exactScope": {
+        "exactPaths": [
+          "src/telemetry/windows/mouse_hook.rs"
+        ],
+        "locations": [
+          {
+            "path": "src/telemetry/windows/mouse_hook.rs",
+            "startLine": 171,
+            "endLine": 171,
+            "sourceSha256": "72d6671ac0e8970f3ac7a809f3439ec29a4f1c383584edfb19fd1da325021885"
+          }
+        ]
+      },
+      "proofReferences": [
+        "src/telemetry/windows/mouse_hook.rs",
+        "docs/engineering/testing-policy.md",
+        "tooling/qa/wrappers/checkpoint.sh"
+      ]
+    },
+    {
+      "id": "noise.codeql.unused-variable.bf9a87a6cdd9",
+      "classification": "tool-noise",
+      "owner": "telemetry",
+      "rationale": "This exact match arm uses imported Win32 constants, not variable bindings. Windows-target compilation and Clippy validate the pattern.",
+      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
+      "reviewBy": "2026-12-01",
+      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
+      "targetAction": "Recheck this constant pattern after a CodeQL Rust extractor update.",
+      "source": {
+        "tool": "codeql",
+        "rule": "rust/unused-variable",
+        "fingerprint": "bf9a87a6cdd9c425689ca60041c69088725556db3f0f673ab4eac1e63903ea13"
+      },
+      "exactScope": {
+        "exactPaths": [
+          "src/telemetry/windows/mouse_hook.rs"
+        ],
+        "locations": [
+          {
+            "path": "src/telemetry/windows/mouse_hook.rs",
+            "startLine": 172,
+            "endLine": 172,
+            "sourceSha256": "9ade7288efcfe89f75d715745ceaddea6425e17d269678cd3ab9f9ea19d49495"
+          }
+        ]
+      },
+      "proofReferences": [
+        "src/telemetry/windows/mouse_hook.rs",
+        "docs/engineering/testing-policy.md",
+        "tooling/qa/wrappers/checkpoint.sh"
+      ]
+    },
+    {
+      "id": "noise.codeql.unused-variable.2f34657c78bf",
+      "classification": "tool-noise",
+      "owner": "tray",
+      "rationale": "This exact match arm uses imported Win32 constants, not variable bindings. Windows-target compilation and Clippy validate the pattern.",
+      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
+      "reviewBy": "2026-12-01",
+      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
+      "targetAction": "Recheck this constant pattern after a CodeQL Rust extractor update.",
+      "source": {
+        "tool": "codeql",
+        "rule": "rust/unused-variable",
+        "fingerprint": "2f34657c78bf695e76b61816346ba0268d61adbb5ac129f90cc62e8372d53470"
+      },
+      "exactScope": {
+        "exactPaths": [
+          "src/tray/runtime/windows/message_window.rs"
+        ],
+        "locations": [
+          {
+            "path": "src/tray/runtime/windows/message_window.rs",
+            "startLine": 100,
+            "endLine": 100,
+            "sourceSha256": "54bc088ad571508b2752262733f4d6dbc7848f2780811a90eed4c43555f92fe6"
+          }
+        ]
+      },
+      "proofReferences": [
+        "src/tray/runtime/windows/message_window.rs",
+        "docs/engineering/testing-policy.md",
+        "tooling/qa/wrappers/checkpoint.sh"
+      ]
+    },
+    {
+      "id": "noise.codeql.hard-coded-cryptographic-value.fbebbe861e52",
+      "classification": "tool-noise",
+      "owner": "app",
+      "rationale": "This exact deterministic test fixture supplies synthetic nonces, identifiers, keys, or temporary paths. It does not supply production credentials.",
+      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
+      "reviewBy": "2026-12-01",
+      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
+      "targetAction": "Retain deterministic proof and recheck this fixture if its use changes.",
+      "source": {
+        "tool": "codeql",
+        "rule": "rust/hard-coded-cryptographic-value",
+        "fingerprint": "fbebbe861e523889375f5015d1cd1e35da4c119d1aef23f638cb0965e644399b"
+      },
+      "exactScope": {
+        "exactPaths": [
+          "src/app/bridge/session/duplex/handshake_tests.rs"
+        ],
+        "locations": [
+          {
+            "path": "src/app/bridge/session/duplex/handshake_tests.rs",
+            "startLine": 27,
+            "endLine": 27,
+            "sourceSha256": "113ec39432fc710a5059e57a6bddeb41d4092a083b103a2e12cbef5ec150e3ca"
+          }
+        ]
+      },
+      "proofReferences": [
+        "src/app/bridge/session/duplex/handshake_tests.rs",
+        "docs/engineering/testing-policy.md",
+        "docs/security/data-handling.md"
+      ]
+    },
+    {
+      "id": "noise.codeql.hard-coded-cryptographic-value.1d8145a5d382",
+      "classification": "tool-noise",
+      "owner": "app",
+      "rationale": "This exact deterministic test fixture supplies synthetic nonces, identifiers, keys, or temporary paths. It does not supply production credentials.",
+      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
+      "reviewBy": "2026-12-01",
+      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
+      "targetAction": "Retain deterministic proof and recheck this fixture if its use changes.",
+      "source": {
+        "tool": "codeql",
+        "rule": "rust/hard-coded-cryptographic-value",
+        "fingerprint": "1d8145a5d382b77bde19be2fc5aa125ea3f62f4717da053250b194936da619db"
+      },
+      "exactScope": {
+        "exactPaths": [
+          "src/app/bridge/session/duplex/handshake_tests.rs"
+        ],
+        "locations": [
+          {
+            "path": "src/app/bridge/session/duplex/handshake_tests.rs",
+            "startLine": 39,
+            "endLine": 39,
+            "sourceSha256": "7e2517ea565e23c1406e56ce8ba70a503dfe1cbc9c4da453476916b52aa42a96"
+          }
+        ]
+      },
+      "proofReferences": [
+        "src/app/bridge/session/duplex/handshake_tests.rs",
+        "docs/engineering/testing-policy.md",
+        "docs/security/data-handling.md"
+      ]
+    },
+    {
+      "id": "noise.codeql.hard-coded-cryptographic-value.215cf5132cdd",
+      "classification": "tool-noise",
+      "owner": "app",
+      "rationale": "This exact deterministic test fixture supplies synthetic nonces, identifiers, keys, or temporary paths. It does not supply production credentials.",
+      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
+      "reviewBy": "2026-12-01",
+      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
+      "targetAction": "Retain deterministic proof and recheck this fixture if its use changes.",
+      "source": {
+        "tool": "codeql",
+        "rule": "rust/hard-coded-cryptographic-value",
+        "fingerprint": "215cf5132cdd1d060b7feca805fb1c4c8b5d10fbd4c32549d12f7354a40f8ac5"
+      },
+      "exactScope": {
+        "exactPaths": [
+          "src/app/bridge/session/duplex/handshake_tests.rs"
+        ],
+        "locations": [
+          {
+            "path": "src/app/bridge/session/duplex/handshake_tests.rs",
+            "startLine": 48,
+            "endLine": 48,
+            "sourceSha256": "113ec39432fc710a5059e57a6bddeb41d4092a083b103a2e12cbef5ec150e3ca"
+          }
+        ]
+      },
+      "proofReferences": [
+        "src/app/bridge/session/duplex/handshake_tests.rs",
+        "docs/engineering/testing-policy.md",
+        "docs/security/data-handling.md"
+      ]
+    },
+    {
+      "id": "noise.codeql.hard-coded-cryptographic-value.cbb76f1d6c8c",
+      "classification": "tool-noise",
+      "owner": "app",
+      "rationale": "This exact deterministic test fixture supplies synthetic nonces, identifiers, keys, or temporary paths. It does not supply production credentials.",
+      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
+      "reviewBy": "2026-12-01",
+      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
+      "targetAction": "Retain deterministic proof and recheck this fixture if its use changes.",
+      "source": {
+        "tool": "codeql",
+        "rule": "rust/hard-coded-cryptographic-value",
+        "fingerprint": "cbb76f1d6c8c4ff4e2bcfb9362f57701afa0f5a38b6c0bb5ff6d7690a44c2f79"
+      },
+      "exactScope": {
+        "exactPaths": [
+          "src/app/bridge/session/duplex/handshake_tests.rs"
+        ],
+        "locations": [
+          {
+            "path": "src/app/bridge/session/duplex/handshake_tests.rs",
+            "startLine": 73,
+            "endLine": 73,
+            "sourceSha256": "113ec39432fc710a5059e57a6bddeb41d4092a083b103a2e12cbef5ec150e3ca"
+          }
+        ]
+      },
+      "proofReferences": [
+        "src/app/bridge/session/duplex/handshake_tests.rs",
+        "docs/engineering/testing-policy.md",
+        "docs/security/data-handling.md"
+      ]
+    },
+    {
+      "id": "noise.codeql.hard-coded-cryptographic-value.3a5410ad7ccb",
+      "classification": "tool-noise",
+      "owner": "app",
+      "rationale": "This exact deterministic test fixture supplies synthetic nonces, identifiers, keys, or temporary paths. It does not supply production credentials.",
+      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
+      "reviewBy": "2026-12-01",
+      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
+      "targetAction": "Retain deterministic proof and recheck this fixture if its use changes.",
+      "source": {
+        "tool": "codeql",
+        "rule": "rust/hard-coded-cryptographic-value",
+        "fingerprint": "3a5410ad7ccb954b0cc3b937a638ce21be6090528ac86b9a22daeb0f5f0ef805"
+      },
+      "exactScope": {
+        "exactPaths": [
+          "src/app/bridge/session/duplex/handshake_tests.rs"
+        ],
+        "locations": [
+          {
+            "path": "src/app/bridge/session/duplex/handshake_tests.rs",
+            "startLine": 101,
+            "endLine": 101,
+            "sourceSha256": "113ec39432fc710a5059e57a6bddeb41d4092a083b103a2e12cbef5ec150e3ca"
+          }
+        ]
+      },
+      "proofReferences": [
+        "src/app/bridge/session/duplex/handshake_tests.rs",
+        "docs/engineering/testing-policy.md",
+        "docs/security/data-handling.md"
+      ]
+    },
+    {
+      "id": "noise.codeql.hard-coded-cryptographic-value.7a89cabcba93",
+      "classification": "tool-noise",
+      "owner": "app",
+      "rationale": "This exact deterministic test fixture supplies synthetic nonces, identifiers, keys, or temporary paths. It does not supply production credentials.",
+      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
+      "reviewBy": "2026-12-01",
+      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
+      "targetAction": "Retain deterministic proof and recheck this fixture if its use changes.",
+      "source": {
+        "tool": "codeql",
+        "rule": "rust/hard-coded-cryptographic-value",
+        "fingerprint": "7a89cabcba93dc325569db1e008132ecdaa3119626f5215fcbc7316e401b3d3a"
+      },
+      "exactScope": {
+        "exactPaths": [
+          "src/app/bridge/session/duplex/handshake_tests.rs"
+        ],
+        "locations": [
+          {
+            "path": "src/app/bridge/session/duplex/handshake_tests.rs",
+            "startLine": 128,
+            "endLine": 128,
+            "sourceSha256": "7e2517ea565e23c1406e56ce8ba70a503dfe1cbc9c4da453476916b52aa42a96"
+          }
+        ]
+      },
+      "proofReferences": [
+        "src/app/bridge/session/duplex/handshake_tests.rs",
+        "docs/engineering/testing-policy.md",
+        "docs/security/data-handling.md"
+      ]
+    },
+    {
+      "id": "noise.codeql.hard-coded-cryptographic-value.d13de05e5201",
+      "classification": "tool-noise",
+      "owner": "app",
+      "rationale": "This exact deterministic test fixture supplies synthetic nonces, identifiers, keys, or temporary paths. It does not supply production credentials.",
+      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
+      "reviewBy": "2026-12-01",
+      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
+      "targetAction": "Retain deterministic proof and recheck this fixture if its use changes.",
+      "source": {
+        "tool": "codeql",
+        "rule": "rust/hard-coded-cryptographic-value",
+        "fingerprint": "d13de05e52017e54694fd0d5470c5aca20bf02f5d38edb7c5e24aad630f285ec"
+      },
+      "exactScope": {
+        "exactPaths": [
+          "src/app/bridge/session/duplex/handshake_tests.rs"
+        ],
+        "locations": [
+          {
+            "path": "src/app/bridge/session/duplex/handshake_tests.rs",
+            "startLine": 167,
+            "endLine": 167,
+            "sourceSha256": "f2e54422d4e0447ab35620288fb2f3378e66137627a6a7c95607e0a8617331df"
+          }
+        ]
+      },
+      "proofReferences": [
+        "src/app/bridge/session/duplex/handshake_tests.rs",
+        "docs/engineering/testing-policy.md",
+        "docs/security/data-handling.md"
+      ]
+    },
+    {
+      "id": "noise.codeql.hard-coded-cryptographic-value.80f9188c9aa0",
+      "classification": "tool-noise",
+      "owner": "app",
+      "rationale": "This exact deterministic test fixture supplies synthetic nonces, identifiers, keys, or temporary paths. It does not supply production credentials.",
+      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
+      "reviewBy": "2026-12-01",
+      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
+      "targetAction": "Retain deterministic proof and recheck this fixture if its use changes.",
+      "source": {
+        "tool": "codeql",
+        "rule": "rust/hard-coded-cryptographic-value",
+        "fingerprint": "80f9188c9aa014f0275f606770ef9fac13c3ac0ffb3ae97413084a61f8e0b399"
+      },
+      "exactScope": {
+        "exactPaths": [
+          "src/app/resident/cursor_writer/tests.rs"
+        ],
+        "locations": [
+          {
+            "path": "src/app/resident/cursor_writer/tests.rs",
+            "startLine": 10,
+            "endLine": 10,
+            "sourceSha256": "cec497bb2062a76ede2c5bf987ffe74beb1bf7bf1b3a9bbac792cf53937b0e2d"
+          }
+        ]
+      },
+      "proofReferences": [
+        "src/app/resident/cursor_writer/tests.rs",
+        "docs/engineering/testing-policy.md",
+        "docs/security/data-handling.md"
+      ]
+    },
+    {
+      "id": "noise.codeql.hard-coded-cryptographic-value.69924f1330c0",
+      "classification": "tool-noise",
+      "owner": "app",
+      "rationale": "This exact deterministic test fixture supplies synthetic nonces, identifiers, keys, or temporary paths. It does not supply production credentials.",
+      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
+      "reviewBy": "2026-12-01",
+      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
+      "targetAction": "Retain deterministic proof and recheck this fixture if its use changes.",
+      "source": {
+        "tool": "codeql",
+        "rule": "rust/hard-coded-cryptographic-value",
+        "fingerprint": "69924f1330c01626858f05f646108f5d615bb277398e56dd8afc54daf77a7fcc"
+      },
+      "exactScope": {
+        "exactPaths": [
+          "src/app/resident/effects/tests/recording_receipts.rs"
+        ],
+        "locations": [
+          {
+            "path": "src/app/resident/effects/tests/recording_receipts.rs",
+            "startLine": 19,
+            "endLine": 19,
+            "sourceSha256": "7379f41fa90554f515d242395ca657c23388ecb1db6acb415df74773deebb44d"
+          }
+        ]
+      },
+      "proofReferences": [
+        "src/app/resident/effects/tests/recording_receipts.rs",
+        "docs/engineering/testing-policy.md",
+        "docs/security/data-handling.md"
+      ]
+    },
+    {
+      "id": "noise.codeql.hard-coded-cryptographic-value.9a01ea10aef9",
+      "classification": "tool-noise",
+      "owner": "app",
+      "rationale": "This exact deterministic test fixture supplies synthetic nonces, identifiers, keys, or temporary paths. It does not supply production credentials.",
+      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
+      "reviewBy": "2026-12-01",
+      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
+      "targetAction": "Retain deterministic proof and recheck this fixture if its use changes.",
+      "source": {
+        "tool": "codeql",
+        "rule": "rust/hard-coded-cryptographic-value",
+        "fingerprint": "9a01ea10aef94b80390c43226d62bff842692b29d58645ffd38b2708aaf08ae8"
+      },
+      "exactScope": {
+        "exactPaths": [
+          "src/app/resident/effects/tests/recording_receipts.rs"
+        ],
+        "locations": [
+          {
+            "path": "src/app/resident/effects/tests/recording_receipts.rs",
+            "startLine": 20,
+            "endLine": 20,
+            "sourceSha256": "5c0e97cbdb74a76e44aa8e370fa943bdb92f2a949b3bfd9f9291f9c2797b1f70"
+          }
+        ]
+      },
+      "proofReferences": [
+        "src/app/resident/effects/tests/recording_receipts.rs",
+        "docs/engineering/testing-policy.md",
+        "docs/security/data-handling.md"
+      ]
+    },
+    {
+      "id": "noise.codeql.hard-coded-cryptographic-value.9b12cfd5ea61",
+      "classification": "tool-noise",
+      "owner": "app",
+      "rationale": "This exact deterministic test fixture supplies synthetic nonces, identifiers, keys, or temporary paths. It does not supply production credentials.",
+      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
+      "reviewBy": "2026-12-01",
+      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
+      "targetAction": "Retain deterministic proof and recheck this fixture if its use changes.",
+      "source": {
+        "tool": "codeql",
+        "rule": "rust/hard-coded-cryptographic-value",
+        "fingerprint": "9b12cfd5ea61404d0cd693bb4d9f443efc4880d86551df749c07ebdfceb69142"
+      },
+      "exactScope": {
+        "exactPaths": [
+          "src/app/resident/effects/tests/recording_receipts.rs"
+        ],
+        "locations": [
+          {
+            "path": "src/app/resident/effects/tests/recording_receipts.rs",
+            "startLine": 57,
+            "endLine": 57,
+            "sourceSha256": "4dd7a40526e3dbdc6a624396b27e7599c71c34c727c616ce17937da22aa03e20"
+          }
+        ]
+      },
+      "proofReferences": [
+        "src/app/resident/effects/tests/recording_receipts.rs",
+        "docs/engineering/testing-policy.md",
+        "docs/security/data-handling.md"
+      ]
+    },
+    {
+      "id": "noise.codeql.hard-coded-cryptographic-value.57211c401db6",
+      "classification": "tool-noise",
+      "owner": "app",
+      "rationale": "This exact deterministic test fixture supplies synthetic nonces, identifiers, keys, or temporary paths. It does not supply production credentials.",
+      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
+      "reviewBy": "2026-12-01",
+      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
+      "targetAction": "Retain deterministic proof and recheck this fixture if its use changes.",
+      "source": {
+        "tool": "codeql",
+        "rule": "rust/hard-coded-cryptographic-value",
+        "fingerprint": "57211c401db60ca06b88c892864509280b1516d69632200876bd9047b7bb7811"
+      },
+      "exactScope": {
+        "exactPaths": [
+          "src/app/resident/effects/tests/recording_receipts.rs"
+        ],
+        "locations": [
+          {
+            "path": "src/app/resident/effects/tests/recording_receipts.rs",
+            "startLine": 69,
+            "endLine": 69,
+            "sourceSha256": "43c34d0c61151caa5045bc37dce285bcd569b3911525468b7644b81da8976e5f"
+          }
+        ]
+      },
+      "proofReferences": [
+        "src/app/resident/effects/tests/recording_receipts.rs",
+        "docs/engineering/testing-policy.md",
+        "docs/security/data-handling.md"
+      ]
+    },
+    {
+      "id": "noise.codeql.hard-coded-cryptographic-value.ee7df6868e7a",
+      "classification": "tool-noise",
+      "owner": "app",
+      "rationale": "This exact deterministic test fixture supplies synthetic nonces, identifiers, keys, or temporary paths. It does not supply production credentials.",
+      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
+      "reviewBy": "2026-12-01",
+      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
+      "targetAction": "Retain deterministic proof and recheck this fixture if its use changes.",
+      "source": {
+        "tool": "codeql",
+        "rule": "rust/hard-coded-cryptographic-value",
+        "fingerprint": "ee7df6868e7a276bea90adae4765d94fb3edcc7c28057959eddf20b37d943405"
+      },
+      "exactScope": {
+        "exactPaths": [
+          "src/app/tests/mod.rs"
+        ],
+        "locations": [
+          {
+            "path": "src/app/tests/mod.rs",
+            "startLine": 224,
+            "endLine": 224,
+            "sourceSha256": "8ef24e7410e838de47ac8bfeae0b84d9354539db60291e930cfe95484170bde8"
+          }
+        ]
+      },
+      "proofReferences": [
+        "src/app/tests/mod.rs",
+        "docs/engineering/testing-policy.md",
+        "docs/security/data-handling.md"
+      ]
+    },
+    {
+      "id": "noise.codeql.hard-coded-cryptographic-value.eb781bc05829",
+      "classification": "tool-noise",
+      "owner": "app",
+      "rationale": "This exact deterministic test fixture supplies synthetic nonces, identifiers, keys, or temporary paths. It does not supply production credentials.",
+      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
+      "reviewBy": "2026-12-01",
+      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
+      "targetAction": "Retain deterministic proof and recheck this fixture if its use changes.",
+      "source": {
+        "tool": "codeql",
+        "rule": "rust/hard-coded-cryptographic-value",
+        "fingerprint": "eb781bc05829716e5e464edfd34f61b3498e149727d12495d1684201222f60dc"
+      },
+      "exactScope": {
+        "exactPaths": [
+          "src/app/tests/resident_bridge.rs"
+        ],
+        "locations": [
+          {
+            "path": "src/app/tests/resident_bridge.rs",
+            "startLine": 795,
+            "endLine": 795,
+            "sourceSha256": "daa820582eb1c70efe0ee0166bfc21bcb3911a848e949e6d8a0647a058097ef3"
+          }
+        ]
+      },
+      "proofReferences": [
+        "src/app/tests/resident_bridge.rs",
+        "docs/engineering/testing-policy.md",
+        "docs/security/data-handling.md"
+      ]
+    },
+    {
+      "id": "noise.codeql.hard-coded-cryptographic-value.3588a802ae39",
+      "classification": "tool-noise",
+      "owner": "app",
+      "rationale": "This exact deterministic test fixture supplies synthetic nonces, identifiers, keys, or temporary paths. It does not supply production credentials.",
+      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
+      "reviewBy": "2026-12-01",
+      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
+      "targetAction": "Retain deterministic proof and recheck this fixture if its use changes.",
+      "source": {
+        "tool": "codeql",
+        "rule": "rust/hard-coded-cryptographic-value",
+        "fingerprint": "3588a802ae3934068e98378d052605adb7ec43ce55cc50505283cb4002079f4c"
+      },
+      "exactScope": {
+        "exactPaths": [
+          "src/app/tests/resident_bridge.rs"
+        ],
+        "locations": [
+          {
+            "path": "src/app/tests/resident_bridge.rs",
+            "startLine": 810,
+            "endLine": 810,
+            "sourceSha256": "82db753a5cdb6a929d1908fd9dd170d9a99ac8ab1e14de8010722f48c4607d49"
+          }
+        ]
+      },
+      "proofReferences": [
+        "src/app/tests/resident_bridge.rs",
+        "docs/engineering/testing-policy.md",
+        "docs/security/data-handling.md"
+      ]
+    },
+    {
+      "id": "noise.codeql.hard-coded-cryptographic-value.772eb632338a",
+      "classification": "tool-noise",
+      "owner": "app",
+      "rationale": "This exact deterministic test fixture supplies synthetic nonces, identifiers, keys, or temporary paths. It does not supply production credentials.",
+      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
+      "reviewBy": "2026-12-01",
+      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
+      "targetAction": "Retain deterministic proof and recheck this fixture if its use changes.",
+      "source": {
+        "tool": "codeql",
+        "rule": "rust/hard-coded-cryptographic-value",
+        "fingerprint": "772eb632338af4bbec16cb657a39ce4f6b621171d15c523273e11b4ee68e44f3"
+      },
+      "exactScope": {
+        "exactPaths": [
+          "src/app/tests/resident_bridge.rs"
+        ],
+        "locations": [
+          {
+            "path": "src/app/tests/resident_bridge.rs",
+            "startLine": 867,
+            "endLine": 867,
+            "sourceSha256": "a0c76b31b56cae07772d2ef4548d8b9b5765106b37394416091bbc1651b0e6be"
+          }
+        ]
+      },
+      "proofReferences": [
+        "src/app/tests/resident_bridge.rs",
+        "docs/engineering/testing-policy.md",
+        "docs/security/data-handling.md"
+      ]
+    },
+    {
+      "id": "noise.codeql.hard-coded-cryptographic-value.c00411e0ab89",
+      "classification": "tool-noise",
+      "owner": "app",
+      "rationale": "This exact deterministic test fixture supplies synthetic nonces, identifiers, keys, or temporary paths. It does not supply production credentials.",
+      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
+      "reviewBy": "2026-12-01",
+      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
+      "targetAction": "Retain deterministic proof and recheck this fixture if its use changes.",
+      "source": {
+        "tool": "codeql",
+        "rule": "rust/hard-coded-cryptographic-value",
+        "fingerprint": "c00411e0ab89084dec0d7b835887c422d7f32dff0f12f1cf04dd7e6e2d937a0f"
+      },
+      "exactScope": {
+        "exactPaths": [
+          "src/app/tests/resident_bridge.rs"
+        ],
+        "locations": [
+          {
+            "path": "src/app/tests/resident_bridge.rs",
+            "startLine": 939,
+            "endLine": 939,
+            "sourceSha256": "a0c76b31b56cae07772d2ef4548d8b9b5765106b37394416091bbc1651b0e6be"
+          }
+        ]
+      },
+      "proofReferences": [
+        "src/app/tests/resident_bridge.rs",
+        "docs/engineering/testing-policy.md",
+        "docs/security/data-handling.md"
+      ]
+    },
+    {
+      "id": "noise.codeql.hard-coded-cryptographic-value.5728516fdc18",
+      "classification": "tool-noise",
+      "owner": "ipc",
+      "rationale": "This exact deterministic test fixture supplies synthetic nonces, identifiers, keys, or temporary paths. It does not supply production credentials.",
+      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
+      "reviewBy": "2026-12-01",
+      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
+      "targetAction": "Retain deterministic proof and recheck this fixture if its use changes.",
+      "source": {
+        "tool": "codeql",
+        "rule": "rust/hard-coded-cryptographic-value",
+        "fingerprint": "5728516fdc18724a910333d662ac2c7f89c9f064e2978dfa9e3e12f1456d3b87"
+      },
+      "exactScope": {
+        "exactPaths": [
+          "src/ipc/tests/pipe_auth.rs"
+        ],
+        "locations": [
+          {
+            "path": "src/ipc/tests/pipe_auth.rs",
+            "startLine": 8,
+            "endLine": 8,
+            "sourceSha256": "7a563b55c8952478853c3c68a1439974c65647ab2f92dfb549150728a580ca53"
+          }
+        ]
+      },
+      "proofReferences": [
+        "src/ipc/tests/pipe_auth.rs",
+        "docs/engineering/testing-policy.md",
+        "docs/security/data-handling.md"
+      ]
+    },
+    {
+      "id": "noise.codeql.hard-coded-cryptographic-value.2cc3d182ed37",
+      "classification": "tool-noise",
+      "owner": "ipc",
+      "rationale": "This exact deterministic test fixture supplies synthetic nonces, identifiers, keys, or temporary paths. It does not supply production credentials.",
+      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
+      "reviewBy": "2026-12-01",
+      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
+      "targetAction": "Retain deterministic proof and recheck this fixture if its use changes.",
+      "source": {
+        "tool": "codeql",
+        "rule": "rust/hard-coded-cryptographic-value",
+        "fingerprint": "2cc3d182ed37a32ac341f258d314e9dfb0870445a3444bfb89c768bd4a8a5cac"
+      },
+      "exactScope": {
+        "exactPaths": [
+          "src/ipc/tests/pipe_auth.rs"
+        ],
+        "locations": [
+          {
+            "path": "src/ipc/tests/pipe_auth.rs",
+            "startLine": 9,
+            "endLine": 9,
+            "sourceSha256": "45879c5931e350a521492382a6202143557d2deb75f8968671e67f2fff12c99d"
+          }
+        ]
+      },
+      "proofReferences": [
+        "src/ipc/tests/pipe_auth.rs",
+        "docs/engineering/testing-policy.md",
+        "docs/security/data-handling.md"
+      ]
+    },
+    {
+      "id": "noise.codeql.hard-coded-cryptographic-value.de09eaba8e31",
+      "classification": "tool-noise",
+      "owner": "ipc",
+      "rationale": "This exact deterministic test fixture supplies synthetic nonces, identifiers, keys, or temporary paths. It does not supply production credentials.",
+      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
+      "reviewBy": "2026-12-01",
+      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
+      "targetAction": "Retain deterministic proof and recheck this fixture if its use changes.",
+      "source": {
+        "tool": "codeql",
+        "rule": "rust/hard-coded-cryptographic-value",
+        "fingerprint": "de09eaba8e316da0bda7451e63557cc8d4182758929da07fbb760f58ea3bc1e0"
+      },
+      "exactScope": {
+        "exactPaths": [
+          "src/ipc/tests/pipe_auth.rs"
+        ],
+        "locations": [
+          {
+            "path": "src/ipc/tests/pipe_auth.rs",
+            "startLine": 106,
+            "endLine": 106,
+            "sourceSha256": "6d38de7420d0d9a3a60e9e21ada257179273550f5b1e4b8eb744ec56af7a5e0b"
+          }
+        ]
+      },
+      "proofReferences": [
+        "src/ipc/tests/pipe_auth.rs",
+        "docs/engineering/testing-policy.md",
+        "docs/security/data-handling.md"
+      ]
+    },
+    {
+      "id": "noise.codeql.hard-coded-cryptographic-value.16ae25d41f51",
+      "classification": "tool-noise",
+      "owner": "ipc",
+      "rationale": "This exact deterministic test fixture supplies synthetic nonces, identifiers, keys, or temporary paths. It does not supply production credentials.",
+      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
+      "reviewBy": "2026-12-01",
+      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
+      "targetAction": "Retain deterministic proof and recheck this fixture if its use changes.",
+      "source": {
+        "tool": "codeql",
+        "rule": "rust/hard-coded-cryptographic-value",
+        "fingerprint": "16ae25d41f51defb4d6ca598e8179bdd67d403eaafd5b45b8fc1b496beaa3eb6"
+      },
+      "exactScope": {
+        "exactPaths": [
+          "src/ipc/tests/pipe_auth.rs"
+        ],
+        "locations": [
+          {
+            "path": "src/ipc/tests/pipe_auth.rs",
+            "startLine": 137,
+            "endLine": 137,
+            "sourceSha256": "6ad2572ea2a7fb59bd65fbdb9b56b0114053ead8be60f4c0eb2ed6849740e1da"
+          }
+        ]
+      },
+      "proofReferences": [
+        "src/ipc/tests/pipe_auth.rs",
+        "docs/engineering/testing-policy.md",
+        "docs/security/data-handling.md"
+      ]
+    },
+    {
+      "id": "noise.codeql.hard-coded-cryptographic-value.e5b8c58c7846",
+      "classification": "tool-noise",
+      "owner": "ipc",
+      "rationale": "This exact deterministic test fixture supplies synthetic nonces, identifiers, keys, or temporary paths. It does not supply production credentials.",
+      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
+      "reviewBy": "2026-12-01",
+      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
+      "targetAction": "Retain deterministic proof and recheck this fixture if its use changes.",
+      "source": {
+        "tool": "codeql",
+        "rule": "rust/hard-coded-cryptographic-value",
+        "fingerprint": "e5b8c58c784656b2ff880942a0d10d81097b29749f747d871d88fb53788acbbc"
+      },
+      "exactScope": {
+        "exactPaths": [
+          "src/ipc/tests/pipe_auth.rs"
+        ],
+        "locations": [
+          {
+            "path": "src/ipc/tests/pipe_auth.rs",
+            "startLine": 143,
+            "endLine": 143,
+            "sourceSha256": "0e2c6e1b601fac6fd351f9dd87fd21fed1574315e4b387aa5b32306d29b4dde7"
+          }
+        ]
+      },
+      "proofReferences": [
+        "src/ipc/tests/pipe_auth.rs",
+        "docs/engineering/testing-policy.md",
+        "docs/security/data-handling.md"
+      ]
+    },
+    {
+      "id": "noise.codeql.hard-coded-cryptographic-value.de1e870cbd4d",
+      "classification": "tool-noise",
+      "owner": "ipc",
+      "rationale": "This exact deterministic test fixture supplies synthetic nonces, identifiers, keys, or temporary paths. It does not supply production credentials.",
+      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
+      "reviewBy": "2026-12-01",
+      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
+      "targetAction": "Retain deterministic proof and recheck this fixture if its use changes.",
+      "source": {
+        "tool": "codeql",
+        "rule": "rust/hard-coded-cryptographic-value",
+        "fingerprint": "de1e870cbd4dbff1914e1e55d16a945e9113b176a910d3b53150b4c6b82a27b6"
+      },
+      "exactScope": {
+        "exactPaths": [
+          "src/ipc/tests/pipe_auth.rs"
+        ],
+        "locations": [
+          {
+            "path": "src/ipc/tests/pipe_auth.rs",
+            "startLine": 149,
+            "endLine": 149,
+            "sourceSha256": "7e2517ea565e23c1406e56ce8ba70a503dfe1cbc9c4da453476916b52aa42a96"
+          }
+        ]
+      },
+      "proofReferences": [
+        "src/ipc/tests/pipe_auth.rs",
+        "docs/engineering/testing-policy.md",
+        "docs/security/data-handling.md"
+      ]
+    },
+    {
+      "id": "noise.codeql.hard-coded-cryptographic-value.e6846d9579a1",
+      "classification": "tool-noise",
+      "owner": "ipc",
+      "rationale": "This exact deterministic test fixture supplies synthetic nonces, identifiers, keys, or temporary paths. It does not supply production credentials.",
+      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
+      "reviewBy": "2026-12-01",
+      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
+      "targetAction": "Retain deterministic proof and recheck this fixture if its use changes.",
+      "source": {
+        "tool": "codeql",
+        "rule": "rust/hard-coded-cryptographic-value",
+        "fingerprint": "e6846d9579a111a17576071ca2662d7e64d1ce68f4a4c8afc14db9f57663870e"
+      },
+      "exactScope": {
+        "exactPaths": [
+          "src/ipc/tests/pipe_auth.rs"
+        ],
+        "locations": [
+          {
+            "path": "src/ipc/tests/pipe_auth.rs",
+            "startLine": 176,
+            "endLine": 176,
+            "sourceSha256": "d84b818b68dc566f3f28cd973676f4a2db5743ac82bdcc76f96778942e8f3fac"
+          }
+        ]
+      },
+      "proofReferences": [
+        "src/ipc/tests/pipe_auth.rs",
+        "docs/engineering/testing-policy.md",
+        "docs/security/data-handling.md"
+      ]
+    },
+    {
+      "id": "noise.codeql.hard-coded-cryptographic-value.6931f99c8802",
+      "classification": "tool-noise",
+      "owner": "ipc",
+      "rationale": "This exact deterministic test fixture supplies synthetic nonces, identifiers, keys, or temporary paths. It does not supply production credentials.",
+      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
+      "reviewBy": "2026-12-01",
+      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
+      "targetAction": "Retain deterministic proof and recheck this fixture if its use changes.",
+      "source": {
+        "tool": "codeql",
+        "rule": "rust/hard-coded-cryptographic-value",
+        "fingerprint": "6931f99c8802492e4faa2b518c8b1e004bf6da153ec00a55344a8b542b498b1e"
+      },
+      "exactScope": {
+        "exactPaths": [
+          "src/ipc/tests/pipe_auth.rs"
+        ],
+        "locations": [
+          {
+            "path": "src/ipc/tests/pipe_auth.rs",
+            "startLine": 185,
+            "endLine": 185,
+            "sourceSha256": "dec7bc7d8255f92a73b0d4aaf92d9db602b31da2342c25532575617616a6e657"
+          }
+        ]
+      },
+      "proofReferences": [
+        "src/ipc/tests/pipe_auth.rs",
+        "docs/engineering/testing-policy.md",
+        "docs/security/data-handling.md"
+      ]
+    },
+    {
+      "id": "noise.codeql.hard-coded-cryptographic-value.f211ba804b46",
+      "classification": "tool-noise",
+      "owner": "ipc",
+      "rationale": "This exact deterministic test fixture supplies synthetic nonces, identifiers, keys, or temporary paths. It does not supply production credentials.",
+      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
+      "reviewBy": "2026-12-01",
+      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
+      "targetAction": "Retain deterministic proof and recheck this fixture if its use changes.",
+      "source": {
+        "tool": "codeql",
+        "rule": "rust/hard-coded-cryptographic-value",
+        "fingerprint": "f211ba804b463b9c7f116e3071bc73b0c8f430653fbc4f419f2058fb3e14e3cd"
+      },
+      "exactScope": {
+        "exactPaths": [
+          "src/ipc/tests/pipe_auth.rs"
+        ],
+        "locations": [
+          {
+            "path": "src/ipc/tests/pipe_auth.rs",
+            "startLine": 259,
+            "endLine": 259,
+            "sourceSha256": "7e2517ea565e23c1406e56ce8ba70a503dfe1cbc9c4da453476916b52aa42a96"
+          }
+        ]
+      },
+      "proofReferences": [
+        "src/ipc/tests/pipe_auth.rs",
+        "docs/engineering/testing-policy.md",
+        "docs/security/data-handling.md"
+      ]
+    },
+    {
+      "id": "noise.codeql.hard-coded-cryptographic-value.594bdacc4cc0",
+      "classification": "tool-noise",
+      "owner": "ipc",
+      "rationale": "This exact deterministic test fixture supplies synthetic nonces, identifiers, keys, or temporary paths. It does not supply production credentials.",
+      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
+      "reviewBy": "2026-12-01",
+      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
+      "targetAction": "Retain deterministic proof and recheck this fixture if its use changes.",
+      "source": {
+        "tool": "codeql",
+        "rule": "rust/hard-coded-cryptographic-value",
+        "fingerprint": "594bdacc4cc00a0f6eb19aa34cec8f1483ec4cf39dc8cded0e1033ce588004fd"
+      },
+      "exactScope": {
+        "exactPaths": [
+          "src/ipc/tests/pipe_handshake.rs"
+        ],
+        "locations": [
+          {
+            "path": "src/ipc/tests/pipe_handshake.rs",
+            "startLine": 16,
+            "endLine": 16,
+            "sourceSha256": "7a563b55c8952478853c3c68a1439974c65647ab2f92dfb549150728a580ca53"
+          }
+        ]
+      },
+      "proofReferences": [
+        "src/ipc/tests/pipe_handshake.rs",
+        "docs/engineering/testing-policy.md",
+        "docs/security/data-handling.md"
+      ]
+    },
+    {
+      "id": "noise.codeql.hard-coded-cryptographic-value.7179900cf09e",
+      "classification": "tool-noise",
+      "owner": "ipc",
+      "rationale": "This exact deterministic test fixture supplies synthetic nonces, identifiers, keys, or temporary paths. It does not supply production credentials.",
+      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
+      "reviewBy": "2026-12-01",
+      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
+      "targetAction": "Retain deterministic proof and recheck this fixture if its use changes.",
+      "source": {
+        "tool": "codeql",
+        "rule": "rust/hard-coded-cryptographic-value",
+        "fingerprint": "7179900cf09e7e342e60ae98f93483c19ea7c01576670457cb52325b0e0411a4"
+      },
+      "exactScope": {
+        "exactPaths": [
+          "src/ipc/tests/pipe_handshake.rs"
+        ],
+        "locations": [
+          {
+            "path": "src/ipc/tests/pipe_handshake.rs",
+            "startLine": 17,
+            "endLine": 17,
+            "sourceSha256": "45879c5931e350a521492382a6202143557d2deb75f8968671e67f2fff12c99d"
+          }
+        ]
+      },
+      "proofReferences": [
+        "src/ipc/tests/pipe_handshake.rs",
+        "docs/engineering/testing-policy.md",
+        "docs/security/data-handling.md"
+      ]
+    },
+    {
+      "id": "noise.codeql.hard-coded-cryptographic-value.4d12af4aa69b",
+      "classification": "tool-noise",
+      "owner": "ipc",
+      "rationale": "This exact deterministic test fixture supplies synthetic nonces, identifiers, keys, or temporary paths. It does not supply production credentials.",
+      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
+      "reviewBy": "2026-12-01",
+      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
+      "targetAction": "Retain deterministic proof and recheck this fixture if its use changes.",
+      "source": {
+        "tool": "codeql",
+        "rule": "rust/hard-coded-cryptographic-value",
+        "fingerprint": "4d12af4aa69b1e02c1caad5e73eb67377336400c8fd5556628d47da7476441a8"
+      },
+      "exactScope": {
+        "exactPaths": [
+          "src/ipc/tests/pipe_handshake.rs"
+        ],
+        "locations": [
+          {
+            "path": "src/ipc/tests/pipe_handshake.rs",
+            "startLine": 117,
+            "endLine": 117,
+            "sourceSha256": "a19e865a3e6414f05efff812179a88ffc72097f6d7c144a0cec114a18ec55b13"
+          }
+        ]
+      },
+      "proofReferences": [
+        "src/ipc/tests/pipe_handshake.rs",
+        "docs/engineering/testing-policy.md",
+        "docs/security/data-handling.md"
+      ]
+    },
+    {
+      "id": "noise.codeql.hard-coded-cryptographic-value.be390906d7e1",
+      "classification": "tool-noise",
+      "owner": "transfer",
+      "rationale": "This exact literal is a typed filesystem presence or erasure flag. It is not cryptographic key material.",
+      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
+      "reviewBy": "2026-12-01",
+      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
+      "targetAction": "Remove when the cryptographic-value model distinguishes boolean flags from keys.",
+      "source": {
+        "tool": "codeql",
+        "rule": "rust/hard-coded-cryptographic-value",
+        "fingerprint": "be390906d7e172745a61a758548f36ee87ae12b9f6e5f2639a050b53fb95113f"
+      },
+      "exactScope": {
+        "exactPaths": [
+          "src/transfer/events_catalog.rs"
+        ],
+        "locations": [
+          {
+            "path": "src/transfer/events_catalog.rs",
+            "startLine": 206,
+            "endLine": 206,
+            "sourceSha256": "12e9f91aa52945354033ee2d9567143762224854e28e4384cf139bc74a19edeb"
+          }
+        ]
+      },
+      "proofReferences": [
+        "src/transfer/events_catalog.rs",
+        "docs/engineering/testing-policy.md",
+        "src/transfer/protected_file.rs"
+      ]
+    },
+    {
+      "id": "noise.codeql.hard-coded-cryptographic-value.328244c2c6f6",
+      "classification": "tool-noise",
+      "owner": "transfer",
+      "rationale": "This exact literal is a typed filesystem presence or erasure flag. It is not cryptographic key material.",
+      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
+      "reviewBy": "2026-12-01",
+      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
+      "targetAction": "Remove when the cryptographic-value model distinguishes boolean flags from keys.",
+      "source": {
+        "tool": "codeql",
+        "rule": "rust/hard-coded-cryptographic-value",
+        "fingerprint": "328244c2c6f6850e8fc58f5a470ccd0460ef0a5219a884d8f6dd3368378923cb"
+      },
+      "exactScope": {
+        "exactPaths": [
+          "src/transfer/events_catalog.rs"
+        ],
+        "locations": [
+          {
+            "path": "src/transfer/events_catalog.rs",
+            "startLine": 207,
+            "endLine": 207,
+            "sourceSha256": "7933be52fad849b54089f5869c3b25b0f643b3f2d03d465cb358ff4b49e37ac3"
+          }
+        ]
+      },
+      "proofReferences": [
+        "src/transfer/events_catalog.rs",
+        "docs/engineering/testing-policy.md",
+        "src/transfer/protected_file.rs"
+      ]
+    },
+    {
+      "id": "noise.codeql.hard-coded-cryptographic-value.8f01d36aca7c",
+      "classification": "tool-noise",
+      "owner": "transfer",
+      "rationale": "This exact literal is a typed filesystem presence or erasure flag. It is not cryptographic key material.",
+      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
+      "reviewBy": "2026-12-01",
+      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
+      "targetAction": "Remove when the cryptographic-value model distinguishes boolean flags from keys.",
+      "source": {
+        "tool": "codeql",
+        "rule": "rust/hard-coded-cryptographic-value",
+        "fingerprint": "8f01d36aca7c61eed1d0948db2c7c0c022024f795f272627e1619b86a6aad071"
+      },
+      "exactScope": {
+        "exactPaths": [
+          "src/transfer/history_files.rs"
+        ],
+        "locations": [
+          {
+            "path": "src/transfer/history_files.rs",
+            "startLine": 103,
+            "endLine": 103,
+            "sourceSha256": "b07f62e041f44ebc7eeaf959a0afa06294fb0530aa3cdc30911b4336a33c3029"
+          }
+        ]
+      },
+      "proofReferences": [
+        "src/transfer/history_files.rs",
+        "docs/engineering/testing-policy.md",
+        "src/transfer/protected_file.rs"
+      ]
+    },
+    {
+      "id": "noise.codeql.hard-coded-cryptographic-value.44299a8fb2e1",
+      "classification": "tool-noise",
+      "owner": "transfer",
+      "rationale": "This exact literal is a typed filesystem presence or erasure flag. It is not cryptographic key material.",
+      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
+      "reviewBy": "2026-12-01",
+      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
+      "targetAction": "Remove when the cryptographic-value model distinguishes boolean flags from keys.",
+      "source": {
+        "tool": "codeql",
+        "rule": "rust/hard-coded-cryptographic-value",
+        "fingerprint": "44299a8fb2e1eef08b45f201bcc3e67489ab31bcc72245b5fc2b86e34f4b0dfb"
+      },
+      "exactScope": {
+        "exactPaths": [
+          "src/transfer/history_files.rs"
+        ],
+        "locations": [
+          {
+            "path": "src/transfer/history_files.rs",
+            "startLine": 105,
+            "endLine": 105,
+            "sourceSha256": "7933be52fad849b54089f5869c3b25b0f643b3f2d03d465cb358ff4b49e37ac3"
+          }
+        ]
+      },
+      "proofReferences": [
+        "src/transfer/history_files.rs",
+        "docs/engineering/testing-policy.md",
+        "src/transfer/protected_file.rs"
+      ]
+    },
+    {
+      "id": "noise.codeql.hard-coded-cryptographic-value.3b77263e51e0",
+      "classification": "tool-noise",
+      "owner": "transfer",
+      "rationale": "This exact deterministic test fixture supplies synthetic nonces, identifiers, keys, or temporary paths. It does not supply production credentials.",
+      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
+      "reviewBy": "2026-12-01",
+      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
+      "targetAction": "Retain deterministic proof and recheck this fixture if its use changes.",
+      "source": {
+        "tool": "codeql",
+        "rule": "rust/hard-coded-cryptographic-value",
+        "fingerprint": "3b77263e51e016bb2f4e5ce44ad3775ef53570c6176f5b213e61e4abac786f55"
+      },
+      "exactScope": {
+        "exactPaths": [
+          "src/transfer/tests/events_catalog.rs"
+        ],
+        "locations": [
+          {
+            "path": "src/transfer/tests/events_catalog.rs",
+            "startLine": 48,
+            "endLine": 48,
+            "sourceSha256": "072caa91f0ee8ae237a085bae4c0116592af8d6c317baea07b75816be74bb263"
+          }
+        ]
+      },
+      "proofReferences": [
+        "src/transfer/tests/events_catalog.rs",
+        "docs/engineering/testing-policy.md",
+        "docs/security/data-handling.md"
+      ]
+    },
+    {
+      "id": "noise.codeql.hard-coded-cryptographic-value.e66b2b86ac97",
+      "classification": "tool-noise",
+      "owner": "transfer",
+      "rationale": "This exact deterministic test fixture supplies synthetic nonces, identifiers, keys, or temporary paths. It does not supply production credentials.",
+      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
+      "reviewBy": "2026-12-01",
+      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
+      "targetAction": "Retain deterministic proof and recheck this fixture if its use changes.",
+      "source": {
+        "tool": "codeql",
+        "rule": "rust/hard-coded-cryptographic-value",
+        "fingerprint": "e66b2b86ac976e58042f9ed0d7a44efa4b60c6ae892bea6c9739c2dc263e92a1"
+      },
+      "exactScope": {
+        "exactPaths": [
+          "src/transfer/tests/events_store.rs"
+        ],
+        "locations": [
+          {
+            "path": "src/transfer/tests/events_store.rs",
+            "startLine": 15,
+            "endLine": 15,
+            "sourceSha256": "be5d1190107cb93b65b78a7986fc14f9fa8ea932c522352a66bb7a78d5c09e88"
+          }
+        ]
+      },
+      "proofReferences": [
+        "src/transfer/tests/events_store.rs",
+        "docs/engineering/testing-policy.md",
+        "docs/security/data-handling.md"
+      ]
+    },
+    {
+      "id": "noise.codeql.hard-coded-cryptographic-value.895e3213c12d",
+      "classification": "tool-noise",
+      "owner": "transfer",
+      "rationale": "This exact deterministic test fixture supplies synthetic nonces, identifiers, keys, or temporary paths. It does not supply production credentials.",
+      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
+      "reviewBy": "2026-12-01",
+      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
+      "targetAction": "Retain deterministic proof and recheck this fixture if its use changes.",
+      "source": {
+        "tool": "codeql",
+        "rule": "rust/hard-coded-cryptographic-value",
+        "fingerprint": "895e3213c12d7094f75402491ddec563656160082e1bf111bfa7ffb0ffd2817c"
+      },
+      "exactScope": {
+        "exactPaths": [
+          "src/transfer/tests/events_catalog.rs"
+        ],
+        "locations": [
+          {
+            "path": "src/transfer/tests/events_catalog.rs",
+            "startLine": 207,
+            "endLine": 207,
+            "sourceSha256": "072caa91f0ee8ae237a085bae4c0116592af8d6c317baea07b75816be74bb263"
+          }
+        ]
+      },
+      "proofReferences": [
+        "src/transfer/tests/events_catalog.rs",
+        "docs/engineering/testing-policy.md",
+        "docs/security/data-handling.md"
+      ]
+    },
+    {
+      "id": "noise.codeql.hard-coded-cryptographic-value.effa820f3be9",
+      "classification": "tool-noise",
+      "owner": "transfer",
+      "rationale": "This exact deterministic test fixture supplies synthetic nonces, identifiers, keys, or temporary paths. It does not supply production credentials.",
+      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
+      "reviewBy": "2026-12-01",
+      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
+      "targetAction": "Retain deterministic proof and recheck this fixture if its use changes.",
+      "source": {
+        "tool": "codeql",
+        "rule": "rust/hard-coded-cryptographic-value",
+        "fingerprint": "effa820f3be9471b885296db0c1439e5b4bb00f4193a1859c9ceb887d527f10a"
+      },
+      "exactScope": {
+        "exactPaths": [
+          "src/transfer/tests/trajectory_store/receipts.rs"
+        ],
+        "locations": [
+          {
+            "path": "src/transfer/tests/trajectory_store/receipts.rs",
+            "startLine": 157,
+            "endLine": 157,
+            "sourceSha256": "072caa91f0ee8ae237a085bae4c0116592af8d6c317baea07b75816be74bb263"
+          }
+        ]
+      },
+      "proofReferences": [
+        "src/transfer/tests/trajectory_store/receipts.rs",
+        "docs/engineering/testing-policy.md",
+        "docs/security/data-handling.md"
+      ]
+    },
+    {
+      "id": "noise.codeql.hard-coded-cryptographic-value.ce7aa8aa4637",
+      "classification": "tool-noise",
+      "owner": "transfer",
+      "rationale": "This exact deterministic test fixture supplies synthetic nonces, identifiers, keys, or temporary paths. It does not supply production credentials.",
+      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
+      "reviewBy": "2026-12-01",
+      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
+      "targetAction": "Retain deterministic proof and recheck this fixture if its use changes.",
+      "source": {
+        "tool": "codeql",
+        "rule": "rust/hard-coded-cryptographic-value",
+        "fingerprint": "ce7aa8aa4637ceb7ee824c2ca18d389560b0eb9732c7d251e5c161385f34ed67"
+      },
+      "exactScope": {
+        "exactPaths": [
+          "src/transfer/tests/trajectory_store.rs"
+        ],
+        "locations": [
+          {
+            "path": "src/transfer/tests/trajectory_store.rs",
+            "startLine": 18,
+            "endLine": 18,
+            "sourceSha256": "cec497bb2062a76ede2c5bf987ffe74beb1bf7bf1b3a9bbac792cf53937b0e2d"
+          }
+        ]
+      },
+      "proofReferences": [
+        "src/transfer/tests/trajectory_store.rs",
+        "docs/engineering/testing-policy.md",
+        "docs/security/data-handling.md"
+      ]
+    },
+    {
+      "id": "noise.codeql.hard-coded-cryptographic-value.8e5637432d1a",
+      "classification": "tool-noise",
+      "owner": "transfer",
+      "rationale": "This exact deterministic test fixture supplies synthetic nonces, identifiers, keys, or temporary paths. It does not supply production credentials.",
+      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
+      "reviewBy": "2026-12-01",
+      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
+      "targetAction": "Retain deterministic proof and recheck this fixture if its use changes.",
+      "source": {
+        "tool": "codeql",
+        "rule": "rust/hard-coded-cryptographic-value",
+        "fingerprint": "8e5637432d1a6b4f14379cb8e42bb657ed18525ec60aa13ded374e58a828a8f0"
+      },
+      "exactScope": {
+        "exactPaths": [
+          "src/transfer/tests/trajectory_store/recovery.rs"
+        ],
+        "locations": [
+          {
+            "path": "src/transfer/tests/trajectory_store/recovery.rs",
+            "startLine": 107,
+            "endLine": 107,
+            "sourceSha256": "072caa91f0ee8ae237a085bae4c0116592af8d6c317baea07b75816be74bb263"
+          }
+        ]
+      },
+      "proofReferences": [
+        "src/transfer/tests/trajectory_store/recovery.rs",
+        "docs/engineering/testing-policy.md",
+        "docs/security/data-handling.md"
+      ]
+    },
+    {
+      "id": "noise.codeql.hard-coded-cryptographic-value.860d49c7034d",
+      "classification": "tool-noise",
+      "owner": "transfer",
+      "rationale": "This exact literal is a typed filesystem presence or erasure flag. It is not cryptographic key material.",
+      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
+      "reviewBy": "2026-12-01",
+      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
+      "targetAction": "Remove when the cryptographic-value model distinguishes boolean flags from keys.",
+      "source": {
+        "tool": "codeql",
+        "rule": "rust/hard-coded-cryptographic-value",
+        "fingerprint": "860d49c7034d9e5ace48bc9fb1a27df0cd2d0bfa0bc48b70a3de85b5bbe4d04c"
+      },
+      "exactScope": {
+        "exactPaths": [
+          "src/transfer/trajectory_catalog.rs"
+        ],
+        "locations": [
+          {
+            "path": "src/transfer/trajectory_catalog.rs",
+            "startLine": 206,
+            "endLine": 206,
+            "sourceSha256": "12e9f91aa52945354033ee2d9567143762224854e28e4384cf139bc74a19edeb"
+          }
+        ]
+      },
+      "proofReferences": [
+        "src/transfer/trajectory_catalog.rs",
+        "docs/engineering/testing-policy.md",
+        "src/transfer/protected_file.rs"
+      ]
+    },
+    {
+      "id": "noise.codeql.hard-coded-cryptographic-value.52a2ea08b01f",
+      "classification": "tool-noise",
+      "owner": "transfer",
+      "rationale": "This exact literal is a typed filesystem presence or erasure flag. It is not cryptographic key material.",
+      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
+      "reviewBy": "2026-12-01",
+      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
+      "targetAction": "Remove when the cryptographic-value model distinguishes boolean flags from keys.",
+      "source": {
+        "tool": "codeql",
+        "rule": "rust/hard-coded-cryptographic-value",
+        "fingerprint": "52a2ea08b01fa6e2713e77e7c32bfc5a49ec5f4f8ffc81b20535f82443aa4717"
+      },
+      "exactScope": {
+        "exactPaths": [
+          "src/transfer/trajectory_catalog.rs"
+        ],
+        "locations": [
+          {
+            "path": "src/transfer/trajectory_catalog.rs",
+            "startLine": 207,
+            "endLine": 207,
+            "sourceSha256": "7933be52fad849b54089f5869c3b25b0f643b3f2d03d465cb358ff4b49e37ac3"
+          }
+        ]
+      },
+      "proofReferences": [
+        "src/transfer/trajectory_catalog.rs",
+        "docs/engineering/testing-policy.md",
+        "src/transfer/protected_file.rs"
+      ]
+    },
+    {
+      "id": "noise.codeql.hard-coded-cryptographic-value.02ad2aaf1236",
+      "classification": "tool-noise",
+      "owner": "transfer",
+      "rationale": "Both nonce slices overwrite this zero buffer before encryption. The header prefix and chunk index supply every byte.",
+      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
+      "reviewBy": "2026-12-01",
+      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
+      "targetAction": "Retain the nonce construction proof and recheck after an analyzer update.",
+      "source": {
+        "tool": "codeql",
+        "rule": "rust/hard-coded-cryptographic-value",
+        "fingerprint": "02ad2aaf123669ff6779753764d5c08396262c5f07676c2f840133720deee019"
+      },
+      "exactScope": {
+        "exactPaths": [
+          "src/transfer/protected_file.rs"
+        ],
+        "locations": [
+          {
+            "path": "src/transfer/protected_file.rs",
+            "startLine": 253,
+            "endLine": 253,
+            "sourceSha256": "12ed346a76742e038a72cd80305f4418ff6d2c469208d6bd326a2d98d3990ea5"
+          }
+        ]
+      },
+      "proofReferences": [
+        "src/transfer/protected_file.rs",
+        "docs/engineering/testing-policy.md",
+        "src/transfer/tests/protected_file.rs"
+      ]
+    },
+    {
+      "id": "noise.codeql.hard-coded-cryptographic-value.b2d744fb2bea",
+      "classification": "tool-noise",
+      "owner": "transfer",
+      "rationale": "This exact deterministic test fixture supplies synthetic nonces, identifiers, keys, or temporary paths. It does not supply production credentials.",
+      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
+      "reviewBy": "2026-12-01",
+      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
+      "targetAction": "Retain deterministic proof and recheck this fixture if its use changes.",
+      "source": {
+        "tool": "codeql",
+        "rule": "rust/hard-coded-cryptographic-value",
+        "fingerprint": "b2d744fb2bea30e03d5f3ac7e09f55ad04c1e9868c2b05b8f33dd98ba9ed3355"
+      },
+      "exactScope": {
+        "exactPaths": [
+          "src/transfer/tests/protected_file.rs"
+        ],
+        "locations": [
+          {
+            "path": "src/transfer/tests/protected_file.rs",
+            "startLine": 19,
+            "endLine": 19,
+            "sourceSha256": "745e968eec0925f30f85d204d668d98fd55be3d3daee868f145e2b3c2526d815"
+          }
+        ]
+      },
+      "proofReferences": [
+        "src/transfer/tests/protected_file.rs",
+        "docs/engineering/testing-policy.md",
+        "docs/security/data-handling.md"
+      ]
+    },
+    {
+      "id": "noise.codeql.hard-coded-cryptographic-value.6d1b54eaf1ac",
+      "classification": "tool-noise",
+      "owner": "transfer",
+      "rationale": "This exact deterministic test fixture supplies synthetic nonces, identifiers, keys, or temporary paths. It does not supply production credentials.",
+      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
+      "reviewBy": "2026-12-01",
+      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
+      "targetAction": "Retain deterministic proof and recheck this fixture if its use changes.",
+      "source": {
+        "tool": "codeql",
+        "rule": "rust/hard-coded-cryptographic-value",
+        "fingerprint": "6d1b54eaf1acd67a3c2f55485c452f7e3c4793f5496556b758e4d33ac74d49bb"
+      },
+      "exactScope": {
+        "exactPaths": [
+          "src/transfer/tests/protected_file.rs"
+        ],
+        "locations": [
+          {
+            "path": "src/transfer/tests/protected_file.rs",
+            "startLine": 83,
+            "endLine": 83,
+            "sourceSha256": "745e968eec0925f30f85d204d668d98fd55be3d3daee868f145e2b3c2526d815"
+          }
+        ]
+      },
+      "proofReferences": [
+        "src/transfer/tests/protected_file.rs",
+        "docs/engineering/testing-policy.md",
+        "docs/security/data-handling.md"
+      ]
+    },
+    {
+      "id": "noise.codeql.cleartext-logging.c4e74cefbdef",
+      "classification": "tool-noise",
+      "owner": "ipc",
+      "rationale": "This exact Vec::remove call mutates an in-memory buffer. It does not call a logger or write a file.",
+      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
+      "reviewBy": "2026-12-01",
+      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
+      "targetAction": "Remove when the logging model distinguishes Vec::remove from a log sink.",
+      "source": {
+        "tool": "codeql",
+        "rule": "rust/cleartext-logging",
+        "fingerprint": "c4e74cefbdef7461d9202ada1b5f904496bebb6a3e586663a275a3f37f233b0b"
+      },
+      "exactScope": {
+        "exactPaths": [
+          "src/ipc/pipe/server.rs"
+        ],
+        "locations": [
+          {
+            "path": "src/ipc/pipe/server.rs",
+            "startLine": 124,
+            "endLine": 124,
+            "sourceSha256": "d56137c0241c73d9cc7697bc15f08660a4f7ba49b44123873759982a8701a3ca"
+          }
+        ]
+      },
+      "proofReferences": [
+        "src/ipc/pipe/server.rs",
+        "docs/engineering/testing-policy.md",
+        "docs/security/ipc-auth.md"
+      ]
+    },
+    {
+      "id": "noise.codeql.cleartext-logging.a6daaf5b2f79",
+      "classification": "tool-noise",
+      "owner": "ipc",
+      "rationale": "This exact Vec::remove call mutates an in-memory buffer. It does not call a logger or write a file.",
+      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
+      "reviewBy": "2026-12-01",
+      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
+      "targetAction": "Remove when the logging model distinguishes Vec::remove from a log sink.",
+      "source": {
+        "tool": "codeql",
+        "rule": "rust/cleartext-logging",
+        "fingerprint": "a6daaf5b2f791e6b7b07d8a0ea17999b17ec7749e9dae3e13d48d50b57321494"
+      },
+      "exactScope": {
+        "exactPaths": [
+          "src/ipc/pipe/server.rs"
+        ],
+        "locations": [
+          {
+            "path": "src/ipc/pipe/server.rs",
+            "startLine": 206,
+            "endLine": 206,
+            "sourceSha256": "c2f313af4c7f80f1e4f5cd11c48f1f2c7c94234a49be6519e61f6ec2e2b21ae2"
+          }
+        ]
+      },
+      "proofReferences": [
+        "src/ipc/pipe/server.rs",
+        "docs/engineering/testing-policy.md",
+        "docs/security/ipc-auth.md"
+      ]
+    },
+    {
+      "id": "noise.codeql.cleartext-logging.e093eed7e601",
+      "classification": "tool-noise",
+      "owner": "ipc",
+      "rationale": "This negative test assertion describes synthetic marker values on failure. It is not a production logging operation.",
+      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
+      "reviewBy": "2026-12-01",
+      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
+      "targetAction": "Recheck if this assertion or its synthetic inputs change.",
+      "source": {
+        "tool": "codeql",
+        "rule": "rust/cleartext-logging",
+        "fingerprint": "e093eed7e60129e75ac8515708684473908ad605d45d8b7ae6466a55ed604b1d"
+      },
+      "exactScope": {
+        "exactPaths": [
+          "src/ipc/tests/bridge.rs"
+        ],
+        "locations": [
+          {
+            "path": "src/ipc/tests/bridge.rs",
+            "startLine": 204,
+            "endLine": 204,
+            "sourceSha256": "023aae61cff754f3c407dd07b6d8bdd91127d6fee807796345b91a9448ec8ffd"
+          }
+        ]
+      },
+      "proofReferences": [
+        "src/ipc/tests/bridge.rs",
+        "docs/engineering/testing-policy.md",
+        "contracts/security/redaction-corpus.json"
+      ]
+    },
+    {
+      "id": "noise.codeql.cleartext-logging.56a8b76933b0",
+      "classification": "tool-noise",
+      "owner": "ipc",
+      "rationale": "This negative test assertion describes synthetic marker values on failure. It is not a production logging operation.",
+      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
+      "reviewBy": "2026-12-01",
+      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
+      "targetAction": "Recheck if this assertion or its synthetic inputs change.",
+      "source": {
+        "tool": "codeql",
+        "rule": "rust/cleartext-logging",
+        "fingerprint": "56a8b76933b095d04484ffcee5504c163e94d5029e14eb0964d41fea68508639"
+      },
+      "exactScope": {
+        "exactPaths": [
+          "src/ipc/tests/bridge.rs"
+        ],
+        "locations": [
+          {
+            "path": "src/ipc/tests/bridge.rs",
+            "startLine": 841,
+            "endLine": 841,
+            "sourceSha256": "e7fa55dd6bd7552e791d9c9f5edb18dc51dc05eb8416e0b5a0e0a44579934500"
+          }
+        ]
+      },
+      "proofReferences": [
+        "src/ipc/tests/bridge.rs",
+        "docs/engineering/testing-policy.md",
+        "contracts/security/redaction-corpus.json"
+      ]
+    }
+  ]
 }

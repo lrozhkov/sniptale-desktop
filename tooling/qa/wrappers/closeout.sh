@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
-# shellcheck disable=SC1091
+# shellcheck source=../runtime/lib.sh
 source "$ROOT/tooling/qa/runtime/lib.sh"
 cd "$ROOT"
 qa_init "qa:closeout" blocking
@@ -16,7 +16,7 @@ while [[ $# -gt 0 ]]; do
       commit=false
       shift
       ;;
-    -m|--message)
+    -m | --message)
       message="${2:-}"
       shift 2
       ;;

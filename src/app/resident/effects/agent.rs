@@ -28,6 +28,8 @@ pub(in crate::app::resident) struct AgentSideEffects {
     pub(super) recordings: Option<RecordingTransferStore>,
     pub(super) recording: RecordingWorkerCommandSink,
     active_settings: Option<crate::settings::ActiveSettings>,
+    pub(super) browser_target_id: Option<String>,
+    pub(super) assignments: Option<crate::transfer::browser_delivery::BrowserDeliveryStore>,
 }
 
 impl AgentSideEffects {
@@ -68,6 +70,8 @@ impl AgentSideEffects {
             recordings,
             recording,
             active_settings,
+            browser_target_id: None,
+            assignments: None,
         }
     }
 
@@ -76,9 +80,115 @@ impl AgentSideEffects {
             .as_ref()
             .is_none_or(crate::settings::ActiveSettings::allows_extension_ingress)
     }
+
+    pub(super) fn assignment_store(
+        &self,
+    ) -> Result<crate::transfer::browser_delivery::BrowserDeliveryStore, NativeHostSideEffectError>
+    {
+        self.assignments
+            .clone()
+            .map_or_else(
+                crate::transfer::browser_delivery::BrowserDeliveryStore::open_default,
+                Ok,
+            )
+            .map_err(|_| NativeHostSideEffectError::RecordingTransferState)
+    }
 }
 
 impl NativeHostSideEffects for AgentSideEffects {
+    fn recording_attachment_manifest(
+        &mut self,
+        request: &crate::protocol::trajectory::ExtensionRecordingAttachmentManifestRequestMessage,
+    ) -> Result<
+        crate::protocol::trajectory::AppRecordingAttachmentManifestMessage,
+        NativeHostSideEffectError,
+    > {
+        if !self.extension_ingress_allowed() {
+            return Err(NativeHostSideEffectError::UnsupportedCapability);
+        }
+        self.recording_attachment_manifest_from_store(request)
+    }
+
+    fn recording_attachment_read_grant(
+        &mut self,
+        request: &crate::protocol::trajectory::ExtensionRecordingAttachmentChunkRequestMessage,
+    ) -> Result<crate::protocol::trajectory::CursorTrajectoryReadGrant, NativeHostSideEffectError>
+    {
+        if !self.extension_ingress_allowed() {
+            return Err(NativeHostSideEffectError::UnsupportedCapability);
+        }
+        self.recording_attachment_grant_from_store(request)
+    }
+
+    fn ack_recording_attachment(
+        &mut self,
+        ack: &crate::protocol::trajectory::ExtensionRecordingAttachmentAckMessage,
+    ) -> Result<bool, NativeHostSideEffectError> {
+        if !self.extension_ingress_allowed() {
+            return Ok(false);
+        }
+        self.ack_recording_attachment_in_store(ack)
+    }
+
+    fn pending_recording_attachments(
+        &mut self,
+    ) -> Result<
+        Vec<crate::transfer::trajectory_catalog::PendingTrajectory>,
+        NativeHostSideEffectError,
+    > {
+        if !self.extension_ingress_allowed() {
+            return Ok(Vec::new());
+        }
+        self.pending_recording_attachments_from_store()
+    }
+    fn recording_events_manifest(
+        &mut self,
+        request: &crate::protocol::recording_events::ExtensionRecordingEventsManifestRequestMessage,
+    ) -> Result<
+        crate::protocol::recording_events::AppRecordingEventsManifestMessage,
+        NativeHostSideEffectError,
+    > {
+        if !self.extension_ingress_allowed() {
+            return Err(NativeHostSideEffectError::UnsupportedCapability);
+        }
+        self.recording_events_manifest_from_store(request)
+    }
+
+    fn recording_events_read_grant(
+        &mut self,
+        request: &crate::protocol::recording_events::ExtensionRecordingEventsChunkRequestMessage,
+    ) -> Result<
+        crate::protocol::recording_events::RecordingEventsReadGrant,
+        NativeHostSideEffectError,
+    > {
+        if !self.extension_ingress_allowed() {
+            return Err(NativeHostSideEffectError::UnsupportedCapability);
+        }
+        self.recording_events_grant_from_store(request)
+    }
+
+    fn ack_recording_events(
+        &mut self,
+        ack: &crate::protocol::recording_events::ExtensionRecordingEventsAckMessage,
+    ) -> Result<bool, NativeHostSideEffectError> {
+        if !self.extension_ingress_allowed() {
+            return Ok(false);
+        }
+        self.ack_recording_events_in_store(ack)
+    }
+
+    fn pending_recording_event_attachments(
+        &mut self,
+    ) -> Result<Vec<crate::transfer::events_catalog::PendingEvents>, NativeHostSideEffectError>
+    {
+        if !self.extension_ingress_allowed() {
+            return Ok(Vec::new());
+        }
+        self.pending_recording_event_attachments_from_store()
+    }
+    fn bind_browser_target(&mut self, target_id: &str) {
+        self.browser_target_id = Some(target_id.to_owned());
+    }
     fn apply_hotkey_plan(
         &mut self,
         plan: HotkeyRegistrationPlan,

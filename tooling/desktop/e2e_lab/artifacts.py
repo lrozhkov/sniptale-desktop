@@ -12,28 +12,88 @@ import tarfile
 import shutil
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import Iterable
+from collections.abc import Iterable
 
 from errors import IntegrityError
 from system import sha256_file
 
 EXCLUDED_PARTS = {
-    ".git", ".tmp", ".artifacts", "target", "node_modules", ".cache", "cache", "vm-state",
-    "desktop-e2e-lab", "__pycache__", ".pytest_cache", ".idea", ".vscode",
+    ".git",
+    ".tmp",
+    ".artifacts",
+    "target",
+    "node_modules",
+    ".cache",
+    "cache",
+    "vm-state",
+    "desktop-e2e-lab",
+    "__pycache__",
+    ".pytest_cache",
+    ".idea",
+    ".vscode",
 }
 EXCLUDED_SUFFIXES = {
-    ".pem", ".key", ".pfx", ".p12", ".jks", ".keystore", ".iso", ".qcow2",
-    ".vhd", ".vhdx", ".vmdk", ".mp3", ".wav", ".flac", ".aac", ".mp4",
-    ".mkv", ".mov", ".webm", ".avi",
+    ".pem",
+    ".key",
+    ".pfx",
+    ".p12",
+    ".jks",
+    ".keystore",
+    ".iso",
+    ".qcow2",
+    ".vhd",
+    ".vhdx",
+    ".vmdk",
+    ".mp3",
+    ".wav",
+    ".flac",
+    ".aac",
+    ".mp4",
+    ".mkv",
+    ".mov",
+    ".webm",
+    ".avi",
 }
 SENSITIVE_NAMES = {
-    ".env", ".netrc", ".npmrc", ".pypirc", ".git-credentials", "credentials",
-    "credentials.json", "secrets.json", "auth.json", "id_rsa", "id_ed25519",
+    ".env",
+    ".netrc",
+    ".npmrc",
+    ".pypirc",
+    ".git-credentials",
+    "credentials",
+    "credentials.json",
+    "secrets.json",
+    "auth.json",
+    "id_rsa",
+    "id_ed25519",
 }
 UNTRACKED_MEDIA_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}
 UNTRACKED_SOURCE_SUFFIXES = {
-    ".css", ".html", ".js", ".json", ".lock", ".md", ".ps1", ".py", ".rs",
-    ".sh", ".svg", ".toml", ".txt", ".wxs", ".xml", ".yaml", ".yml",
+    ".css",
+    ".ftl",
+    ".html",
+    ".js",
+    ".jsx",
+    ".ts",
+    ".tsx",
+    ".mjs",
+    ".cjs",
+    ".mts",
+    ".cts",
+    ".json",
+    ".lock",
+    ".md",
+    ".ps1",
+    ".py",
+    ".rs",
+    ".sh",
+    ".svg",
+    ".toml",
+    ".txt",
+    ".wxs",
+    ".xml",
+    ".yaml",
+    ".yml",
 }
 UNTRACKED_ROOT_TEXT_NAMES = {"LICENSE", "NOTICE"}
 MAX_SOURCE_FILES = 20_000
@@ -70,9 +130,38 @@ def excluded(relative: PurePosixPath, *, tracked: bool = False) -> bool:
     )
 
 
+def packaged_ui_files(root: Path) -> set[str]:
+    """Transfer built presentation inputs, without npm caches or host dependencies."""
+    if not (root / "tauri.conf.json").is_file():
+        return set()
+    dist = root / "ui/dist"
+    if not (dist / "index.html").is_file():
+        raise IntegrityError("packaged UI is missing; run npm --prefix ui run build before the guest build")
+    result = set()
+    for directory in (dist, root / "ui/src/styles/fonts"):
+        if directory.is_symlink():
+            raise IntegrityError("packaged UI directory must not be a symlink")
+        for path in directory.rglob("*"):
+            if path.is_symlink():
+                raise IntegrityError("packaged UI must not contain symlinks")
+            if path.is_file():
+                result.add(path.relative_to(root).as_posix())
+    return result
+
+
 def source_files(root: Path) -> Iterable[tuple[Path, PurePosixPath]]:
     tracked_output = _git(root, "ls-files", "-z")
     tracked = set(tracked_output.split("\0")) if tracked_output != "unavailable" else set()
+    visible_output = _git(root, "ls-files", "--cached", "--others", "--exclude-standard", "-z")
+    visible = None if visible_output == "unavailable" else set(visible_output.split("\0"))
+    packaged_ui = packaged_ui_files(root)
+    if visible is not None:
+        visible.update(packaged_ui)
+    visible_directories = {
+        PurePosixPath(*PurePosixPath(item).parts[:depth]).as_posix()
+        for item in (visible or ())
+        for depth in range(1, len(PurePosixPath(item).parts))
+    }
     tracked_directories = {
         PurePosixPath(*PurePosixPath(item).parts[:depth]).as_posix()
         for item in tracked
@@ -85,6 +174,12 @@ def source_files(root: Path) -> Iterable[tuple[Path, PurePosixPath]]:
         for name in sorted(directories):
             path = current_path / name
             relative = PurePosixPath((relative_dir / name).as_posix())
+            if (
+                visible is not None
+                and relative.as_posix() not in visible
+                and relative.as_posix() not in visible_directories
+            ):
+                continue
             tracked_path = relative.as_posix() in tracked_directories
             if excluded(relative, tracked=tracked_path):
                 continue
@@ -99,11 +194,14 @@ def source_files(root: Path) -> Iterable[tuple[Path, PurePosixPath]]:
         for name in sorted(files):
             path = current_path / name
             relative = PurePosixPath(path.relative_to(root).as_posix())
+            if visible is not None and relative.as_posix() not in visible:
+                continue
             tracked_path = relative.as_posix() in tracked
             if excluded(relative, tracked=tracked_path):
                 continue
             if (
                 not tracked_path
+                and relative.as_posix() not in packaged_ui
                 and relative.suffix.lower() not in UNTRACKED_SOURCE_SUFFIXES
                 and not (len(relative.parts) == 1 and relative.name in UNTRACKED_ROOT_TEXT_NAMES)
             ):
@@ -113,10 +211,10 @@ def source_files(root: Path) -> Iterable[tuple[Path, PurePosixPath]]:
                     and path.is_file()
                     and path.stat().st_mode & stat.S_IXUSR
                 )
-                synthetic_resource = (
-                    relative.suffix.lower() in UNTRACKED_MEDIA_SUFFIXES
-                    and relative.parts[0] in {"resources", "contracts"}
-                )
+                synthetic_resource = relative.suffix.lower() in UNTRACKED_MEDIA_SUFFIXES and relative.parts[0] in {
+                    "resources",
+                    "contracts",
+                }
                 if not executable_script and not synthetic_resource:
                     continue
             if (
@@ -139,8 +237,12 @@ def source_files(root: Path) -> Iterable[tuple[Path, PurePosixPath]]:
 
 def _git(root: Path, *args: str) -> str:
     result = subprocess.run(
-        ["git", *args], cwd=root, text=True, stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL, check=False,
+        ["git", *args],
+        cwd=root,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        check=False,
     )
     return result.stdout.strip() if result.returncode == 0 else "unavailable"
 
@@ -159,39 +261,74 @@ def dirty_fingerprint(root: Path) -> str:
     return digest.hexdigest()
 
 
+def source_tree_fingerprint(root: Path) -> dict:
+    """Bind external build inputs without generating an unused transport archive."""
+    entries = []
+    total = 0
+    for path, relative in source_files(root):
+        info = path.lstat()
+        entry = {"name": relative.as_posix(), "mode": stat.S_IMODE(info.st_mode)}
+        if stat.S_ISREG(info.st_mode):
+            total += info.st_size
+            if info.st_size > MAX_SOURCE_FILE_BYTES or total > MAX_SOURCE_TOTAL_BYTES:
+                raise IntegrityError("source fingerprint exceeds file or total byte limit")
+            entry.update(bytes=info.st_size, sha256=sha256_file(path))
+        else:
+            entry["link"] = os.readlink(path)
+        entries.append(entry)
+        if len(entries) > MAX_SOURCE_FILES:
+            raise IntegrityError("source fingerprint exceeds file count limit")
+    digest = hashlib.sha256(
+        json.dumps(sorted(entries, key=lambda entry: entry["name"]), sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    return {
+        "source_tree_sha256": digest,
+        "commit_sha": _git(root, "rev-parse", "HEAD"),
+        "dirty_state_sha256": dirty_fingerprint(root),
+        "file_count": len(entries),
+    }
+
+
 def create_source_bundle(root: Path, destination: Path) -> SourceFingerprint:
     destination.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     temporary = destination.with_suffix(destination.suffix + ".partial")
     raw_tar = destination.with_suffix(destination.suffix + ".tar.partial")
     count = 0
     total_bytes = 0
-    with tarfile.open(raw_tar, "w", format=tarfile.PAX_FORMAT) as archive:
-        for path, relative in source_files(root):
-            info = archive.gettarinfo(str(path), arcname=relative.as_posix())
-            if info.isreg():
-                if info.size > MAX_SOURCE_FILE_BYTES:
-                    raise IntegrityError(f"source file exceeds 64 MiB limit: {relative}")
-                total_bytes += info.size
-                if total_bytes > MAX_SOURCE_TOTAL_BYTES:
-                    raise IntegrityError("source bundle exceeds the 512 MiB uncompressed limit")
-            count += 1
-            if count > MAX_SOURCE_FILES:
-                raise IntegrityError(f"source bundle exceeds the {MAX_SOURCE_FILES} file limit")
-            info.uid = 0
-            info.gid = 0
-            info.uname = "root"
-            info.gname = "root"
-            info.mtime = 0
-            if info.isreg():
-                with path.open("rb") as stream:
-                    archive.addfile(info, stream)
-            else:
-                archive.addfile(info)
-    with raw_tar.open("rb") as source, temporary.open("wb") as target:
-        with gzip.GzipFile(filename="", mode="wb", fileobj=target, mtime=0) as compressed:
+    try:
+        with tarfile.open(raw_tar, "w", format=tarfile.PAX_FORMAT) as archive:
+            for path, relative in source_files(root):
+                info = archive.gettarinfo(str(path), arcname=relative.as_posix())
+                if info.isreg():
+                    if info.size > MAX_SOURCE_FILE_BYTES:
+                        raise IntegrityError(f"source file exceeds 64 MiB limit: {relative}")
+                    total_bytes += info.size
+                    if total_bytes > MAX_SOURCE_TOTAL_BYTES:
+                        raise IntegrityError("source bundle exceeds the 512 MiB uncompressed limit")
+                count += 1
+                if count > MAX_SOURCE_FILES:
+                    raise IntegrityError(f"source bundle exceeds the {MAX_SOURCE_FILES} file limit")
+                info.uid = 0
+                info.gid = 0
+                info.uname = "root"
+                info.gname = "root"
+                info.mtime = 0
+                if info.isreg():
+                    with path.open("rb") as stream:
+                        archive.addfile(info, stream)
+                else:
+                    archive.addfile(info)
+        with (
+            raw_tar.open("rb") as source,
+            temporary.open("wb") as target,
+            gzip.GzipFile(filename="", mode="wb", fileobj=target, mtime=0) as compressed,
+        ):
             shutil.copyfileobj(source, compressed, length=1024 * 1024)
-    raw_tar.unlink()
-    os.replace(temporary, destination)
+        raw_tar.unlink()
+        os.replace(temporary, destination)
+    finally:
+        raw_tar.unlink(missing_ok=True)
+        temporary.unlink(missing_ok=True)
     return SourceFingerprint(
         archive=destination,
         sha256=sha256_file(destination),
@@ -226,12 +363,14 @@ def evidence_manifest(run_dir: Path) -> dict[str, object]:
             if not path.is_file():
                 raise IntegrityError("evidence manifest contains a special file")
             relative = path.relative_to(run_dir).as_posix()
-            entries.append({
-                "relative_path": relative,
-                "category": category,
-                "bytes": path.stat().st_size,
-                "sha256": sha256_file(path),
-            })
+            entries.append(
+                {
+                    "relative_path": relative,
+                    "category": category,
+                    "bytes": path.stat().st_size,
+                    "sha256": sha256_file(path),
+                }
+            )
     entries.sort(key=lambda item: str(item["relative_path"]))
     if len(entries) > 4096:
         raise IntegrityError("evidence manifest exceeds the file-count limit")

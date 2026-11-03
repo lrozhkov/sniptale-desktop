@@ -21,13 +21,17 @@ pub(crate) use capabilities::{
     NativeCapabilityLimits, NativeCapabilityUnavailableReason, NativeCaptureCapabilities,
     NativeCodecCapabilities, NativeMicrophoneDevice, ScreenshotMode, VideoCodec, VideoMode,
 };
-#[cfg(test)]
+#[cfg(any(windows, test))]
 pub(crate) use control::controller::BrowserFamily;
 pub(crate) use control::controller::{
     AppControllerLeaseMessage, ControllerAcquireReason, ControllerLeaseStatus,
-    ExtensionControllerAcquireMessage, NativeControllerIdentity,
+    ExtensionControllerAcquireMessage, NativeControllerIdentity, TargetSelectionStatus,
 };
-pub(crate) use control::handshake::{AppHelloMessage, ExtensionHelloMessage};
+#[cfg(any(windows, test))]
+pub(crate) use control::handshake::ConnectionIntent;
+pub(crate) use control::handshake::{
+    AppHelloMessage, DesktopAppIdentity, DesktopSettingsAuthority, ExtensionHelloMessage,
+};
 #[cfg(any(windows, test))]
 pub(crate) use control::media_commands::AppCommandAcceptedMessage;
 #[cfg(any(windows, test))]
@@ -40,6 +44,14 @@ pub(crate) use control::settings::{
     AppSettingsAcceptedMessage, ExtensionSettingsSyncMessage, NativeEffectiveSettings,
     NativeSettingsSnapshot,
 };
+#[cfg(any(windows, test))]
+pub(crate) use control::settings::{
+    NativeAudioCodecSetting, NativeContainerSetting, NativeHardwareAcceleration,
+    NativeScreenshotSettings, NativeVideoAdvancedSettings, NativeVideoCodecSetting,
+    NativeVideoCodecSettings, NativeVideoSettings, NativeVideoTelemetrySettings,
+};
+#[cfg(any(windows, test))]
+pub(crate) use control::status::{AppConnectionClosedMessage, ConnectionClosedReason};
 pub(crate) use control::status::{AppPongMessage, NativeAppStatus};
 pub(crate) use control::tray::ExtensionIntentActionId;
 #[cfg(test)]
@@ -50,12 +62,15 @@ pub(crate) use control::tray::{
 };
 pub(crate) use control::tray::{NativeTrayActionKind, NativeTrayActionRegistry};
 pub(crate) use errors::ParseError;
+#[cfg(any(windows, test))]
+pub(crate) use errors::ParseErrorKind;
 #[cfg(test)]
 pub(crate) use media::failure::NativeAppErrorCode;
 pub(crate) use media::failure::{
     AppOperationFailedMessage, NativeAppError, OperationFailedOperation,
 };
 pub(crate) use media::operation_error::OperationalErrorKind;
+pub(crate) use media::receipt::DurableMediaReceipt;
 #[cfg(any(windows, test))]
 pub(crate) use media::recording::{
     AppRecordingChunkMessage, AppRecordingProgressMessage, AppRecordingStartedMessage,
@@ -98,3 +113,5 @@ pub(crate) use versions::{
 #[cfg(any(windows, test))]
 pub(crate) use versions::{CHUNK_MAX_BASE64_CHARS, MESSAGE_TARGET_MAX_JSON_UTF8_BYTES};
 pub(crate) use wire::WireMessage;
+pub(crate) mod recording_events;
+pub(crate) mod trajectory;

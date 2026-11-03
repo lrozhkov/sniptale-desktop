@@ -12,7 +12,10 @@ param(
   [Parameter(Mandatory = $true)][string] $BrowserProbeSha256,
   [Parameter(Mandatory = $true)][string] $ProbeNonce,
   [string] $Output = "e2e-out",
-  [string] $Cases = ""
+  [string] $Cases = "",
+  [ValidateSet("", "warm")][string] $WorkspaceMode = "",
+  [string] $RealExtensionSha256 = "",
+  [string] $LabCertificateSha256 = ""
 )
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
@@ -30,10 +33,10 @@ if ($Cases) {
 }
 $tests = [Collections.Generic.List[object]]::new()
 $installed = Join-Path $env:LOCALAPPDATA "Sniptale\NativeAgent\sniptale-native-agent.exe"
-$settingsTitle = "Sniptale $([char]0x2014) Manual settings"
 $agent = $null
 $script:manualProfileTemplate = $null
 $script:browserProbeAttempt = 0
+. "$PSScriptRoot\windows-ui.ps1"
 
 function Write-ProgressEvent(
   [string] $Scenario,
@@ -103,7 +106,12 @@ function Add-Test([string] $Name, [scriptblock] $Body) {
     $tests.Add([ordered]@{ name = $Name; status = "pass"; duration_ms = [int]$watch.ElapsedMilliseconds; detail = "$detail" })
     Write-ProgressEvent $Name "pass"
   } catch {
-    $tests.Add([ordered]@{ name = $Name; status = "fail"; duration_ms = [int]$watch.ElapsedMilliseconds; detail = $_.Exception.Message })
+    $frame = ($_.ScriptStackTrace -split "`n")[0] -replace ',.*$', ''
+    $detail = "$($_.Exception.Message); sourceLine=$($_.InvocationInfo.ScriptLineNumber); frame=$frame"
+    if ($Name -eq "capture") {
+      try { Save-Desktop "capture-failure" } catch { Write-Output "capture failure screenshot unavailable" }
+    }
+    $tests.Add([ordered]@{ name = $Name; status = "fail"; duration_ms = [int]$watch.ElapsedMilliseconds; detail = $detail })
     Write-ProgressEvent $Name "fail"
   }
 }
@@ -112,48 +120,6 @@ function Invoke-Msi([string[]] $Arguments, [string] $LogName) {
   $arguments = @($Arguments + @("/qn", "/norestart", "/l*v", (Join-Path $outputPath "logs\$LogName.log")))
   $process = Start-Process msiexec.exe -ArgumentList $arguments -Wait -PassThru
   if ($process.ExitCode -notin @(0, 1641, 3010)) { throw "msiexec exit=$($process.ExitCode)" }
-}
-
-function ConvertTo-LowerHex([byte[]] $Bytes) {
-  -join ($Bytes | ForEach-Object { $_.ToString("x2") })
-}
-
-function Provision-DevRuntimeTrust {
-  Add-Type -AssemblyName System.Security
-  $directory = [IO.Path]::GetDirectoryName($installed)
-  $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
-  $secretBytes = [byte[]]::new(32)
-  $rng = [Security.Cryptography.RandomNumberGenerator]::Create()
-  try { $rng.GetBytes($secretBytes) } finally { $rng.Dispose() }
-  $plain = [Text.Encoding]::UTF8.GetBytes((ConvertTo-LowerHex $secretBytes))
-  $protected = [Security.Cryptography.ProtectedData]::Protect(
-    $plain,
-    $null,
-    [Security.Cryptography.DataProtectionScope]::CurrentUser
-  )
-  $secret = [ordered]@{
-    installId = "install-dev"
-    currentUserSid = $sid
-    authAlgorithm = "pipe-auth-v2-hmac-sha256"
-    protection = "current-user-dpapi"
-    protectedSecretHex = ConvertTo-LowerHex $protected
-  }
-  [IO.File]::WriteAllText(
-    (Join-Path $directory "pipe-secret.json"),
-    ($secret | ConvertTo-Json -Depth 5 -Compress),
-    [Text.UTF8Encoding]::new($false)
-  )
-  $marker = [ordered]@{
-    kind = "sniptale-dev-local-browser-trust"
-    enabled = $true
-    scope = "current-user-browser-parent"
-    executableSha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $installed).Hash.ToLowerInvariant()
-  }
-  [IO.File]::WriteAllText(
-    (Join-Path $directory "dev-local-browser-trust.json"),
-    ($marker | ConvertTo-Json -Depth 4 -Compress),
-    [Text.UTF8Encoding]::new($false)
-  )
 }
 
 function Write-UpgradeAuthorizationFixture {
@@ -169,16 +135,6 @@ function Write-UpgradeAuthorizationFixture {
   foreach ($name in @("pipe-secret.json", "dev-local-browser-trust.json", "trusted-connections.json")) {
     $script:upgradeAuthorizationHashes[$name] = (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $directory $name)).Hash
   }
-}
-
-function Save-Desktop([string] $Name) {
-  Add-Type -AssemblyName System.Drawing
-  Add-Type -AssemblyName System.Windows.Forms
-  $bounds = [Windows.Forms.SystemInformation]::VirtualScreen
-  $bitmap = [Drawing.Bitmap]::new($bounds.Width, $bounds.Height)
-  $graphics = [Drawing.Graphics]::FromImage($bitmap)
-  try { $graphics.CopyFromScreen($bounds.Left, $bounds.Top, 0, 0, $bounds.Size); $bitmap.Save((Join-Path $outputPath "screenshots\$Name.png"), [Drawing.Imaging.ImageFormat]::Png) }
-  finally { $graphics.Dispose(); $bitmap.Dispose() }
 }
 
 function Save-UiWindow([object] $Element, [string] $Name) {
@@ -212,57 +168,6 @@ function Test-BinaryMarker([string] $Path, [string] $Marker) {
     return $false
   } finally {
     $stream.Dispose()
-  }
-}
-
-function Find-Ui([string] $Name, [int] $Seconds = 20) {
-  Add-Type -AssemblyName UIAutomationClient
-  $deadline = [DateTime]::UtcNow.AddSeconds($Seconds)
-  $condition = [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty, $Name)
-  while ([DateTime]::UtcNow -lt $deadline) {
-    $item = [Windows.Automation.AutomationElement]::RootElement.FindFirst([Windows.Automation.TreeScope]::Descendants, $condition)
-    if ($item) { return $item }
-    Start-Sleep -Milliseconds 500
-  }
-  throw "UI element not found: $Name"
-}
-
-function Restart-AgentWithMode([ValidateSet("manual", "extension-managed")][string] $Mode) {
-  if ($script:agent -and -not $script:agent.HasExited) {
-    Stop-Process -Id $script:agent.Id -Force -ErrorAction SilentlyContinue
-    $null = $script:agent.WaitForExit(5000)
-  }
-  $ownedProcesses = @(Get-Process "sniptale-native-agent" -ErrorAction SilentlyContinue | Where-Object {
-    try { [string]::Equals($_.Path, $installed, [StringComparison]::OrdinalIgnoreCase) } catch { $false }
-  })
-  foreach ($process in $ownedProcesses) { Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue }
-  $deadline = [DateTime]::UtcNow.AddSeconds(15)
-  do {
-    $remaining = @(Get-Process "sniptale-native-agent" -ErrorAction SilentlyContinue | Where-Object {
-      try { [string]::Equals($_.Path, $installed, [StringComparison]::OrdinalIgnoreCase) } catch { $false }
-    })
-    if ($remaining.Count -eq 0) { break }
-    Start-Sleep -Milliseconds 100
-  } while ([DateTime]::UtcNow -lt $deadline)
-  if ($remaining.Count -ne 0) { throw "resident process did not stop before mode restart" }
-  $profilePath = Join-Path $env:LOCALAPPDATA "Sniptale\NativeAgent\local-profile.json"
-  $profile = Get-Content -Raw -LiteralPath $profilePath | ConvertFrom-Json
-  $profile.revision = [uint64]$profile.revision + 1
-  $profile.operatingMode = $Mode
-  if ($Mode -eq "manual" -and $null -eq $profile.manualProfile) {
-    $profile.manualProfile = $script:manualProfileTemplate
-  }
-  [IO.File]::WriteAllText($profilePath, ($profile | ConvertTo-Json -Depth 8 -Compress), [Text.UTF8Encoding]::new($false))
-  $script:agent = Start-Process -FilePath $installed -PassThru
-  Start-Sleep -Seconds 4
-  if ($script:agent.HasExited) {
-    # MSI autostart can observe the forced stop and win the singleton race against Start-Process.
-    # Accept that installed owner only when it is live and path-bound to the exact tested binary.
-    $replacement = @(Get-Process "sniptale-native-agent" -ErrorAction SilentlyContinue | Where-Object {
-      try { -not $_.HasExited -and [string]::Equals($_.Path, $installed, [StringComparison]::OrdinalIgnoreCase) } catch { $false }
-    } | Sort-Object StartTime -Descending | Select-Object -First 1)
-    if ($replacement.Count -ne 1) { throw "resident failed to start in $Mode mode" }
-    $script:agent = $replacement[0]
   }
 }
 
@@ -334,235 +239,16 @@ try {
   [pscustomobject]@{ Process = $process; ReadyPath = $readyPath; ResultPath = $resultPath; ErrorPath = $errorPath }
 }
 
-function Install-UnpackedBrowserExtension([string] $Name, [IntPtr] $Window, [string] $ExtensionPath, [object] $DeveloperMode) {
-  Add-Type -AssemblyName System.Windows.Forms
-  Add-Type -AssemblyName UIAutomationClient
-  if ($Name -eq "edge") {
-    $edgeBounds = [SniptaleBrowserFocus+Rect]::new()
-    if (-not [SniptaleBrowserFocus]::GetWindowRect($Window, [ref]$edgeBounds)) { throw "edge developer switch bounds are unavailable" }
-    $developerBounds = $DeveloperMode.Current.BoundingRectangle
-    $edgeToggleY = [int]($developerBounds.Top + ($developerBounds.Height / 2))
-    [SniptaleBrowserFocus]::SetCursorPos($edgeBounds.Left + 352, $edgeToggleY) | Out-Null
-    [SniptaleBrowserFocus]::mouse_event(2, 0, 0, 0, [UIntPtr]::Zero)
-    [SniptaleBrowserFocus]::mouse_event(4, 0, 0, 0, [UIntPtr]::Zero)
-    Start-Sleep -Seconds 2
-    Save-Desktop "edge-developer-mode-enabled"
-    Open-EdgeExtensionsMenu $Window
-  } else {
-    $toggleOffset = [int]($DeveloperMode.Current.BoundingRectangle.Width / 2) + 38
-    Click-UiElement $DeveloperMode $toggleOffset
-  }
-  Start-Sleep -Seconds 1
-  try {
-    $loadUnpacked = Find-Ui "Load unpacked" 15
-  } catch {
-    if ($Name -eq "edge") {
-      throw
-    } else {
-      Click-UiElement $DeveloperMode $toggleOffset
-    }
-    $loadUnpacked = Find-Ui "Load unpacked" 15
-  }
-  Click-UiElement $loadUnpacked
-  Start-Sleep -Seconds 1
-  $dialog = Find-Ui "Select the extension directory." 30
-  $dialogWindow = [IntPtr]$dialog.Current.NativeWindowHandle
-  [SniptaleBrowserFocus]::ShowWindowAsync($dialogWindow, 9) | Out-Null
-  if (-not [SniptaleBrowserFocus]::SetForegroundWindow($dialogWindow)) { throw "extension directory dialog could not be focused" }
-  Start-Sleep -Milliseconds 300
-  $dialogBounds = [SniptaleBrowserFocus+Rect]::new()
-  if (-not [SniptaleBrowserFocus]::GetWindowRect($dialogWindow, [ref]$dialogBounds)) {
-    throw "extension directory dialog bounds are unavailable"
-  }
-  $folderX = $dialogBounds.Left + [int](($dialogBounds.Right - $dialogBounds.Left) * 0.62)
-  $folderY = $dialogBounds.Bottom - 75
-  [SniptaleBrowserFocus]::SetCursorPos($folderX, $folderY) | Out-Null
-  [SniptaleBrowserFocus]::mouse_event(2, 0, 0, 0, [UIntPtr]::Zero)
-  [SniptaleBrowserFocus]::mouse_event(4, 0, 0, 0, [UIntPtr]::Zero)
-  Start-Sleep -Milliseconds 300
-  [Windows.Forms.SendKeys]::SendWait("^a")
-  [Windows.Forms.SendKeys]::SendWait($ExtensionPath)
-  Start-Sleep -Milliseconds 500
-  $selectFolder = Find-Ui "Select Folder" 10
-  Click-UiElement $selectFolder
-  Start-Sleep -Seconds 2
-}
-
-function Focus-BrowserWindow([string] $Name, [int] $Seconds = 20) {
-  if (-not ("SniptaleBrowserFocus" -as [type])) {
-    Add-Type @'
-using System;
-using System.Runtime.InteropServices;
-public static class SniptaleBrowserFocus {
-  [StructLayout(LayoutKind.Sequential)] public struct Rect { public int Left; public int Top; public int Right; public int Bottom; }
-  public delegate bool EnumWindowsProc(IntPtr window, IntPtr parameter);
-  [DllImport("user32.dll")] public static extern bool EnumWindows(EnumWindowsProc callback, IntPtr parameter);
-  [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern IntPtr FindWindow(string className, string windowName);
-  [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern int GetClassName(IntPtr window, System.Text.StringBuilder className, int capacity);
-  [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr window);
-  [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr window, out Rect rect);
-  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window);
-  [DllImport("user32.dll")] public static extern bool ShowWindowAsync(IntPtr window, int command);
-  [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
-  [DllImport("user32.dll")] public static extern void mouse_event(uint flags, uint x, uint y, uint data, UIntPtr extraInfo);
-  [DllImport("user32.dll")] static extern void keybd_event(byte key, byte scan, uint flags, UIntPtr extra);
-  [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr window, uint message, UIntPtr wparam, IntPtr lparam);
-  public static IntPtr FindBrowserWindow() {
-    IntPtr found = IntPtr.Zero;
-    EnumWindows((window, parameter) => {
-      var className = new System.Text.StringBuilder(256);
-      if (IsWindowVisible(window) && GetClassName(window, className, className.Capacity) > 0 &&
-          className.ToString().StartsWith("Chrome_WidgetWin_", StringComparison.Ordinal)) {
-        found = window;
-        return false;
-      }
-      return true;
-    }, IntPtr.Zero);
-    return found;
-  }
-}
-'@
-  }
-  $deadline = [DateTime]::UtcNow.AddSeconds($Seconds)
-  $window = [IntPtr]::Zero
-  while ($window -eq [IntPtr]::Zero -and [DateTime]::UtcNow -lt $deadline) {
-    $window = [SniptaleBrowserFocus]::FindBrowserWindow()
-    if ($window -eq [IntPtr]::Zero) { Start-Sleep -Milliseconds 200 }
-  }
-  if ($window -eq [IntPtr]::Zero) { throw "$Name browser window is unavailable" }
-  [SniptaleBrowserFocus]::ShowWindowAsync($window, 9) | Out-Null
-  if (-not [SniptaleBrowserFocus]::SetForegroundWindow($window)) { throw "$Name browser window could not be focused" }
-  Start-Sleep -Milliseconds 500
-  return $window
-}
-
-function Set-BrowserLocation([IntPtr] $Window, [string] $Url) {
-  Add-Type -AssemblyName UIAutomationClient
-  Add-Type -AssemblyName System.Windows.Forms
-  $root = [Windows.Automation.AutomationElement]::FromHandle($Window)
-  $nameCondition = [Windows.Automation.PropertyCondition]::new(
-    [Windows.Automation.AutomationElement]::NameProperty,
-    "Address and search bar"
-  )
-  $address = $root.FindFirst([Windows.Automation.TreeScope]::Descendants, $nameCondition)
-  $editCondition = [Windows.Automation.PropertyCondition]::new(
-    [Windows.Automation.AutomationElement]::ControlTypeProperty,
-    [Windows.Automation.ControlType]::Edit
-  )
-  if (-not $address) { $address = $root.FindFirst([Windows.Automation.TreeScope]::Descendants, $editCondition) }
-  if ($address) {
-    try {
-      $address.SetFocus()
-      $value = $address.GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern)
-      $value.SetValue($Url)
-    } catch {
-      $address = $null
-    }
-  }
-  if (-not $address) {
-    [SniptaleBrowserFocus]::ShowWindowAsync($Window, 9) | Out-Null
-    if (-not [SniptaleBrowserFocus]::SetForegroundWindow($Window)) { throw "browser location fallback could not focus the window" }
-    [Windows.Forms.SendKeys]::SendWait("^l")
-    [Windows.Forms.SendKeys]::SendWait($Url)
-  }
-  [Windows.Forms.SendKeys]::SendWait("{ENTER}")
-}
-
-function Open-EdgeExtensionsMenu([IntPtr] $Window) {
-  $bounds = [SniptaleBrowserFocus+Rect]::new()
-  if (-not [SniptaleBrowserFocus]::GetWindowRect($Window, [ref]$bounds)) { throw "edge extensions window bounds are unavailable" }
-  [SniptaleBrowserFocus]::SetCursorPos($bounds.Left + 42, $bounds.Top + 148) | Out-Null
-  [SniptaleBrowserFocus]::mouse_event(2, 0, 0, 0, [UIntPtr]::Zero)
-  [SniptaleBrowserFocus]::mouse_event(4, 0, 0, 0, [UIntPtr]::Zero)
-  Start-Sleep -Seconds 1
-}
-
-function Click-UiElement([object] $Element, [int] $OffsetX = 0) {
-  $bounds = $Element.Current.BoundingRectangle
-  if ($bounds.Width -lt 4 -or $bounds.Height -lt 4) { throw "browser UI element bounds are invalid" }
-  [SniptaleBrowserFocus]::SetCursorPos([int]($bounds.Left + ($bounds.Width / 2) + $OffsetX), [int]($bounds.Top + ($bounds.Height / 2))) | Out-Null
-  [SniptaleBrowserFocus]::mouse_event(2, 0, 0, 0, [UIntPtr]::Zero)
-  [SniptaleBrowserFocus]::mouse_event(4, 0, 0, 0, [UIntPtr]::Zero)
-  Start-Sleep -Milliseconds 300
-}
-
-function Stop-ProbeBrowsers {
-  $deadline = [DateTime]::UtcNow.AddSeconds(30)
-  do {
-    $processes = @(Get-Process chrome, msedge -ErrorAction SilentlyContinue)
-    if ($processes.Count -eq 0) { return }
-    if ("SniptaleBrowserFocus" -as [type]) {
-      $window = [SniptaleBrowserFocus]::FindBrowserWindow()
-      if ($window -ne [IntPtr]::Zero) {
-        [SniptaleBrowserFocus]::PostMessage($window, 0x0010, [UIntPtr]::Zero, [IntPtr]::Zero) | Out-Null
-        Start-Sleep -Milliseconds 500
-      }
-    }
-    & cmd.exe /d /c "taskkill.exe /F /T /IM chrome.exe >NUL 2>&1" | Out-Null
-    & cmd.exe /d /c "taskkill.exe /F /T /IM msedge.exe >NUL 2>&1" | Out-Null
-    $processes | Stop-Process -Force -ErrorAction SilentlyContinue
-    Start-Sleep -Milliseconds 200
-  } while ([DateTime]::UtcNow -lt $deadline)
-  if (@(Get-Process chrome, msedge -ErrorAction SilentlyContinue).Count -ne 0) {
-    throw "probe browser processes did not stop within their bound"
-  }
-}
-
-function Add-BrowserConnectionTrust([string] $ProcessName) {
-  $storePath = Join-Path $env:LOCALAPPDATA "Sniptale\NativeAgent\trusted-connections.json"
-  $store = if (Test-Path -LiteralPath $storePath) {
-    Get-Content -Raw -LiteralPath $storePath | ConvertFrom-Json
-  } else {
-    [pscustomobject]@{ formatVersion = 1; trusted = @() }
-  }
-  $trusted = @($store.trusted)
-  $origin = "chrome-extension://elhndangpenapadjimfoodlaenpcndpo/"
-  $hostHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $installed).Hash.ToLowerInvariant()
-  $paths = @($env:ComSpec)
-  $paths += @(Get-Process $ProcessName -ErrorAction SilentlyContinue | ForEach-Object {
-    try { $_.Path } catch { $null }
-  })
-  $paths = @($paths | Where-Object { $_ } | Sort-Object -Unique)
-  if ($paths.Count -eq 0) { throw "$ProcessName browser process path is unavailable for connection trust" }
-  foreach ($path in $paths) {
-    $normalized = $path.Replace('/', '\').TrimEnd('\').ToLowerInvariant()
-    $label = [IO.Path]::GetFileName($normalized)
-    $category = if ($label -in @("cmd.exe", "powershell.exe", "pwsh.exe", "conhost.exe")) {
-      "shell-launcher-parent"
-    } else {
-      "recognized-browser-parent"
-    }
-    $value = "$category|$label|$normalized"
-    $sha = [Security.Cryptography.SHA256]::Create()
-    try {
-      $fingerprint = ConvertTo-LowerHex ($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($value)))
-    } finally {
-      $sha.Dispose()
-    }
-    if (-not @($trusted | Where-Object {
-      $_.extensionOrigin -eq $origin -and $_.hostExeSha256 -eq $hostHash -and $_.parentFingerprint -eq $fingerprint
-    })) {
-      $trusted += [ordered]@{
-        extensionOrigin = $origin
-        hostExeSha256 = $hostHash
-        parentFingerprint = $fingerprint
-      }
-    }
-  }
-  $payload = [ordered]@{ formatVersion = 1; trusted = @($trusted) }
-  [IO.File]::WriteAllText($storePath, ($payload | ConvertTo-Json -Depth 5), [Text.UTF8Encoding]::new($false))
-}
-
 function Approve-ConnectionConsent([object] $Listener, [int] $Seconds = 20) {
   Add-Type -AssemblyName UIAutomationClient
   $deadline = [DateTime]::UtcNow.AddSeconds($Seconds)
-  $windowCondition = [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty, "Sniptale Native Agent")
+  $windowCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, "Sniptale Native Agent")
   while ([DateTime]::UtcNow -lt $deadline) {
     if ($Listener.Process.HasExited) { return $false }
-    $window = [Windows.Automation.AutomationElement]::RootElement.FindFirst([Windows.Automation.TreeScope]::Descendants, $windowCondition)
+    $window = [System.Windows.Automation.AutomationElement]::RootElement.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $windowCondition)
     if ($window) {
-      $yesCondition = [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty, "Yes")
-      $yes = $window.FindFirst([Windows.Automation.TreeScope]::Descendants, $yesCondition)
+      $yesCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, "Yes")
+      $yes = $window.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $yesCondition)
       if (-not $yes) { throw "native connection consent Yes button missing" }
       $windowHandle = [IntPtr]$window.Current.NativeWindowHandle
       [SniptaleBrowserFocus]::ShowWindowAsync($windowHandle, 9) | Out-Null
@@ -584,8 +270,8 @@ function Invoke-BrowserNativeProbe(
   if (-not (Test-Path -LiteralPath $Executable)) { throw "$Name executable missing" }
   $script:browserProbeAttempt++
   $attemptName = "$Name-attempt-$($script:browserProbeAttempt)"
-  Stop-ProbeBrowsers
-  $profile = $null
+  Stop-ProbeBrowser
+  $browserProfile = $null
   $listener = $null
   $browser = $null
   try {
@@ -615,9 +301,9 @@ function Invoke-BrowserNativeProbe(
     }
     $browserWindow = [IntPtr]::Zero
     foreach ($browserAttempt in 1..3) {
-      $profile = Join-Path $env:TEMP "sniptale-e2e-browser-profile-$Name-$([Guid]::NewGuid().ToString('N'))"
+      $browserProfile = Join-Path $env:TEMP "sniptale-e2e-browser-profile-$Name-$([Guid]::NewGuid().ToString('N'))"
       $arguments = @(
-        "--user-data-dir=$profile",
+        "--user-data-dir=$browserProfile",
         "--force-renderer-accessibility",
         "--disable-background-mode",
         "--no-first-run",
@@ -633,9 +319,9 @@ function Invoke-BrowserNativeProbe(
       } catch {
         $browserExit = if ($browser.HasExited) { "exit code $($browser.ExitCode)" } else { "no visible window" }
         if (-not $browser.HasExited) { Stop-Process -Id $browser.Id -Force -ErrorAction SilentlyContinue }
-        Stop-ProbeBrowsers
-        Remove-Item -LiteralPath $profile -Recurse -Force -ErrorAction SilentlyContinue
-        $profile = $null
+        Stop-ProbeBrowser
+        Remove-Item -LiteralPath $browserProfile -Recurse -Force -ErrorAction SilentlyContinue
+        $browserProfile = $null
         if ($browserAttempt -eq 3) { throw "$Name browser startup failed after 3 attempts ($browserExit)" }
         Start-Sleep -Seconds 1
       }
@@ -660,11 +346,10 @@ function Invoke-BrowserNativeProbe(
       Save-Desktop "browser-extension-$attemptName-loaded"
       $browserProcessName = if ($Name -eq "edge") { "msedge" } else { "chrome" }
       Add-BrowserConnectionTrust $browserProcessName
-      $probePage = $null
       foreach ($probeNavigationAttempt in 1..2) {
         Set-BrowserLocation $browserWindow "chrome-extension://elhndangpenapadjimfoodlaenpcndpo/probe.html"
         try {
-          $probePage = Find-Ui "Sniptale E2E Probe Running" 15
+          $null = Find-Ui "Sniptale E2E Probe Running" 15
           break
         } catch {
           if ($probeNavigationAttempt -eq 2) { throw }
@@ -678,10 +363,10 @@ function Invoke-BrowserNativeProbe(
     $null = Approve-ConnectionConsent $listener 3
     $resultDeadline = [DateTime]::UtcNow.AddSeconds(60)
     $title = "sniptale-e2e-result-$ProbeNonce-$Name-$ExpectedStatus"
-    $titleCondition = [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty, $title)
+    $titleCondition = [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty, $title)
     $titleFound = $false
     while (-not (Test-Path -LiteralPath $listener.ResultPath) -and -not $listener.Process.HasExited -and [DateTime]::UtcNow -lt $resultDeadline) {
-      $titleFound = $null -ne [Windows.Automation.AutomationElement]::RootElement.FindFirst([Windows.Automation.TreeScope]::Descendants, $titleCondition)
+      $titleFound = $null -ne [System.Windows.Automation.AutomationElement]::RootElement.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $titleCondition)
       if ($titleFound) { break }
       Start-Sleep -Milliseconds 100
     }
@@ -700,16 +385,16 @@ function Invoke-BrowserNativeProbe(
       throw "$Name native probe expected $ExpectedStatus, got $($result.status): $($result.detail)"
     }
     if ($ExpectedStatus -eq "pass") { "$Name connectNative received app.hello" }
-    else { "$Name connectNative was rejected while Manual authority was active" }
+    else { "$Name connectNative was rejected as expected" }
   } finally {
     if ($browser -and -not $browser.HasExited) { Stop-Process -Id $browser.Id -Force -ErrorAction SilentlyContinue }
-    try { Stop-ProbeBrowsers } catch { }
+    try { Stop-ProbeBrowser } catch { Write-Verbose 'Browser cleanup failed; VM teardown verifies process exit.' }
     if ($listener -and -not $listener.Process.HasExited) {
       Stop-Process -Id $listener.Process.Id -Force -ErrorAction SilentlyContinue
       $null = $listener.Process.WaitForExit(5000)
     }
     if ($listener) { Remove-Item -LiteralPath $listener.ReadyPath, $listener.ResultPath, $listener.ErrorPath -Force -ErrorAction SilentlyContinue }
-    Remove-Item -LiteralPath $profile -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $browserProfile -Recurse -Force -ErrorAction SilentlyContinue
   }
 }
 
@@ -722,9 +407,9 @@ function Invoke-BrowserNativeProbeWithRetry(
 ) {
   $lastError = $null
   foreach ($protocolAttempt in 1..4) {
-    Write-ProgressEvent "$ProgressScenario-$Name" "retry" $protocolAttempt 4 120
+    Write-ProgressEvent -Scenario "$ProgressScenario-$Name" -Status "retry" -Attempt $protocolAttempt -MaxAttempts 4 -DeadlineSeconds 120
     try {
-      return Invoke-BrowserNativeProbe $Name $Executable $ExtensionPath $ExpectedStatus
+      return Invoke-BrowserNativeProbe -Name $Name -Executable $Executable -ExtensionPath $ExtensionPath -ExpectedStatus $ExpectedStatus
     } catch {
       $lastError = $_
       if ($protocolAttempt -lt 4) {
@@ -736,17 +421,40 @@ function Invoke-BrowserNativeProbeWithRetry(
   throw $lastError
 }
 
+
 Add-Test "network-isolation" {
   $client = [Net.Sockets.TcpClient]::new()
   try {
     $attempt = $client.ConnectAsync("1.1.1.1", 443)
-    try { $null = $attempt.Wait(3000) } catch [AggregateException] { }
+    try { $null = $attempt.Wait(3000) } catch [AggregateException] { Write-Verbose 'Isolated guest refused the network probe.' }
     if ($client.Connected) { throw "runtime guest reached an external TCP endpoint" }
   } finally {
     $client.Dispose()
   }
   "QEMU runtime policy denied guest egress"
 }
+
+if (@($tests | Where-Object { $_.name -eq "network-isolation" -and $_.status -eq "pass" }).Count -ne 1) {
+  throw "runtime network isolation must pass before installer work"
+}
+
+if ($LabCertificateSha256) {
+  . "$PSScriptRoot\lab-signing.ps1"
+  $script:labCertificate = Import-LabSigningIdentity (Join-Path $PWD "lab-signing.cer") $LabCertificateSha256
+}
+
+if ($WorkspaceMode -eq "warm") {
+  if ($selectedTests.Count -eq 0 -or @("install", "upgrade", "repair", "uninstall" | Where-Object { $selectedTests.Contains($_) }).Count -gt 0) {
+    throw "warm runtime testing requires explicit runtime cases without installer lifecycle cases"
+  }
+  Get-Process sniptale-native-agent -ErrorAction SilentlyContinue | Stop-Process -Force
+  Invoke-Msi @("/i", $Msi) "warm-update"
+  if ((Get-FileHash -LiteralPath $installed).Hash.ToLowerInvariant() -ne $ExpectedExeSha256) { throw "warm update executable mismatch" }
+  $manifestPath = Join-Path ([IO.Path]::GetDirectoryName($installed)) "native-host.json"
+  if ((Get-FileHash -LiteralPath $manifestPath).Hash.ToLowerInvariant() -ne $ExpectedNativeHostManifestSha256) { throw "warm update manifest mismatch" }
+  Provision-DevRuntimeTrust
+}
+
 
 Add-Test "install" {
   Invoke-Msi @("/i", $PreviousMsi) "install-baseline"
@@ -803,6 +511,10 @@ Add-Test "repair" {
 }
 
 Add-Test "resident" {
+  if ($script:labCertificate) {
+    $signature = Get-AuthenticodeSignature -LiteralPath $installed
+    if ($signature.Status -ne 'Valid' -or [Convert]::ToBase64String($signature.SignerCertificate.RawData) -cne [Convert]::ToBase64String($script:labCertificate.RawData)) { throw "installed laboratory signature mismatch" }
+  }
   $media = Join-Path $outputPath "product-media"
   New-Item -ItemType Directory -Force -Path $media | Out-Null
   $profileDir = Join-Path $env:LOCALAPPDATA "Sniptale\NativeAgent"
@@ -814,11 +526,17 @@ Add-Test "resident" {
     audio = [ordered]@{ sourceMode = "system"; microphoneDeviceId = $null; bitrateKbps = 128 }
     hotkeys = [ordered]@{ "screenshot-screen" = "Ctrl+Alt+Shift+F5"; "screenshot-region" = "Ctrl+Alt+Shift+F6"; "recording-start-screen" = "Ctrl+Alt+Shift+F7"; "recording-stop" = "Ctrl+Alt+Shift+F8" }
   }
-  $profile = [ordered]@{
+  $browserProfile = [ordered]@{
     schemaVersion = 1; revision = 1; operatingMode = "extension-managed"
     manualProfile = $null
   }
-  [IO.File]::WriteAllText((Join-Path $profileDir "local-profile.json"), ($profile | ConvertTo-Json -Depth 8 -Compress), [Text.UTF8Encoding]::new($false))
+  $profilePath = Join-Path $profileDir "local-profile.json"
+  if ($WorkspaceMode -eq "warm" -and (Test-Path -LiteralPath $profilePath)) {
+    $existingProfile = Get-Content -Raw -LiteralPath $profilePath | ConvertFrom-Json
+    if ($existingProfile.manualProfile) { $script:manualProfileTemplate = $existingProfile.manualProfile }
+  } else {
+    [IO.File]::WriteAllText($profilePath, ($browserProfile | ConvertTo-Json -Depth 8 -Compress), [Text.UTF8Encoding]::new($false))
+  }
   # MSI autostart may already own the singleton after install/upgrade/repair. Starting a second
   # process and checking that process' exit status mistakes a healthy singleton handoff for a
   # product crash. The shared restart helper stops every installed owner, applies the requested
@@ -843,6 +561,8 @@ public static class SniptaleTrayProbe {
   [DllImport("user32.dll")] static extern bool EnumWindows(EnumWindowsProc callback, IntPtr parameter);
   [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern int GetClassName(IntPtr window, System.Text.StringBuilder className, int capacity);
   [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr window, out Rect rect);
+  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window);
+  [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr window);
   [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
   [DllImport("user32.dll")] public static extern void mouse_event(uint flags, uint x, uint y, uint data, UIntPtr extraInfo);
   [DllImport("user32.dll")] static extern void keybd_event(byte key, byte scan, uint flags, UIntPtr extra);
@@ -896,40 +616,24 @@ public static class SniptaleHotkeyInput {
 }
 
 Add-Test "tray" {
-  Initialize-SniptaleTrayProbe
-  $trayWindow = [SniptaleTrayProbe]::FindWindow("SniptaleTrayCommandSource", $null)
-  if ($trayWindow -eq [IntPtr]::Zero) { throw "tray callback window is unavailable" }
-  [SniptaleTrayProbe]::SetCursorPos(640, 400) | Out-Null
-  $contextCallback = [IntPtr]((1 -shl 16) -bor 0x007b)
-  if (-not [SniptaleTrayProbe]::PostMessage($trayWindow, 0x8001, [UIntPtr]::Zero, $contextCallback)) {
-    throw "tray context callback could not be posted"
-  }
+  Show-SniptaleTrayMenu
   Start-Sleep -Seconds 1
   Save-Desktop "tray-context-menu"
-  # UI Automation does not expose native #32768 menu items consistently on
-  # current Windows 11 builds. Click the fixed Manual-menu Settings row inside
-  # the actual popup HWND after validating its geometry.
-  $menuWindow = [SniptaleTrayProbe]::FindWindow("#32768", $null)
-  if ($menuWindow -eq [IntPtr]::Zero) { throw "native tray popup window is unavailable" }
-  $menuBounds = [SniptaleTrayProbe+Rect]::new()
-  if (-not [SniptaleTrayProbe]::GetWindowRect($menuWindow, [ref]$menuBounds)) { throw "native tray popup bounds are unavailable" }
-  $menuWidth = $menuBounds.Right - $menuBounds.Left
-  $menuHeight = $menuBounds.Bottom - $menuBounds.Top
-  if ($menuWidth -lt 100 -or $menuHeight -lt 150) { throw "native tray popup bounds are invalid" }
-  [SniptaleTrayProbe]::SetCursorPos($menuBounds.Left + [int]($menuWidth / 2), $menuBounds.Top + [int]($menuHeight * 0.69)) | Out-Null
-  [SniptaleTrayProbe]::mouse_event(2, 0, 0, 0, [UIntPtr]::Zero)
-  [SniptaleTrayProbe]::mouse_event(4, 0, 0, 0, [UIntPtr]::Zero)
-  $null = Find-Ui $settingsTitle 10
+  # Activate the current semantic menu entry; layout changes must not change the tested command.
+  Invoke-SniptaleMenuItem "Settings$([char]0x2026)"
+  $null = Find-DesktopSettingsWindow 10
   "tray icon and context menu invoked"
 }
+
 Add-Test "settings" {
-  $window = Find-Ui $settingsTitle 20
-  $transform = $window.GetCurrentPattern([Windows.Automation.TransformPattern]::Pattern)
+  $window = Find-DesktopSettingsWindow 20
+  $transform = $window.GetCurrentPattern([System.Windows.Automation.TransformPattern]::Pattern)
   if (-not $transform.Current.CanResize) { throw "settings window is not resizable" }
   $beforeBounds = $window.Current.BoundingRectangle
-  $transform.Resize(1000, 720)
+  if ([Math]::Abs($beforeBounds.Width - 1000) -lt 50) { $transform.Resize(1120, 800) }
+  else { $transform.Resize(1000, 720) }
   Start-Sleep -Seconds 2
-  $window = Find-Ui $settingsTitle 5
+  $window = Find-DesktopSettingsWindow 5
   $afterBounds = $window.Current.BoundingRectangle
   if ([Math]::Abs($afterBounds.Width - $beforeBounds.Width) -lt 50 -or [Math]::Abs($afterBounds.Height - $beforeBounds.Height) -lt 50) {
     throw "settings window bounds did not change after resize"
@@ -952,14 +656,14 @@ public static class SniptaleDpi {
   & rundll32.exe user32.dll,UpdatePerUserSystemParameters
   [SniptaleDpi]::PostMessage([IntPtr]$window.Current.NativeWindowHandle, 0x031a, [UIntPtr]::Zero, [IntPtr]::Zero) | Out-Null
   Start-Sleep -Seconds 3
-  $window = Find-Ui $settingsTitle 5
+  $window = Find-DesktopSettingsWindow 5
   Save-UiWindow $window "settings-dark-theme"
   $darkHash = (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $outputPath "screenshots\settings-dark-theme.png")).Hash
   if ($darkHash -eq $lightHash) { throw "settings pixels did not change after the dark-theme transition" }
   New-ItemProperty -Path $themePath -Name AppsUseLightTheme -PropertyType DWord -Value 1 -Force | Out-Null
   & rundll32.exe user32.dll,UpdatePerUserSystemParameters
   [SniptaleDpi]::PostMessage([IntPtr]$window.Current.NativeWindowHandle, 0x031a, [UIntPtr]::Zero, [IntPtr]::Zero) | Out-Null
-  $window.GetCurrentPattern([Windows.Automation.WindowPattern]::Pattern).Close()
+  $window.GetCurrentPattern([System.Windows.Automation.WindowPattern]::Pattern).Close()
   Start-Sleep -Seconds 1
   "settings HWND bounds changed at dpi=$dpi and light/dark pixels differ"
 }
@@ -992,7 +696,7 @@ Add-Test "native-messaging" {
   $protected = [byte[]]::new($hex.Length / 2)
   for ($i = 0; $i -lt $protected.Length; $i++) { $protected[$i] = [Convert]::ToByte($hex.Substring($i * 2, 2), 16) }
   Add-Type -AssemblyName System.Security
-  $plain = [Security.Cryptography.ProtectedData]::Unprotect($protected, $null, [Security.Cryptography.DataProtectionScope]::CurrentUser)
+  $plain = [System.Security.Cryptography.ProtectedData]::Unprotect($protected, $null, [System.Security.Cryptography.DataProtectionScope]::CurrentUser)
   try { if ($plain.Length -lt 32) { throw "DPAPI pipe secret is too short" } } finally { [Array]::Clear($plain, 0, $plain.Length) }
   if (-not (Test-Path -LiteralPath $BrowserProbe)) { throw "browser probe archive missing" }
   $script:extensionPath = Join-Path $outputPath "browser-extension"
@@ -1005,37 +709,139 @@ Add-Test "native-messaging" {
     (Join-Path ${env:ProgramFiles(x86)} "Microsoft\Edge\Application\msedge.exe"),
     (Join-Path $env:ProgramFiles "Microsoft\Edge\Application\msedge.exe")
   ) | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
-  $manualResult = Invoke-BrowserNativeProbeWithRetry "chrome" $chrome $extensionPath "fail"
+  $manualResult = Invoke-BrowserNativeProbeWithRetry -Name "chrome" -Executable $chrome -ExtensionPath $extensionPath -ExpectedStatus "pass"
   try {
     Restart-AgentWithMode "extension-managed"
-    $chromeResult = Invoke-BrowserNativeProbeWithRetry "chrome" $chrome $extensionPath "pass" "native-messaging"
-    $edgeResult = Invoke-BrowserNativeProbeWithRetry "edge" $edge $extensionPath "pass" "native-messaging"
+    $chromeResult = Invoke-BrowserNativeProbeWithRetry -Name "chrome" -Executable $chrome -ExtensionPath $extensionPath -ExpectedStatus "pass" -ProgressScenario "native-messaging"
+    $edgeResult = Invoke-BrowserNativeProbeWithRetry -Name "edge" -Executable $edge -ExtensionPath $extensionPath -ExpectedStatus "pass" -ProgressScenario "native-messaging"
     "$manualResult; $chromeResult; $edgeResult"
   } finally {
     Restart-AgentWithMode "manual"
   }
 }
+function Measure-DesktopUiResource([string] $Phase) {
+  $resident = Get-Process -Id $script:agent.Id -ErrorAction Stop
+  $webviews = @(Get-CimInstance Win32_Process -Filter "Name='msedgewebview2.exe'")
+  $owned = [Collections.Generic.HashSet[uint32]]::new()
+  [void]$owned.Add([uint32]$resident.Id)
+  do {
+    $changed = $false
+    foreach ($process in $webviews) {
+      if ($owned.Contains([uint32]$process.ParentProcessId) -and $owned.Add([uint32]$process.ProcessId)) { $changed = $true }
+    }
+  } while ($changed)
+  $children = @($webviews | Where-Object { $owned.Contains([uint32]$_.ProcessId) })
+  $workingSet = ($children | Measure-Object -Property WorkingSetSize -Sum).Sum
+  $line = "phase=$Phase resident_working_set_bytes=$($resident.WorkingSet64) webview_count=$($children.Count) webview_working_set_bytes=$workingSet"
+  Add-Content -LiteralPath (Join-Path $outputPath "logs\ui-resources.log") -Value $line
+  return @($children | ForEach-Object { [int]$_.ProcessId })
+}
 Add-Test "capture" {
   Add-Type -AssemblyName System.Drawing
   Add-Type -AssemblyName System.Windows.Forms
-  Restart-AgentWithMode "manual"
+  . "$PSScriptRoot\browser-playwright.ps1"
+  Stop-ProbeBrowser
+  $oldArguments = $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS
+  $oldProfile = $env:WEBVIEW2_USER_DATA_FOLDER
+  try {
+    $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=9225 --remote-debugging-address=127.0.0.1"
+    $env:WEBVIEW2_USER_DATA_FOLDER = "C:\SniptaleLab\browser-profiles\desktop-capture"
+    Restart-AgentWithMode "manual"
+  } finally {
+    $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = $oldArguments
+    $env:WEBVIEW2_USER_DATA_FOLDER = $oldProfile
+  }
   Initialize-SniptaleTrayProbe
   Initialize-SniptaleHotkeyInput
-  Stop-ProbeBrowsers
   $media = Join-Path $outputPath "product-media"
   $before = @(Get-ChildItem -LiteralPath $media -Filter *.png -ErrorAction SilentlyContinue).Count
-  $screen = @()
-  foreach ($attempt in 1..5) {
-    [Windows.Forms.SendKeys]::SendWait("{ESC}")
-    [SniptaleHotkeyInput]::Press(0x74)
-    Start-Sleep -Seconds 10
-    $screen = @(Get-ChildItem -LiteralPath $media -Filter *.png -ErrorAction SilentlyContinue | Sort-Object LastWriteTime)
-    if ($screen.Count -gt $before) { break }
-  }
-  if ($screen.Count -le $before) { throw "Sniptale screen capture produced no PNG" }
+  [void](Measure-DesktopUiResource "idle-before-panel")
+  [void](Show-ProductCapturePanel)
+  Wait-ProductCondition -Condition {
+    $client = [Net.Sockets.TcpClient]::new()
+    try { $connection = $client.ConnectAsync('127.0.0.1', 9225); $connection.Wait(200) -and $client.Connected }
+    catch { $false } finally { $client.Dispose() }
+  } -Failure "WebView CDP endpoint did not become ready"
+  $captured = Invoke-LabBrowserRequest -Port 9225 -Payload @{scenario="desktop-capture"; action="capture"}
+  if (-not $captured.passed -or -not $captured.saved -or -not $captured.closed) { throw "Tauri capture workflow failed" }
+  $screen = @(Get-ChildItem -LiteralPath $media -Filter *.png -ErrorAction SilentlyContinue | Sort-Object LastWriteTime)
+  if ($screen.Count -ne $before + 1) { throw "one Tauri capture action must publish exactly one PNG" }
+  if (-not (Get-Process -Id $script:agent.Id -ErrorAction SilentlyContinue)) { throw "closing the panel stopped the resident" }
+  [void](Show-ProductCapturePanel)
+  $reopened = Invoke-LabBrowserRequest -Port 9225 -Payload @{scenario="desktop-capture"; action="reopen"}
+  if (-not $reopened.passed -or -not $reopened.restored -or -not $reopened.closed) { throw "Tauri panel state was not restored" }
   $screenImage = [Drawing.Image]::FromFile($screen[-1].FullName)
   try { if ($screenImage.Width -lt 100 -or $screenImage.Height -lt 100) { throw "Sniptale screen PNG dimensions are invalid" } } finally { $screenImage.Dispose() }
   Copy-Item -LiteralPath $screen[-1].FullName -Destination (Join-Path $outputPath "screenshots\sniptale-screen.png")
+  [void](Show-ProductCapturePanel)
+  $edited = Invoke-LabBrowserRequest -Port 9225 -Payload @{scenario="desktop-capture"; action="settings-edit"}
+  if (-not $edited.passed -or $edited.previous -eq $edited.current) { throw "Tauri settings Apply failed" }
+  Close-DesktopSettingsFrame
+  [void](Show-ProductCapturePanel)
+  $restored = Invoke-LabBrowserRequest -Port 9225 -Payload @{scenario="desktop-capture"; action="settings-restore"}
+  if (-not $restored.passed -or $restored.previous -ne $edited.current -or $restored.current -ne $edited.previous) { throw "Tauri settings did not survive native close and reopen" }
+  Close-DesktopSettingsFrame
+  $renderers = @(Measure-DesktopUiResource "panel-open-after-settings-close")
+  $fixturePath = Join-Path $env:TEMP "sniptale-toolbar-target.ps1"
+  [IO.File]::WriteAllText($fixturePath, @'
+Add-Type -AssemblyName System.Windows.Forms
+$form = [System.Windows.Forms.Form]::new()
+$form.Text = "Sniptale synthetic capture target"
+$form.Width = 640
+$form.Height = 480
+$form.BackColor = [System.Drawing.Color]::CornflowerBlue
+[System.Windows.Forms.Application]::Run($form)
+'@, [Text.UTF8Encoding]::new($false))
+  $fixture = Start-Process powershell.exe -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "`"$fixturePath`"") -PassThru
+  try {
+    $targetElement = Find-Ui "Sniptale synthetic capture target" 5
+    if ($targetElement.Current.ProcessId -ne $fixture.Id) { throw "synthetic window owner mismatch" }
+    $targetWindow = [IntPtr]$targetElement.Current.NativeWindowHandle
+    if ($targetWindow -eq [IntPtr]::Zero) { throw "synthetic window has no native handle" }
+    $targetBounds = $targetElement.Current.BoundingRectangle
+    if (-not [SniptaleTrayProbe]::SetForegroundWindow($targetWindow)) { throw "synthetic capture target could not be focused" }
+    [void](Show-ProductCapturePanel)
+    $windowCapture = Invoke-LabBrowserRequest -Port 9225 -Payload @{scenario="desktop-capture"; action="window"}
+    $windowFiles = @(Get-ChildItem -LiteralPath $media -Filter *.png | Sort-Object LastWriteTime)
+    if (-not $windowCapture.saved -or $windowFiles.Count -ne $screen.Count + 1) { throw "Tauri active-window capture did not publish one PNG" }
+    $windowImage = [Drawing.Bitmap]::new($windowFiles[-1].FullName)
+    try {
+      # UI Automation reports physical pixels at the guest's 125 percent DPI. WGC can omit
+      # invisible window borders. The rectangle is an upper bound, and the
+      # exact synthetic center color distinguishes the target from a screen or toolbar capture.
+      if ($windowImage.Width -gt $targetBounds.Width -or $windowImage.Height -gt $targetBounds.Height -or $windowImage.Width -lt 100 -or $windowImage.Height -lt 100) { throw "active-window capture did not use the synthetic window bounds" }
+      if ($windowImage.GetPixel([int]($windowImage.Width / 2), [int]($windowImage.Height / 2)).ToArgb() -ne [Drawing.Color]::CornflowerBlue.ToArgb()) { throw "active-window PNG does not contain the synthetic target" }
+    } finally { $windowImage.Dispose() }
+    Copy-Item -LiteralPath $windowFiles[-1].FullName -Destination (Join-Path $outputPath "screenshots\sniptale-window.png")
+    $screen = $windowFiles
+  } finally {
+    if ($fixture -and -not $fixture.HasExited) { Stop-Process -Id $fixture.Id -Force -ErrorAction SilentlyContinue }
+    Remove-Item -LiteralPath $fixturePath -Force -ErrorAction SilentlyContinue
+  }
+  [void](Show-ProductCapturePanel)
+  $renderers += @(Measure-DesktopUiResource "before-recording-panel-close")
+  $started = Invoke-LabBrowserRequest -Port 9225 -Payload @{scenario="desktop-capture"; action="record-start"}
+  if (-not $started.passed -or -not $started.recording -or -not $started.closed) { throw "Tauri recording did not start and survive panel close" }
+  if (-not (Get-Process -Id $script:agent.Id -ErrorAction SilentlyContinue)) { throw "panel close stopped recording owner" }
+  $renderers += @(Measure-DesktopUiResource "recording-panel-closed")
+  if ($renderers.Count) {
+    Wait-ProductCondition -Condition { @(Get-Process -Id $renderers -ErrorAction SilentlyContinue).Count -eq 0 } -Failure "closed Tauri UI retained WebView processes during recording" -Seconds 20
+  }
+  [void](Measure-DesktopUiResource "recording-after-webview-release")
+  [void](Show-ProductCapturePanel)
+  $videoBefore = @(Get-ChildItem -LiteralPath $media -Filter *.mp4 -ErrorAction SilentlyContinue).Count
+  $stopped = Invoke-LabBrowserRequest -Port 9225 -Payload @{scenario="desktop-capture"; action="record-stop"}
+  $videos = @(Get-ChildItem -LiteralPath $media -Filter *.mp4 -ErrorAction SilentlyContinue | Sort-Object LastWriteTime)
+  if (-not $stopped.passed -or -not $stopped.saved -or $videos.Count -ne $videoBefore + 1) { throw "Tauri pause/resume/stop did not publish one recording" }
+  if (-not (Test-BinaryMarker $videos[-1].FullName "vide")) { throw "Tauri recording has no video track" }
+  Copy-Item -LiteralPath $videos[-1].FullName -Destination (Join-Path $outputPath "recordings\sniptale-toolbar.mp4")
+  [void](Show-ProductCapturePanel)
+  $started = Invoke-LabBrowserRequest -Port 9225 -Payload @{scenario="desktop-capture"; action="record-start"}
+  if (-not $started.passed) { throw "second Tauri recording did not start" }
+  [void](Show-ProductCapturePanel)
+  $discarded = Invoke-LabBrowserRequest -Port 9225 -Payload @{scenario="desktop-capture"; action="record-discard"}
+  if (-not $discarded.passed -or -not $discarded.discarded) { throw "Tauri recording discard failed" }
+  if (@(Get-ChildItem -LiteralPath $media -Filter *.mp4 -ErrorAction SilentlyContinue).Count -ne $videos.Count) { throw "discarded recording was published" }
   Add-Type @'
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -1067,8 +873,8 @@ public static class SniptaleDrag {
   $regionAttemptOutcomes = [Collections.Generic.List[string]]::new()
   $regionStarted = [DateTime]::UtcNow
   foreach ($attempt in 1..5) {
-    Write-ProgressEvent "capture" "retry" $attempt 5 25
-    [Windows.Forms.SendKeys]::SendWait("{ESC}")
+    Write-ProgressEvent -Scenario "capture" -Status "retry" -Attempt $attempt -MaxAttempts 5 -DeadlineSeconds 25
+    [System.Windows.Forms.SendKeys]::SendWait("{ESC}")
     [SniptaleHotkeyInput]::Press(0x75)
     $overlayDeadline = [DateTime]::UtcNow.AddSeconds(10)
     $overlayWindow = [IntPtr]::Zero
@@ -1125,17 +931,17 @@ public static class SniptaleDrag {
 }
 function Set-RecordingAudioMode([ValidateSet("system", "microphone")][string] $SourceMode) {
   $profilePath = Join-Path $env:LOCALAPPDATA "Sniptale\NativeAgent\local-profile.json"
-  $profile = Get-Content -Raw -LiteralPath $profilePath | ConvertFrom-Json
-  $profile.revision = [uint64]$profile.revision + 1
-  $profile.manualProfile.audio.sourceMode = $SourceMode
-  $profile.manualProfile.audio.microphoneDeviceId = $null
+  $browserProfile = Get-Content -Raw -LiteralPath $profilePath | ConvertFrom-Json
+  $browserProfile.revision = [uint64]$browserProfile.revision + 1
+  $browserProfile.manualProfile.audio.sourceMode = $SourceMode
+  $browserProfile.manualProfile.audio.microphoneDeviceId = $null
   # This scenario proves audio capture and MP4 finalization, not the high-bitrate preset. Keep the
   # encoder below the disposable VM's software-H264 saturation point so wall time and media time
   # remain comparable and the ten-second PCM acceptance threshold is meaningful.
-  $profile.manualProfile.video.quality = "low"
-  $profile.manualProfile.video.fps = "fps24"
-  $profile.manualProfile.video.bitrateOverrideMbps = $null
-  [IO.File]::WriteAllText($profilePath, ($profile | ConvertTo-Json -Depth 8 -Compress), [Text.UTF8Encoding]::new($false))
+  $browserProfile.manualProfile.video.quality = "low"
+  $browserProfile.manualProfile.video.fps = "fps24"
+  $browserProfile.manualProfile.video.bitrateOverrideMbps = $null
+  [IO.File]::WriteAllText($profilePath, ($browserProfile | ConvertTo-Json -Depth 8 -Compress), [Text.UTF8Encoding]::new($false))
   Restart-AgentWithMode "manual"
 }
 
@@ -1246,7 +1052,7 @@ function Get-AgentRecordingFailure {
           if ($record.target -eq "sniptale_native_agent::recording" -and $record.error.code) {
             $records.Add($record)
           }
-        } catch { }
+        } catch { Write-Verbose 'Ignored malformed native diagnostic record.' }
       }
     }
   if ($records.Count -eq 0) { return $null }
@@ -1255,7 +1061,7 @@ function Get-AgentRecordingFailure {
   return "$($latest.error.code)$native"
 }
 
-function Write-AgentRecordingDiagnostics([string] $SourceMode, [int] $Attempt) {
+function Write-AgentRecordingDiagnostic([string] $SourceMode, [int] $Attempt) {
   if (-not $script:agent) { return }
   $logDirectory = Join-Path $env:LOCALAPPDATA "Sniptale\NativeAgent\logs"
   $pattern = "sniptale-native-*-$($script:agent.Id)-*.jsonl"
@@ -1271,7 +1077,7 @@ function Write-AgentRecordingDiagnostics([string] $SourceMode, [int] $Attempt) {
             $code = if ($record.error.code) { "; error.code=$($record.error.code)" } else { "" }
             $safeLines.Add("$($record.timestamp) target=$($record.target); phase=$($record.phase)$code$native")
           }
-        } catch { }
+        } catch { Write-Verbose 'Ignored malformed native diagnostic record.' }
       }
     }
   if ($safeLines.Count -gt 0) {
@@ -1293,7 +1099,7 @@ function Reset-RecordingFixtureState([string] $Media, [string] $TempMedia) {
     Remove-Item -Force -ErrorAction Stop
 }
 
-function Invoke-SyntheticRecording([ValidateSet("system", "microphone")][string] $SourceMode) {
+function Invoke-SyntheticRecording([ValidateSet("system", "microphone")][string] $SourceMode, [switch] $UseCapturePanel) {
   Add-Type -AssemblyName System.Windows.Forms
   Initialize-SniptaleHotkeyInput
   if ($SourceMode -eq "microphone") {
@@ -1311,12 +1117,12 @@ function Invoke-SyntheticRecording([ValidateSet("system", "microphone")][string]
   $fixtureSource = @'
 Add-Type -AssemblyName System.Drawing
 Add-Type -AssemblyName System.Windows.Forms
-$form = [Windows.Forms.Form]::new()
+$form = [System.Windows.Forms.Form]::new()
 $form.Text = "Sniptale Synthetic Motion Fixture"
 $form.Size = [Drawing.Size]::new(900, 600)
 $form.StartPosition = "CenterScreen"
 $form.TopMost = $true
-$label = [Windows.Forms.Label]::new()
+$label = [System.Windows.Forms.Label]::new()
 $label.Dock = "Fill"
 $label.TextAlign = "MiddleCenter"
 $label.Font = [Drawing.Font]::new("Segoe UI", 32)
@@ -1324,7 +1130,7 @@ $form.Controls.Add($label)
 $colors = @([Drawing.Color]::Blue, [Drawing.Color]::Lime, [Drawing.Color]::Red, [Drawing.Color]::Yellow)
 $step = 0
 $deadline = [DateTime]::UtcNow.AddSeconds(180)
-$timer = [Windows.Forms.Timer]::new()
+$timer = [System.Windows.Forms.Timer]::new()
 $timer.Interval = 250
 $timer.Add_Tick({
   $script:step++
@@ -1333,7 +1139,7 @@ $timer.Add_Tick({
   if ([DateTime]::UtcNow -ge $deadline) { $form.Close() }
 })
 $timer.Start()
-[Windows.Forms.Application]::Run($form)
+[System.Windows.Forms.Application]::Run($form)
 '@
   [IO.File]::WriteAllText($fixturePath, $fixtureSource, [Text.UTF8Encoding]::new($false))
   $fixture = Start-Process powershell.exe -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "`"$fixturePath`"") -PassThru
@@ -1359,7 +1165,7 @@ $player.PlaySync()
   try {
     foreach ($attempt in 1..2) {
       $scenario = if ($SourceMode -eq "system") { "recording-system-audio" } else { "recording-microphone" }
-      Write-ProgressEvent $scenario "retry" $attempt 2 55
+      Write-ProgressEvent -Scenario $scenario -Status "retry" -Attempt $attempt -MaxAttempts 2 -DeadlineSeconds 55
       if ($attempt -gt 1) { Restart-AgentWithMode "manual" }
       Start-Sleep -Seconds 2
       $existingRecordings = @{}
@@ -1384,7 +1190,8 @@ $player.PlaySync()
       # Capture/tray behavior is proved by their own cases. Use the configured Manual hotkey here
       # so the recording case has one deterministic admission path, then wait for the durable
       # writing record created only after the media runtime has started successfully.
-      [SniptaleHotkeyInput]::Press(0x76)
+      if ($UseCapturePanel) { Start-PanelRecording }
+      else { [SniptaleHotkeyInput]::Press(0x76) }
       $recordingReady = $false
       $startDeadline = [DateTime]::UtcNow.AddSeconds(30)
       while ([DateTime]::UtcNow -lt $startDeadline) {
@@ -1405,6 +1212,7 @@ $player.PlaySync()
         }
         continue
       }
+      if ($UseCapturePanel) { Test-PanelRecordingControl }
       # Keep the render endpoint producing samples after the worker has bound WASAPI loopback.
       if ($SourceMode -eq "system") {
         Start-Sleep -Seconds 20
@@ -1416,8 +1224,10 @@ $player.PlaySync()
       # and retry only the input gesture; once observed, never send a second stop command.
       $hotkeyEventsBeforeStop = Get-AgentHotkeyEventCount
       $stopObserved = $false
+      if ($UseCapturePanel) { Stop-PanelRecording; $stopObserved = $true }
       foreach ($stopAttempt in 1..3) {
-        Write-ProgressEvent $scenario "stop-delivery" $stopAttempt 3 3
+        if ($stopObserved) { break }
+        Write-ProgressEvent -Scenario $scenario -Status "stop-delivery" -Attempt $stopAttempt -MaxAttempts 3 -DeadlineSeconds 3
         [SniptaleHotkeyInput]::Press(0x77)
         $stopDeliveryDeadline = [DateTime]::UtcNow.AddSeconds(3)
         while ([DateTime]::UtcNow -lt $stopDeliveryDeadline) {
@@ -1431,14 +1241,14 @@ $player.PlaySync()
       }
       if (-not $stopObserved) {
         $null = $attemptOutcomes.Add("attempt-${attempt}:stop-hotkey-not-observed")
-        Write-AgentRecordingDiagnostics $SourceMode $attempt
+        Write-AgentRecordingDiagnostic $SourceMode $attempt
         if ($toneProcess -and -not $toneProcess.HasExited) {
           Stop-Process -Id $toneProcess.Id -Force -ErrorAction SilentlyContinue
         }
         $toneProcess = $null
         continue
       }
-      Write-ProgressEvent $scenario "finalizing" $attempt 2 20
+      Write-ProgressEvent -Scenario $scenario -Status "finalizing" -Attempt $attempt -MaxAttempts 2 -DeadlineSeconds 20
       $finalizeDeadline = [DateTime]::UtcNow.AddSeconds(20)
       $candidate = $null
       $discardObservedAt = $null
@@ -1527,7 +1337,7 @@ $player.PlaySync()
         Stop-Process -Id $toneProcess.Id -Force -ErrorAction SilentlyContinue
       }
       $toneProcess = $null
-      Write-AgentRecordingDiagnostics $SourceMode $attempt
+      Write-AgentRecordingDiagnostic $SourceMode $attempt
       if ($attemptFailure) {
         $null = $attemptOutcomes.Add("attempt-${attempt}:$attemptFailure")
       } elseif (-not $acceptedRecording -and -not $candidate) {
@@ -1573,8 +1383,33 @@ $player.PlaySync()
   }
 }
 
+# The real product extension is opt-in; clean acceptance has no extension artifact.
+if ($RealExtensionSha256 -or $selectedTests.Contains("real-extension")) {
+  Add-Test "real-extension" {
+    if ($WorkspaceMode -ne "warm" -or $RealExtensionSha256 -notmatch '^[0-9a-f]{64}$') { throw "real extension scenario requires an explicit development artifact" }
+    if ((Get-FileHash -LiteralPath "real-extension.zip").Hash.ToLowerInvariant() -ne $RealExtensionSha256) { throw "real extension hash mismatch" }
+    $realPath = "C:\SniptaleLab\real-extension"
+    if (Test-Path -LiteralPath $realPath) { Remove-Item -LiteralPath $realPath -Recurse -Force -ErrorAction Stop }
+    New-Item -ItemType Directory -Force -Path $realPath | Out-Null
+    Write-ProgressEvent "real-extension-extraction" "started"
+    & tar.exe -xf "real-extension.zip" -C $realPath
+    if ($LASTEXITCODE -ne 0) { throw "real extension extraction failed" }
+    Write-ProgressEvent "real-extension-extraction" "pass"
+    . "$PSScriptRoot\real-extension.ps1"
+    try {
+      Restart-AgentWithMode "extension-managed"
+      $results = @(
+        (Invoke-RealExtension "chrome" (Get-LabBrowserExecutable "chrome") $realPath),
+        (Invoke-RealExtension "edge" (Get-LabBrowserExecutable "edge") $realPath)
+      )
+      [IO.File]::WriteAllText((Join-Path $outputPath "real-extension-result.json"), ($results | ConvertTo-Json -Depth 10), [Text.UTF8Encoding]::new($false))
+      "real extension in Chrome and Edge received and verified native PNG; product reconnect restored lease and settings"
+    } finally { Restart-AgentWithMode "manual" }
+  }
+}
+
 Add-Test "recording-system-audio" {
-  Invoke-SyntheticRecording "system"
+  Invoke-SyntheticRecording "system" -UseCapturePanel
 }
 Add-Test "recording-microphone" {
   Invoke-SyntheticRecording "microphone"
@@ -1582,8 +1417,8 @@ Add-Test "recording-microphone" {
 Add-Test "reconnect-recovery" {
   try {
     Restart-AgentWithMode "extension-managed"
-    $chromeResult = Invoke-BrowserNativeProbeWithRetry "chrome" $chrome $extensionPath "pass" "reconnect-recovery"
-    $edgeResult = Invoke-BrowserNativeProbeWithRetry "edge" $edge $extensionPath "pass" "reconnect-recovery"
+    $chromeResult = Invoke-BrowserNativeProbeWithRetry -Name "chrome" -Executable $chrome -ExtensionPath $extensionPath -ExpectedStatus "pass" -ProgressScenario "reconnect-recovery"
+    $edgeResult = Invoke-BrowserNativeProbeWithRetry -Name "edge" -Executable $edge -ExtensionPath $extensionPath -ExpectedStatus "pass" -ProgressScenario "reconnect-recovery"
     "resident restart recovery completed; $chromeResult; $edgeResult"
   } finally {
     Restart-AgentWithMode "manual"

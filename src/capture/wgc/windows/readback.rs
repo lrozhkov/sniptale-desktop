@@ -1,4 +1,4 @@
-//! D3D11 and WinRT readback for WGC frames.
+//! D3D11 and `WinRT` readback for WGC frames.
 #![allow(unsafe_code)]
 
 mod recording;

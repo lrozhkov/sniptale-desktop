@@ -65,6 +65,10 @@ fn write_outbound_event<W>(
 where
     W: Write + Send,
 {
+    let completion = match &event {
+        AgentOutboundEvent::ConnectionClosed(receipt) => Some(receipt.clone()),
+        _ => None,
+    };
     if mode_epoch.is_some_and(|gate| !gate.remains_current()) {
         if let Ok(mut slot) = error.lock() {
             *slot = Some(AgentPipeSessionError::ModeEpochChanged);
@@ -76,6 +80,9 @@ where
         Err(_) => Vec::new(),
     };
     if responses.is_empty() {
+        if let Some(receipt) = completion {
+            receipt.acknowledge();
+        }
         return true;
     }
     let response_count = responses.len();
@@ -93,6 +100,9 @@ where
             *slot = Some(write_error);
         }
         return false;
+    }
+    if let Some(receipt) = completion {
+        receipt.acknowledge();
     }
     let message = format!(
         "resident pipe wrote outbound response batch responseCount={response_count} responseTypes={response_types}"

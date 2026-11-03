@@ -6,8 +6,8 @@ use super::capabilities::VideoMode;
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct NativeRecordingRegion {
-    pub(crate) x: u32,
-    pub(crate) y: u32,
+    pub(crate) x: i32,
+    pub(crate) y: i32,
     pub(crate) width: u32,
     pub(crate) height: u32,
 }

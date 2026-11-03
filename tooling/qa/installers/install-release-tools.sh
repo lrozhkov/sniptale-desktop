@@ -4,6 +4,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 source "$ROOT/tooling/qa/runtime/lib.sh"
 ensure_rust_env
 cd "$ROOT"
+python3 tooling/qa/runtime/toolchain.py --check
 while read -r name version; do
   if ! command -v "$name" >/dev/null 2>&1 || [[ "$(cargo "${name#cargo-}" --version)" != *" $version"* ]]; then
     features=()
@@ -16,7 +17,8 @@ while read -r name version; do
     printf 'Pinned release tool is missing or has the wrong version: %s\n' "$name" >&2
     exit 1
   fi
-done < <(python3 - <<'PY'
+done < <(
+  python3 - <<'PY'
 import json
 with open('tooling/configs/qa/tool-versions.json') as stream:
     for name, version in json.load(stream)['cargoSubcommands'].items():
@@ -25,3 +27,5 @@ PY
 )
 rustup component add llvm-tools-preview
 tooling/qa/installers/install-gitleaks.sh
+
+tooling/qa/installers/install-analysis-tools.sh

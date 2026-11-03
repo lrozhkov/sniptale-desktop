@@ -32,7 +32,7 @@ pub(crate) fn audio_endpoints() -> Result<Vec<AudioEndpoint>, WindowsAudioDevice
     let enumerator = create_enumerator()?;
     let default_microphone_id = default_endpoint_id(&enumerator, eCapture);
     let mut endpoints = capture_endpoints(&enumerator, default_microphone_id.as_deref())?;
-    if let Some(system) = default_system_loopback(&enumerator)? {
+    if let Some(system) = default_system_loopback(&enumerator) {
         endpoints.push(system);
     }
     Ok(endpoints)
@@ -72,17 +72,13 @@ fn capture_endpoints(
     Ok(endpoints)
 }
 
-fn default_system_loopback(
-    enumerator: &IMMDeviceEnumerator,
-) -> Result<Option<AudioEndpoint>, WindowsAudioDeviceError> {
-    let Some(id) = default_endpoint_id(enumerator, eRender) else {
-        return Ok(None);
-    };
-    Ok(Some(AudioEndpoint::system_loopback(
+fn default_system_loopback(enumerator: &IMMDeviceEnumerator) -> Option<AudioEndpoint> {
+    let id = default_endpoint_id(enumerator, eRender)?;
+    Some(AudioEndpoint::system_loopback(
         &id,
         "System Audio",
         AudioEndpointState::Available,
-    )))
+    ))
 }
 
 fn default_endpoint_id(enumerator: &IMMDeviceEnumerator, flow: EDataFlow) -> Option<String> {
@@ -97,7 +93,7 @@ fn device_id(device: &IMMDevice) -> Result<String, WindowsAudioDeviceError> {
         .map_err(|_| WindowsAudioDeviceError::EndpointEnumerationFailed)?;
     let id = CoTaskMemString::new(id);
     id.to_string()
-        .map_err(|_| WindowsAudioDeviceError::EndpointEnumerationFailed)
+        .map_err(|()| WindowsAudioDeviceError::EndpointEnumerationFailed)
 }
 
 const PKEY_DEVICE_FRIENDLY_NAME: PROPERTYKEY = PROPERTYKEY {
@@ -117,9 +113,9 @@ fn friendly_endpoint_label(device: &IMMDevice, index: u32) -> String {
     };
     let mut buffer = [0_u16; 256];
     // SAFETY: the buffer is writable for its full advertised length and PROPVARIANT is initialized.
-    let converted = unsafe { PropVariantToString(&value, &mut buffer) }.is_ok();
+    let converted = unsafe { PropVariantToString(&raw const value, &mut buffer) }.is_ok();
     // SAFETY: clears exactly the PROPVARIANT initialized by IPropertyStore::GetValue.
-    let _ = unsafe { PropVariantClear(&mut value) };
+    let _ = unsafe { PropVariantClear(&raw mut value) };
     if !converted {
         return fallback();
     }

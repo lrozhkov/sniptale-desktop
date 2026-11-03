@@ -12,6 +12,7 @@ import signal
 import sys
 import time
 from pathlib import Path
+from typing import Any
 
 from artifacts import artifact_manifest, create_source_bundle, evidence_manifest, write_manifest
 from config import LANES, LabConfig
@@ -26,8 +27,9 @@ from receipt import create_run_dir, redact, redact_data, write_receipt
 from results import GuestResult, TestCase, write_junit
 from runner import LaneRunner
 from state import LabLock, read_json
-from system import sha256_file
+from system import run, sha256_file
 from vm import VmManager
+from work_sessions import WorkSessions, load_session, state_path as session_state_path
 
 RUN_ID = re.compile(r"^\d{8}T\d{6}Z(?:-\d{3})?$")
 
@@ -39,6 +41,24 @@ def _interrupt(_signum: int, _frame: object) -> None:
 def parser() -> argparse.ArgumentParser:
     root = argparse.ArgumentParser(prog="tooling/desktop/e2e-lab")
     sub = root.add_subparsers(dest="command", required=True)
+    session_parser = sub.add_parser("session")
+    session_sub = session_parser.add_subparsers(dest="session_command", required=True)
+    session_open = session_sub.add_parser("open")
+    session_open.add_argument("--ttl-seconds", type=int, default=7200)
+    session_sub.add_parser("status")
+    session_close = session_sub.add_parser("close")
+    session_close.add_argument("--save", action="store_true")
+    session_sub.add_parser("recover")
+    session_collect = session_sub.add_parser("collect")
+    session_collect.add_argument("session_id")
+    session_collect.add_argument("iteration")
+    session_build = session_sub.add_parser("build")
+    session_build.add_argument("--profile", choices=("dev", "release"), default="dev")
+    session_build.add_argument("--ui-preview", action="store_true", help="Diagnostic dev build without Rust tests")
+    session_test = session_sub.add_parser("test")
+    session_test.add_argument("--cases", default="")
+    session_test.add_argument("--extension-artifact", type=Path)
+    session_test.add_argument("--extension-source", type=Path)
     doctor_parser = sub.add_parser("doctor")
     doctor_parser.add_argument("--json", action="store_true")
     sub.add_parser("bootstrap")
@@ -69,7 +89,14 @@ def parser() -> argparse.ArgumentParser:
     stop_group = stop_parser.add_mutually_exclusive_group(required=True)
     stop_group.add_argument("--all", action="store_true")
     stop_group.add_argument("--lane", choices=LANES)
-    sub.add_parser("gc")
+    gc_parser = sub.add_parser("gc")
+    gc_parser.add_argument("--closed-session", help="Remove one closed development session's diagnostic evidence")
+    gc_parser.add_argument(
+        "--retired-iteration",
+        nargs=2,
+        metavar=("SESSION", "ITERATION"),
+        help="Remove one completed, unreferenced older diagnostic iteration",
+    )
     destroy_parser = sub.add_parser("destroy")
     destroy_parser.add_argument("lane", choices=LANES)
     destroy_parser.add_argument("--yes", action="store_true")
@@ -82,7 +109,11 @@ def print_json(value: object) -> None:
 
 def command_doctor(paths: LabPaths, config: LabConfig, json_output: bool) -> None:
     checks = doctor(paths, config)
-    payload = {"schema_version": 1, "passed": all(item.passed or not item.required for item in checks), "checks": [item.as_dict() for item in checks]}
+    payload = {
+        "schema_version": 1,
+        "passed": all(item.passed or not item.required for item in checks),
+        "checks": [item.as_dict() for item in checks],
+    }
     if json_output:
         print_json(payload)
     else:
@@ -118,7 +149,11 @@ def status(paths: LabPaths, config: LabConfig) -> dict[str, object]:
             "vnc": f"127.0.0.1:{5900 + config.lanes[name].vnc_display}",
             "state_error": state_error,
         }
-    runs = sorted(path.name for path in paths.lab.iterdir() if path.is_dir() and RUN_ID.fullmatch(path.name)) if paths.lab.exists() else []
+    runs = (
+        sorted(path.name for path in paths.lab.iterdir() if path.is_dir() and RUN_ID.fullmatch(path.name))
+        if paths.lab.exists()
+        else []
+    )
     return {"schema_version": 1, "lanes": lanes, "runs": runs}
 
 
@@ -147,21 +182,31 @@ def execute_run(
         gc(paths, config)
     run_id, run_dir = create_run_dir(paths.runs)
     run_mode = (
-        "focused-rerun" if retry_of is not None
-        else "focused-test" if requested_cases is not None
-        else "alpha-release-acceptance" if supplied_artifact is not None and (supplied_artifact.parent / "provenance.json").is_file()
+        "focused-rerun"
+        if retry_of is not None
+        else "focused-test"
+        if requested_cases is not None
+        else "alpha-release-acceptance"
+        if supplied_artifact is not None and (supplied_artifact.parent / "provenance.json").is_file()
         else "full-acceptance"
     )
     emit_progress(
-        "run-start", runId=run_id, mode=run_mode, lanes=lanes,
-        requestedCases=sorted(requested_cases or []), retryOf=retry_of,
+        "run-start",
+        runId=run_id,
+        mode=run_mode,
+        lanes=lanes,
+        requestedCases=sorted(requested_cases or []),
+        retryOf=retry_of,
     )
     source_archive = run_dir / ".source.tar.gz"
     emit_progress("source-bundle", runId=run_id, status="started")
     source = create_source_bundle(paths.root, source_archive)
     emit_progress(
-        "source-bundle", runId=run_id, status="completed",
-        sourceSha256=source.sha256, fileCount=source.file_count,
+        "source-bundle",
+        runId=run_id,
+        status="completed",
+        sourceSha256=source.sha256,
+        fileCount=source.file_count,
     )
     lane_runner = LaneRunner(paths, config)
     results: list[GuestResult] = []
@@ -179,14 +224,19 @@ def execute_run(
                 artifacts.extend(built)
                 suffix = ".msi" if lane == "windows-11" else ".deb"
                 candidates = [path for path in built if path.suffix.lower() == suffix]
-                candidate = next((path for path in candidates if "-0.1.0-" in path.name), None) or next(iter(candidates), None)
+                candidate = next((path for path in candidates if "-0.1.0-" in path.name), None) or next(
+                    iter(candidates), None
+                )
                 if candidate is None:
                     raise LabError(f"no testable artifact was built for {lane}")
             else:
                 candidate = supplied_artifact.resolve(strict=True)
                 artifacts.append(candidate)
             emit_progress(
-                "lane-test", runId=run_id, lane=lane, status="started",
+                "lane-test",
+                runId=run_id,
+                lane=lane,
+                status="started",
                 timeoutSeconds=getattr(getattr(config, "timeouts", None), "test", 0),
             )
             if requested_cases is None:
@@ -203,25 +253,33 @@ def execute_run(
             results.append(GuestResult(lane, (TestCase("controller", "fail", 0, message),), {}, ()))
             controller_error = exc if isinstance(exc, LabError) else LabError(message)
             emit_progress("lane-test", runId=run_id, lane=lane, status="failed", detail=message)
-            for unattempted in lanes[lane_index + 1:]:
-                results.append(GuestResult(
-                    unattempted,
-                    (TestCase("controller", "fail", 0, "not attempted because a prior requested lane failed"),),
-                    {},
-                    (),
-                ))
+            for unattempted in lanes[lane_index + 1 :]:
+                results.append(
+                    GuestResult(
+                        unattempted,
+                        (TestCase("controller", "fail", 0, "not attempted because a prior requested lane failed"),),
+                        {},
+                        (),
+                    )
+                )
                 durations[unattempted] = 0
-                lane_runner.teardowns.setdefault(unattempted, {
-                    "pre_run_forced": False,
-                    "post_run_forced": False,
-                })
+                lane_runner.teardowns.setdefault(
+                    unattempted,
+                    {
+                        "pre_run_forced": False,
+                        "post_run_forced": False,
+                    },
+                )
             break
         finally:
             durations[lane] = int((time.monotonic() - started) * 1000)
-            lane_runner.teardowns.setdefault(lane, {
-                "pre_run_forced": False,
-                "post_run_forced": False,
-            })
+            lane_runner.teardowns.setdefault(
+                lane,
+                {
+                    "pre_run_forced": False,
+                    "post_run_forced": False,
+                },
+            )
     manifest_value = artifact_manifest(dict.fromkeys(artifacts))
     manifest_path = run_dir / "artifact-manifest.json"
     write_manifest(manifest_path, manifest_value)
@@ -235,7 +293,9 @@ def execute_run(
         "lanes": snapshot_identities(paths, lanes),
         "guests": {result.lane: redact_data(result.environment) for result in results},
     }
-    (run_dir / "environment.json").write_text(json.dumps(environment, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+    (run_dir / "environment.json").write_text(
+        json.dumps(environment, sort_keys=True, indent=2) + "\n", encoding="utf-8"
+    )
     write_junit(run_dir / "junit.xml", results)
     evidence_value = evidence_manifest(run_dir)
     evidence_manifest_path = run_dir / "evidence-manifest.json"
@@ -243,7 +303,18 @@ def execute_run(
     clean_teardown = all(not any(values.values()) for values in lane_runner.teardowns.values())
     passed = len(results) == len(lanes) and all(result.passed for result in results) and clean_teardown
     matrix = [
-        {"lane": result.lane, "tests": [{"name": case.name, "status": case.status, "duration_ms": case.duration_ms, "detail": redact(case.detail)} for case in result.cases]}
+        {
+            "lane": result.lane,
+            "tests": [
+                {
+                    "name": case.name,
+                    "status": case.status,
+                    "duration_ms": case.duration_ms,
+                    "detail": redact(case.detail),
+                }
+                for case in result.cases
+            ],
+        }
         for result in results
     ]
     receipt = {
@@ -276,8 +347,11 @@ def execute_run(
             receipt["result"] = "fail"
             write_receipt(run_dir / "receipt.json", receipt)
     emit_progress(
-        "run-finish", runId=run_id, mode=run_mode,
-        status=receipt["result"], cleanTeardown=clean_teardown,
+        "run-finish",
+        runId=run_id,
+        mode=run_mode,
+        status=receipt["result"],
+        cleanTeardown=clean_teardown,
     )
     source_archive.unlink(missing_ok=True)
     # Supplied artifacts can live in an older run, so pre-run GC must not delete their source.
@@ -325,33 +399,47 @@ def execute_build(paths: LabPaths, config: LabConfig, lane: str, profile: str) -
         "lanes": snapshot_identities(paths, [lane]),
         "guests": {},
     }
-    (run_dir / "environment.json").write_text(json.dumps(environment, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+    (run_dir / "environment.json").write_text(
+        json.dumps(environment, sort_keys=True, indent=2) + "\n", encoding="utf-8"
+    )
     clean_teardown = all(not any(values.values()) for values in lane_runner.teardowns.values())
     if build_error is None and not clean_teardown:
         build_error = LabError("build VM required forced teardown")
     status_value = "fail" if build_error else "pass"
     detail = redact(str(build_error)) if build_error else "artifact build completed"
-    result = GuestResult(lane, (TestCase(f"build-{profile}", status_value, duration, detail),), {}, tuple(path.name for path in built))
+    result = GuestResult(
+        lane, (TestCase(f"build-{profile}", status_value, duration, detail),), {}, tuple(path.name for path in built)
+    )
     write_junit(run_dir / "junit.xml", [result])
     evidence_value = evidence_manifest(run_dir)
     evidence_manifest_path = run_dir / "evidence-manifest.json"
     write_manifest(evidence_manifest_path, evidence_value)
-    write_receipt(run_dir / "receipt.json", {
-        "schema_version": 1,
-        "run_id": run_id,
-        "source": {"sha256": source.sha256, "file_count": source.file_count},
-        "commit_sha": source.commit_sha,
-        "dirty_state_sha256": source.dirty_sha256,
-        "artifact_manifest_sha256": sha256_file(manifest_path),
-        "evidence_manifest_sha256": sha256_file(evidence_manifest_path),
-        "artifacts": manifest_value["artifacts"],
-        "lanes": [lane],
-        "snapshots": environment["lanes"],
-        "test_matrix": [{"lane": lane, "tests": [{"name": f"build-{profile}", "status": status_value, "duration_ms": duration, "detail": detail}]}],
-        "durations_ms": {lane: duration, "total": duration},
-        "teardown": lane_runner.teardowns,
-        "result": status_value,
-    })
+    write_receipt(
+        run_dir / "receipt.json",
+        {
+            "schema_version": 1,
+            "run_id": run_id,
+            "source": {"sha256": source.sha256, "file_count": source.file_count},
+            "commit_sha": source.commit_sha,
+            "dirty_state_sha256": source.dirty_sha256,
+            "artifact_manifest_sha256": sha256_file(manifest_path),
+            "evidence_manifest_sha256": sha256_file(evidence_manifest_path),
+            "artifacts": manifest_value["artifacts"],
+            "lanes": [lane],
+            "snapshots": environment["lanes"],
+            "test_matrix": [
+                {
+                    "lane": lane,
+                    "tests": [
+                        {"name": f"build-{profile}", "status": status_value, "duration_ms": duration, "detail": detail}
+                    ],
+                }
+            ],
+            "durations_ms": {lane: duration, "total": duration},
+            "teardown": lane_runner.teardowns,
+            "result": status_value,
+        },
+    )
     source_archive.unlink(missing_ok=True)
     # Build overlays and old evidence are transient too. Enforce retention after every exit so a
     # build-only workflow cannot leave max_runs + 1 directories until the next test or manual GC.
@@ -405,7 +493,7 @@ def failed_windows_rerun(
 def _resolve_rerun_windows_msi(
     paths: LabPaths,
     previous: Path,
-    receipt: dict[str, object],
+    receipt: dict[str, Any],
 ) -> Path:
     declared = [
         item
@@ -457,11 +545,15 @@ def _build_run_key(path: Path) -> tuple[str, str] | None:
 
 def gc(paths: LabPaths, config: LabConfig) -> dict[str, int]:
     now = time.time()
-    run_dirs = sorted(
-        (path for path in paths.lab.iterdir() if path.is_dir() and RUN_ID.fullmatch(path.name)),
-        key=lambda path: path.stat().st_mtime,
-        reverse=True,
-    ) if paths.lab.exists() else []
+    run_dirs = (
+        sorted(
+            (path for path in paths.lab.iterdir() if path.is_dir() and RUN_ID.fullmatch(path.name)),
+            key=lambda path: path.stat().st_mtime,
+            reverse=True,
+        )
+        if paths.lab.exists()
+        else []
+    )
     removed = 0
     incomplete = 0
     redundant_builds = 0
@@ -493,15 +585,15 @@ def gc(paths: LabPaths, config: LabConfig) -> dict[str, int]:
         for path in apt_archives.glob("*.deb"):
             paths.scoped(path).unlink()
             package_archives += 1
-    build_caches = sorted(
-        (
-            path
-            for path in (paths.cache / "builds").glob("*/*/*")
-            if path.is_dir() and not path.is_symlink()
-        ),
-        key=lambda path: path.stat().st_mtime,
-        reverse=True,
-    ) if (paths.cache / "builds").is_dir() else []
+    build_caches = (
+        sorted(
+            (path for path in (paths.cache / "builds").glob("*/*/*") if path.is_dir() and not path.is_symlink()),
+            key=lambda path: path.stat().st_mtime,
+            reverse=True,
+        )
+        if (paths.cache / "builds").is_dir()
+        else []
+    )
     build_caches_removed = 0
     for index, path in enumerate(build_caches):
         too_old = now - path.stat().st_mtime > config.limits.max_run_age_days * 86400
@@ -509,17 +601,54 @@ def gc(paths: LabPaths, config: LabConfig) -> dict[str, int]:
             shutil.rmtree(paths.scoped(path))
             build_caches_removed += 1
     storage = compact_existing_goldens(paths, config, VmManager(paths, config))
+    from work_sessions import gc_sessions
+
+    sessions_removed = gc_sessions(paths, config)
+    compiler_caches_removed = 0
+    versions = read_json(paths.root / "tooling/configs/qa/tool-versions.json")
+    compiler = versions.get("rust", {}).get("channel") if isinstance(versions, dict) else None
+    if not isinstance(compiler, str) or re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", compiler) is None:
+        raise IntegrityError("cannot clean compiler caches without the pinned compiler version")
+    dependencies = paths.cache / "session-dependencies"
+    if dependencies.is_symlink():
+        raise IntegrityError("session dependency cache is redirected")
+    for cached in dependencies.glob("rust-*"):
+        if re.fullmatch(r"rust-[0-9]+\.[0-9]+\.[0-9]+", cached.name) is None or cached.name == "rust-" + compiler:
+            continue
+        if cached.is_symlink() or not cached.is_dir():
+            raise IntegrityError("obsolete compiler cache is redirected or not a directory")
+        stamp = read_json(cached / "toolchain.json")
+        policy = stamp.get("policy") if isinstance(stamp, dict) else None
+        if not isinstance(policy, dict) or policy.get("rust_version") != cached.name[5:]:
+            continue
+        shutil.rmtree(paths.scoped(cached))
+        compiler_caches_removed += 1
     source_images = cleanup_source_images(paths)
     return {
         "runs_removed": removed,
+        "sessions_removed": sessions_removed,
         "incomplete_runs_removed": incomplete,
         "redundant_build_runs_removed": redundant_builds,
         "partials_removed": partials,
         "package_archives_removed": package_archives,
         "build_caches_removed": build_caches_removed,
+        "compiler_caches_removed": compiler_caches_removed,
         **storage,
         **source_images,
     }
+
+
+def requires_fast_sources(args: argparse.Namespace) -> bool:
+    return args.command in {"provision", "start", "build", "test", "run", "rerun-failed"} or (
+        args.command == "session" and args.session_command in {"open", "build", "test"}
+    )
+
+
+def source_stamp(paths: LabPaths) -> str:
+    value = run(["python3", "-m", "tooling.qa.runtime.cli", "fingerprint"], cwd=paths.root, timeout=30).stdout.strip()
+    if re.fullmatch(r"[0-9a-f]{64}", value) is None:
+        raise IntegrityError("invalid fast source fingerprint")
+    return value
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -543,9 +672,53 @@ def main(argv: list[str] | None = None) -> int:
             summary["path"] = run_dir.relative_to(paths.root).as_posix()
             print_json(summary)
             return 0
+        admission = None
+        if requires_fast_sources(args):
+            admission = source_stamp(paths)
+            # Acquire QA admission before the controller lock; cleanup commands remain available.
+            run([str(paths.root / "tooling/qa/wrappers/fast.sh")], cwd=paths.root, timeout=600, stream=True)
         paths.ensure()
         with LabLock(paths.locks / "controller.lock", args.command):
+            if admission is not None and source_stamp(paths) != admission:
+                raise IntegrityError("desktop sources changed while acquiring the controller lock; rerun the command")
             manager = VmManager(paths, config)
+            if args.command == "session":
+                sessions = WorkSessions(paths, config)
+                if args.session_command == "open":
+                    print_json(sessions.open(args.ttl_seconds))
+                elif args.session_command == "status":
+                    print_json(load_session(paths))
+                elif args.session_command == "close":
+                    print_json(sessions.close(save=args.save))
+                elif args.session_command == "recover":
+                    print_json(sessions.recover())
+                elif args.session_command == "collect":
+                    from session_evidence import collect as collect_session
+
+                    print_json(collect_session(paths, args.session_id, args.iteration))
+                else:
+                    print_json(
+                        sessions.iterate(
+                            args.session_command,
+                            getattr(args, "profile", "dev"),
+                            parse_case_selection(getattr(args, "cases", "")),
+                            getattr(args, "extension_artifact", None),
+                            getattr(args, "extension_source", None),
+                            ui_preview=getattr(args, "ui_preview", False),
+                        )
+                    )
+                return 0
+            resets_windows = (args.command == "reset" and args.lane == "windows-11") or (
+                args.command == "stop" and (args.all or args.lane == "windows-11")
+            )
+            if resets_windows:
+                # Explicit recovery remains available even when the lease is corrupted.
+                manager.reset("windows-11")
+                session_state_path(paths).unlink(missing_ok=True)
+            elif load_session(paths) is not None and not (
+                args.command == "gc" and (args.closed_session is not None or args.retired_iteration is not None)
+            ):
+                raise UsageError("close the development session before clean lab operations")
             if args.command == "bootstrap":
                 print_json(bootstrap(paths))
             elif args.command == "provision":
@@ -569,7 +742,14 @@ def main(argv: list[str] | None = None) -> int:
                     shutil.rmtree(golden)
                 print_json({"destroyed": args.lane})
             elif args.command == "gc":
-                print_json(gc(paths, config))
+                if args.closed_session is not None and args.retired_iteration is not None:
+                    raise UsageError("select one diagnostic cleanup target")
+                if args.retired_iteration is not None:
+                    print_json(WorkSessions(paths, config).purge_retired_iteration(*args.retired_iteration))
+                elif args.closed_session is not None:
+                    print_json(WorkSessions(paths, config).purge_closed_session(args.closed_session))
+                else:
+                    print_json(gc(paths, config))
             elif args.command == "build":
                 run_id, built = execute_build(paths, config, args.lane, args.profile)
                 print_json({"run_id": run_id, "artifacts": [str(path) for path in built]})

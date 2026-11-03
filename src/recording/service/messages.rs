@@ -58,6 +58,8 @@ pub(super) fn recording_metadata(
     let filename = media_filename(recording_id, TransferMediaFileKind::Mp4)
         .map_err(|_| RecordingRuntimeError::TransferState)?;
     Ok(RecordingMediaMetadata {
+        recording_events: None,
+        cursor_trajectory: None,
         filename,
         duration_ms: artifact.duration_ms,
         width: artifact.width,

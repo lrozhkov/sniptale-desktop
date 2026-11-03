@@ -1,6 +1,6 @@
 # Sniptale Desktop documentation
 
-This index lists every active document. Code, tracked contracts, and machine policy are authoritative for executable behavior; documents own architecture decisions, security assumptions, audit rationale, and operator procedures that are not evident from code.
+This index lists every active document. Code, tracked contracts, and machine policy are authoritative for executable behavior. Documents own architecture decisions, security assumptions, audit rationale, and operator procedures that are not evident from code.
 
 ## Architecture
 
@@ -9,7 +9,11 @@ This index lists every active document. Code, tracked contracts, and machine pol
 - [ADR 0001](architecture/adr/0001-resident-media-worker-ownership.md) records the single-process resident worker boundary.
 - [ADR 0002](architecture/adr/0002-dpapi-owner-local-adapters.md) records the two owner-local DPAPI adapters and their trade-off.
 - [ADR 0003](architecture/adr/0003-transfer-lifecycle-ownership.md) records shared media-transfer lifecycle ownership.
-- [ADR 0005](architecture/adr/0005-dual-settings-authority-and-local-asset-delivery.md) records mutually exclusive extension-managed and Manual authority.
+- [ADR 0005](architecture/adr/0005-dual-settings-authority-and-local-asset-delivery.md) records Desktop-owned settings and recoverable local/browser delivery.
+- [ADR 0006](architecture/adr/0006-cursor-trajectory-blocks.md) fixes the jointly agreed cursor trajectory blocks, clock, integrity, and attachment contract.
+- [ADR 0007](architecture/adr/0007-recording-events-blocks.md) fixes lossless blocks for sanitized recording events and keyboard activity.
+
+- [ADR 0008](architecture/adr/0008-tauri-presentation-boundary.md) owns shared web presentation, the typed Tauri bridge, and Win32 retirement.
 
 ## Engineering and QA
 
@@ -17,6 +21,14 @@ This index lists every active document. Code, tracked contracts, and machine pol
 - [Testing policy](engineering/testing-policy.md) owns required proof families and risk-based test expectations.
 - [Unsafe and FFI policy](engineering/unsafe-ffi-policy.md) owns admission requirements for privileged Windows adapters.
 - [QA tooling](tooling/qa.md) routes wrappers, evidence, and generated state.
+
+## Product design
+
+- [Desktop design index](design/index.md) routes the shared web design system and capture toolbar.
+- [Desktop foundations](design/foundations.md) owns the target visual and interaction contract.
+- [UI localization](design/localization.md) owns Fluent messages, language fallback, and multilingual layout proof.
+- [Desktop UI research](design/research.md) records the native-stack assessment and primary sources.
+- [Desktop UI delivery plan](design/delivery-plan.md) owns the sandbox-first implementation sequence and acceptance criteria.
 
 ## Security and operations
 

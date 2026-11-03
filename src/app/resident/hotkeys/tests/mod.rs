@@ -119,7 +119,7 @@ fn mode_fence_snapshot_restores_the_previous_hotkey_projection() -> Result<(), H
         )
         .map_err(|_| HotkeyError::InvalidShortcutLabel)?;
     assert_eq!(fence_receiver.recv().ok(), Some(false));
-    assert!(worker.active_registration_ids().is_empty());
+    assert_eq!(worker.active_registration_ids().len(), 0);
 
     let (restore_sender, restore_receiver) = std::sync::mpsc::sync_channel(1);
     worker
@@ -259,7 +259,7 @@ fn persistence_rollback_removes_staged_hotkeys_and_keeps_snapshot_until_restore_
         failed_receiver.recv(),
         Ok(Err(HotkeyRuntimeError::RegisterFailed { .. }))
     ));
-    assert!(worker.active_registration_ids().is_empty());
+    assert_eq!(worker.active_registration_ids().len(), 0);
     assert!(worker.has_fenced_snapshot());
     assert!(drops.borrow().len() >= 2);
 

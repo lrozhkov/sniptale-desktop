@@ -1,0 +1,5 @@
+rules:
+  self-repository:
+    ignore:
+      # actionlint 1.7.12 cannot parse GitHub's new $/ syntax. This reusable workflow is resolved by GitHub at the caller commit; verify_tooling pins the exact target. Review after an aged compatible actionlint release.
+      - alpha.yml:20:16

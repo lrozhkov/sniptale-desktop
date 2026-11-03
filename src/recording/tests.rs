@@ -239,6 +239,12 @@ impl RecordingRuntime for FakeRecordingRuntime {
         assert_eq!(request.request.operation_id, "command-1");
         assert!(request.media_path.ends_with(COMMAND_1_RECORDING_MP4));
         Ok(StartedRecordingRuntime {
+            frame_geometry: Some(crate::telemetry::RecordingFrameGeometry {
+                x: 0,
+                y: 0,
+                width: 1920,
+                height: 1080,
+            }),
             effective_quality: effective_quality_from_settings_policy(
                 &request.request.requested_quality,
                 1920,
@@ -420,6 +426,7 @@ impl RecordingRuntime for FailingStopRuntime {
         _request: RecordingRuntimeStartRequest<'_>,
     ) -> Result<StartedRecordingRuntime, RecordingRuntimeError> {
         Ok(StartedRecordingRuntime {
+            frame_geometry: None,
             effective_quality: effective_quality_from_settings_policy(
                 &recording_start_command(VideoMode::Screen).requested_quality,
                 1920,

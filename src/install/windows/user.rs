@@ -34,7 +34,7 @@ fn open_current_process_token() -> Result<TokenHandle, WindowsUserError> {
     let mut handle = HANDLE::default();
     // SAFETY: GetCurrentProcess returns the current process pseudo-handle; OpenProcessToken writes
     // one owned token handle into `handle`, which is wrapped immediately for CloseHandle ownership.
-    unsafe { OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut handle) }
+    unsafe { OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &raw mut handle) }
         .map_err(|_| WindowsUserError::OpenTokenFailed)?;
     TokenHandle::new(handle)
 }
@@ -42,12 +42,13 @@ fn open_current_process_token() -> Result<TokenHandle, WindowsUserError> {
 fn token_user_sid(token: HANDLE) -> Result<String, WindowsUserError> {
     let mut required = 0_u32;
     // SAFETY: This first call intentionally passes no output buffer to obtain the required size.
-    let _ = unsafe { GetTokenInformation(token, TokenUser, None, 0, &mut required) };
-    if required == 0 {
+    let _ = unsafe { GetTokenInformation(token, TokenUser, None, 0, &raw mut required) };
+    if required == 0 || required > 64 * 1024 {
         return Err(WindowsUserError::TokenQueryFailed);
     }
 
-    let mut buffer = vec![0_u8; required as usize];
+    let bytes = usize::try_from(required).map_err(|_| WindowsUserError::TokenQueryFailed)?;
+    let mut buffer = vec![0_usize; bytes.div_ceil(mem::size_of::<usize>())];
     // SAFETY: `buffer` is allocated with the size requested by GetTokenInformation; the API writes
     // a TOKEN_USER record into the buffer for the lifetime of this function.
     unsafe {
@@ -56,16 +57,17 @@ fn token_user_sid(token: HANDLE) -> Result<String, WindowsUserError> {
             TokenUser,
             Some(buffer.as_mut_ptr().cast::<c_void>()),
             required,
-            &mut required,
+            &raw mut required,
         )
     }
     .map_err(|_| WindowsUserError::TokenQueryFailed)?;
 
-    if buffer.len() < mem::size_of::<TOKEN_USER>() {
+    if bytes < mem::size_of::<TOKEN_USER>() {
         return Err(WindowsUserError::TokenUserMissing);
     }
     // SAFETY: GetTokenInformation succeeded for TokenUser and wrote a TOKEN_USER at buffer start.
-    // The SID pointer remains valid while `buffer` is alive in this function.
+    // The usize allocation supplies TOKEN_USER pointer alignment; the SID remains within
+    // this successful query buffer until sid_to_string has copied it.
     let user = unsafe { &*buffer.as_ptr().cast::<TOKEN_USER>() };
     sid_to_string(user.User.Sid)
 }
@@ -77,7 +79,7 @@ fn sid_to_string(sid: windows::Win32::Security::PSID) -> Result<String, WindowsU
     let mut sid_string = PWSTR::null();
     // SAFETY: `sid` is the PSID returned by a successful TokenUser query; the returned string is a
     // LocalAlloc buffer and is wrapped immediately for LocalFree ownership.
-    unsafe { ConvertSidToStringSidW(sid, &mut sid_string) }
+    unsafe { ConvertSidToStringSidW(sid, &raw mut sid_string) }
         .map_err(|_| WindowsUserError::SidConversionFailed)?;
     let sid_string = LocalString::new(sid_string)?;
     sid_string.to_string()

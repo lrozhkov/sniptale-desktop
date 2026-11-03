@@ -67,6 +67,7 @@ fn run_worker(
             &commands_rx,
             Some(&service),
             None,
+            None,
         );
     });
     assert_eq!(
@@ -82,6 +83,7 @@ fn run_worker(
         .recv()?
         .map_err(|_| std::io::Error::other("prepare"))?;
     commands_tx.send(WorkerCommand::PublishManualAsset {
+        delivery: None,
         job_id,
         source: Box::new(reader),
     })?;

@@ -20,12 +20,28 @@ pub(crate) enum AppearanceThemePreference {
     Dark,
 }
 
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub(crate) enum UiLocale {
+    #[default]
+    #[serde(rename = "en-US")]
+    English,
+    #[serde(rename = "ru")]
+    Russian,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Serialize)]
+pub(crate) struct AppearancePreferences {
+    pub(crate) theme: AppearanceThemePreference,
+    pub(crate) locale: UiLocale,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum UiPreferencesError {
     Io,
     Oversize,
     InvalidJson,
     UnsupportedSchema,
+    EmptyPatch,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -50,6 +66,8 @@ impl UiPreferencesHealth {
 struct UiPreferences {
     schema_version: u16,
     theme: AppearanceThemePreference,
+    #[serde(default)]
+    locale: UiLocale,
 }
 
 #[must_use]
@@ -61,17 +79,36 @@ pub(crate) fn ui_preferences_health_from_path(path: Option<PathBuf>) -> UiPrefer
     }
 }
 
-pub(crate) fn persist_appearance_theme_from_path(
+#[cfg(test)]
+fn persist_appearance_theme_from_path(
     path: Option<PathBuf>,
     theme: AppearanceThemePreference,
 ) -> Result<(), UiPreferencesError> {
-    store::write(
-        path,
-        UiPreferences {
-            schema_version: UI_PREFERENCES_SCHEMA_VERSION,
-            theme,
-        },
+    update_ui_preferences_from_path(path, Some(theme), None).map(|_| ())
+}
+
+pub(crate) fn load_ui_preferences_from_path(
+    path: Option<PathBuf>,
+) -> Result<AppearancePreferences, UiPreferencesError> {
+    Ok(
+        store::read(path)?.map_or_else(AppearancePreferences::default, |value| {
+            AppearancePreferences {
+                theme: value.theme,
+                locale: value.locale,
+            }
+        }),
     )
+}
+
+pub(crate) fn update_ui_preferences_from_path(
+    path: Option<PathBuf>,
+    theme: Option<AppearanceThemePreference>,
+    locale: Option<UiLocale>,
+) -> Result<AppearancePreferences, UiPreferencesError> {
+    if theme.is_none() && locale.is_none() {
+        return Err(UiPreferencesError::EmptyPatch);
+    }
+    store::update(path, theme, locale)
 }
 
 fn parse(payload: &[u8]) -> Result<UiPreferences, UiPreferencesError> {

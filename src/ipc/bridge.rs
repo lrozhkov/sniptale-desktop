@@ -1,4 +1,6 @@
 #[cfg(any(windows, test))]
+mod attachments;
+#[cfg(any(windows, test))]
 mod authenticated;
 #[cfg(any(windows, test))]
 mod duplex;
@@ -22,21 +24,22 @@ use std::io::{Read, Write};
 use crate::protocol::EXTENSION_TO_HOST_MAX_MESSAGE_BYTES;
 
 #[cfg(any(windows, test))]
+pub(crate) use self::attachments::{AgentAttachmentReader, BridgeForwardRuntime};
+#[cfg(any(windows, test))]
 pub(crate) use self::authenticated::AuthenticatedBridgeForwardError;
+#[cfg(any(windows, test))]
+pub(crate) use self::authenticated::AuthenticatedDuplexAgentPipe;
 #[cfg(test)]
 pub(crate) use self::authenticated::forward_authenticated_native_host_stream;
 #[cfg(test)]
 pub(crate) use self::authenticated::forward_authenticated_native_host_stream_with_authenticated_hook;
 #[cfg(test)]
 pub(crate) use self::authenticated::forward_authenticated_native_host_stream_with_log_and_authenticated_hook;
-#[cfg(any(windows, test))]
-pub(crate) use self::authenticated::{
-    AuthenticatedDuplexAgentPipe,
-    forward_authenticated_native_host_stream_duplex_with_authenticated_hook,
-};
 #[cfg(test)]
 pub(crate) use self::duplex::forward_native_host_stream_duplex;
-#[cfg(any(windows, test))]
+#[cfg(test)]
+pub(crate) use self::duplex::forward_native_host_stream_duplex_with_runtime;
+#[cfg(test)]
 pub(crate) use self::duplex::forward_native_host_stream_duplex_with_shutdown;
 #[cfg(test)]
 use self::forwarding::forward_browser_payload;
@@ -74,6 +77,7 @@ pub(crate) enum BridgeForwardError {
     AgentProtocol(crate::protocol::ParseError),
     AgentResponseHeader(AgentPipeResponseHeaderError),
     AgentResponseMissing,
+    AttachmentRead,
     ForwardThread,
 }
 
@@ -89,6 +93,7 @@ impl fmt::Display for BridgeForwardError {
                 write!(formatter, "agent response header rejected: {error}")
             }
             Self::AgentResponseMissing => formatter.write_str("agent response frame missing"),
+            Self::AttachmentRead => formatter.write_str("authorized attachment read failed"),
             Self::ForwardThread => formatter.write_str("bridge forwarding thread failed"),
         }
     }
@@ -101,7 +106,7 @@ impl Error for BridgeForwardError {
             Self::BrowserFrame(error) | Self::AgentFrame(error) => Some(error),
             Self::BrowserProtocol(error) | Self::AgentProtocol(error) => Some(error),
             Self::AgentResponseHeader(error) => Some(error),
-            Self::AgentResponseMissing | Self::ForwardThread => None,
+            Self::AgentResponseMissing | Self::ForwardThread | Self::AttachmentRead => None,
         }
     }
 }
@@ -138,3 +143,9 @@ pub(crate) fn forward_native_host_stream_with_log(
         }
     }
 }
+
+#[cfg(all(windows, not(test)))]
+pub(crate) use self::authenticated::forward_authenticated_native_host_stream_duplex_with_runtime;
+
+#[cfg(test)]
+pub(crate) use self::authenticated::forward_authenticated_native_host_stream_duplex_with_authenticated_hook;

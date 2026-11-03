@@ -7,15 +7,18 @@ use super::sanitize::{KeyCode, KeyModifiers, sanitize_key};
 use super::{
     sanitize::SanitizedKeySignal,
     snapshot::{
-        RecordingTelemetryActionEvent, RecordingTelemetryCursorSample, RecordingTelemetrySignal,
+        RecordingTelemetryActionEvent, RecordingTelemetrySignal,
         SanitizedRecordingTelemetrySnapshot,
     },
-    timebase::{MediaTimebase, PausedInterval, TimebaseError},
+    timebase::{MediaTimebase, TimebaseError},
 };
 use typing::TypingSpanAccumulator;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum TelemetryCollectorError {
+    RecordingEvents,
+    HistoryBackpressure,
+    CursorTrajectory,
     RecordingMismatch,
     NotRecording,
     Timebase(TimebaseError),
@@ -30,12 +33,11 @@ pub(crate) struct RecordingTelemetryCollector {
 struct RecordingTelemetryCollectionSession {
     recording_id: String,
     timebase: MediaTimebase,
-    pauses: Vec<PausedInterval>,
     open_pause_started_monotonic_ns: Option<u64>,
     action_events: Vec<RecordingTelemetryActionEvent>,
-    cursor_samples: Vec<RecordingTelemetryCursorSample>,
     signals: Vec<RecordingTelemetrySignal>,
     typing: TypingSpanAccumulator,
+    history_incomplete: bool,
 }
 
 impl RecordingTelemetryCollector {
@@ -43,12 +45,11 @@ impl RecordingTelemetryCollector {
         self.session = Some(RecordingTelemetryCollectionSession {
             recording_id: recording_id.to_owned(),
             timebase: MediaTimebase::new(started_at_monotonic_ns),
-            pauses: Vec::new(),
             open_pause_started_monotonic_ns: None,
             action_events: Vec::new(),
-            cursor_samples: Vec::new(),
             signals: Vec::new(),
             typing: TypingSpanAccumulator::default(),
+            history_incomplete: false,
         });
     }
 
@@ -73,49 +74,25 @@ impl RecordingTelemetryCollector {
         let session = self.session_for(recording_id)?;
         let time_ms = session.media_time_ms(monotonic_ns)?;
         match signal {
-            SanitizedKeySignal::Typing { count } => session.typing.record(time_ms, count),
+            SanitizedKeySignal::Typing { count } => {
+                if let Some(completed) = session.typing.record(time_ms, count) {
+                    session.push_signal(completed)?;
+                }
+            }
             SanitizedKeySignal::KeyLabel(_) | SanitizedKeySignal::Shortcut(_) => {
-                session.flush_typing();
+                session.flush_typing()?;
                 if let Some(action) =
                     RecordingTelemetryActionEvent::from_key_signal(signal, time_ms)
                 {
+                    if session.action_events.len() == 2048 {
+                        session.history_incomplete = true;
+                        return Err(TelemetryCollectorError::HistoryBackpressure);
+                    }
                     session.action_events.push(action);
                 }
             }
             SanitizedKeySignal::Ignored => {}
         }
-        Ok(())
-    }
-
-    pub(crate) fn record_cursor(
-        &mut self,
-        recording_id: &str,
-        x: i32,
-        y: i32,
-        monotonic_ns: u64,
-    ) -> Result<(), TelemetryCollectorError> {
-        let session = self.session_for(recording_id)?;
-        let time_ms = session.media_time_ms(monotonic_ns)?;
-        session
-            .cursor_samples
-            .push(RecordingTelemetryCursorSample::new(time_ms, x, y, true));
-        Ok(())
-    }
-
-    pub(crate) fn record_click(
-        &mut self,
-        recording_id: &str,
-        button: &'static str,
-        x: i32,
-        y: i32,
-        monotonic_ns: u64,
-    ) -> Result<(), TelemetryCollectorError> {
-        let session = self.session_for(recording_id)?;
-        let time_ms = session.media_time_ms(monotonic_ns)?;
-        session.flush_typing();
-        session
-            .action_events
-            .push(RecordingTelemetryActionEvent::click(button, time_ms, x, y));
         Ok(())
     }
 
@@ -128,51 +105,9 @@ impl RecordingTelemetryCollector {
     ) -> Result<(), TelemetryCollectorError> {
         let session = self.session_for(recording_id)?;
         let time_ms = session.media_time_ms(monotonic_ns).unwrap_or(0);
-        session
-            .signals
-            .push(RecordingTelemetrySignal::telemetry_warning(
-                source, code, time_ms,
-            ));
-        Ok(())
-    }
-
-    pub(crate) fn record_cursor_idle_signal(
-        &mut self,
-        recording_id: &str,
-        monotonic_ns: u64,
-    ) -> Result<(), TelemetryCollectorError> {
-        let session = self.session_for(recording_id)?;
-        let Some(sample) = session.cursor_samples.last() else {
-            return Ok(());
-        };
-        let end_time_ms = session.media_time_ms(monotonic_ns)?;
-        session.signals.push(RecordingTelemetrySignal::cursor_idle(
-            sample.time_ms,
-            end_time_ms,
-            sample.x,
-            sample.y,
-        ));
-        Ok(())
-    }
-
-    pub(crate) fn record_pause(
-        &mut self,
-        recording_id: &str,
-        start_monotonic_ns: u64,
-        end_monotonic_ns: u64,
-    ) -> Result<(), TelemetryCollectorError> {
-        let session = self.session_for(recording_id)?;
-        if end_monotonic_ns < start_monotonic_ns {
-            return Err(TelemetryCollectorError::Timebase(
-                TimebaseError::InvalidPause,
-            ));
-        }
-        session.flush_typing();
-        session.pauses.push(PausedInterval {
-            start_monotonic_ns,
-            end_monotonic_ns,
-        });
-        Ok(())
+        session.push_signal(RecordingTelemetrySignal::telemetry_warning(
+            source, code, time_ms,
+        ))
     }
 
     pub(crate) fn record_pause_start(
@@ -181,9 +116,13 @@ impl RecordingTelemetryCollector {
         start_monotonic_ns: u64,
     ) -> Result<(), TelemetryCollectorError> {
         let session = self.session_for(recording_id)?;
-        session.flush_typing();
+        let flushed = session.flush_typing();
+        session
+            .timebase
+            .pause(start_monotonic_ns)
+            .map_err(TelemetryCollectorError::Timebase)?;
         session.open_pause_started_monotonic_ns = Some(start_monotonic_ns);
-        Ok(())
+        flushed
     }
 
     pub(crate) fn record_pause_end(
@@ -192,10 +131,24 @@ impl RecordingTelemetryCollector {
         end_monotonic_ns: u64,
     ) -> Result<(), TelemetryCollectorError> {
         let session = self.session_for(recording_id)?;
-        let Some(start_monotonic_ns) = session.open_pause_started_monotonic_ns.take() else {
+        let Some(_) = session.open_pause_started_monotonic_ns else {
             return Ok(());
         };
-        self.record_pause(recording_id, start_monotonic_ns, end_monotonic_ns)
+        session
+            .timebase
+            .resume(end_monotonic_ns)
+            .map_err(TelemetryCollectorError::Timebase)?;
+        session.open_pause_started_monotonic_ns = None;
+        Ok(())
+    }
+
+    /// Drains a bounded accepted prefix without closing an active typing span or recording.
+    #[cfg(test)]
+    pub(crate) fn drain_pending_for_recording(
+        &mut self,
+        recording_id: &str,
+    ) -> Result<SanitizedRecordingTelemetrySnapshot, TelemetryCollectorError> {
+        Ok(self.session_for(recording_id)?.drain_pending())
     }
 
     fn session_for(
@@ -258,26 +211,54 @@ impl super::snapshot::RecordingTelemetrySource for RecordingTelemetryCollector {
             self.session = Some(session);
             return None;
         }
-        session.typing.flush_at(duration_ms);
-        session.flush_typing();
-        Some(SanitizedRecordingTelemetrySnapshot::new(
-            session.action_events,
-            session.signals,
-        ))
-        .map(|snapshot| snapshot.with_cursor_samples(session.cursor_samples))
+        let _ = duration_ms;
+        let _ = session.flush_typing();
+        Some(session.drain_pending())
     }
 }
 
 impl RecordingTelemetryCollectionSession {
-    fn media_time_ms(&self, monotonic_ns: u64) -> Result<u64, TelemetryCollectorError> {
+    fn media_time_ms(&mut self, monotonic_ns: u64) -> Result<u64, TelemetryCollectorError> {
         self.timebase
-            .elapsed_media_ms(monotonic_ns, &self.pauses)
+            .elapsed_media_ms(monotonic_ns)
             .map_err(TelemetryCollectorError::Timebase)
     }
 
-    fn flush_typing(&mut self) {
+    fn flush_typing(&mut self) -> Result<(), TelemetryCollectorError> {
         if let Some(signal) = self.typing.take_signal() {
-            self.signals.push(signal);
+            self.push_signal(signal)?;
         }
+        Ok(())
+    }
+
+    fn push_signal(
+        &mut self,
+        signal: RecordingTelemetrySignal,
+    ) -> Result<(), TelemetryCollectorError> {
+        // Reserve a fixed slot for a loss marker outside the accepted prefix.
+        if self.signals.len() == 511 {
+            self.history_incomplete = true;
+            return Err(TelemetryCollectorError::HistoryBackpressure);
+        }
+        self.signals.push(signal);
+        Ok(())
+    }
+
+    fn drain_pending(&mut self) -> SanitizedRecordingTelemetrySnapshot {
+        let mut snapshot = SanitizedRecordingTelemetrySnapshot::new(
+            std::mem::take(&mut self.action_events),
+            std::mem::take(&mut self.signals),
+        );
+        snapshot.history_incomplete = self.history_incomplete;
+        if self.history_incomplete {
+            snapshot
+                .signals
+                .push(RecordingTelemetrySignal::telemetry_warning(
+                    "keyboard-hook",
+                    "events-dropped",
+                    0,
+                ));
+        }
+        snapshot
     }
 }

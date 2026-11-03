@@ -4,6 +4,19 @@ use serde_json::Value;
 use crate::protocol::{media::failure::NativeAppError, platform::NativeInstallState};
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub(crate) enum ConnectionClosedReason {
+    UserQuit,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(crate) struct AppConnectionClosedMessage {
+    pub(crate) protocol_version: u16,
+    pub(crate) reason: ConnectionClosedReason,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct ExtensionPingMessage {
     pub(crate) protocol_version: u16,

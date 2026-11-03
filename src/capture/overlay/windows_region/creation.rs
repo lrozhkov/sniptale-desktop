@@ -57,7 +57,7 @@ fn register_overlay_class(class_name: &[u16]) -> Result<HINSTANCE, ScreenshotCap
         ..WNDCLASSW::default()
     };
     // SAFETY: class metadata is process-local; duplicate registration is expected on later runs.
-    if unsafe { RegisterClassW(&class) } == 0
+    if unsafe { RegisterClassW(&raw const class) } == 0
         && unsafe { GetLastError() } != ERROR_CLASS_ALREADY_EXISTS
     {
         return Err(ScreenshotCaptureError::CaptureUnavailable);

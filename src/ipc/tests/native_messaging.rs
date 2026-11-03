@@ -21,14 +21,14 @@ fn frame(payload: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> {
 
 fn hello_payload() -> &'static [u8] {
     br#"{
-        "type": "extension.hello",
-        "protocolVersion": 1,
+        "type": "extension.hello", "connectionIntent": "automatic",
+        "protocolVersion": 2,
         "settingsSchemaVersion": 1,
         "extensionVersion": "0.1.0",
         "extensionId": "abcdefghijklmnopqrstuvwxzyabcdef",
         "minAppVersion": "0.1.0",
-        "supportedProtocolVersions": [1],
-        "supportedSettingsSchemaVersions": [1]
+        "supportedProtocolVersions": [2],
+        "supportedSettingsSchemaVersions": [1], "capabilities": ["desktop-settings-v1", "durable-media-ack-v1"]
     }"#
 }
 
@@ -127,7 +127,9 @@ fn chromium_sized_control_frame_is_rejected_before_body_read() -> Result<(), Box
 
 #[test]
 fn malformed_json_frame_is_rejected_by_protocol_parser() -> Result<(), Box<dyn Error>> {
-    let mut reader = Cursor::new(frame(br#"{"type":"extension.hello""#)?);
+    let mut reader = Cursor::new(frame(
+        br#"{"type":"extension.hello", "connectionIntent": "automatic""#,
+    )?);
     let result = read_extension_message(&mut reader);
     assert!(matches!(result, Err(NativeMessagingError::Protocol(_))));
     Ok(())
@@ -152,7 +154,7 @@ fn write_payload_rejects_oversize() {
             max: 5
         })
     ));
-    assert!(output.is_empty());
+    assert_eq!(output.len(), 0);
 }
 
 struct HeaderOnlyReader {

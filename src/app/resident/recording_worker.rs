@@ -6,7 +6,8 @@ mod manual_asset;
 mod request;
 mod status;
 
-use std::sync::mpsc::{Receiver, SyncSender, TrySendError};
+use std::sync::mpsc::{Receiver, RecvTimeoutError, SyncSender, TrySendError};
+use std::time::{Duration, Instant};
 
 use super::{AgentComponent, AgentEventHub, WorkerCommand, WorkerEvent};
 use crate::{
@@ -19,7 +20,7 @@ use crate::{
 };
 use lifecycle::{
     ActiveRecording, RecordingLifecycleContext, reject_start_while_active, run_control_command,
-    run_start_command,
+    run_progress_tick, run_start_command,
 };
 use request::{extension_control_request, extension_start_request};
 
@@ -92,9 +93,34 @@ pub(super) fn run_recording_worker(component: AgentComponent, inputs: RecordingW
     let _ = inputs.event_sender.send(WorkerEvent::Started(component));
     let command_receiver = inputs.command_receiver;
     let mut runtime = RecordingWorkerRuntime::new(inputs);
-    while let Ok(command) = command_receiver.recv() {
-        if !runtime.handle_command(command) {
-            break;
+    let cadence = Duration::from_millis(crate::recording::DEFAULT_PROGRESS_MIN_INTERVAL_MS);
+    let mut next_progress = Instant::now();
+    loop {
+        let was_active = runtime.active_recording.is_some();
+        let command = if was_active {
+            command_receiver.recv_timeout(next_progress.saturating_duration_since(Instant::now()))
+        } else {
+            command_receiver
+                .recv()
+                .map_err(|_| RecvTimeoutError::Disconnected)
+        };
+        match command {
+            Ok(command) => {
+                if !runtime.handle_command(command) {
+                    break;
+                }
+            }
+            Err(RecvTimeoutError::Timeout) => {}
+            Err(RecvTimeoutError::Disconnected) => break,
+        }
+        if runtime.active_recording.is_some() {
+            let now = Instant::now();
+            if !was_active {
+                next_progress = now + cadence;
+            } else if now >= next_progress {
+                runtime.tick(request::now_epoch_ms());
+                next_progress = now + cadence;
+            }
         }
     }
 }
@@ -124,6 +150,26 @@ impl<'a> RecordingWorkerRuntime<'a> {
         }
     }
 
+    fn tick(&mut self, observed_epoch_ms: u64) {
+        let Some(active) = self.active_recording.as_ref() else {
+            return;
+        };
+        if run_progress_tick(
+            active,
+            observed_epoch_ms,
+            &mut self.runner,
+            RecordingLifecycleContext {
+                agent_events: self.agent_events,
+                tray_command_sender: self.tray_command_sender,
+                tray_recording_state: self.tray_recording_state,
+                asset_sender: self.asset_sender,
+                log: self.log,
+            },
+        ) {
+            self.active_recording = None;
+        }
+    }
+
     fn handle_command(&mut self, command: WorkerCommand) -> bool {
         match command {
             WorkerCommand::Stop => return false,
@@ -133,7 +179,13 @@ impl<'a> RecordingWorkerRuntime<'a> {
             }
             WorkerCommand::StartRecording { request, policy } => self.start(&request, policy),
             WorkerCommand::ControlRecording { request } => self.control(&request),
-            WorkerCommand::ControlActiveRecording { control } => self.control_active(control),
+            WorkerCommand::ControlActiveRecording { control } => self.control_active(control, None),
+            WorkerCommand::ControlObservedRecording {
+                control,
+                recording_id,
+            } => {
+                self.control_active(control, Some(&recording_id));
+            }
             command => ignore_non_recording_command(&command),
         }
         true
@@ -162,11 +214,18 @@ impl<'a> RecordingWorkerRuntime<'a> {
         }
     }
 
-    fn control_active(&mut self, control: crate::protocol::RecordingControl) {
+    fn control_active(
+        &mut self,
+        control: crate::protocol::RecordingControl,
+        observed: Option<&str>,
+    ) {
         let Some(active) = self.active_recording.as_ref() else {
             return;
         };
         let request = active.control_request(control);
+        if observed.is_some_and(|recording_id| recording_id != request.recording_id) {
+            return;
+        }
         if self.run_control(&request) && is_terminal_control(&request.control) {
             self.active_recording = None;
         }
@@ -195,6 +254,8 @@ fn ignore_non_recording_command(command: &WorkerCommand) {
     match command {
         WorkerCommand::ApplyHotkeyPlan { .. }
         | WorkerCommand::ManualHotkeyAction { .. }
+        | WorkerCommand::DesktopCapture { .. }
+        | WorkerCommand::DesktopSettings { .. }
         | WorkerCommand::RestoreHotkeys { .. }
         | WorkerCommand::ApplyTrayRegistry { .. }
         | WorkerCommand::ShowTrayNotice { .. }
@@ -209,13 +270,16 @@ fn ignore_non_recording_command(command: &WorkerCommand) {
         | WorkerCommand::DiscardRecordingTelemetry { .. }
         | WorkerCommand::SnapshotRecordingTelemetry { .. }
         | WorkerCommand::PrepareManualAsset { .. }
-        | WorkerCommand::PublishManualAsset { .. } => {}
+        | WorkerCommand::PublishManualAsset { .. }
+        | WorkerCommand::RecoverPendingAssets
+        | WorkerCommand::ChooseMediaDestination { .. } => {}
         #[cfg(test)]
         WorkerCommand::TrayMenuCommandSelected { .. } => {}
         WorkerCommand::Stop
         | WorkerCommand::FenceMode { .. }
         | WorkerCommand::StartRecording { .. }
         | WorkerCommand::ControlRecording { .. }
+        | WorkerCommand::ControlObservedRecording { .. }
         | WorkerCommand::ControlActiveRecording { .. } => {
             unreachable!("recording command routed to non-recording branch")
         }

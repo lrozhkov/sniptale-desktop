@@ -52,7 +52,15 @@ pub(super) fn default_recording_runner(
 
 #[cfg(windows)]
 pub(super) fn default_telemetry_source() -> Box<dyn crate::telemetry::RecordingTelemetrySource> {
-    Box::new(crate::telemetry::default_recording_telemetry_source())
+    Box::new(crate::telemetry::default_recording_telemetry_source(
+        crate::recording::recording_monotonic_ns,
+        super::cursor_writer::CursorWriterFactory::open_default().map(|factory| {
+            Box::new(factory) as Box<dyn crate::telemetry::CursorTrajectorySinkFactory>
+        }),
+        super::events_writer::EventsWriterFactory::open_default().map(|factory| {
+            Box::new(factory) as Box<dyn crate::telemetry::RecordingEventsSinkFactory>
+        }),
+    ))
 }
 
 #[cfg(not(windows))]

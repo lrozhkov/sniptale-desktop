@@ -23,7 +23,7 @@ const VK_OEM_8: u32 = 0xDF;
 const VK_OEM_102: u32 = 0xE2;
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub(crate) struct WindowsKeyModifiers(u8);
+pub(crate) struct WindowsKeyModifiers(u16);
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct WindowsKeyEvent {
@@ -31,7 +31,54 @@ pub(crate) struct WindowsKeyEvent {
     pub(crate) modifiers: WindowsKeyModifiers,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum WindowsKeyPhase {
+    Down,
+    Repeat,
+    Up,
+    UnclassifiedDown,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct WindowsKeyObservation {
+    pub(crate) event: WindowsKeyEvent,
+    pub(crate) source_time_ms: u64,
+    pub(crate) sequence: u64,
+    pub(crate) phase: WindowsKeyPhase,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub(crate) enum WindowsKeyTransition {
+    #[default]
+    Unknown,
+    Released,
+    Pressed,
+}
+
+impl WindowsKeyTransition {
+    pub(crate) fn observe(&mut self, up: bool) -> WindowsKeyPhase {
+        if up {
+            *self = Self::Released;
+            return WindowsKeyPhase::Up;
+        }
+        let phase = match self {
+            Self::Unknown => WindowsKeyPhase::UnclassifiedDown,
+            Self::Released => WindowsKeyPhase::Down,
+            Self::Pressed => WindowsKeyPhase::Repeat,
+        };
+        *self = Self::Pressed;
+        phase
+    }
+}
+
 pub(crate) fn sanitize_windows_key_event(event: WindowsKeyEvent) -> SanitizedKeySignal {
+    if event
+        .modifiers
+        .contains(WindowsKeyModifiers::ALTGR_POSSIBLE)
+        && matches!(event.virtual_key, VK_A..=VK_Z | VK_0..=VK_9 | VK_SPACE | VK_OEM_1..=VK_OEM_8 | VK_OEM_102)
+    {
+        return SanitizedKeySignal::Typing { count: 1 };
+    }
     sanitize_key(
         key_code_for_virtual_key(event.virtual_key, event.modifiers.has_command_modifier()),
         event.modifiers.into_key_modifiers(),
@@ -66,13 +113,53 @@ fn key_code_for_virtual_key(virtual_key: u32, command_modified: bool) -> KeyCode
 }
 
 impl WindowsKeyModifiers {
+    pub(crate) const fn facts(self) -> (Option<bool>, Option<bool>, Option<bool>, Option<bool>) {
+        (
+            self.fact(Self::CTRL),
+            self.fact(Self::ALT),
+            self.fact(Self::SHIFT),
+            self.fact(Self::META),
+        )
+    }
     pub(crate) const CTRL: Self = Self(0b0001);
     pub(crate) const SHIFT: Self = Self(0b0010);
     pub(crate) const ALT: Self = Self(0b0100);
     pub(crate) const META: Self = Self(0b1000);
 
+    #[cfg(test)]
     pub(crate) const fn with(self, other: Self) -> Self {
-        Self(self.0 | other.0)
+        Self((self.0 | other.0) & !((other.0 & 0x0f) << 4))
+    }
+
+    const ALTGR_POSSIBLE: Self = Self(1 << 8);
+
+    const fn fact(self, flag: Self) -> Option<bool> {
+        if self.0 & (flag.0 << 4) != 0 {
+            None
+        } else {
+            Some(self.contains(flag))
+        }
+    }
+
+    pub(crate) fn from_observed_keys(keys: &[WindowsKeyTransition; 256], alt_down: bool) -> Self {
+        let mut bits = 0;
+        for (flag, fact) in [
+            (Self::CTRL, observed_modifier(keys, 0xa2, 0xa3, Some(0x11))),
+            (Self::ALT, Some(alt_down)),
+            (Self::SHIFT, observed_modifier(keys, 0xa0, 0xa1, Some(0x10))),
+            (Self::META, observed_modifier(keys, 0x5b, 0x5c, None)),
+        ] {
+            match fact {
+                Some(true) => bits |= flag.0,
+                Some(false) => {}
+                None => bits |= flag.0 << 4,
+            }
+        }
+        // Right Alt can produce text through AltGr; an unknown initial state cannot rule it out.
+        if alt_down && keys[0xa5] != WindowsKeyTransition::Released {
+            bits |= Self::ALTGR_POSSIBLE.0;
+        }
+        Self(bits)
     }
 
     const fn has_command_modifier(self) -> bool {
@@ -98,5 +185,21 @@ impl WindowsKeyModifiers {
 
     const fn contains(self, other: Self) -> bool {
         self.0 & other.0 != 0
+    }
+}
+
+fn observed_modifier(
+    keys: &[WindowsKeyTransition; 256],
+    left: usize,
+    right: usize,
+    generic: Option<usize>,
+) -> Option<bool> {
+    if generic.is_some_and(|key| keys[key] == WindowsKeyTransition::Pressed) {
+        return Some(true);
+    }
+    match (keys[left], keys[right]) {
+        (WindowsKeyTransition::Pressed, _) | (_, WindowsKeyTransition::Pressed) => Some(true),
+        (WindowsKeyTransition::Released, WindowsKeyTransition::Released) => Some(false),
+        _ => None,
     }
 }

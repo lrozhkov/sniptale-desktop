@@ -1,0 +1,19 @@
+{
+  "identifier": "capture-panel",
+  "description": "Local application presentation commands only",
+  "local": true,
+  "windows": [
+    "capture-panel"
+  ],
+  "permissions": [
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "allow-desktop-capture-snapshot",
+    "allow-desktop-capture-command",
+    "allow-desktop-preferences-snapshot",
+    "allow-desktop-close-panel",
+    "allow-desktop-drag-panel",
+    "allow-desktop-open-settings",
+    "allow-desktop-panel-frame"
+  ]
+}

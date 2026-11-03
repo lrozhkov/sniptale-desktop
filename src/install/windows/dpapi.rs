@@ -4,11 +4,12 @@
 
 use std::{ptr, slice};
 
+#[cfg(not(test))]
+use windows::Win32::Security::Cryptography::CryptProtectData;
+
 use windows::Win32::{
     Foundation::{HLOCAL, LocalFree},
-    Security::Cryptography::{
-        CRYPT_INTEGER_BLOB, CRYPTPROTECT_UI_FORBIDDEN, CryptProtectData, CryptUnprotectData,
-    },
+    Security::Cryptography::{CRYPT_INTEGER_BLOB, CRYPTPROTECT_UI_FORBIDDEN, CryptUnprotectData},
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -16,10 +17,12 @@ pub(crate) enum DpapiSecretError {
     EmptyInput,
     InputTooLarge,
     UnprotectFailed,
+    #[cfg(not(test))]
     ProtectFailed,
     InvalidOutput,
 }
 
+#[cfg(not(test))]
 pub(crate) fn protect_current_user_pipe_secret(secret: &[u8]) -> Result<Vec<u8>, DpapiSecretError> {
     let input = input_blob(secret)?;
     let mut output = CRYPT_INTEGER_BLOB::default();
@@ -27,13 +30,13 @@ pub(crate) fn protect_current_user_pipe_secret(secret: &[u8]) -> Result<Vec<u8>,
     // and is owned by LocalBlob until its matching LocalFree. No UI or machine scope is requested.
     unsafe {
         CryptProtectData(
-            &input,
+            &raw const input,
             windows::core::w!("Sniptale pipe secret"),
             None,
             None,
             None,
             CRYPTPROTECT_UI_FORBIDDEN,
-            &mut output,
+            &raw mut output,
         )
     }
     .map_err(|_| DpapiSecretError::ProtectFailed)?;
@@ -49,13 +52,13 @@ pub(crate) fn unprotect_current_user_secret(protected: &[u8]) -> Result<Vec<u8>,
     // supplied; `output` is immediately wrapped and wiped before LocalFree on drop.
     unsafe {
         CryptUnprotectData(
-            &input,
+            &raw const input,
             None,
             None,
             None,
             None,
             CRYPTPROTECT_UI_FORBIDDEN,
-            &mut output,
+            &raw mut output,
         )
     }
     .map_err(|_| DpapiSecretError::UnprotectFailed)?;

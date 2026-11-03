@@ -11,6 +11,36 @@ use std::{
 };
 #[path = "worker_start/basic.rs"]
 mod basic;
+pub(super) type WorkerStarter = fn(
+    AgentComponent,
+    SyncSender<WorkerCommand>,
+    Receiver<WorkerCommand>,
+    WorkerSenderRefs<'_>,
+    WorkerStartContext,
+    Option<&AgentProcessLogSink>,
+) -> WorkerHandle;
+
+/// Lifecycle proof uses real bounded channels and threads without opening OS resources.
+#[cfg(test)]
+pub(super) fn start_lifecycle_test_worker(
+    component: AgentComponent,
+    command_sender: SyncSender<WorkerCommand>,
+    command_receiver: Receiver<WorkerCommand>,
+    _sender_refs: WorkerSenderRefs<'_>,
+    context: WorkerStartContext,
+    _log: Option<&AgentProcessLogSink>,
+) -> WorkerHandle {
+    let event_sender = context.event_sender;
+    let join_handle = thread::spawn(move || {
+        basic::run_basic_worker(component, &event_sender, &command_receiver);
+    });
+    WorkerHandle {
+        component,
+        command_sender,
+        join_handle: Some(join_handle),
+    }
+}
+
 pub(super) fn start_worker(
     component: AgentComponent,
     command_sender: SyncSender<WorkerCommand>,
@@ -116,19 +146,19 @@ fn run_worker_thread(
     );
     #[cfg(windows)]
     if component == AgentComponent::PipeServer {
-        super::pipe::run_windows_pipe_server_worker(
+        super::pipe::run_windows_pipe_server_worker(super::pipe::WindowsPipeWorkerInputs {
             component,
-            context.event_sender,
+            event_sender: context.event_sender,
             command_receiver,
-            senders.tray,
-            senders.hotkey,
-            senders.capture,
-            senders.recording,
-            senders.tray_connection,
-            context.active_settings,
-            context.agent_events,
+            tray_command_sender: senders.tray,
+            hotkey_command_sender: senders.hotkey,
+            capture_command_sender: senders.capture,
+            recording_command_sender: senders.recording,
+            tray_connection: senders.tray_connection,
+            active_settings: context.active_settings,
+            agent_events: context.agent_events,
             log,
-        );
+        });
         return;
     }
     basic::run_basic_worker(component, &context.event_sender, &command_receiver);
@@ -151,6 +181,7 @@ fn run_core_worker(
             command_receiver,
             service.as_ref(),
             senders.tray.as_ref(),
+            Some(&context.agent_events.desktop),
         );
         return true;
     }
@@ -164,7 +195,11 @@ fn run_core_worker(
                 events: &context.agent_events,
                 shutdown_sender: &context.shutdown_sender,
                 active_settings: context.active_settings.clone(),
-                manual_dispatcher: manual_dispatcher(&context.active_settings, senders),
+                manual_dispatcher: manual_dispatcher(
+                    &context.active_settings,
+                    senders,
+                    &context.agent_events,
+                ),
                 manual_senders: super::tray::ManualWorkerSenders::new(
                     senders.capture.clone(),
                     senders.recording.clone(),
@@ -181,7 +216,7 @@ fn run_core_worker(
     }
     if component == AgentComponent::Hotkeys {
         #[cfg(windows)]
-        let mut registrar = crate::hotkeys::WindowsHotkeyRegistrar::default();
+        let mut registrar = crate::hotkeys::WindowsHotkeyRegistrar;
         #[cfg(not(windows))]
         let mut registrar = hotkeys::NoopHotkeyRegistrar;
         hotkeys::run_hotkey_worker(
@@ -208,18 +243,21 @@ fn run_core_worker(
 fn manual_dispatcher(
     settings: &crate::settings::ActiveSettings,
     senders: &WorkerSenders,
+    events: &AgentEventHub,
 ) -> Option<super::control::manual_dispatch::ManualActionDispatcher> {
     settings
         .epoch()
         .ok()
-        .filter(|epoch| epoch.stable_mode() == Some(crate::settings::OperatingMode::Manual))
+        .filter(|epoch| epoch.stable_mode().is_some())
         .map(|_| {
-            super::control::manual_dispatch::ManualActionDispatcher::new(
+            let mut dispatcher = super::control::manual_dispatch::ManualActionDispatcher::new(
                 settings.clone(),
                 senders.capture.clone(),
                 senders.recording.clone(),
                 senders.assets.clone(),
-            )
+            );
+            dispatcher.observe_with(events.desktop.clone());
+            dispatcher
         })
 }
 

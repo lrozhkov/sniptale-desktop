@@ -4,9 +4,16 @@ use std::{
     fs::{self, OpenOptions},
     io::{Read, Write},
     path::PathBuf,
+    sync::Mutex,
 };
 
-use super::{MAX_UI_PREFERENCES_BYTES, UiPreferences, UiPreferencesError, parse};
+use super::{
+    AppearancePreferences, AppearanceThemePreference, MAX_UI_PREFERENCES_BYTES,
+    UI_PREFERENCES_SCHEMA_VERSION, UiLocale, UiPreferences, UiPreferencesError, parse,
+};
+
+// All in-process writers, including the legacy theme adapter, merge under this lock.
+static WRITER: Mutex<()> = Mutex::new(());
 
 pub(super) fn read(path: Option<PathBuf>) -> Result<Option<UiPreferences>, UiPreferencesError> {
     let path = path.ok_or(UiPreferencesError::Io)?;
@@ -26,12 +33,30 @@ pub(super) fn read(path: Option<PathBuf>) -> Result<Option<UiPreferences>, UiPre
     parse(&payload).map(Some)
 }
 
-pub(super) fn write(
+pub(super) fn update(
     path: Option<PathBuf>,
-    preferences: UiPreferences,
-) -> Result<(), UiPreferencesError> {
+    theme: Option<AppearanceThemePreference>,
+    locale: Option<UiLocale>,
+) -> Result<AppearancePreferences, UiPreferencesError> {
+    let _writer = WRITER.lock().map_err(|_| UiPreferencesError::Io)?;
+    let mut preferences = super::load_ui_preferences_from_path(path.clone())?;
+    if let Some(theme) = theme {
+        preferences.theme = theme;
+    }
+    if let Some(locale) = locale {
+        preferences.locale = locale;
+    }
     let path = path.ok_or(UiPreferencesError::Io)?;
-    write_path(&path, preferences, || Ok(()))
+    write_path(
+        &path,
+        UiPreferences {
+            schema_version: UI_PREFERENCES_SCHEMA_VERSION,
+            theme: preferences.theme,
+            locale: preferences.locale,
+        },
+        || Ok(()),
+    )?;
+    Ok(preferences)
 }
 
 fn write_path(

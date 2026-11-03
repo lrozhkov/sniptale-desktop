@@ -57,7 +57,8 @@ fn negative_wire_contract_fixtures_are_rejected() -> Result<(), Box<dyn Error>> 
 
 #[test]
 fn malformed_json_is_rejected() {
-    let error = parse_wire_message(br#"{"type":"extension.hello""#);
+    let error =
+        parse_wire_message(br#"{"type":"extension.hello", "connectionIntent": "automatic""#);
     assert!(matches!(
         error.as_ref().map_err(ParseError::kind),
         Err(ParseErrorKind::MalformedJson)
@@ -75,7 +76,7 @@ fn non_object_json_is_rejected() {
 
 #[test]
 fn missing_type_is_rejected() {
-    let error = parse_wire_message(br#"{"protocolVersion":1}"#);
+    let error = parse_wire_message(br#"{"protocolVersion":2}"#);
     assert!(matches!(
         error.as_ref().map_err(ParseError::kind),
         Err(ParseErrorKind::MissingType)

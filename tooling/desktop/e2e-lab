@@ -3,6 +3,9 @@ set -euo pipefail
 export PYTHONDONTWRITEBYTECODE=1
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# shellcheck source=../qa/runtime/script-tools-env.sh
+source "$ROOT/tooling/qa/runtime/script-tools-env.sh"
+script_tools_env "$ROOT"
 
 # `usermod -aG kvm` does not change the supplementary groups of an existing
 # WSL login. Re-enter just this command through the already-authorized kvm

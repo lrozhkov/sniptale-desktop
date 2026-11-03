@@ -7,8 +7,8 @@ export XDG_RUNTIME_DIR="$runtime"
 export DBUS_SESSION_BUS_ADDRESS="unix:path=$runtime/bus"
 session_id=""
 while read -r candidate _; do
-  if [[ "$(loginctl show-session "$candidate" -p User --value)" == "$uid" ]] && \
-     [[ "$(loginctl show-session "$candidate" -p Seat --value)" == "seat0" ]]; then
+  if [[ "$(loginctl show-session "$candidate" -p User --value)" == "$uid" ]] &&
+    [[ "$(loginctl show-session "$candidate" -p Seat --value)" == "seat0" ]]; then
     session_id="$candidate"
     break
   fi
@@ -22,7 +22,7 @@ display="$(loginctl show-session "$session_id" -p Display --value)"
 export XDG_SESSION_TYPE="$session_type"
 while IFS='=' read -r name value; do
   case "$name" in
-    DISPLAY|WAYLAND_DISPLAY|XAUTHORITY|XDG_CURRENT_DESKTOP|XDG_SESSION_DESKTOP|DESKTOP_SESSION)
+    DISPLAY | WAYLAND_DISPLAY | XAUTHORITY | XDG_CURRENT_DESKTOP | XDG_SESSION_DESKTOP | DESKTOP_SESSION)
       export "$name=$value"
       ;;
   esac

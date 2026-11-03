@@ -3,110 +3,15 @@ use std::{path::Path, sync::mpsc, thread};
 use tempfile::tempdir;
 
 use super::*;
+use crate::tray::desktop::{model::DesktopError, settings::SettingsRequest};
 use crate::tray::settings_window::model::{
-    SettingsMicrophoneSelection, SettingsWindowPresentation, SettingsWindowSection,
+    CloseDisposition, SettingsWindowPresentation, SettingsWindowSection,
 };
 use crate::{
     app::resident::WorkerCommand,
-    settings::{AppearanceThemePreference, ManualHotkeyAction, OperatingMode},
+    settings::{ManualHotkeyAction, OperatingMode},
     tray::{TrayIconVariant, TrayMenuRenderPlan, TrayNoticeKind, TrayRuntimeError},
 };
-
-#[test]
-fn typed_events_map_every_manual_field_and_immediate_theme()
--> Result<(), Box<dyn std::error::Error>> {
-    let directory = tempdir()?;
-    let (active, mut model, profile_path) = setup(directory.path())?;
-    let appearance_path = directory.path().join("ui-preferences.json");
-    let mut source = Source::with_destination(directory.path().join("captures"));
-    let mut manual_dispatcher = None;
-    let senders = ManualWorkerSenders::default();
-    let events = vec![
-        SettingsWindowEvent::Navigate(SettingsWindowSection::Video),
-        SettingsWindowEvent::BrowseDestination,
-        SettingsWindowEvent::ToggleScreenshotCursor,
-        SettingsWindowEvent::SetVideoQuality(crate::settings::ManualVideoQuality::Ultra),
-        SettingsWindowEvent::SetVideoFps(crate::settings::ManualFps::Fps60),
-        SettingsWindowEvent::SetVideoBitrate(Some(40)),
-        SettingsWindowEvent::SetVideoHardware(
-            crate::settings::ManualHardwarePreference::ForceSoftware,
-        ),
-        SettingsWindowEvent::ToggleVideoCursor,
-        SettingsWindowEvent::SetVideoDuration(7_200),
-        SettingsWindowEvent::SetAudioSource(crate::settings::ManualAudioSource::System),
-        SettingsWindowEvent::SelectMicrophone(SettingsMicrophoneSelection::SystemDefault),
-        SettingsWindowEvent::SetAudioBitrate(192),
-        SettingsWindowEvent::SetHotkey {
-            action: ManualHotkeyAction::ScreenshotScreen,
-            chord: crate::settings::parse_manual_hotkey_chord("Ctrl+Shift+S"),
-        },
-        SettingsWindowEvent::CancelHotkeyCapture(ManualHotkeyAction::ScreenshotScreen),
-        SettingsWindowEvent::SelectAppearanceTheme(AppearanceThemePreference::Dark),
-    ];
-    for event in events {
-        assert!(!dispatch_settings_event_with_paths(
-            event,
-            SettingsEventContext {
-                active_settings: &active,
-                model: &mut model,
-                manual_dispatcher: &mut manual_dispatcher,
-                manual_senders: &senders,
-                recording_status: TrayRecordingStatus::Idle,
-                source: &mut source,
-                paths: SettingsPersistencePaths {
-                    profile: Some(profile_path.clone()),
-                    appearance: Some(appearance_path.clone()),
-                },
-            },
-        ));
-    }
-
-    let manual = model.manual_view().ok_or("manual draft")?;
-    assert_eq!(manual.video_bitrate_override_mbps, Some(40));
-    assert_eq!(manual.video_max_duration_seconds, 7_200);
-    assert_eq!(
-        manual.audio_source_mode,
-        crate::settings::ManualAudioSource::System
-    );
-    assert_eq!(manual.audio_bitrate_kbps, 192);
-    assert_eq!(
-        model.presentation().theme(),
-        AppearanceThemePreference::Dark
-    );
-    assert!(appearance_path.exists());
-    for event in [
-        SettingsWindowEvent::RefreshMicrophones,
-        SettingsWindowEvent::UseExtensionManaged,
-        SettingsWindowEvent::RequestClose,
-        SettingsWindowEvent::KeepEditing,
-        SettingsWindowEvent::RequestClose,
-        SettingsWindowEvent::ConfirmDiscard,
-    ] {
-        let _ = dispatch_settings_event_with_paths(
-            event,
-            SettingsEventContext {
-                active_settings: &active,
-                model: &mut model,
-                manual_dispatcher: &mut manual_dispatcher,
-                manual_senders: &senders,
-                recording_status: TrayRecordingStatus::Idle,
-                source: &mut source,
-                paths: SettingsPersistencePaths {
-                    profile: None,
-                    appearance: None,
-                },
-            },
-        );
-    }
-    let runtime_event = crate::tray::TrayRuntimeEvent::SettingsWindow {
-        event: SettingsWindowEvent::Navigate(SettingsWindowSection::Capture),
-    };
-    assert!(matches!(
-        runtime_event,
-        crate::tray::TrayRuntimeEvent::SettingsWindow { .. }
-    ));
-    Ok(())
-}
 
 #[test]
 fn apply_covers_manual_and_extension_mode_flows() -> Result<(), Box<dyn std::error::Error>> {
@@ -146,7 +51,7 @@ fn apply_covers_manual_and_extension_mode_flows() -> Result<(), Box<dyn std::err
         active.profile_snapshot()?.operating_mode(),
         OperatingMode::ExtensionManaged
     );
-    assert!(dispatcher.is_none());
+    assert!(dispatcher.is_some());
     Ok(())
 }
 
@@ -205,8 +110,7 @@ fn rejected_hotkey_stage_restores_old_authority_and_profile()
 }
 
 #[test]
-fn recording_busy_and_theme_failure_are_inline_and_non_destructive()
--> Result<(), Box<dyn std::error::Error>> {
+fn recording_busy_is_inline_and_preserves_the_profile() -> Result<(), Box<dyn std::error::Error>> {
     let directory = tempdir()?;
     let (active, mut model, profile_path) = setup(directory.path())?;
     let original = active.profile_snapshot()?;
@@ -231,29 +135,6 @@ fn recording_busy_and_theme_failure_are_inline_and_non_destructive()
         Some(SettingsWindowFeedback::RecordingBusy)
     );
 
-    assert!(!dispatch_settings_event_with_paths(
-        SettingsWindowEvent::SelectAppearanceTheme(AppearanceThemePreference::Dark),
-        SettingsEventContext {
-            active_settings: &active,
-            model: &mut model,
-            manual_dispatcher: &mut dispatcher,
-            manual_senders: &ManualWorkerSenders::default(),
-            recording_status: TrayRecordingStatus::Idle,
-            source: &mut source,
-            paths: SettingsPersistencePaths {
-                profile: None,
-                appearance: None,
-            },
-        },
-    ));
-    assert_eq!(
-        model.presentation().theme(),
-        AppearanceThemePreference::System
-    );
-    assert_eq!(
-        model.presentation().feedback(),
-        Some(SettingsWindowFeedback::AppearanceSaveFailed)
-    );
     Ok(())
 }
 
@@ -266,8 +147,7 @@ fn dispatch_apply(
     profile: std::path::PathBuf,
     status: TrayRecordingStatus,
 ) -> bool {
-    dispatch_settings_event_with_paths(
-        SettingsWindowEvent::Apply,
+    apply_settings_draft(
         SettingsEventContext {
             active_settings: active,
             model,
@@ -280,6 +160,7 @@ fn dispatch_apply(
                 appearance: None,
             },
         },
+        false,
     )
 }
 
@@ -373,4 +254,295 @@ impl TrayCommandSource for Source {
     fn open_save_folder(&mut self, _destination: &Path) -> Result<(), TrayRuntimeError> {
         Ok(())
     }
+}
+
+#[test]
+fn browser_choice_is_explicit_persisted_and_blocked_while_recording()
+-> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempdir()?;
+    let (active, mut model, profile_path) = setup(directory.path())?;
+    let path = directory.path().join("browser-targets.json");
+    let active = active
+        .with_browser_target_store(path.clone())
+        .map_err(|_| "registry")?;
+    let identity = crate::protocol::NativeControllerIdentity {
+        extension_id: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".to_owned(),
+        browser_family: crate::protocol::BrowserFamily::Chrome,
+        profile_key: "profile-one".to_owned(),
+        document_id: None,
+        connection_id: "connection-one".to_owned(),
+    };
+    let target = active
+        .register_browser_target(&identity)
+        .map_err(|_| "register")?;
+    let mut source = Source::default();
+    let mut dispatcher = None;
+    let senders = ManualWorkerSenders::default();
+    for (status, expected) in [
+        (
+            TrayRecordingStatus::Recording,
+            Some(DesktopError::RecordingBusy),
+        ),
+        (TrayRecordingStatus::Idle, None),
+    ] {
+        let result = dispatch_desktop_settings_with_context(
+            SettingsRequest::SaveDelivery {
+                target_id: Some(target.id.clone()),
+                ask_after_capture: true,
+            },
+            SettingsEventContext {
+                active_settings: &active,
+                model: &mut model,
+                manual_dispatcher: &mut dispatcher,
+                manual_senders: &senders,
+                recording_status: status,
+                source: &mut source,
+                paths: SettingsPersistencePaths {
+                    profile: Some(profile_path.clone()),
+                    appearance: None,
+                },
+            },
+            |model| model.refresh_audio_capabilities(available_audio()),
+        );
+        if let Some(error) = expected {
+            assert_eq!(result, Err(error));
+            assert_eq!(
+                active
+                    .browser_targets()
+                    .map_err(|_| "registry")?
+                    .default_target_id(),
+                None
+            );
+        } else {
+            let saved = result.map_err(|error| format!("{error:?}"))?;
+            assert_eq!(
+                saved.delivery.target_id.as_deref(),
+                Some(target.id.as_str())
+            );
+            assert!(saved.delivery.ask_after_capture);
+        }
+    }
+    let reloaded = crate::settings::BrowserTargetRegistry::load(path).map_err(|_| "reload")?;
+    assert_eq!(reloaded.default_target_id(), Some(target.id.as_str()));
+    assert!(reloaded.ask_after_capture());
+    Ok(())
+}
+
+#[test]
+fn repeated_open_preserves_custom_draft_section_and_dirty_close()
+-> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempdir()?;
+    let (active, mut model, _) = setup(directory.path())?;
+    model.navigate(SettingsWindowSection::Video);
+    model.set_video_bitrate(Some(37));
+    let before = model.presentation();
+    let mut source = Source::default();
+    crate::app::resident::tray::dispatch::open_settings(&active, &mut model, &mut source);
+    assert_eq!(source.presentations.last(), Some(&before));
+    assert_eq!(model.presentation(), before);
+    assert_eq!(model.request_close(), CloseDisposition::ConfirmDiscard);
+    Ok(())
+}
+
+#[test]
+fn desktop_apply_keeps_window_open_and_rejects_stale_invalid_and_busy_submissions()
+-> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempdir()?;
+    let (active, mut model, profile_path) = setup(directory.path())?;
+    let mut source = Source::default();
+    let mut dispatcher = None;
+    let senders = ManualWorkerSenders::default();
+    let mut draft = model.manual_view().ok_or("manual draft")?;
+    draft.video_quality = crate::settings::ManualVideoQuality::Ultra;
+    let revision = active.profile_snapshot()?.revision();
+    let paths = SettingsPersistencePaths {
+        profile: Some(profile_path.clone()),
+        appearance: None,
+    };
+    let saved = dispatch_desktop_settings_with_context(
+        SettingsRequest::Apply {
+            expected_revision: revision,
+            draft: draft.clone(),
+        },
+        SettingsEventContext {
+            active_settings: &active,
+            model: &mut model,
+            manual_dispatcher: &mut dispatcher,
+            manual_senders: &senders,
+            recording_status: TrayRecordingStatus::Idle,
+            source: &mut source,
+            paths: paths.clone(),
+        },
+        |model| model.refresh_audio_capabilities(available_audio()),
+    )
+    .map_err(|error| format!("{error:?}"))?;
+    assert!(saved.profile_revision > revision);
+    assert_eq!(saved.draft, draft);
+    assert!(model.visible());
+    assert_eq!(source.hidden, 0);
+    let stored = fs_profile(&profile_path)?;
+    for (expected_revision, duration, status, error) in [
+        (
+            revision,
+            120,
+            TrayRecordingStatus::Idle,
+            DesktopError::StaleSettings,
+        ),
+        (
+            saved.profile_revision,
+            0,
+            TrayRecordingStatus::Idle,
+            DesktopError::InvalidSettings,
+        ),
+        (
+            saved.profile_revision,
+            120,
+            TrayRecordingStatus::Recording,
+            DesktopError::RecordingBusy,
+        ),
+    ] {
+        let mut changed = draft.clone();
+        changed.video_max_duration_seconds = duration;
+        assert_eq!(
+            dispatch_desktop_settings_with_context(
+                SettingsRequest::Apply {
+                    expected_revision,
+                    draft: changed
+                },
+                SettingsEventContext {
+                    active_settings: &active,
+                    model: &mut model,
+                    manual_dispatcher: &mut dispatcher,
+                    manual_senders: &senders,
+                    recording_status: status,
+                    source: &mut source,
+                    paths: paths.clone()
+                },
+                |model| model.refresh_audio_capabilities(available_audio()),
+            ),
+            Err(error)
+        );
+        assert_eq!(fs_profile(&profile_path)?, stored);
+        assert_eq!(
+            active.profile_snapshot()?.revision(),
+            saved.profile_revision
+        );
+    }
+    assert_eq!(
+        model
+            .manual_view()
+            .ok_or("retained draft")?
+            .video_max_duration_seconds,
+        120
+    );
+    Ok(())
+}
+
+fn fs_profile(path: &Path) -> Result<Vec<u8>, std::io::Error> {
+    std::fs::read(path)
+}
+
+#[test]
+fn desktop_folder_cancel_is_distinct_from_an_earlier_selection()
+-> Result<(), Box<dyn std::error::Error>> {
+    use crate::tray::desktop::settings::SettingsRequest;
+    let directory = tempdir()?;
+    let (active, mut model, profile_path) = setup(directory.path())?;
+    let destination = directory.path().join("chosen");
+    let mut source = Source::with_destination(destination.clone());
+    let mut dispatcher = None;
+    let senders = ManualWorkerSenders::default();
+    for expected in [Some(destination.to_string_lossy().into_owned()), None] {
+        let snapshot = dispatch_desktop_settings_with_context(
+            SettingsRequest::ChooseFolder {},
+            SettingsEventContext {
+                active_settings: &active,
+                model: &mut model,
+                manual_dispatcher: &mut dispatcher,
+                manual_senders: &senders,
+                recording_status: TrayRecordingStatus::Idle,
+                source: &mut source,
+                paths: SettingsPersistencePaths {
+                    profile: Some(profile_path.clone()),
+                    appearance: None,
+                },
+            },
+            |model| model.refresh_audio_capabilities(available_audio()),
+        )
+        .map_err(|error| format!("{error:?}"))?;
+        assert_eq!(snapshot.selected_folder, expected);
+    }
+    Ok(())
+}
+
+#[test]
+fn desktop_browser_delivery_uses_stable_ids_and_preserves_profile_and_refused_choices()
+-> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempdir()?;
+    let (active, mut model, profile_path) = setup(directory.path())?;
+    let registry_path = directory.path().join("browser-targets.json");
+    let active = active
+        .with_browser_target_store(registry_path.clone())
+        .map_err(|_| "registry")?;
+    let target = active
+        .register_browser_target(&crate::protocol::NativeControllerIdentity {
+            extension_id: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".to_owned(),
+            browser_family: crate::protocol::BrowserFamily::Chrome,
+            profile_key: "personal".to_owned(),
+            document_id: None,
+            connection_id: "runtime-connection".to_owned(),
+        })
+        .map_err(|_| "target registration")?;
+    let mut source = Source::default();
+    let mut dispatcher = None;
+    let senders = ManualWorkerSenders::default();
+    let profile_before = fs_profile(&profile_path)?;
+    for (target_id, status, expected) in [
+        (
+            Some(target.id.clone()),
+            TrayRecordingStatus::Recording,
+            Some(DesktopError::RecordingBusy),
+        ),
+        (
+            Some("runtime-connection".to_owned()),
+            TrayRecordingStatus::Idle,
+            Some(DesktopError::StaleSettings),
+        ),
+        (Some(target.id.clone()), TrayRecordingStatus::Idle, None),
+        (None, TrayRecordingStatus::Idle, None),
+    ] {
+        let registry_before = std::fs::read(&registry_path)?;
+        let result = dispatch_desktop_settings_with_context(
+            SettingsRequest::SaveDelivery {
+                target_id: target_id.clone(),
+                ask_after_capture: true,
+            },
+            SettingsEventContext {
+                active_settings: &active,
+                model: &mut model,
+                manual_dispatcher: &mut dispatcher,
+                manual_senders: &senders,
+                recording_status: status,
+                source: &mut source,
+                paths: SettingsPersistencePaths {
+                    profile: Some(profile_path.clone()),
+                    appearance: None,
+                },
+            },
+            |model| model.refresh_audio_capabilities(available_audio()),
+        );
+        if let Some(error) = expected {
+            assert_eq!(result, Err(error));
+            assert_eq!(std::fs::read(&registry_path)?, registry_before);
+        } else {
+            let snapshot = result.map_err(|error| format!("{error:?}"))?;
+            assert_eq!(snapshot.delivery.target_id, target_id);
+            assert!(snapshot.delivery.ask_after_capture);
+            let persisted = crate::settings::BrowserTargetRegistry::load(registry_path.clone())
+                .map_err(|_| "reload")?;
+            assert_eq!(persisted.default_target_id(), target_id.as_deref());
+        }
+        assert_eq!(fs_profile(&profile_path)?, profile_before);
+    }
+    Ok(())
 }

@@ -1,0 +1,139 @@
+// A short-lived client attaches to the existing headful guest browser. It never launches a replacement browser.
+const fs = require('node:fs');
+const nodeCrypto = require('node:crypto');
+const path = require('node:path');
+function readBoundedFile(file, maximum) {
+  const descriptor = fs.openSync(file, 'r');
+  try {
+    const info = fs.fstatSync(descriptor);
+    if (!info.isFile() || info.size > maximum) throw Error('invalid-input');
+    const bytes = Buffer.alloc(info.size + 1);
+    let total = 0;
+    while (total < bytes.length) {
+      const count = fs.readSync(descriptor, bytes, total, bytes.length - total, total);
+      if (count === 0) break;
+      total += count;
+    }
+    if (total !== info.size) throw Error('file-changed-during-read');
+    return bytes.subarray(0, total);
+  } finally {
+    fs.closeSync(descriptor);
+  }
+}
+const timer = setTimeout(() => fail('browser-scenario-deadline'), 75000);
+function fail(category) { process.stderr.write(category + '\n', () => process.exit(1)); }
+async function inspectNativeEditor(context, settingsPage, port, request) {
+  const id = await settingsPage.evaluate(() => globalThis.__labVerifiedRecordingId);
+  if (typeof id !== 'string' || !/^[A-Za-z0-9_-]{1,96}$/.test(id)) throw Error('verified-recording-missing');
+  const target = `chrome-extension://elhndangpenapadjimfoodlaenpcndpo/apps/extension/src/video-editor/index.html?id=${encodeURIComponent(id)}`;
+  const expected = new URL(target);
+  const matchesRecording = page => {
+    try {
+      const url = new URL(page.url());
+      const projects = url.searchParams.getAll('project');
+      return url.protocol===expected.protocol && url.host===expected.host && url.pathname===expected.pathname &&
+        !url.username && !url.password && url.searchParams.getAll('id').length===1 && url.searchParams.get('id')===id &&
+        projects.length<=1 && (!projects.length || (projects[0].length>0 && projects[0].length<=256)) &&
+        [...url.searchParams.keys()].every(key=>key==='id'||key==='project');
+    } catch { return false; }
+  };
+  let pages = [];
+  for (let attempt=0;attempt<40;attempt++) {
+    pages = context.pages().filter(matchesRecording);
+    if (pages.length) break;
+    await settingsPage.waitForTimeout(250);
+  }
+  if (pages.length!==1) throw Error('native-editor-page-missing-or-ambiguous');
+  const editor = pages[0];
+  await editor.bringToFront();
+  await editor.waitForSelector('[data-ui="video-editor.timeline.surface"]',{timeout:20000});
+  if (!matchesRecording(editor)) throw Error('native-editor-recording-route-changed');
+  const row = editor.locator('[data-ui="video-editor.timeline.history-cursor-row"]');
+  if (!(await row.isVisible())) {
+    await editor.locator('[data-ui="video-editor.timeline.toolbar.telemetry-lane"]').click();
+  }
+  const archive = row.getByText(/^(Archived cursor history|История курсора в архиве)$/);
+  await archive.waitFor({state:'visible',timeout:15000});
+  if (await archive.count()!==1) throw Error('native-editor-cursor-archive-missing-or-ambiguous');
+  const canvas = editor.locator('[data-ui="video.preview.stage.root"] canvas[data-preview-stage-canvas]');
+  await canvas.waitFor({state:'visible',timeout:15000});
+  const playhead = editor.locator('[data-ui="video-editor.timeline.playhead-handle"]');
+  const before = await playhead.boundingBox();
+  if (!before) throw Error('native-editor-playhead-missing');
+  await editor.getByRole('button',{name:'Play',exact:true}).click();
+  let moved = false;
+  for(let attempt=0;attempt<60;attempt++) {
+    await editor.waitForTimeout(250);
+    const after = await playhead.boundingBox();
+    if(after&&after.x>before.x+1) {moved=true;break;}
+  }
+  if(!moved) throw Error('native-editor-playback-did-not-advance');
+  await editor.waitForTimeout(1500);
+  await editor.getByRole('button',{name:'Pause',exact:true}).click();
+  await editor.waitForTimeout(300);
+  const duration=Number(await playhead.getAttribute('aria-valuemax'));
+  if (!Number.isFinite(duration)||duration<=0||duration>60) throw Error('native-editor-duration-invalid');
+  const seek = async (key,time) => {
+    await playhead.press(key);
+    for(let attempt=0;attempt<40;attempt++) {
+      const current=Number(await playhead.getAttribute('aria-valuenow'));
+      if(Number.isFinite(current)&&Math.abs(current-time)<=0.001) return;
+      await editor.waitForTimeout(100);
+    }
+    throw Error('native-editor-seek-did-not-settle');
+  };
+  await seek('Home',0);
+  await seek('End',duration);
+  await seek('Home',0);
+  await editor.reload({waitUntil:'domcontentloaded',timeout:20000});
+  await editor.waitForSelector('[data-ui="video-editor.timeline.surface"]',{timeout:20000});
+  if (!matchesRecording(editor)) throw Error('native-editor-reopened-recording-route-changed');
+  if(!(await row.isVisible())) await editor.locator('[data-ui="video-editor.timeline.toolbar.telemetry-lane"]').click();
+  await archive.waitFor({state:'visible',timeout:15000});
+  if(await archive.count()!==1) throw Error('native-editor-reopened-history-missing-or-ambiguous');
+  await canvas.waitFor({state:'visible',timeout:15000});
+  const size = await canvas.evaluate(element=>({width:element.width,height:element.height}));
+  if(!Number.isInteger(size.width)||!Number.isInteger(size.height)||size.width<=0||size.height<=0) throw Error('native-editor-preview-canvas-empty');
+  const browser = port==='9223'?'chrome':'edge';
+  const directory = path.join(path.dirname(request),'screenshots');
+  await canvas.screenshot({path:path.join(directory,`native-cursor-preview-${browser}.png`)});
+  await editor.screenshot({path:path.join(directory,`native-cursor-editor-${browser}.png`)});
+  return {passed:true,archivedHistoryVisible:true,reopenedHistoryVisible:true,canvasWidth:size.width,canvasHeight:size.height,
+    playbackAdvanced:true,seekStart:true,seekEnd:true,reopened:true};
+}
+(async () => {
+  const [port, request] = process.argv.slice(2);
+  const input = JSON.parse(readBoundedFile(request, 65536).toString('utf8').replace(/^\uFEFF/, ''));
+  const editorScenario = input.scenario === 'native-video-editor';
+  const desktopScenario = input.scenario === 'desktop-capture';
+  if (desktopScenario) {
+    if (port !== '9225' || Object.keys(input).length !== 2 || !require('./desktop-capture-playwright.cjs').desktopActions.includes(input.action)) throw Error('invalid-input');
+  } else if (!['9223', '9224'].includes(port) || Object.keys(input).length !== 1 || (!editorScenario && typeof input.expression !== 'string')) throw Error('invalid-input');
+  const root = 'C:/SniptaleLab/browser-tools';
+  const files = JSON.parse(readBoundedFile(root + '/runtime-integrity.json', 2 * 1024 * 1024).toString('utf8'));
+  for (const [name, hash] of Object.entries(files)) {
+    const file = path.resolve(root, name);
+    if (!file.startsWith(path.resolve(root) + path.sep)) throw Error('tool-integrity');
+    const bytes = readBoundedFile(file, 16 * 1024 * 1024);
+    if (fs.lstatSync(file).isSymbolicLink() || nodeCrypto.createHash('sha256').update(bytes).digest('hex') !== hash) throw Error('tool-integrity');
+  }
+  const {chromium} = require(root + '/package');
+  const browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`, {timeout:10000});
+  const contexts = browser.contexts();
+  if (contexts.length !== 1) throw Error('invalid-browser-context');
+  let value;
+  if (desktopScenario) {
+    value = await require('./desktop-capture-playwright.cjs').captureScenario(contexts[0], input.action, request);
+  } else {
+  const target = 'chrome-extension://elhndangpenapadjimfoodlaenpcndpo/apps/extension/src/settings/index.html';
+  const pages = contexts[0].pages().filter(page => page.url() === target || page.url().startsWith(target + '?') || page.url().startsWith(target + '#'));
+  if (!pages.length) throw Error('extension-page-missing');
+  value = editorScenario ? await inspectNativeEditor(contexts[0],pages[pages.length-1],port,request) : await pages[pages.length - 1].evaluate(input.expression);
+  }
+  if (value && typeof value === 'object') value.automation = {node:process.versions.node, playwrightCore:require(root + '/package/package.json').version};
+  const result = JSON.stringify(value);
+  if (!result || Buffer.byteLength(result) > 1048576) throw Error('invalid-result');
+  clearTimeout(timer);
+  // Exit disconnects this client without closing the persistent browser or its profile.
+  process.stdout.write(result + '\n', () => process.exit(0));
+})().catch(error => fail(/^desktop-(ready|options|source|capture|saved|close|settings-open|settings-apply|record-start|record-stop|record-discard)-failed$/.test(error?.message) ? error.message : 'browser-scenario-failed'));

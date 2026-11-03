@@ -1,5 +1,7 @@
 //! Native Messaging stdio bridge lifecycle facade.
 
+#[cfg(any(windows, test))]
+mod attachments;
 mod error;
 #[cfg(any(not(windows), test))]
 mod local;
@@ -19,4 +21,9 @@ pub(crate) use runtime::{NativeHostRuntimeLog, run_native_host_bridge};
 pub(crate) use startup::{
     BridgeStartupError, BridgeStartupInputs, connect_pipe_with_bounded_agent_startup,
     connect_pipe_with_typed_agent_startup, plan_bridge_startup,
+};
+
+#[cfg(test)]
+pub(crate) use startup::{
+    InitialBrowserHandshake, InitialBrowserHandshakeError, read_initial_browser_handshake,
 };

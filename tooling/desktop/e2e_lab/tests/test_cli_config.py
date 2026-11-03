@@ -10,12 +10,12 @@ import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from types import SimpleNamespace
-from unittest import mock
+import unittest.mock as mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from config import LANES, LabConfig
-from errors import RunFailed
+from errors import IntegrityError, RunFailed
 import main as lab_main_module
 from main import gc as lab_gc, parser
 from paths import LabPaths
@@ -37,6 +37,7 @@ class CliConfigTests(unittest.TestCase):
             (["reset", "linux-x11"], "reset"),
             (["stop", "--all"], "stop"),
             (["gc"], "gc"),
+            (["gc", "--closed-session", "20261029T140000Z"], "gc"),
             (["destroy", "windows-11", "--yes"], "destroy"),
         )
         for arguments, expected in cases:
@@ -44,15 +45,23 @@ class CliConfigTests(unittest.TestCase):
                 self.assertEqual(parser().parse_args(arguments).command, expected)
 
     def test_focused_test_case_selection_is_explicit(self) -> None:
-        args = parser().parse_args([
-            "test", "windows-11", "--artifact", "probe.msi",
-            "--cases", "recording-system-audio,capture",
-        ])
+        args = parser().parse_args(
+            [
+                "test",
+                "windows-11",
+                "--artifact",
+                "probe.msi",
+                "--cases",
+                "recording-system-audio,capture",
+            ]
+        )
         self.assertEqual(args.cases, "recording-system-audio,capture")
 
     def test_failed_run_still_prints_machine_readable_identity(self) -> None:
         paths = SimpleNamespace(
             root=Path("/tmp/sniptale-e2e-test-root"),
+            lab=Path("/tmp/sniptale-e2e-test-root/lab"),
+            scoped=lambda path: path,
             locks=Path("/tmp/sniptale-e2e-test-locks"),
             ensure=mock.Mock(),
         )
@@ -68,14 +77,22 @@ class CliConfigTests(unittest.TestCase):
             mock.patch("main.LabPaths.discover", return_value=paths),
             mock.patch("main.LabConfig.load", return_value=config),
             mock.patch("main.LabLock"),
+            mock.patch("main.source_stamp", return_value="a" * 64),
+            mock.patch("main.run"),
             mock.patch("main.VmManager"),
             mock.patch("main.execute_run", side_effect=failure),
             redirect_stdout(output),
             redirect_stderr(diagnostics),
         ):
-            status = lab_main_module.main([
-                "run", "--lane", "windows-11", "--build", "current",
-            ])
+            status = lab_main_module.main(
+                [
+                    "run",
+                    "--lane",
+                    "windows-11",
+                    "--build",
+                    "current",
+                ]
+            )
         self.assertEqual(status, 1)
         self.assertEqual(
             json.loads(output.getvalue()),
@@ -86,6 +103,36 @@ class CliConfigTests(unittest.TestCase):
             },
         )
         self.assertIn("failed guest tests", diagnostics.getvalue())
+
+    def test_fast_failure_cannot_acquire_controller_lock_or_start_vm(self) -> None:
+        paths = mock.Mock(root=Path("/tmp/sniptale-fast-proof"), locks=Path("/tmp/sniptale-fast-proof/locks"))
+        with (
+            mock.patch("main.LabPaths.discover", return_value=paths),
+            mock.patch("main.LabConfig.load"),
+            mock.patch("main.source_stamp", return_value="a" * 64),
+            mock.patch("main.run", side_effect=lab_main_module.IntegrityError("fast proof failed")),
+            mock.patch("main.LabLock") as lock,
+            mock.patch("main.VmManager") as manager,
+            redirect_stderr(io.StringIO()),
+        ):
+            self.assertEqual(lab_main_module.main(["start", "windows-11"]), 3)
+        lock.assert_not_called()
+        manager.assert_not_called()
+        paths.ensure.assert_not_called()
+
+    def test_changed_source_while_waiting_for_controller_lock_cannot_start_vm(self) -> None:
+        paths = mock.Mock(root=Path("/tmp/sniptale-fast-proof"), locks=Path("/tmp/sniptale-fast-proof/locks"))
+        with (
+            mock.patch("main.LabPaths.discover", return_value=paths),
+            mock.patch("main.LabConfig.load"),
+            mock.patch("main.source_stamp", side_effect=["a" * 64, "b" * 64]),
+            mock.patch("main.run"),
+            mock.patch("main.LabLock"),
+            mock.patch("main.VmManager") as manager,
+            redirect_stderr(io.StringIO()),
+        ):
+            self.assertEqual(lab_main_module.main(["start", "windows-11"]), 3)
+        manager.assert_not_called()
 
     def test_config_enforces_lane_resource_ceilings(self) -> None:
         root = Path(__file__).resolve().parents[4]
@@ -157,6 +204,9 @@ class CliConfigTests(unittest.TestCase):
             abandoned.mkdir()
             complete.mkdir()
             (complete / "receipt.json").write_text("{}", encoding="utf-8")
+            pins = root / "tooling/configs/qa/tool-versions.json"
+            pins.parent.mkdir(parents=True, exist_ok=True)
+            pins.write_text(json.dumps({"rust": {"channel": "1.99.1"}}), encoding="utf-8")
             result = lab_gc(paths, LabConfig.load(root))
             self.assertEqual(result["incomplete_runs_removed"], 1)
             self.assertFalse(abandoned.exists())
@@ -205,12 +255,46 @@ class CliConfigTests(unittest.TestCase):
             os.utime(newer, (stamp - 1, stamp - 1))
             os.utime(acceptance, (stamp, stamp))
 
+            pins = root / "tooling/configs/qa/tool-versions.json"
+            pins.parent.mkdir(parents=True, exist_ok=True)
+            pins.write_text(json.dumps({"rust": {"channel": "1.99.1"}}), encoding="utf-8")
             result = lab_gc(paths, LabConfig.load(root))
 
             self.assertEqual(result["redundant_build_runs_removed"], 1)
             self.assertFalse(older.exists())
             self.assertTrue(newer.exists())
             self.assertTrue(acceptance.exists())
+
+    def test_gc_only_removes_identified_obsolete_compiler_caches(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            paths = LabPaths.discover(Path(directory) / "repo")
+            paths.ensure()
+            pins = paths.root / "tooling/configs/qa/tool-versions.json"
+            pins.parent.mkdir(parents=True)
+            pins.write_text(json.dumps({"rust": {"channel": "1.99.1"}}), encoding="utf-8")
+            root = paths.cache / "session-dependencies"
+            for version in ("1.96.0", "1.99.1", "1.97.0"):
+                cache = root / ("rust-" + version)
+                cache.mkdir(parents=True)
+                if version != "1.97.0":
+                    (cache / "toolchain.json").write_text(
+                        json.dumps({"policy": {"rust_version": version}}), encoding="utf-8"
+                    )
+            unrelated = root / "browser-automation"
+            unrelated.mkdir()
+            config = LabConfig.load(Path(__file__).resolve().parents[4])
+            result = lab_gc(paths, config)
+            self.assertEqual(result["compiler_caches_removed"], 1)
+            self.assertFalse((root / "rust-1.96.0").exists())
+            self.assertTrue((root / "rust-1.99.1").exists())
+            self.assertTrue((root / "rust-1.97.0").exists())
+            self.assertTrue(unrelated.exists())
+            external = Path(directory) / "external"
+            external.mkdir()
+            (root / "rust-1.95.0").symlink_to(external, target_is_directory=True)
+            with self.assertRaises(IntegrityError):
+                lab_gc(paths, config)
+            self.assertTrue(external.exists())
 
 
 if __name__ == "__main__":

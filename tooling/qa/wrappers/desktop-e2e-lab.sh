@@ -3,7 +3,7 @@ set -euo pipefail
 export PYTHONDONTWRITEBYTECODE=1
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
-# shellcheck disable=SC1091
+# shellcheck source=../runtime/lib.sh
 source "$ROOT/tooling/qa/runtime/lib.sh"
 cd "$ROOT"
 qa_init "qa:desktop-e2e-lab" blocking
@@ -28,14 +28,14 @@ while [[ $# -gt 0 ]]; do
 done
 
 case "$lane" in
-  linux-wayland|linux-x11|windows-11|all) ;;
+  linux-wayland | linux-x11 | windows-11 | all) ;;
   *)
     printf 'Usage: tooling/qa/wrappers/desktop-e2e-lab.sh --lane <linux-wayland|linux-x11|windows-11|all> [--profile dev|release]\n' >&2
     exit 2
     ;;
 esac
 case "$profile" in
-  dev|release) ;;
+  dev | release) ;;
   *)
     printf 'Unknown profile: %s\n' "$profile" >&2
     exit 2
@@ -52,19 +52,27 @@ collect_report="$report_dir/desktop-e2e-collect.json"
 status_report="$report_dir/desktop-e2e-status.json"
 run_id_report="$report_dir/desktop-e2e-run-id.txt"
 
+# The child Bash process expands these positional parameters.
+# shellcheck disable=SC2016
 QA_LIVE_OUTPUT=1 qa_step "desktop E2E run" bash -c \
   'tooling/desktop/e2e-lab run --lane "$1" --build current --profile "$2" > "$3"' \
   sniptale-e2e "$lane" "$profile" "$run_report"
+# The child Bash process expands these positional parameters.
+# shellcheck disable=SC2016
 qa_step "desktop E2E run identity" bash -c \
   'python3 -c '\''import json,sys; value=json.load(open(sys.argv[1], encoding="utf-8")); run_id=value.get("run_id"); assert isinstance(run_id, str) and run_id; print(run_id)'\'' "$1" > "$2"' \
   sniptale-e2e "$run_report" "$run_id_report"
 run_id=""
 if [[ -s "$run_id_report" ]]; then
   run_id="$(<"$run_id_report")"
+  # The child Bash process expands these positional parameters.
+  # shellcheck disable=SC2016
   qa_step "desktop E2E collect" bash -c \
     'tooling/desktop/e2e-lab collect "$1" > "$2"' \
     sniptale-e2e "$run_id" "$collect_report"
 fi
+# The child Bash process expands these positional parameters.
+# shellcheck disable=SC2016
 qa_step "desktop E2E status" bash -c \
   'tooling/desktop/e2e-lab status --json > "$1"' \
   sniptale-e2e "$status_report"

@@ -1,4 +1,4 @@
-//! WinRT apartment guard for Windows Graphics Capture workers.
+//! `WinRT` apartment guard for Windows Graphics Capture workers.
 #![allow(unsafe_code)]
 
 use std::cell::OnceCell;

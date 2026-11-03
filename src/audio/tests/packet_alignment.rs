@@ -32,7 +32,7 @@ fn packets(
         if pending {
             result.push(Ok(PcmSourcePoll::Pending));
         }
-        let frames = i64::try_from(part.len()).map_or(0, |frames| frames);
+        let frames = i64::try_from(part.len()).unwrap_or(0);
         let start = offset * 10_000_000 / 48_000;
         let end = (offset + frames) * 10_000_000 / 48_000;
         let stereo: Vec<_> = part.iter().flat_map(|sample| [*sample, *sample]).collect();

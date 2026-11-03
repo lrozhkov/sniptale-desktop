@@ -46,7 +46,7 @@ impl ParseError {
         }
     }
 
-    #[cfg(test)]
+    #[cfg(any(windows, test))]
     pub(crate) const fn kind(&self) -> &ParseErrorKind {
         &self.kind
     }

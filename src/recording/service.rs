@@ -14,6 +14,7 @@ mod timeline;
 use self::timebase::RecordingMonotonicClock;
 #[cfg(test)]
 pub(crate) use self::timebase::RecordingMonotonicClock as TestRecordingMonotonicClock;
+pub(crate) use self::timebase::recording_monotonic_ns;
 use self::timeline::RecordingTimeline;
 #[cfg(windows)]
 use super::host_runtime::recording_volume_space;
@@ -42,6 +43,7 @@ pub(crate) struct RecordingLifecycleService<R, T = NoopRecordingTelemetrySource>
     open_editor: Option<bool>,
     delivery_route: Option<crate::protocol::DeliveryRoute>,
     telemetry_enabled: bool,
+    frame_geometry: Option<crate::telemetry::RecordingFrameGeometry>,
     progress: RecordingProgressEmitter,
     monotonic_clock: RecordingMonotonicClock,
 }
@@ -67,6 +69,7 @@ where
             open_editor: None,
             delivery_route: None,
             telemetry_enabled: false,
+            frame_geometry: None,
             progress: RecordingProgressEmitter::default(),
             monotonic_clock: RecordingMonotonicClock::default(),
         }
@@ -92,6 +95,7 @@ impl<R> RecordingLifecycleService<R> {
             open_editor: None,
             delivery_route: None,
             telemetry_enabled: false,
+            frame_geometry: None,
             progress: RecordingProgressEmitter::default(),
             monotonic_clock,
         }
@@ -121,6 +125,7 @@ where
             open_editor: None,
             delivery_route: None,
             telemetry_enabled: false,
+            frame_geometry: None,
             progress: RecordingProgressEmitter::default(),
             monotonic_clock,
         }
@@ -132,6 +137,13 @@ where
     R: RecordingRuntime,
     T: RecordingTelemetrySource,
 {
+    fn tick(
+        &mut self,
+        observed_epoch_ms: u64,
+    ) -> Result<Vec<RecordingCommandEvent>, RecordingRuntimeError> {
+        self.progress_tick(observed_epoch_ms)
+    }
+
     fn start_recording(
         &mut self,
         request: &RecordingStartRequest,
@@ -158,6 +170,7 @@ where
         self.open_editor = None;
         self.delivery_route = None;
         self.telemetry_enabled = false;
+        self.frame_geometry = None;
         self.progress.reset();
     }
 

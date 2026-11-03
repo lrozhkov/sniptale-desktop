@@ -176,7 +176,7 @@ fn recording_lifecycle_starts_manual_route_without_a_fabricated_delivery_session
             .next()
             .is_some()
     );
-    assert!(telemetry.events().is_empty());
+    assert_eq!(telemetry.events().len(), 0);
     Ok(())
 }
 
@@ -324,28 +324,16 @@ fn recording_progress_ticks_are_rate_limited_and_state_changes_emit()
         RecordingStartPolicy::default(),
     )?;
 
-    assert!(
-        service
-            .progress_tick("lease:connection-1", 4_100)?
-            .is_empty()
-    );
-    assert!(
-        service
-            .progress_tick("lease:connection-1", 4_499)?
-            .is_empty()
-    );
-    let tick = service.progress_tick("lease:connection-1", 4_500)?;
+    assert_eq!(service.progress_tick(4_100)?.len(), 0);
+    assert_eq!(service.progress_tick(4_499)?.len(), 0);
+    let tick = service.progress_tick(4_500)?;
     let Some(RecordingCommandEvent::Progress(progress)) = tick.first() else {
         return Err(RecordingRuntimeError::InvalidState);
     };
     assert_eq!(progress.duration_ms, 500);
     assert_eq!(progress.status, RecordingProgressStatus::Recording);
 
-    assert!(
-        service
-            .progress_tick("lease:connection-1", 4_800)?
-            .is_empty()
-    );
+    assert_eq!(service.progress_tick(4_800)?.len(), 0);
     let pause = service.control_recording(&recording_control_command(
         crate::protocol::RecordingControl::Pause,
         COMMAND_1_RECORDING_ID,
@@ -356,11 +344,7 @@ fn recording_progress_ticks_are_rate_limited_and_state_changes_emit()
     };
     assert_eq!(progress.duration_ms, 850);
     assert_eq!(progress.status, RecordingProgressStatus::Paused);
-    assert!(
-        service
-            .progress_tick("lease:connection-1", 4_900)?
-            .is_empty()
-    );
+    assert_eq!(service.progress_tick(4_900)?.len(), 0);
 
     let resume = service.control_recording(&recording_control_command(
         crate::protocol::RecordingControl::Resume,
@@ -372,12 +356,8 @@ fn recording_progress_ticks_are_rate_limited_and_state_changes_emit()
     };
     assert_eq!(progress.duration_ms, 850);
     assert_eq!(progress.status, RecordingProgressStatus::Recording);
-    assert!(
-        service
-            .progress_tick("lease:connection-1", 5_200)?
-            .is_empty()
-    );
-    let tick = service.progress_tick("lease:connection-1", 5_450)?;
+    assert_eq!(service.progress_tick(5_200)?.len(), 0);
+    let tick = service.progress_tick(5_450)?;
     let Some(RecordingCommandEvent::Progress(progress)) = tick.first() else {
         return Err(RecordingRuntimeError::InvalidState);
     };
@@ -406,7 +386,7 @@ fn recording_progress_tick_finalizes_at_start_policy_duration_cap()
         },
     )?;
 
-    let messages = service.progress_tick("lease:connection-1", 6_000)?;
+    let messages = service.progress_tick(6_000)?;
 
     assert_eq!(messages.len(), 3);
     let RecordingCommandEvent::Progress(stopping) = &messages[0] else {
@@ -432,11 +412,7 @@ fn recording_progress_tick_finalizes_at_start_policy_duration_cap()
             TelemetryLifecycleEvent::Snapshot(COMMAND_1_RECORDING_ID.to_owned(), 2_000),
         ]
     );
-    assert!(
-        service
-            .progress_tick("lease:connection-1", 6_500)?
-            .is_empty()
-    );
+    assert_eq!(service.progress_tick(6_500)?.len(), 0);
     Ok(())
 }
 
@@ -969,5 +945,78 @@ fn recording_disk_guard_rejects_pressure_before_temp_record() -> Result<(), Reco
     );
     assert!(!temp.path().join(COMMAND_1_RECORDING_JSON).exists());
     assert!(!temp.path().join(COMMAND_1_RECORDING_MP4).exists());
+    Ok(())
+}
+
+#[derive(Clone, Copy, Debug)]
+struct MalformedOptionalTelemetry;
+
+impl RecordingTelemetrySource for MalformedOptionalTelemetry {
+    fn snapshot_for_recording(
+        &mut self,
+        _recording_id: &str,
+        _duration_ms: u64,
+    ) -> Option<SanitizedRecordingTelemetrySnapshot> {
+        Some(SanitizedRecordingTelemetrySnapshot::new(
+            vec![RecordingTelemetryActionEvent::Key {
+                label: "untrusted typed text".to_owned(),
+                time_ms: 1,
+            }],
+            vec![],
+        ))
+    }
+}
+
+#[test]
+fn invalid_optional_telemetry_does_not_discard_finalized_desktop_video()
+-> Result<(), Box<dyn std::error::Error>> {
+    let temp = tempfile::tempdir()?;
+    let mut service = RecordingLifecycleService::new_with_test_inputs_and_telemetry(
+        recording_transfer_store(temp.path()).map_err(|error| format!("{error:?}"))?,
+        FakeRecordingRuntime,
+        MalformedOptionalTelemetry,
+        sufficient_disk_space_probe,
+        TestRecordingMonotonicClock::fixed(fixed_monotonic_ns),
+    );
+    let mut request = recording_start_command(VideoMode::Screen);
+    request.authority = OperationAuthority::Manual {
+        profile_revision: "frozen".to_owned(),
+    };
+    request.delivery_route = DeliveryRoute::DesktopDelivery {
+        asset_job_id: "frozen-job".to_owned(),
+        target_id: None,
+        ask_after_capture: true,
+    };
+    service
+        .start_recording(&request, RecordingStartPolicy::default())
+        .map_err(|error| format!("{error:?}"))?;
+    let mut stop = recording_control_command(
+        crate::protocol::RecordingControl::Stop,
+        COMMAND_1_RECORDING_ID,
+        6_000,
+    );
+    stop.delivery_session.controller_lease_id = None;
+    let messages = service
+        .control_recording(&stop)
+        .map_err(|error| format!("{error:?}"))?;
+    assert!(matches!(
+        messages.last(),
+        Some(RecordingCommandEvent::ManualFinalized(_))
+    ));
+    let record: TempMediaRecord =
+        serde_json::from_slice(&std::fs::read(temp.path().join(COMMAND_1_RECORDING_JSON))?)?;
+    assert_eq!(record.state, TempMediaState::Finalized);
+    assert_eq!(record.delivery_route, Some(request.delivery_route));
+    assert!(record.telemetry.is_none());
+    let store = recording_transfer_store(temp.path()).map_err(|error| format!("{error:?}"))?;
+    let mut reader = store
+        .manual_asset_reader(COMMAND_1_RECORDING_ID, "frozen-job")
+        .map_err(|error| format!("{error:?}"))?;
+    assert_eq!(
+        reader
+            .read_next_plaintext(64)
+            .map_err(|error| format!("{error:?}"))?,
+        Some(b"hello world".to_vec())
+    );
     Ok(())
 }

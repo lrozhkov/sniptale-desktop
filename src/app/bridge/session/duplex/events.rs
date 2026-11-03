@@ -18,6 +18,7 @@ pub(super) fn responses_for_agent_event(
     event: AgentOutboundEvent,
 ) -> Vec<Value> {
     match event {
+        AgentOutboundEvent::ConnectionClosed(_) => vec![crate::app::responses::connection_closed()],
         AgentOutboundEvent::CommandEvent(event) => responses_for_command_event(session, *event),
         AgentOutboundEvent::CommandFailure(failure) => {
             responses_for_command_failure(session, &failure)

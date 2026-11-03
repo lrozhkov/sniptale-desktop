@@ -122,7 +122,7 @@ proptest! {
 fn operation_failure_payload_projection_redacts_correlation_fields() {
     let payload = serde_json::json!({
         "type": "app.operation.failed",
-        "protocolVersion": 1,
+        "protocolVersion": 2,
         "controllerLeaseId": "lease:connection-1",
         "operation": "recording",
         "operationId": "recording-secret-9",
@@ -251,7 +251,7 @@ fn generated_support_bundle_plan(input: &str) -> Result<String, serde_json::Erro
 fn generated_operation_failure_projection(input: &str) -> String {
     let payload = serde_json::json!({
         "type": "app.operation.failed",
-        "protocolVersion": 1,
+        "protocolVersion": 2,
         "controllerLeaseId": "lease:connection-1",
         "operation": "recording",
         "operationId": "recording-secret-9",
@@ -289,7 +289,7 @@ fn generated_crash_log_line(input: &str) -> Result<String, serde_json::Error> {
 fn log_context() -> StructuredLogContext {
     StructuredLogContext {
         app_version: "0.1.0".to_owned(),
-        protocol_version: 1,
+        protocol_version: 2,
         settings_schema_version: 1,
         app_cache_schema_version: 1,
         platform_kind: "windows".to_owned(),

@@ -51,15 +51,11 @@ fn screenshot_capture_service_writes_transfer_and_messages() -> Result<(), Strin
     assert_eq!(stored_chunk.chunk.chunk_sha256, sha256_hex(b"hello world"));
     assert_eq!(stored_chunk.chunk.base64, "aGVsbG8gd29ybGQ=");
     assert!(stored_chunk.is_complete);
-    assert!(matches!(
-        store.screenshot_chunk_at(&start.capture_id, 0, command.requested_at_epoch_ms),
-        Err(ScreenshotTransferStoreError::Transfer(
-            TransferError::OutOfOrderChunk {
-                expected: 1,
-                actual: 0
-            }
-        ))
-    ));
+    let replay = store
+        .screenshot_chunk_at(&start.capture_id, 0, command.requested_at_epoch_ms)
+        .map_err(|error| format!("{error:?}"))?
+        .ok_or("missing resumed chunk")?;
+    assert_eq!(replay, stored_chunk);
 
     Ok(())
 }
@@ -581,12 +577,12 @@ fn screenshot_transfer_cleanup_scan_classifies_bounded_mixed_records() -> Result
         .cleanup_expired_at(3_000)
         .map_err(|error| format!("{error:?}"))?;
 
-    assert_eq!(summary.pending_screenshots, 1);
+    assert_eq!(summary.pending_screenshots, 2);
     assert_eq!(summary.keep_writing, 1);
     assert_eq!(summary.retained_rejected, 1);
-    assert_eq!(summary.deleted, 1);
+    assert_eq!(summary.deleted, 0);
     assert!(temp.path().join("capture-pending.json").exists());
-    assert!(!temp.path().join("capture-expired.json").exists());
+    assert!(temp.path().join("capture-expired.json").exists());
     assert!(temp.path().join("capture-rejected.json").exists());
     assert!(temp.path().join("capture-writing.json").exists());
     Ok(())

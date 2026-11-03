@@ -22,6 +22,7 @@ pub(crate) fn is_wire_message_contract(contract_id: &str) -> bool {
             | "AppSettingsAcceptedMessage"
             | "ExtensionPingMessage"
             | "AppPongMessage"
+            | "AppConnectionClosedMessage"
             | "AppTrayActionRequestedMessage"
             | "ExtensionTrayActionResultMessage"
             | "AppOpenSettingsRequestedMessage"
@@ -43,6 +44,18 @@ pub(crate) fn is_wire_message_contract(contract_id: &str) -> bool {
             | "ExtensionRecordingAckMessage"
             | "ExtensionRecordingRejectMessage"
             | "AppOperationFailedMessage"
+            | "ExtensionRecordingAttachmentManifestRequestMessage"
+            | "AppRecordingAttachmentManifestMessage"
+            | "ExtensionRecordingAttachmentChunkRequestMessage"
+            | "AppRecordingAttachmentChunkMessage"
+            | "ExtensionRecordingAttachmentAckMessage"
+            | "AppRecordingAttachmentAvailableMessage"
+            | "ExtensionRecordingEventsManifestRequestMessage"
+            | "AppRecordingEventsManifestMessage"
+            | "ExtensionRecordingEventsChunkRequestMessage"
+            | "AppRecordingEventsChunkMessage"
+            | "ExtensionRecordingEventsAckMessage"
+            | "AppRecordingEventsAvailableMessage"
     )
 }
 
@@ -65,14 +78,37 @@ pub(crate) fn parse_wire_message_with_limit(
     let value = parse_json_object(bytes)?;
     let message_type = message_type(&value)?;
     validate_message_value(&value, message_type, bytes.len())?;
-    serde_json::from_value(value).map_err(|error| {
+    if matches!(
+        message_type,
+        "app.recording.attachment.manifest" | "app.recording.events.manifest"
+    ) && value.get("nextSequence").is_none()
+    {
+        return Err(ParseError::without_field(
+            ParseErrorKind::MalformedJson,
+            "attachment page requires nextSequence",
+        ));
+    }
+    let message = serde_json::from_slice(bytes).map_err(|error| {
         let detail = error.to_string();
         if detail.contains("unknown variant") {
             ParseError::new(ParseErrorKind::UnknownType, "type", detail)
         } else {
             ParseError::without_field(ParseErrorKind::MalformedJson, detail)
         }
-    })
+    })?;
+    super::trajectory::validate_attachment_message(&message).map_err(|_| {
+        ParseError::without_field(
+            ParseErrorKind::MalformedJson,
+            "invalid cursor attachment contract",
+        )
+    })?;
+    super::recording_events::validate_event_attachment_message(&message).map_err(|_| {
+        ParseError::without_field(
+            ParseErrorKind::MalformedJson,
+            "invalid recording events contract",
+        )
+    })?;
+    Ok(message)
 }
 
 fn parse_json_object(bytes: &[u8]) -> Result<Value, ParseError> {

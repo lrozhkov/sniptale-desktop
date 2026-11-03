@@ -8,6 +8,7 @@ use crate::protocol::{
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct ExtensionHelloMessage {
+    pub(crate) connection_intent: ConnectionIntent,
     pub(crate) protocol_version: u16,
     pub(crate) settings_schema_version: u16,
     pub(crate) extension_version: String,
@@ -15,6 +16,14 @@ pub(crate) struct ExtensionHelloMessage {
     pub(crate) min_app_version: String,
     pub(crate) supported_protocol_versions: Vec<u16>,
     pub(crate) supported_settings_schema_versions: Vec<u16>,
+    pub(crate) capabilities: Vec<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub(crate) enum ConnectionIntent {
+    UserRequested,
+    Automatic,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -26,7 +35,22 @@ pub(crate) struct AppHelloMessage {
     pub(crate) supported_protocol_versions: Vec<u16>,
     pub(crate) supported_settings_schema_versions: Vec<u16>,
     pub(crate) app_instance_id: String,
+    pub(crate) app_identity: DesktopAppIdentity,
+    pub(crate) settings_authority: DesktopSettingsAuthority,
     pub(crate) platform: NativePlatform,
     pub(crate) install: NativeInstallState,
     pub(crate) capabilities: NativeAppCapabilities,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(crate) struct DesktopAppIdentity {
+    pub(crate) client_id: String,
+    pub(crate) trust_version: u16,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub(crate) enum DesktopSettingsAuthority {
+    Desktop,
 }

@@ -130,3 +130,55 @@ pub(crate) fn connect_pipe_with_typed_agent_startup<T, E>(
         Err(BridgeStartupError::PipeUnavailable)
     }
 }
+
+/// Validated initial input is replayed unchanged after resident authentication.
+#[cfg(any(windows, test))]
+pub(crate) struct InitialBrowserHandshake {
+    pub(crate) payload: Vec<u8>,
+    pub(crate) intent: crate::protocol::ConnectionIntent,
+}
+
+#[cfg(any(windows, test))]
+#[derive(Debug, Eq, PartialEq)]
+pub(crate) enum InitialBrowserHandshakeError {
+    Frame,
+    Protocol(crate::protocol::ParseErrorKind),
+    NotHello,
+    Origin,
+}
+
+#[cfg(any(windows, test))]
+impl InitialBrowserHandshakeError {
+    pub(crate) const fn phase(&self) -> &'static str {
+        match self {
+            Self::Frame => "hello-read-rejected",
+            Self::Protocol(_) | Self::NotHello => "hello-contract-rejected",
+            Self::Origin => "hello-origin-rejected",
+        }
+    }
+}
+
+/// This admission port does not load credentials, open pipes, or start processes.
+#[cfg(any(windows, test))]
+pub(crate) fn read_initial_browser_handshake(
+    reader: &mut impl std::io::Read,
+    origin: &str,
+) -> Result<InitialBrowserHandshake, InitialBrowserHandshakeError> {
+    let payload =
+        crate::ipc::read_payload(reader, crate::protocol::EXTENSION_TO_HOST_MAX_MESSAGE_BYTES)
+            .map_err(|_| InitialBrowserHandshakeError::Frame)?
+            .ok_or(InitialBrowserHandshakeError::Frame)?;
+    let crate::protocol::WireMessage::ExtensionHello(hello) =
+        crate::protocol::parse_wire_message(&payload)
+            .map_err(|error| InitialBrowserHandshakeError::Protocol(error.kind().clone()))?
+    else {
+        return Err(InitialBrowserHandshakeError::NotHello);
+    };
+    if format!("chrome-extension://{}/", hello.extension_id) != origin {
+        return Err(InitialBrowserHandshakeError::Origin);
+    }
+    Ok(InitialBrowserHandshake {
+        payload,
+        intent: hello.connection_intent,
+    })
+}

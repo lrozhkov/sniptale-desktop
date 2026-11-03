@@ -3,8 +3,18 @@
 mod actions;
 mod active;
 #[cfg(any(windows, test))]
+mod browser;
+#[cfg(all(windows, not(test)))]
+pub(crate) use browser::startup::{
+    browser_start_allowed, browser_startup_preference_path, persist_browser_start_allowed,
+};
+#[cfg(any(windows, test))]
+pub(crate) use browser::{BrowserTarget, BrowserTargetError, BrowserTargetRegistry};
+#[cfg(any(windows, test))]
 mod appearance;
 mod cache;
+#[cfg(any(windows, test))]
+pub(crate) use profile::desktop_snapshot::desktop_settings_snapshot;
 #[cfg(any(windows, test))]
 mod draft;
 pub(crate) mod effective;
@@ -21,11 +31,10 @@ pub(crate) use active::ActiveSettings;
 #[cfg(any(windows, test))]
 pub(crate) use active::SettingsApplyError;
 #[cfg(any(windows, test))]
-pub(crate) use appearance::persist_appearance_theme_from_path;
-#[cfg(any(windows, test))]
 pub(crate) use appearance::{
-    AppearanceThemePreference, UiPreferencesHealth, ui_preferences_file_name,
-    ui_preferences_health_from_path,
+    AppearancePreferences, AppearanceThemePreference, UiLocale, UiPreferencesHealth,
+    load_ui_preferences_from_path, ui_preferences_file_name, ui_preferences_health_from_path,
+    update_ui_preferences_from_path,
 };
 pub(crate) use cache::{
     CacheSchemaStatus, NativeCacheHealth, native_cache_file_name, native_cache_health_from_path,
@@ -34,10 +43,9 @@ pub(crate) use cache::{
 pub(crate) use draft::LocalProfileDraft;
 pub(crate) use effective::effective_settings_for_sync;
 #[cfg(any(windows, test))]
-pub(crate) use manual::{
-    ManualAudioSource, ManualFps, ManualHardwarePreference, ManualHotkeyAction,
-    ManualHotkeyUpdateError, ManualVideoQuality,
-};
+pub(crate) use manual::{ManualAudioSource, ManualHardwarePreference, ManualHotkeyAction};
+#[cfg(test)]
+pub(crate) use manual::{ManualFps, ManualHotkeyUpdateError, ManualVideoQuality};
 #[cfg(any(windows, test))]
 pub(crate) use manual::{ManualHotkeyChord, ManualHotkeyKey, parse_manual_hotkey_chord};
 #[cfg(any(windows, test))]

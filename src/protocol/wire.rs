@@ -1,3 +1,14 @@
+use super::recording_events::{
+    AppRecordingEventsAvailableMessage, AppRecordingEventsChunkMessage,
+    AppRecordingEventsManifestMessage, ExtensionRecordingEventsAckMessage,
+    ExtensionRecordingEventsChunkRequestMessage, ExtensionRecordingEventsManifestRequestMessage,
+};
+use super::trajectory::{
+    AppRecordingAttachmentAvailableMessage, AppRecordingAttachmentChunkMessage,
+    AppRecordingAttachmentManifestMessage, ExtensionRecordingAttachmentAckMessage,
+    ExtensionRecordingAttachmentChunkRequestMessage,
+    ExtensionRecordingAttachmentManifestRequestMessage,
+};
 use serde::{Deserialize, Serialize};
 
 use super::{
@@ -29,6 +40,34 @@ use super::{
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(tag = "type")]
 pub(crate) enum WireMessage {
+    #[serde(rename = "extension.recording.events.manifest.request")]
+    ExtensionRecordingEventsManifestRequest(Box<ExtensionRecordingEventsManifestRequestMessage>),
+    #[serde(rename = "app.recording.events.manifest")]
+    AppRecordingEventsManifest(Box<AppRecordingEventsManifestMessage>),
+    #[serde(rename = "extension.recording.events.chunk.request")]
+    ExtensionRecordingEventsChunkRequest(Box<ExtensionRecordingEventsChunkRequestMessage>),
+    #[serde(rename = "app.recording.events.chunk")]
+    AppRecordingEventsChunk(Box<AppRecordingEventsChunkMessage>),
+    #[serde(rename = "extension.recording.events.ack")]
+    ExtensionRecordingEventsAck(Box<ExtensionRecordingEventsAckMessage>),
+    #[serde(rename = "app.recording.events.available")]
+    AppRecordingEventsAvailable(Box<AppRecordingEventsAvailableMessage>),
+    #[serde(rename = "extension.recording.attachment.manifest.request")]
+    ExtensionRecordingAttachmentManifestRequest(
+        Box<ExtensionRecordingAttachmentManifestRequestMessage>,
+    ),
+    #[serde(rename = "app.recording.attachment.manifest")]
+    AppRecordingAttachmentManifest(Box<AppRecordingAttachmentManifestMessage>),
+    #[serde(rename = "extension.recording.attachment.chunk.request")]
+    ExtensionRecordingAttachmentChunkRequest(Box<ExtensionRecordingAttachmentChunkRequestMessage>),
+    #[serde(rename = "app.recording.attachment.chunk")]
+    AppRecordingAttachmentChunk(Box<AppRecordingAttachmentChunkMessage>),
+    #[serde(rename = "extension.recording.attachment.ack")]
+    ExtensionRecordingAttachmentAck(Box<ExtensionRecordingAttachmentAckMessage>),
+    #[serde(rename = "app.recording.attachment.available")]
+    AppRecordingAttachmentAvailable(Box<AppRecordingAttachmentAvailableMessage>),
+    #[serde(rename = "app.connection.closed")]
+    AppConnectionClosed(Box<super::control::status::AppConnectionClosedMessage>),
     #[serde(rename = "extension.hello")]
     ExtensionHello(Box<ExtensionHelloMessage>),
     #[serde(rename = "app.hello")]

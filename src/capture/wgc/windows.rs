@@ -158,13 +158,13 @@ impl ScreenshotFrameProvider for WindowsWgcFrameProvider {
         request: ScreenshotFrameRequest<'_>,
     ) -> Result<CapturedScreenshotFrame, ScreenshotCaptureError> {
         let targets =
-            source::CaptureTargets::resolve(request.request.mode.clone(), request.selected_region)?;
-        capture_targets_frame(targets, request.request.include_cursor)
+            source::CaptureTargets::resolve(&request.request.mode, request.selected_region)?;
+        capture_targets_frame(&targets, request.request.include_cursor)
     }
 }
 
 fn capture_targets_frame(
-    targets: source::CaptureTargets,
+    targets: &source::CaptureTargets,
     include_cursor: bool,
 ) -> Result<CapturedScreenshotFrame, ScreenshotCaptureError> {
     let _winrt = apartment::WinrtApartment::initialize()?;

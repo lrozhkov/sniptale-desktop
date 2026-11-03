@@ -28,19 +28,25 @@ pub(crate) fn verify_file_signature(path: &str) -> SignatureProbeResult {
 }
 
 fn verify_wide_path(path: &[u16]) -> SignatureProbeResult {
+    let (Ok(file_size), Ok(trust_size)) = (
+        u32::try_from(mem::size_of::<WINTRUST_FILE_INFO>()),
+        u32::try_from(mem::size_of::<WINTRUST_DATA>()),
+    ) else {
+        return SignatureProbeResult::Unknown;
+    };
     let mut file_info = WINTRUST_FILE_INFO {
-        cbStruct: mem::size_of::<WINTRUST_FILE_INFO>() as u32,
+        cbStruct: file_size,
         pcwszFilePath: PCWSTR(path.as_ptr()),
-        hFile: Default::default(),
+        hFile: windows::Win32::Foundation::HANDLE::default(),
         pgKnownSubject: ptr::null_mut(),
     };
     let mut trust_data = WINTRUST_DATA {
-        cbStruct: mem::size_of::<WINTRUST_DATA>() as u32,
+        cbStruct: trust_size,
         dwUIChoice: WTD_UI_NONE,
         fdwRevocationChecks: WTD_REVOKE_NONE,
         dwUnionChoice: WTD_CHOICE_FILE,
         Anonymous: WINTRUST_DATA_0 {
-            pFile: &mut file_info,
+            pFile: &raw mut file_info,
         },
         dwStateAction: WTD_STATEACTION_VERIFY,
         dwProvFlags: WTD_CACHE_ONLY_URL_RETRIEVAL | WTD_DISABLE_MD2_MD4,
@@ -50,11 +56,11 @@ fn verify_wide_path(path: &[u16]) -> SignatureProbeResult {
     let mut action = WINTRUST_ACTION_GENERIC_VERIFY_V2;
     // SAFETY: `trust_data` points to stack-owned WINTRUST_DATA and WINTRUST_FILE_INFO records that
     // remain alive for the call; UI is disabled and the provider state is closed below.
-    let status = unsafe { WinVerifyTrustEx(HWND::default(), &mut action, &mut trust_data) };
+    let status = unsafe { WinVerifyTrustEx(HWND::default(), &raw mut action, &raw mut trust_data) };
     trust_data.dwStateAction = WTD_STATEACTION_CLOSE;
     // SAFETY: this closes provider state opened by the verify call; all pointers still reference
     // live stack data for the duration of the close call.
-    let _ = unsafe { WinVerifyTrustEx(HWND::default(), &mut action, &mut trust_data) };
+    let _ = unsafe { WinVerifyTrustEx(HWND::default(), &raw mut action, &raw mut trust_data) };
     signature_probe_from_wintrust_status(status)
 }
 

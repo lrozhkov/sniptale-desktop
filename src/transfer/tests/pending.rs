@@ -80,3 +80,36 @@ fn pending_transfer_rejects_and_expires_without_ack() -> Result<(), TransferErro
     ));
     Ok(())
 }
+
+#[test]
+fn resume_rejects_empty_identity_empty_transfer_and_impossible_progress()
+-> Result<(), TransferError> {
+    assert_eq!(
+        PendingTransfer::resume("", 3, 0),
+        Err(TransferError::InvalidTransferId)
+    );
+    assert_eq!(
+        PendingTransfer::resume("recording", 0, 0),
+        Err(TransferError::EmptyTransfer)
+    );
+    assert_eq!(
+        PendingTransfer::resume("recording", 1, 2),
+        Err(TransferError::ChunkIndexOutOfBounds {
+            index: 2,
+            chunk_count: 1
+        })
+    );
+    let mut resumed = PendingTransfer::resume("recording", 3, 2)?;
+    resumed.record_verified_chunk(0)?;
+    assert_eq!(resumed.next_missing_chunk_index(), 2);
+    assert_eq!(
+        resumed.ensure_expected_chunk(3),
+        Err(TransferError::ChunkIndexOutOfBounds {
+            index: 3,
+            chunk_count: 3
+        })
+    );
+    resumed.record_verified_chunk(2)?;
+    resumed.ack()?;
+    Ok(())
+}

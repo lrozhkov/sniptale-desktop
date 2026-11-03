@@ -8,6 +8,8 @@ use super::coordinates::{CoordinateError, PhysicalPoint, PhysicalRect, normalize
 
 #[cfg(windows)]
 pub(crate) use windows_region::WindowsRegionSelector;
+#[cfg(windows)]
+pub(crate) use windows_region::choose_recording_region;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum RegionOverlayAvailability {

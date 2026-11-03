@@ -8,7 +8,7 @@ use crate::{
     protocol::{DeliveryRoute, RecordingProgressStatus},
     recording::progress::RecordingProgressSnapshot,
     recording::service_contract::{ManualRecordingFinalizedEvent, RecordingCommandEvent},
-    telemetry::{RecordingTelemetrySource, SanitizedRecordingTelemetrySnapshot},
+    telemetry::RecordingTelemetrySource,
 };
 
 impl<R, T> RecordingLifecycleService<R, T>
@@ -46,7 +46,7 @@ where
                 return Err(error);
             }
         };
-        let metadata =
+        let mut metadata =
             match recording_metadata(recording_id, artifact, self.open_editor.unwrap_or(false)) {
                 Ok(metadata) => metadata,
                 Err(error) => {
@@ -55,23 +55,50 @@ where
                 }
             };
         let route = self.delivery_route.clone();
-        let terminal = match route {
+        let telemetry = if self.telemetry_enabled {
+            self.telemetry
+                .snapshot_for_recording(recording_id, metadata.duration_ms)
+                .and_then(|mut snapshot| {
+                    metadata.cursor_trajectory = snapshot.take_cursor_trajectory();
+                    metadata.recording_events = snapshot.take_recording_events();
+                    snapshot.for_finalized_media(
+                        self.frame_geometry,
+                        metadata.width,
+                        metadata.height,
+                        metadata.duration_ms,
+                    )
+                })
+        } else {
+            None
+        };
+        let terminal = match route.clone() {
             Some(DeliveryRoute::ExtensionTransfer) => self
                 .transfer_store
                 .finalize_recording_at(recording_id, metadata, requested_at_epoch_ms)
                 .map(|pending| {
-                    RecordingCommandEvent::Stopped(recording_stopped_event(
+                    RecordingCommandEvent::Stopped(Box::new(recording_stopped_event(
                         pending,
-                        self.telemetry
-                            .snapshot_for_recording(recording_id, duration_ms)
-                            .map(SanitizedRecordingTelemetrySnapshot::into_protocol),
-                    ))
+                        telemetry.clone(),
+                    )))
                 }),
-            Some(DeliveryRoute::LocalAsset { asset_job_id }) => self
+            Some(
+                DeliveryRoute::LocalAsset { asset_job_id }
+                | DeliveryRoute::DesktopDelivery { asset_job_id, .. },
+            ) => self
                 .transfer_store
-                .finalize_manual_recording_at(recording_id, metadata, requested_at_epoch_ms)
+                .finalize_manual_recording_with_telemetry_at(
+                    recording_id,
+                    metadata,
+                    requested_at_epoch_ms,
+                    telemetry,
+                )
                 .map(|()| {
                     RecordingCommandEvent::ManualFinalized(ManualRecordingFinalizedEvent {
+                        delivery_route: self.delivery_route.clone().unwrap_or(
+                            DeliveryRoute::LocalAsset {
+                                asset_job_id: asset_job_id.clone(),
+                            },
+                        ),
                         recording_id: recording_id.to_owned(),
                         asset_job_id,
                     })

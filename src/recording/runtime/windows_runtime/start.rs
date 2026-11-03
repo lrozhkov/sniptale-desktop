@@ -72,11 +72,11 @@ pub(super) fn spawn_worker(
     let join = thread::spawn(move || {
         run_windows_recording_worker(
             start,
-            startup_tx,
-            worker_stop,
-            worker_cancel,
-            worker_pause,
-            worker_duration,
+            &startup_tx,
+            &worker_stop,
+            &worker_cancel,
+            &worker_pause,
+            &worker_duration,
         )
     });
     match startup_rx.recv().map_err(|_| {

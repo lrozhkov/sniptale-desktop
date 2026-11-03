@@ -1,6 +1,6 @@
 {
   "NativeProtocolConstants": {
-    "protocolVersion": 1,
+    "protocolVersion": 2,
     "settingsSchemaVersion": 1,
     "cacheSchemaVersion": 1,
     "hostToExtensionMaxMessageBytes": 1048576,
@@ -49,21 +49,85 @@
   },
   "ExtensionHelloMessage": {
     "type": "extension.hello",
-    "protocolVersion": 1,
+    "connectionIntent": "automatic",
+    "protocolVersion": 2,
     "settingsSchemaVersion": 1,
     "extensionVersion": "0.1.0",
     "extensionId": "abcdefghijklmnopqrstuvwxzyabcdef",
     "minAppVersion": "0.1.0",
-    "supportedProtocolVersions": [1],
-    "supportedSettingsSchemaVersions": [1]
+    "supportedProtocolVersions": [
+      2
+    ],
+    "supportedSettingsSchemaVersions": [
+      1
+    ],
+    "capabilities": [
+      "desktop-settings-v1",
+      "durable-media-ack-v1"
+    ]
   },
   "AppHelloMessage": {
     "type": "app.hello",
-    "protocolVersion": 1,
+    "protocolVersion": 2,
     "settingsSchemaVersion": 1,
     "minExtensionVersion": "0.1.0",
-    "supportedProtocolVersions": [1],
-    "supportedSettingsSchemaVersions": [1],
+    "supportedProtocolVersions": [
+      2
+    ],
+    "supportedSettingsSchemaVersions": [
+      1
+    ],
+    "capabilities": {
+      "capture": {
+        "screenshotModes": [
+          "screen",
+          "active-window",
+          "all-screens",
+          "region"
+        ],
+        "videoModes": [
+          "screen",
+          "active-window",
+          "region"
+        ],
+        "supportsFreezeRegionSelection": true
+      },
+      "codecs": {
+        "containers": [
+          "mp4"
+        ],
+        "video": [
+          "h264"
+        ],
+        "audio": [
+          "aac"
+        ],
+        "hardwareEncoderAvailable": true,
+        "unavailableReasons": []
+      },
+      "audio": {
+        "microphoneDevices": [
+          {
+            "id": "mic-default",
+            "label": "Default microphone",
+            "isDefault": true,
+            "available": true
+          }
+        ],
+        "supportsMicrophone": true,
+        "supportsSystemAudio": true,
+        "supportsMixedAudio": true,
+        "unavailableReasons": []
+      },
+      "limits": {
+        "maxChunkBytes": 524288,
+        "maxRecordingBytes": 8589934592,
+        "maxScreenshotBytes": 268435456,
+        "maxFps": 60,
+        "maxWidth": 7680,
+        "maxHeight": 4320
+      }
+    },
     "appInstanceId": "app-instance-1",
     "platform": {
       "kind": "windows",
@@ -94,53 +158,37 @@
       },
       "packageIntegrity": "unknown"
     },
-    "capabilities": {
-      "capture": {
-        "screenshotModes": ["screen", "active-window", "all-screens", "region"],
-        "videoModes": ["screen", "active-window", "region"],
-        "supportsFreezeRegionSelection": true
-      },
-      "codecs": {
-        "containers": ["mp4"],
-        "video": ["h264"],
-        "audio": ["aac"],
-        "hardwareEncoderAvailable": true,
-        "unavailableReasons": []
-      },
-      "audio": {
-        "microphoneDevices": [
-          {
-            "id": "mic-default",
-            "label": "Default microphone",
-            "isDefault": true,
-            "available": true
-          }
-        ],
-        "supportsMicrophone": true,
-        "supportsSystemAudio": true,
-        "supportsMixedAudio": true,
-        "unavailableReasons": []
-      },
-      "limits": {
-        "maxChunkBytes": 524288,
-        "maxRecordingBytes": 8589934592,
-        "maxScreenshotBytes": 268435456,
-        "maxFps": 60,
-        "maxWidth": 7680,
-        "maxHeight": 4320
-      }
-    }
+    "appIdentity": {
+      "clientId": "0000000000000000000000000000000000000000000000000000000000000000",
+      "trustVersion": 1
+    },
+    "settingsAuthority": "desktop"
   },
   "NativeAppCapabilities": {
     "capture": {
-      "screenshotModes": ["screen", "active-window", "all-screens", "region"],
-      "videoModes": ["screen", "active-window", "region"],
+      "screenshotModes": [
+        "screen",
+        "active-window",
+        "all-screens",
+        "region"
+      ],
+      "videoModes": [
+        "screen",
+        "active-window",
+        "region"
+      ],
       "supportsFreezeRegionSelection": true
     },
     "codecs": {
-      "containers": ["mp4"],
-      "video": ["h264"],
-      "audio": ["aac"],
+      "containers": [
+        "mp4"
+      ],
+      "video": [
+        "h264"
+      ],
+      "audio": [
+        "aac"
+      ],
       "hardwareEncoderAvailable": true,
       "unavailableReasons": []
     },
@@ -163,7 +211,7 @@
   "NativeCapabilityUnavailableReason": "permission-denied",
   "ExtensionControllerAcquireMessage": {
     "type": "extension.controller.acquire",
-    "protocolVersion": 1,
+    "protocolVersion": 2,
     "connectionId": "connection-1",
     "browserFamily": "chrome",
     "profileKey": "profile-1",
@@ -173,7 +221,7 @@
   },
   "AppControllerLeaseMessage": {
     "type": "app.controller.lease",
-    "protocolVersion": 1,
+    "protocolVersion": 2,
     "controllerLeaseId": "lease-1",
     "controller": {
       "extensionId": "abcdefghijklmnopqrstuvwxzyabcdef",
@@ -183,11 +231,12 @@
       "connectionId": "connection-1"
     },
     "expiresAtEpochMs": 1782770060000,
-    "status": "granted"
+    "status": "granted",
+    "selectionStatus": "selected"
   },
   "ExtensionSettingsSyncMessage": {
     "type": "extension.settings.sync",
-    "protocolVersion": 1,
+    "protocolVersion": 2,
     "controllerLeaseId": "lease-1",
     "revision": "settings-revision-1",
     "schemaVersion": 1,
@@ -233,7 +282,9 @@
         ],
         "revision": "tray-revision-1",
         "shortcutPriority": {
-          "shortcutLabels": ["Ctrl+Shift+1"],
+          "shortcutLabels": [
+            "Ctrl+Shift+1"
+          ],
           "when": "browser-active",
           "winner": "extension"
         }
@@ -242,7 +293,7 @@
   },
   "AppSettingsAcceptedMessage": {
     "type": "app.settings.accepted",
-    "protocolVersion": 1,
+    "protocolVersion": 2,
     "controllerLeaseId": "lease-1",
     "revision": "settings-revision-1",
     "schemaVersion": 1,
@@ -294,13 +345,13 @@
   },
   "ExtensionPingMessage": {
     "type": "extension.ping",
-    "protocolVersion": 1,
+    "protocolVersion": 2,
     "nonce": "nonce-1",
     "sentAtEpochMs": 1782770000002
   },
   "AppPongMessage": {
     "type": "app.pong",
-    "protocolVersion": 1,
+    "protocolVersion": 2,
     "nonce": "nonce-1",
     "sentAtEpochMs": 1782770000003,
     "appStatus": {
@@ -345,14 +396,16 @@
     ],
     "revision": "tray-revision-1",
     "shortcutPriority": {
-      "shortcutLabels": ["Ctrl+Shift+1"],
+      "shortcutLabels": [
+        "Ctrl+Shift+1"
+      ],
       "when": "browser-active",
       "winner": "extension"
     }
   },
   "AppTrayActionRequestedMessage": {
     "type": "app.tray.actionRequested",
-    "protocolVersion": 1,
+    "protocolVersion": 2,
     "controllerLeaseId": "lease-1",
     "actionId": "capture-screen",
     "requestedAtEpochMs": 1782770000004,
@@ -360,14 +413,14 @@
   },
   "ExtensionTrayActionResultMessage": {
     "type": "extension.tray.actionResult",
-    "protocolVersion": 1,
+    "protocolVersion": 2,
     "controllerLeaseId": "lease-1",
     "invocationId": "invocation-1",
     "accepted": true
   },
   "AppOpenSettingsRequestedMessage": {
     "type": "app.openSettings.requested",
-    "protocolVersion": 1,
+    "protocolVersion": 2,
     "controllerLeaseId": "lease-1",
     "section": "native-video",
     "requestedAtEpochMs": 1782770000005,
@@ -375,7 +428,7 @@
   },
   "ExtensionScreenshotCaptureCommandMessage": {
     "type": "extension.screenshot.capture",
-    "protocolVersion": 1,
+    "protocolVersion": 2,
     "controllerLeaseId": "lease-1",
     "commandId": "command-shot-1",
     "mode": "screen",
@@ -385,7 +438,7 @@
   },
   "ExtensionRecordingStartCommandMessage": {
     "type": "extension.recording.start",
-    "protocolVersion": 1,
+    "protocolVersion": 2,
     "controllerLeaseId": "lease-1",
     "commandId": "command-record-1",
     "source": {
@@ -404,7 +457,7 @@
   },
   "ExtensionRecordingControlCommandMessage": {
     "type": "extension.recording.control",
-    "protocolVersion": 1,
+    "protocolVersion": 2,
     "controllerLeaseId": "lease-1",
     "commandId": "command-record-2",
     "recordingId": "recording-1",
@@ -413,7 +466,7 @@
   },
   "AppCommandAcceptedMessage": {
     "type": "app.command.accepted",
-    "protocolVersion": 1,
+    "protocolVersion": 2,
     "controllerLeaseId": "lease-1",
     "commandId": "command-shot-1",
     "operation": "screenshot",
@@ -421,7 +474,7 @@
   },
   "AppScreenshotStartMessage": {
     "type": "app.screenshot.start",
-    "protocolVersion": 1,
+    "protocolVersion": 2,
     "controllerLeaseId": "lease-1",
     "captureId": "capture-1",
     "mode": "screen",
@@ -437,7 +490,7 @@
   },
   "AppScreenshotChunkMessage": {
     "type": "app.screenshot.chunk",
-    "protocolVersion": 1,
+    "protocolVersion": 2,
     "controllerLeaseId": "lease-1",
     "captureId": "capture-1",
     "chunkIndex": 0,
@@ -448,27 +501,32 @@
   },
   "AppScreenshotCommitMessage": {
     "type": "app.screenshot.commit",
-    "protocolVersion": 1,
+    "protocolVersion": 2,
     "controllerLeaseId": "lease-1",
     "captureId": "capture-1"
   },
   "ExtensionScreenshotChunkRequestMessage": {
     "type": "extension.screenshot.chunkRequest",
-    "protocolVersion": 1,
+    "protocolVersion": 2,
     "controllerLeaseId": "lease-1",
     "captureId": "capture-1",
     "chunkIndex": 0
   },
   "ExtensionScreenshotAckMessage": {
     "type": "extension.screenshot.ack",
-    "protocolVersion": 1,
+    "protocolVersion": 2,
     "controllerLeaseId": "lease-1",
     "captureId": "capture-1",
-    "assetId": "asset-1"
+    "assetId": "asset-1",
+    "receipt": {
+      "durable": true,
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "totalBytes": 11
+    }
   },
   "ExtensionScreenshotRejectMessage": {
     "type": "extension.screenshot.reject",
-    "protocolVersion": 1,
+    "protocolVersion": 2,
     "controllerLeaseId": "lease-1",
     "captureId": "capture-1",
     "reason": "user-cancelled",
@@ -476,7 +534,7 @@
   },
   "AppRecordingStartedMessage": {
     "type": "app.recording.started",
-    "protocolVersion": 1,
+    "protocolVersion": 2,
     "controllerLeaseId": "lease-1",
     "recordingId": "recording-1",
     "source": {
@@ -512,7 +570,7 @@
   },
   "AppRecordingProgressMessage": {
     "type": "app.recording.progress",
-    "protocolVersion": 1,
+    "protocolVersion": 2,
     "controllerLeaseId": "lease-1",
     "recordingId": "recording-1",
     "durationMs": 1000,
@@ -521,7 +579,7 @@
   },
   "AppRecordingStoppedMessage": {
     "type": "app.recording.stopped",
-    "protocolVersion": 1,
+    "protocolVersion": 2,
     "controllerLeaseId": "lease-1",
     "recordingId": "recording-1",
     "durationMs": 2000,
@@ -565,14 +623,14 @@
   },
   "ExtensionRecordingChunkRequestMessage": {
     "type": "extension.recording.chunkRequest",
-    "protocolVersion": 1,
+    "protocolVersion": 2,
     "controllerLeaseId": "lease-1",
     "recordingId": "recording-1",
     "chunkIndex": 0
   },
   "AppRecordingChunkMessage": {
     "type": "app.recording.chunk",
-    "protocolVersion": 1,
+    "protocolVersion": 2,
     "controllerLeaseId": "lease-1",
     "recordingId": "recording-1",
     "chunkIndex": 0,
@@ -583,13 +641,18 @@
   },
   "ExtensionRecordingAckMessage": {
     "type": "extension.recording.ack",
-    "protocolVersion": 1,
+    "protocolVersion": 2,
     "controllerLeaseId": "lease-1",
-    "recordingId": "recording-1"
+    "recordingId": "recording-1",
+    "receipt": {
+      "durable": true,
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "totalBytes": 11
+    }
   },
   "ExtensionRecordingRejectMessage": {
     "type": "extension.recording.reject",
-    "protocolVersion": 1,
+    "protocolVersion": 2,
     "controllerLeaseId": "lease-1",
     "recordingId": "recording-1",
     "reason": "hash-mismatch",
@@ -631,7 +694,7 @@
   },
   "AppOperationFailedMessage": {
     "type": "app.operation.failed",
-    "protocolVersion": 1,
+    "protocolVersion": 2,
     "controllerLeaseId": "lease-1",
     "operation": "screenshot",
     "operationId": "capture-1",
@@ -642,5 +705,641 @@
       "recoverable": true
     },
     "occurredAtEpochMs": 1782770000012
+  },
+  "AppConnectionClosedMessage": {
+    "type": "app.connection.closed",
+    "protocolVersion": 2,
+    "reason": "user-quit"
+  },
+  "CursorTrajectoryBlock": {
+    "formatVersion": 1,
+    "recordingId": "recording-fixture",
+    "trajectoryId": "0123456789abcdef0123456789abcdef",
+    "sequence": 0,
+    "startTimeUs": 0,
+    "endTimeUs": 100000,
+    "records": [
+      {
+        "kind": "segment",
+        "segmentId": 0,
+        "activeTimeUs": 0,
+        "width": 1280,
+        "height": 800,
+        "clock": {
+          "source": "dom-event-time",
+          "timestampQuantumUs": 1000,
+          "resolutionBoundUs": 1000,
+          "mappingUncertaintyUs": 0
+        },
+        "reason": "start"
+      },
+      {
+        "kind": "sample",
+        "segmentId": 0,
+        "observationSeq": 0,
+        "activeTimeUs": 0,
+        "xQ8": 0,
+        "yQ8": 0,
+        "visible": true,
+        "observed": true,
+        "event": "move",
+        "button": "none",
+        "anchors": [
+          "start"
+        ],
+        "relatedObservationSeq": null
+      },
+      {
+        "kind": "sample",
+        "segmentId": 0,
+        "observationSeq": 2,
+        "activeTimeUs": 100000,
+        "xQ8": 2560,
+        "yQ8": 0,
+        "visible": true,
+        "observed": true,
+        "event": "move",
+        "button": "none",
+        "anchors": [
+          "stop"
+        ],
+        "relatedObservationSeq": null
+      },
+      {
+        "kind": "boundary",
+        "segmentId": 0,
+        "activeTimeUs": 100000,
+        "reason": "stop"
+      }
+    ]
+  },
+  "CursorTrajectoryDescriptor": {
+    "format": "cursor-trajectory-v1",
+    "formatVersion": 1,
+    "algorithm": "sed-window-v1",
+    "encoding": "json-ascii-int-v1",
+    "trajectoryId": "0123456789abcdef0123456789abcdef",
+    "state": "complete",
+    "finalized": true,
+    "totalBlocks": 1,
+    "totalRecords": 4,
+    "totalSamples": 2,
+    "totalBytes": 837,
+    "streamSha256": "40061cdce3d70669d4925dac00082e64712777357946c5ce0e1af66fa8eb7359"
+  },
+  "CursorTrajectoryReceipt": {
+    "format": "cursor-trajectory-v1",
+    "state": "complete",
+    "totalBlocks": 1,
+    "totalRecords": 4,
+    "totalSamples": 2,
+    "totalBytes": 837,
+    "streamSha256": "40061cdce3d70669d4925dac00082e64712777357946c5ce0e1af66fa8eb7359",
+    "version": 1,
+    "durable": true
+  },
+  "NativeTrajectoryAttachmentCapabilities": {
+    "cursorTrajectoryFormats": [
+      "cursor-trajectory-v1"
+    ],
+    "maxBlockBytes": 65536,
+    "maxBlockRecords": 512,
+    "maxChunkRawBytes": 32768,
+    "maxManifestEntries": 32
+  },
+  "ExtensionRecordingAttachmentManifestRequestMessage": {
+    "type": "extension.recording.attachment.manifest.request",
+    "protocolVersion": 2,
+    "controllerLeaseId": "lease-trajectory-fixture",
+    "recordingId": "recording-fixture",
+    "trajectoryId": "0123456789abcdef0123456789abcdef",
+    "requestId": "request-trajectory-fixture",
+    "nextSequence": 0,
+    "prefixSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "AppRecordingAttachmentManifestMessage": {
+    "type": "app.recording.attachment.manifest",
+    "protocolVersion": 2,
+    "controllerLeaseId": "lease-trajectory-fixture",
+    "recordingId": "recording-fixture",
+    "trajectoryId": "0123456789abcdef0123456789abcdef",
+    "requestId": "request-trajectory-fixture",
+    "descriptor": {
+      "format": "cursor-trajectory-v1",
+      "formatVersion": 1,
+      "algorithm": "sed-window-v1",
+      "encoding": "json-ascii-int-v1",
+      "trajectoryId": "0123456789abcdef0123456789abcdef",
+      "state": "complete",
+      "finalized": true,
+      "totalBlocks": 1,
+      "totalRecords": 4,
+      "totalSamples": 2,
+      "totalBytes": 837,
+      "streamSha256": "40061cdce3d70669d4925dac00082e64712777357946c5ce0e1af66fa8eb7359"
+    },
+    "fromSequence": 0,
+    "entries": [
+      {
+        "sequence": 0,
+        "startTimeUs": 0,
+        "endTimeUs": 100000,
+        "recordCount": 4,
+        "sampleCount": 2,
+        "byteLength": 837,
+        "blockSha256": "a39ae0729f35d23dfe27dc53fa8578469956d976cd9206ed7deea9822bf35794",
+        "prefixSha256": "40061cdce3d70669d4925dac00082e64712777357946c5ce0e1af66fa8eb7359"
+      }
+    ],
+    "nextSequence": null
+  },
+  "ExtensionRecordingAttachmentChunkRequestMessage": {
+    "type": "extension.recording.attachment.chunk.request",
+    "protocolVersion": 2,
+    "controllerLeaseId": "lease-trajectory-fixture",
+    "recordingId": "recording-fixture",
+    "trajectoryId": "0123456789abcdef0123456789abcdef",
+    "requestId": "request-trajectory-fixture",
+    "sequence": 0,
+    "chunkIndex": 0
+  },
+  "AppRecordingAttachmentChunkMessage": {
+    "type": "app.recording.attachment.chunk",
+    "protocolVersion": 2,
+    "controllerLeaseId": "lease-trajectory-fixture",
+    "recordingId": "recording-fixture",
+    "trajectoryId": "0123456789abcdef0123456789abcdef",
+    "requestId": "request-trajectory-fixture",
+    "sequence": 0,
+    "blockBytes": 837,
+    "blockSha256": "a39ae0729f35d23dfe27dc53fa8578469956d976cd9206ed7deea9822bf35794",
+    "chunkIndex": 0,
+    "chunkCount": 1,
+    "chunkByteOffset": 0,
+    "chunkRawBytes": 837,
+    "chunkSha256": "a39ae0729f35d23dfe27dc53fa8578469956d976cd9206ed7deea9822bf35794",
+    "base64": "eyJlbmRUaW1lVXMiOjEwMDAwMCwiZm9ybWF0VmVyc2lvbiI6MSwicmVjb3JkaW5nSWQiOiJyZWNvcmRpbmctZml4dHVyZSIsInJlY29yZHMiOlt7ImFjdGl2ZVRpbWVVcyI6MCwiY2xvY2siOnsibWFwcGluZ1VuY2VydGFpbnR5VXMiOjAsInJlc29sdXRpb25Cb3VuZFVzIjoxMDAwLCJzb3VyY2UiOiJkb20tZXZlbnQtdGltZSIsInRpbWVzdGFtcFF1YW50dW1VcyI6MTAwMH0sImhlaWdodCI6ODAwLCJraW5kIjoic2VnbWVudCIsInJlYXNvbiI6InN0YXJ0Iiwic2VnbWVudElkIjowLCJ3aWR0aCI6MTI4MH0seyJhY3RpdmVUaW1lVXMiOjAsImFuY2hvcnMiOlsic3RhcnQiXSwiYnV0dG9uIjoibm9uZSIsImV2ZW50IjoibW92ZSIsImtpbmQiOiJzYW1wbGUiLCJvYnNlcnZhdGlvblNlcSI6MCwib2JzZXJ2ZWQiOnRydWUsInJlbGF0ZWRPYnNlcnZhdGlvblNlcSI6bnVsbCwic2VnbWVudElkIjowLCJ2aXNpYmxlIjp0cnVlLCJ4UTgiOjAsInlROCI6MH0seyJhY3RpdmVUaW1lVXMiOjEwMDAwMCwiYW5jaG9ycyI6WyJzdG9wIl0sImJ1dHRvbiI6Im5vbmUiLCJldmVudCI6Im1vdmUiLCJraW5kIjoic2FtcGxlIiwib2JzZXJ2YXRpb25TZXEiOjIsIm9ic2VydmVkIjp0cnVlLCJyZWxhdGVkT2JzZXJ2YXRpb25TZXEiOm51bGwsInNlZ21lbnRJZCI6MCwidmlzaWJsZSI6dHJ1ZSwieFE4IjoyNTYwLCJ5UTgiOjB9LHsiYWN0aXZlVGltZVVzIjoxMDAwMDAsImtpbmQiOiJib3VuZGFyeSIsInJlYXNvbiI6InN0b3AiLCJzZWdtZW50SWQiOjB9XSwic2VxdWVuY2UiOjAsInN0YXJ0VGltZVVzIjowLCJ0cmFqZWN0b3J5SWQiOiIwMTIzNDU2Nzg5YWJjZGVmMDEyMzQ1Njc4OWFiY2RlZiJ9"
+  },
+  "ExtensionRecordingAttachmentAckMessage": {
+    "type": "extension.recording.attachment.ack",
+    "protocolVersion": 2,
+    "controllerLeaseId": "lease-trajectory-fixture",
+    "recordingId": "recording-fixture",
+    "trajectoryId": "0123456789abcdef0123456789abcdef",
+    "requestId": "request-trajectory-fixture",
+    "receipt": {
+      "format": "cursor-trajectory-v1",
+      "state": "complete",
+      "totalBlocks": 1,
+      "totalRecords": 4,
+      "totalSamples": 2,
+      "totalBytes": 837,
+      "streamSha256": "40061cdce3d70669d4925dac00082e64712777357946c5ce0e1af66fa8eb7359",
+      "version": 1,
+      "durable": true
+    }
+  },
+  "AppRecordingAttachmentAvailableMessage": {
+    "type": "app.recording.attachment.available",
+    "protocolVersion": 2,
+    "controllerLeaseId": "lease-trajectory-fixture",
+    "recordingId": "recording-fixture",
+    "trajectoryId": "0123456789abcdef0123456789abcdef",
+    "videoSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "descriptor": {
+      "format": "cursor-trajectory-v1",
+      "formatVersion": 1,
+      "algorithm": "sed-window-v1",
+      "encoding": "json-ascii-int-v1",
+      "trajectoryId": "0123456789abcdef0123456789abcdef",
+      "state": "complete",
+      "finalized": true,
+      "totalBlocks": 1,
+      "totalRecords": 4,
+      "totalSamples": 2,
+      "totalBytes": 837,
+      "streamSha256": "40061cdce3d70669d4925dac00082e64712777357946c5ce0e1af66fa8eb7359"
+    }
+  },
+  "RecordingEventsBlock": {
+    "formatVersion": 1,
+    "recordingId": "recording-events-fixture",
+    "eventStreamId": "abcdef0123456789abcdef0123456789",
+    "sequence": 0,
+    "startTimeUs": 0,
+    "endTimeUs": 160000,
+    "records": [
+      {
+        "kind": "segment",
+        "recordSeq": 0,
+        "segmentId": 0,
+        "activeTimeUs": 0,
+        "clock": {
+          "source": "windows-message-time",
+          "timestampQuantumUs": 1000,
+          "resolutionBoundUs": null,
+          "mappingUncertaintyUs": null
+        },
+        "reason": "start"
+      },
+      {
+        "kind": "action",
+        "recordSeq": 1,
+        "segmentId": 0,
+        "activeTimeUs": 0,
+        "action": {
+          "id": "key-1",
+          "kind": "KEY",
+          "timeUs": 0,
+          "durationUs": 0,
+          "point": null,
+          "label": "Ctrl+S",
+          "data": {
+            "downTimeUs": 0,
+            "upTimeUs": null,
+            "pressDurationUs": null,
+            "lastObservedTimeUs": 0,
+            "repeatCount": 0,
+            "completion": "observed",
+            "groupId": "key-group-1",
+            "continuationOf": null,
+            "keyboardAttackId": "attack-key-1",
+            "keyboardOnsetTimeUs": 0,
+            "ctrlKey": true,
+            "altKey": false,
+            "shiftKey": false,
+            "metaKey": false
+          },
+          "preset": "NONE"
+        }
+      },
+      {
+        "kind": "keyboard-repeat-block",
+        "recordSeq": 2,
+        "segmentId": 0,
+        "activeTimeUs": 30000,
+        "ownerKind": "action",
+        "ownerId": "key-1",
+        "phase": "repeat",
+        "cadence": {
+          "version": 1,
+          "id": "repeat-1",
+          "startTimeUs": 10000,
+          "quantumUs": 1,
+          "count": 3,
+          "encoding": "delta-us",
+          "ticks": [
+            0,
+            10000,
+            10000
+          ]
+        }
+      },
+      {
+        "kind": "action-update",
+        "recordSeq": 3,
+        "segmentId": 0,
+        "activeTimeUs": 40000,
+        "actionId": "key-1",
+        "revision": 1,
+        "data": {
+          "upTimeUs": 40000,
+          "pressDurationUs": 40000,
+          "lastObservedTimeUs": 40000,
+          "repeatCount": 3,
+          "completion": "released"
+        }
+      },
+      {
+        "kind": "signal",
+        "recordSeq": 4,
+        "segmentId": 0,
+        "activeTimeUs": 70000,
+        "signal": {
+          "id": "typing-1",
+          "kind": "typing",
+          "startTimeUs": 50000,
+          "endTimeUs": 70000,
+          "point": null,
+          "data": {
+            "eventCount": 3,
+            "activity": "keyboard",
+            "privacy": "normal",
+            "groupId": "typing-group-1",
+            "continuationOf": null
+          }
+        }
+      },
+      {
+        "kind": "keyboard-repeat-block",
+        "recordSeq": 5,
+        "segmentId": 0,
+        "activeTimeUs": 70000,
+        "ownerKind": "signal",
+        "ownerId": "typing-1",
+        "phase": "onset",
+        "cadence": {
+          "version": 1,
+          "id": "onsets-1",
+          "startTimeUs": 50000,
+          "quantumUs": 1,
+          "count": 3,
+          "encoding": "rle-us",
+          "ticks": [
+            0,
+            1,
+            10000,
+            2
+          ]
+        }
+      },
+      {
+        "kind": "action",
+        "recordSeq": 6,
+        "segmentId": 0,
+        "activeTimeUs": 100000,
+        "action": {
+          "id": "click-1",
+          "kind": "CLICK",
+          "timeUs": 100000,
+          "durationUs": 0,
+          "point": {
+            "x": 0.25,
+            "y": 0.75
+          },
+          "label": "Click",
+          "data": {
+            "button": 0,
+            "gestureId": null,
+            "completion": "observed",
+            "downTimeUs": null,
+            "upTimeUs": null,
+            "pressDurationUs": null,
+            "lastObservedTimeUs": 100000,
+            "clickCount": 1,
+            "gestureType": "click",
+            "semanticEndTimeUs": null,
+            "dragStartTimeUs": null,
+            "pointerCancelled": null,
+            "dropObserved": null,
+            "upPoint": null,
+            "ctrlKey": false,
+            "altKey": false,
+            "shiftKey": false,
+            "metaKey": false
+          },
+          "preset": "NONE"
+        }
+      },
+      {
+        "kind": "action-update",
+        "recordSeq": 7,
+        "segmentId": 0,
+        "activeTimeUs": 120000,
+        "actionId": "click-1",
+        "revision": 1,
+        "data": {
+          "gestureType": "click",
+          "completion": "released",
+          "upTimeUs": 110000,
+          "pressDurationUs": null,
+          "lastObservedTimeUs": 110000,
+          "semanticEndTimeUs": null,
+          "dragStartTimeUs": null,
+          "pointerCancelled": null,
+          "dropObserved": null,
+          "upPoint": {
+            "x": 0.5,
+            "y": 0.25
+          },
+          "ctrlKey": true,
+          "altKey": false,
+          "shiftKey": null,
+          "metaKey": null
+        }
+      },
+      {
+        "kind": "action",
+        "recordSeq": 8,
+        "segmentId": 0,
+        "activeTimeUs": 120000,
+        "action": {
+          "id": "scroll-1",
+          "kind": "SCROLL",
+          "timeUs": 120000,
+          "durationUs": 0,
+          "point": {
+            "x": 0.5,
+            "y": 0.3333333333333333
+          },
+          "label": "Scroll",
+          "data": {
+            "deltaX": -2.5,
+            "deltaY": 120.25,
+            "deltaMode": 0,
+            "eventType": "wheel",
+            "deltaZ": 1.75,
+            "scrollX": null,
+            "scrollY": null,
+            "ctrlKey": true,
+            "altKey": false,
+            "shiftKey": false,
+            "metaKey": false
+          },
+          "preset": "NONE"
+        }
+      },
+      {
+        "kind": "signal",
+        "recordSeq": 9,
+        "segmentId": 0,
+        "activeTimeUs": 150000,
+        "signal": {
+          "id": "warning-1",
+          "kind": "static-frame",
+          "startTimeUs": 150000,
+          "endTimeUs": 150000,
+          "point": null,
+          "data": {
+            "source": "keyboard-hook",
+            "code": "events-dropped",
+            "severity": "warning"
+          }
+        }
+      },
+      {
+        "kind": "gap",
+        "recordSeq": 10,
+        "segmentId": 0,
+        "activeTimeUs": 150000,
+        "source": "keyboard",
+        "fromTimeUs": 150000,
+        "toTimeUs": 160000,
+        "firstLostSourceSeq": 62,
+        "lastLostSourceSeq": 64,
+        "lostCount": 3,
+        "reason": "input-overflow"
+      }
+    ]
+  },
+  "RecordingEventsDescriptor": {
+    "format": "recording-events-v1",
+    "formatVersion": 1,
+    "algorithm": "lossless-v1",
+    "encoding": "json-utf8-v1",
+    "eventStreamId": "abcdef0123456789abcdef0123456789",
+    "state": "incomplete",
+    "finalized": true,
+    "totalBlocks": 3,
+    "totalRecords": 18,
+    "totalBytes": 5528,
+    "streamSha256": "f5e2d14b54e7c81b7ef5d43116e3f79878f1706ac70de0435b56878b32392387"
+  },
+  "RecordingEventsReceipt": {
+    "format": "recording-events-v1",
+    "state": "incomplete",
+    "totalBlocks": 3,
+    "totalRecords": 18,
+    "totalBytes": 5528,
+    "streamSha256": "f5e2d14b54e7c81b7ef5d43116e3f79878f1706ac70de0435b56878b32392387",
+    "version": 1,
+    "durable": true
+  },
+  "NativeEventAttachmentCapabilities": {
+    "recordingEventFormats": [
+      "recording-events-v1"
+    ],
+    "maxBlockBytes": 65536,
+    "maxBlockRecords": 512,
+    "maxChunkRawBytes": 32768,
+    "maxManifestEntries": 32
+  },
+  "ExtensionRecordingEventsManifestRequestMessage": {
+    "protocolVersion": 2,
+    "controllerLeaseId": "lease-events-fixture",
+    "recordingId": "recording-events-fixture",
+    "eventStreamId": "abcdef0123456789abcdef0123456789",
+    "requestId": "request-events-fixture",
+    "type": "extension.recording.events.manifest.request",
+    "nextSequence": 0,
+    "prefixSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "AppRecordingEventsManifestMessage": {
+    "protocolVersion": 2,
+    "controllerLeaseId": "lease-events-fixture",
+    "recordingId": "recording-events-fixture",
+    "eventStreamId": "abcdef0123456789abcdef0123456789",
+    "requestId": "request-events-fixture",
+    "type": "app.recording.events.manifest",
+    "descriptor": {
+      "format": "recording-events-v1",
+      "formatVersion": 1,
+      "algorithm": "lossless-v1",
+      "encoding": "json-utf8-v1",
+      "eventStreamId": "abcdef0123456789abcdef0123456789",
+      "state": "incomplete",
+      "finalized": true,
+      "totalBlocks": 3,
+      "totalRecords": 18,
+      "totalBytes": 5528,
+      "streamSha256": "f5e2d14b54e7c81b7ef5d43116e3f79878f1706ac70de0435b56878b32392387"
+    },
+    "fromSequence": 0,
+    "entries": [
+      {
+        "sequence": 0,
+        "startTimeUs": 0,
+        "endTimeUs": 160000,
+        "recordCount": 10,
+        "byteLength": 3280,
+        "blockSha256": "14337beb2af7d6f214776129475404db606dd3128f731be9672d87d4e92e825d",
+        "prefixSha256": "c8858a4117d4897d5fe21c8f28da2202617adc3a2ef2b7e1d3db52cefbb9e596"
+      },
+      {
+        "sequence": 1,
+        "startTimeUs": 160000,
+        "endTimeUs": 170000,
+        "recordCount": 2,
+        "byteLength": 476,
+        "blockSha256": "b469bcdf170df8372203e27ad0129ca40ad0fe3dfba83848945587bd3d469845",
+        "prefixSha256": "94aba9b83d2cab2386fdee2253ab398ce42dcf7cfd1eb9954b3418c1d7543aee"
+      },
+      {
+        "sequence": 2,
+        "startTimeUs": 170000,
+        "endTimeUs": 900000,
+        "recordCount": 6,
+        "byteLength": 1772,
+        "blockSha256": "164349132e989483c0d8104e95e9572eb33f38a261693be9565f205e9e5db60f",
+        "prefixSha256": "f5e2d14b54e7c81b7ef5d43116e3f79878f1706ac70de0435b56878b32392387"
+      }
+    ],
+    "nextSequence": null
+  },
+  "ExtensionRecordingEventsChunkRequestMessage": {
+    "protocolVersion": 2,
+    "controllerLeaseId": "lease-events-fixture",
+    "recordingId": "recording-events-fixture",
+    "eventStreamId": "abcdef0123456789abcdef0123456789",
+    "requestId": "request-events-fixture",
+    "type": "extension.recording.events.chunk.request",
+    "sequence": 0,
+    "chunkIndex": 0
+  },
+  "AppRecordingEventsChunkMessage": {
+    "protocolVersion": 2,
+    "controllerLeaseId": "lease-events-fixture",
+    "recordingId": "recording-events-fixture",
+    "eventStreamId": "abcdef0123456789abcdef0123456789",
+    "requestId": "request-events-fixture",
+    "type": "app.recording.events.chunk",
+    "sequence": 0,
+    "blockBytes": 3280,
+    "blockSha256": "14337beb2af7d6f214776129475404db606dd3128f731be9672d87d4e92e825d",
+    "chunkIndex": 0,
+    "chunkCount": 1,
+    "chunkByteOffset": 0,
+    "chunkRawBytes": 3280,
+    "chunkSha256": "14337beb2af7d6f214776129475404db606dd3128f731be9672d87d4e92e825d",
+    "base64": "eyJmb3JtYXRWZXJzaW9uIjoxLCJyZWNvcmRpbmdJZCI6InJlY29yZGluZy1ldmVudHMtZml4dHVyZSIsImV2ZW50U3RyZWFtSWQiOiJhYmNkZWYwMTIzNDU2Nzg5YWJjZGVmMDEyMzQ1Njc4OSIsInNlcXVlbmNlIjowLCJzdGFydFRpbWVVcyI6MCwiZW5kVGltZVVzIjoxNjAwMDAsInJlY29yZHMiOlt7ImtpbmQiOiJzZWdtZW50IiwicmVjb3JkU2VxIjowLCJzZWdtZW50SWQiOjAsImFjdGl2ZVRpbWVVcyI6MCwiY2xvY2siOnsic291cmNlIjoid2luZG93cy1tZXNzYWdlLXRpbWUiLCJ0aW1lc3RhbXBRdWFudHVtVXMiOjEwMDAsInJlc29sdXRpb25Cb3VuZFVzIjpudWxsLCJtYXBwaW5nVW5jZXJ0YWludHlVcyI6bnVsbH0sInJlYXNvbiI6InN0YXJ0In0seyJraW5kIjoiYWN0aW9uIiwicmVjb3JkU2VxIjoxLCJzZWdtZW50SWQiOjAsImFjdGl2ZVRpbWVVcyI6MCwiYWN0aW9uIjp7ImlkIjoia2V5LTEiLCJraW5kIjoiS0VZIiwidGltZVVzIjowLCJkdXJhdGlvblVzIjowLCJwb2ludCI6bnVsbCwibGFiZWwiOiJDdHJsK1MiLCJkYXRhIjp7ImRvd25UaW1lVXMiOjAsInVwVGltZVVzIjpudWxsLCJwcmVzc0R1cmF0aW9uVXMiOm51bGwsImxhc3RPYnNlcnZlZFRpbWVVcyI6MCwicmVwZWF0Q291bnQiOjAsImNvbXBsZXRpb24iOiJvYnNlcnZlZCIsImdyb3VwSWQiOiJrZXktZ3JvdXAtMSIsImNvbnRpbnVhdGlvbk9mIjpudWxsLCJrZXlib2FyZEF0dGFja0lkIjoiYXR0YWNrLWtleS0xIiwia2V5Ym9hcmRPbnNldFRpbWVVcyI6MCwiY3RybEtleSI6dHJ1ZSwiYWx0S2V5IjpmYWxzZSwic2hpZnRLZXkiOmZhbHNlLCJtZXRhS2V5IjpmYWxzZX0sInByZXNldCI6Ik5PTkUifX0seyJraW5kIjoia2V5Ym9hcmQtcmVwZWF0LWJsb2NrIiwicmVjb3JkU2VxIjoyLCJzZWdtZW50SWQiOjAsImFjdGl2ZVRpbWVVcyI6MzAwMDAsIm93bmVyS2luZCI6ImFjdGlvbiIsIm93bmVySWQiOiJrZXktMSIsInBoYXNlIjoicmVwZWF0IiwiY2FkZW5jZSI6eyJ2ZXJzaW9uIjoxLCJpZCI6InJlcGVhdC0xIiwic3RhcnRUaW1lVXMiOjEwMDAwLCJxdWFudHVtVXMiOjEsImNvdW50IjozLCJlbmNvZGluZyI6ImRlbHRhLXVzIiwidGlja3MiOlswLDEwMDAwLDEwMDAwXX19LHsia2luZCI6ImFjdGlvbi11cGRhdGUiLCJyZWNvcmRTZXEiOjMsInNlZ21lbnRJZCI6MCwiYWN0aXZlVGltZVVzIjo0MDAwMCwiYWN0aW9uSWQiOiJrZXktMSIsInJldmlzaW9uIjoxLCJkYXRhIjp7InVwVGltZVVzIjo0MDAwMCwicHJlc3NEdXJhdGlvblVzIjo0MDAwMCwibGFzdE9ic2VydmVkVGltZVVzIjo0MDAwMCwicmVwZWF0Q291bnQiOjMsImNvbXBsZXRpb24iOiJyZWxlYXNlZCJ9fSx7ImtpbmQiOiJzaWduYWwiLCJyZWNvcmRTZXEiOjQsInNlZ21lbnRJZCI6MCwiYWN0aXZlVGltZVVzIjo3MDAwMCwic2lnbmFsIjp7ImlkIjoidHlwaW5nLTEiLCJraW5kIjoidHlwaW5nIiwic3RhcnRUaW1lVXMiOjUwMDAwLCJlbmRUaW1lVXMiOjcwMDAwLCJwb2ludCI6bnVsbCwiZGF0YSI6eyJldmVudENvdW50IjozLCJhY3Rpdml0eSI6ImtleWJvYXJkIiwicHJpdmFjeSI6Im5vcm1hbCIsImdyb3VwSWQiOiJ0eXBpbmctZ3JvdXAtMSIsImNvbnRpbnVhdGlvbk9mIjpudWxsfX19LHsia2luZCI6ImtleWJvYXJkLXJlcGVhdC1ibG9jayIsInJlY29yZFNlcSI6NSwic2VnbWVudElkIjowLCJhY3RpdmVUaW1lVXMiOjcwMDAwLCJvd25lcktpbmQiOiJzaWduYWwiLCJvd25lcklkIjoidHlwaW5nLTEiLCJwaGFzZSI6Im9uc2V0IiwiY2FkZW5jZSI6eyJ2ZXJzaW9uIjoxLCJpZCI6Im9uc2V0cy0xIiwic3RhcnRUaW1lVXMiOjUwMDAwLCJxdWFudHVtVXMiOjEsImNvdW50IjozLCJlbmNvZGluZyI6InJsZS11cyIsInRpY2tzIjpbMCwxLDEwMDAwLDJdfX0seyJraW5kIjoiYWN0aW9uIiwicmVjb3JkU2VxIjo2LCJzZWdtZW50SWQiOjAsImFjdGl2ZVRpbWVVcyI6MTAwMDAwLCJhY3Rpb24iOnsiaWQiOiJjbGljay0xIiwia2luZCI6IkNMSUNLIiwidGltZVVzIjoxMDAwMDAsImR1cmF0aW9uVXMiOjAsInBvaW50Ijp7IngiOjAuMjUsInkiOjAuNzV9LCJsYWJlbCI6IkNsaWNrIiwiZGF0YSI6eyJidXR0b24iOjAsImdlc3R1cmVJZCI6bnVsbCwiY29tcGxldGlvbiI6Im9ic2VydmVkIiwiZG93blRpbWVVcyI6bnVsbCwidXBUaW1lVXMiOm51bGwsInByZXNzRHVyYXRpb25VcyI6bnVsbCwibGFzdE9ic2VydmVkVGltZVVzIjoxMDAwMDAsImNsaWNrQ291bnQiOjEsImdlc3R1cmVUeXBlIjoiY2xpY2siLCJzZW1hbnRpY0VuZFRpbWVVcyI6bnVsbCwiZHJhZ1N0YXJ0VGltZVVzIjpudWxsLCJwb2ludGVyQ2FuY2VsbGVkIjpudWxsLCJkcm9wT2JzZXJ2ZWQiOm51bGwsInVwUG9pbnQiOm51bGwsImN0cmxLZXkiOmZhbHNlLCJhbHRLZXkiOmZhbHNlLCJzaGlmdEtleSI6ZmFsc2UsIm1ldGFLZXkiOmZhbHNlfSwicHJlc2V0IjoiTk9ORSJ9fSx7ImtpbmQiOiJhY3Rpb24iLCJyZWNvcmRTZXEiOjcsInNlZ21lbnRJZCI6MCwiYWN0aXZlVGltZVVzIjoxMjAwMDAsImFjdGlvbiI6eyJpZCI6InNjcm9sbC0xIiwia2luZCI6IlNDUk9MTCIsInRpbWVVcyI6MTIwMDAwLCJkdXJhdGlvblVzIjowLCJwb2ludCI6eyJ4IjowLjUsInkiOjAuMzMzMzMzMzMzMzMzMzMzM30sImxhYmVsIjoiU2Nyb2xsIiwiZGF0YSI6eyJkZWx0YVgiOi0yLjUsImRlbHRhWSI6MTIwLjI1LCJkZWx0YU1vZGUiOjAsImV2ZW50VHlwZSI6IndoZWVsIiwiZGVsdGFaIjoxLjc1LCJzY3JvbGxYIjpudWxsLCJzY3JvbGxZIjpudWxsLCJjdHJsS2V5Ijp0cnVlLCJhbHRLZXkiOmZhbHNlLCJzaGlmdEtleSI6ZmFsc2UsIm1ldGFLZXkiOmZhbHNlfSwicHJlc2V0IjoiTk9ORSJ9fSx7ImtpbmQiOiJzaWduYWwiLCJyZWNvcmRTZXEiOjgsInNlZ21lbnRJZCI6MCwiYWN0aXZlVGltZVVzIjoxNTAwMDAsInNpZ25hbCI6eyJpZCI6Indhcm5pbmctMSIsImtpbmQiOiJzdGF0aWMtZnJhbWUiLCJzdGFydFRpbWVVcyI6MTUwMDAwLCJlbmRUaW1lVXMiOjE1MDAwMCwicG9pbnQiOm51bGwsImRhdGEiOnsic291cmNlIjoia2V5Ym9hcmQtaG9vayIsImNvZGUiOiJldmVudHMtZHJvcHBlZCIsInNldmVyaXR5Ijoid2FybmluZyJ9fX0seyJraW5kIjoiZ2FwIiwicmVjb3JkU2VxIjo5LCJzZWdtZW50SWQiOjAsImFjdGl2ZVRpbWVVcyI6MTUwMDAwLCJzb3VyY2UiOiJrZXlib2FyZCIsImZyb21UaW1lVXMiOjE1MDAwMCwidG9UaW1lVXMiOjE2MDAwMCwiZmlyc3RMb3N0U291cmNlU2VxIjo2MiwibGFzdExvc3RTb3VyY2VTZXEiOjY0LCJsb3N0Q291bnQiOjMsInJlYXNvbiI6ImlucHV0LW92ZXJmbG93In1dfQ=="
+  },
+  "ExtensionRecordingEventsAckMessage": {
+    "protocolVersion": 2,
+    "controllerLeaseId": "lease-events-fixture",
+    "recordingId": "recording-events-fixture",
+    "eventStreamId": "abcdef0123456789abcdef0123456789",
+    "requestId": "request-events-fixture",
+    "type": "extension.recording.events.ack",
+    "receipt": {
+      "format": "recording-events-v1",
+      "state": "incomplete",
+      "totalBlocks": 3,
+      "totalRecords": 18,
+      "totalBytes": 5528,
+      "streamSha256": "f5e2d14b54e7c81b7ef5d43116e3f79878f1706ac70de0435b56878b32392387",
+      "version": 1,
+      "durable": true
+    }
+  },
+  "AppRecordingEventsAvailableMessage": {
+    "protocolVersion": 2,
+    "controllerLeaseId": "lease-events-fixture",
+    "recordingId": "recording-events-fixture",
+    "eventStreamId": "abcdef0123456789abcdef0123456789",
+    "type": "app.recording.events.available",
+    "videoSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "descriptor": {
+      "format": "recording-events-v1",
+      "formatVersion": 1,
+      "algorithm": "lossless-v1",
+      "encoding": "json-utf8-v1",
+      "eventStreamId": "abcdef0123456789abcdef0123456789",
+      "state": "incomplete",
+      "finalized": true,
+      "totalBlocks": 3,
+      "totalRecords": 18,
+      "totalBytes": 5528,
+      "streamSha256": "f5e2d14b54e7c81b7ef5d43116e3f79878f1706ac70de0435b56878b32392387"
+    }
   }
 }

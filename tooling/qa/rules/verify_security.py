@@ -8,9 +8,9 @@ import tempfile
 from pathlib import Path
 
 try:
-    from .exception_registry import exact_paths
+    from .exception_registry import exact_paths, path_terms
 except ImportError:
-    from exception_registry import exact_paths
+    from exception_registry import exact_paths, path_terms
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -49,6 +49,8 @@ PARSER_ALLOWED = (
     "src/ipc/",
     "src/app/resident/pipe_peer/",
 )
+
+BOUNDARY_FIXTURE_TERMS = path_terms("security.boundary-test-fixture")
 
 REQUIRED_SECURITY_DOCS = {
     "docs/security/ipc-auth.md": [
@@ -103,14 +105,10 @@ BUSINESS_CRITICAL_SILENT_FAILURE_PATTERNS = {
         r"open_default\s*\(\s*\)\.ok\s*\(": (
             "transfer store open failure must be logged by category, not collapsed with .ok()"
         ),
-        r"let\s+_\s*=\s*store\.cleanup_expired\s*\(": (
-            "transfer cleanup failure must be logged by category"
-        ),
+        r"let\s+_\s*=\s*store\.cleanup_expired\s*\(": ("transfer cleanup failure must be logged by category"),
     },
     "src/app/resident/pipe.rs": {
-        r"open_default\s*\(\s*\)\.ok\s*\(": (
-            "resident pipe transfer store open failure must be logged by category"
-        ),
+        r"open_default\s*\(\s*\)\.ok\s*\(": ("resident pipe transfer store open failure must be logged by category"),
     },
     "src/recording/service.rs": {
         r"let\s+_\s*=\s*self\.runtime\.cancel_recording\s*\(": (
@@ -198,9 +196,7 @@ AUD11_DPAPI_PROOF_REQUIRED_TERMS = {
     ],
 }
 AUD11_PLACEHOLDER_RECENT_ERRORS_BASELINE = {}
-AUD11_PLACEHOLDER_RECENT_ERRORS_PATTERN = re.compile(
-    r"recentErrors\\?\"\s*:\s*\\?\[\s*\\?\]"
-)
+AUD11_PLACEHOLDER_RECENT_ERRORS_PATTERN = re.compile(r"recentErrors\\?\"\s*:\s*\\?\[\s*\\?\]")
 
 
 def rel(path: Path) -> str:
@@ -240,11 +236,7 @@ def rust_files_under(root: Path) -> list[Path]:
     src = root / "src"
     if not src.exists():
         return []
-    return [
-        path
-        for path in src.rglob("*.rs")
-        if "/tests/" not in path.as_posix() and path.name != "tests.rs"
-    ]
+    return [path for path in src.rglob("*.rs") if "/tests/" not in path.as_posix() and path.name != "tests.rs"]
 
 
 def fail(messages: list[str]) -> None:
@@ -254,6 +246,13 @@ def fail(messages: list[str]) -> None:
     raise SystemExit(1)
 
 
+def fixture_pattern_allowed(
+    relative: str, pattern: str, fixtures: dict[str, set[str]] = BOUNDARY_FIXTURE_TERMS
+) -> bool:
+    term = pattern.removeprefix(r"\b").removesuffix(r"\b")
+    return term in fixtures.get(relative, set())
+
+
 def check_forbidden_runtime_patterns(errors: list[str]) -> None:
     for path in rust_files():
         relative = rel(path)
@@ -261,9 +260,36 @@ def check_forbidden_runtime_patterns(errors: list[str]) -> None:
         for pattern, reason in FORBIDDEN_RUNTIME_PATTERNS.items():
             if not re.search(pattern, text):
                 continue
-            if relative.startswith(PARSER_ALLOWED):
+            if relative.startswith(PARSER_ALLOWED) or fixture_pattern_allowed(relative, pattern):
                 continue
             errors.append(f"{relative}: {reason}")
+
+
+def smoke_credential_owner_errors(root: Path = ROOT) -> list[str]:
+    relative = "tooling/release/windows/smoke/windows-smoke.ps1"
+    path = root / relative
+    if not path.exists():
+        return []
+    text = read(path)
+    if re.search(r"Provision-PipeSecret|ProtectedData|RandomNumberGenerator", text):
+        return [f"{relative}: smoke must let the installed resident provision and preserve pipe credentials"]
+    if "Assert-PipeSecretProvisioned $installDir (Get-InstallId $Channel)" not in text:
+        return [f"{relative}: smoke must verify the installed owner's pipe credential"]
+    return []
+
+
+def keyboard_modifier_source_errors(root: Path = ROOT) -> list[str]:
+    relative = "src/telemetry/windows/keyboard_hook.rs"
+    path = root / relative
+    if not path.exists():
+        return []
+    text = read(path)
+    errors = []
+    if re.search(r"\bGetAsyncKeyState\b", text):
+        errors.append(f"{relative}: modifier evidence must not use a later asynchronous key-state query")
+    if "from_observed_keys" not in text or "LLKHF_ALTDOWN" not in text:
+        errors.append(f"{relative}: modifiers require accepted transitions and original Alt context")
+    return errors
 
 
 def check_sensitive_logging_markers(errors: list[str]) -> None:
@@ -275,9 +301,7 @@ def check_sensitive_logging_markers(errors: list[str]) -> None:
         lowered = text.lower()
         markers = [marker for marker in SENSITIVE_LOG_MARKERS if marker in lowered]
         if markers:
-            errors.append(
-                f"{rel(path)} logs near sensitive marker(s): " + ", ".join(sorted(set(markers)))
-            )
+            errors.append(f"{rel(path)} logs near sensitive marker(s): " + ", ".join(sorted(set(markers))))
 
 
 def raw_dpapi_adapter_errors(root: Path) -> list[str]:
@@ -287,15 +311,10 @@ def raw_dpapi_adapter_errors(root: Path) -> list[str]:
         if relative in AUD11_RAW_DPAPI_ALLOWED_FILES:
             continue
         text = path.read_text(encoding="utf-8")
-        matched = [
-            pattern
-            for pattern in AUD11_RAW_DPAPI_PATTERNS
-            if re.search(pattern, text)
-        ]
+        matched = [pattern for pattern in AUD11_RAW_DPAPI_PATTERNS if re.search(pattern, text)]
         if matched:
             offenders.append(
-                f"{relative} uses raw DPAPI mechanics outside AUD11 approved owner files: "
-                + ", ".join(matched)
+                f"{relative} uses raw DPAPI mechanics outside AUD11 approved owner files: " + ", ".join(matched)
             )
     return offenders
 
@@ -345,20 +364,14 @@ def unsafe_proof_catalog(root: Path) -> tuple[list[dict[str, object]], list[str]
 def unsafe_dpapi_proof_errors(root: Path) -> list[str]:
     adapters, errors = unsafe_proof_catalog(root)
     offenders = list(errors)
-    by_path = {
-        adapter.get("path"): adapter
-        for adapter in adapters
-        if isinstance(adapter.get("path"), str)
-    }
+    by_path = {adapter.get("path"): adapter for adapter in adapters if isinstance(adapter.get("path"), str)}
     for relative, required_terms in AUD11_DPAPI_PROOF_REQUIRED_TERMS.items():
         adapter = by_path.get(relative)
         if adapter is None:
             offenders.append(f"{relative} missing DPAPI unsafe proof entry")
             continue
         proof_text = " ".join(
-            str(value)
-            for key in ("boundary", "safeWrapper", "raiiWrapper")
-            for value in [adapter.get(key, "")]
+            str(value) for key in ("boundary", "safeWrapper", "raiiWrapper") for value in [adapter.get(key, "")]
         )
         for key in ("invariants", "shutdownCancelProof"):
             values = adapter.get(key, [])
@@ -394,8 +407,7 @@ def placeholder_recent_errors_ratchet_errors(
         allowed = baseline.get(relative, 0)
         if count > allowed:
             offenders.append(
-                f"{relative} has {count} hard-coded recentErrors empty output(s), "
-                f"above AUD11 final baseline {allowed}"
+                f"{relative} has {count} hard-coded recentErrors empty output(s), above AUD11 final baseline {allowed}"
             )
     return offenders
 
@@ -539,7 +551,12 @@ def has_non_scaffold_role(path: Path) -> bool:
         return False
     for raw in path.read_text(encoding="utf-8").splitlines():
         stripped = raw.strip()
-        if stripped and not stripped.startswith("//!") and not stripped.startswith("#![") and not stripped.startswith("mod "):
+        if (
+            stripped
+            and not stripped.startswith("//!")
+            and not stripped.startswith("#![")
+            and not stripped.startswith("mod ")
+        ):
             return True
     return False
 
@@ -595,9 +612,7 @@ def check_authenticated_pipe_forwarding(errors: list[str]) -> None:
         if path.name == "tests.rs" or "/tests/" in path.as_posix():
             continue
         if re.search(r"\bforward_native_host_stream\s*\(", read(path)):
-            errors.append(
-                f"{rel(path)} must not call raw pipe forwarder; use authenticated IPC bridge API"
-            )
+            errors.append(f"{rel(path)} must not call raw pipe forwarder; use authenticated IPC bridge API")
 
 
 def check_windows_pipe_instance_lifecycle(errors: list[str]) -> None:
@@ -627,10 +642,7 @@ def check_windows_pipe_instance_lifecycle(errors: list[str]) -> None:
     overlapped_text = read(overlapped)
     for required in ("ReadFile", "WriteFile", "GetOverlappedResult", "CancelIoEx"):
         if required not in overlapped_text:
-            errors.append(
-                "src/ipc/pipe/windows_pipe_overlapped.rs must own "
-                f"{required} for cancellable duplex pipe IO"
-            )
+            errors.append(f"src/ipc/pipe/windows_pipe_overlapped.rs must own {required} for cancellable duplex pipe IO")
 
 
 def check_pipe_auth_and_backpressure_hardening(errors: list[str]) -> None:
@@ -722,13 +734,9 @@ def check_pipe_auth_and_backpressure_hardening(errors: list[str]) -> None:
             if term not in pipe_peer_text:
                 errors.append(f"src/app/resident/pipe_peer.rs missing trusted browser parent provenance term {term}")
         if "env::var_os" in pipe_peer_text or "TRUSTED_PROGRAM_FILES_ENV_VARS" in pipe_peer_text:
-            errors.append(
-                "src/app/resident/pipe_peer.rs must not trust inherited environment for browser parent roots"
-            )
+            errors.append("src/app/resident/pipe_peer.rs must not trust inherited environment for browser parent roots")
         if "file_name()" in pipe_peer_text and "is_under_trusted_root" not in pipe_peer_text:
-            errors.append(
-                "src/app/resident/pipe_peer.rs must not authorize browser parents by basename only"
-            )
+            errors.append("src/app/resident/pipe_peer.rs must not authorize browser parents by basename only")
     elif resident_pipe.exists():
         errors.append("src/app/resident/pipe_windows.rs requires src/app/resident/pipe_peer.rs provenance policy")
 
@@ -786,7 +794,9 @@ def check_pipe_auth_and_backpressure_hardening(errors: list[str]) -> None:
             "Get-Sha256Hex",
         ):
             if term not in windows_smoke_text:
-                errors.append(f"tooling/release/windows/smoke/windows-smoke.ps1 missing dev-local browser trust term {term}")
+                errors.append(
+                    f"tooling/release/windows/smoke/windows-smoke.ps1 missing dev-local browser trust term {term}"
+                )
 
     if session_handshake.exists():
         duplex_text = read(session_handshake)
@@ -805,9 +815,13 @@ def check_pipe_auth_and_backpressure_hardening(errors: list[str]) -> None:
         read_index = reader_text.find("read_forwarded_payload_with_permit")
         complete_index = reader_text.find("complete_forwarded_message()")
         if enqueue_index < 0 or read_index < 0 or enqueue_index > read_index:
-            errors.append("src/app/bridge/session/duplex/reader.rs must acquire backpressure permit before payload read")
+            errors.append(
+                "src/app/bridge/session/duplex/reader.rs must acquire backpressure permit before payload read"
+            )
         if complete_index < 0:
-            errors.append("src/app/bridge/session/duplex/reader.rs must release backpressure permit after forwarded message handling")
+            errors.append(
+                "src/app/bridge/session/duplex/reader.rs must release backpressure permit after forwarded message handling"
+            )
 
 
 def check_collect_diagnostics_bundle_contract(errors: list[str]) -> None:
@@ -826,10 +840,7 @@ def check_collect_diagnostics_bundle_contract(errors: list[str]) -> None:
     bundle_text = read(DIAGNOSTICS_BUNDLE)
     if "bundle-planned" in host_text or "bundle-planned" in support_text:
         errors.append("--collect-diagnostics must write a real bundle, not return bundle-planned")
-    if (
-        "write_collect_diagnostics_json" not in host_text
-        or "write_runtime_bundle" not in support_text
-    ):
+    if "write_collect_diagnostics_json" not in host_text or "write_runtime_bundle" not in support_text:
         errors.append("--collect-diagnostics must call the diagnostics bundle writer")
 
     required_exclusions = [
@@ -840,10 +851,7 @@ def check_collect_diagnostics_bundle_contract(errors: list[str]) -> None:
     ]
     missing_exclusions = [term for term in required_exclusions if term not in bundle_text]
     if missing_exclusions:
-        errors.append(
-            "diagnostics bundle must exclude sensitive entry categories: "
-            + ", ".join(missing_exclusions)
-        )
+        errors.append("diagnostics bundle must exclude sensitive entry categories: " + ", ".join(missing_exclusions))
 
 
 def check_operation_failure_error_taxonomy(errors: list[str]) -> None:
@@ -891,6 +899,10 @@ def assert_contains(values: list[str], needle: str) -> None:
 
 
 def run_self_tests() -> int:
+    fixture = {"src/tray/desktop/model/tests.rs": {"serde_json::from_value"}}
+    assert fixture_pattern_allowed("src/tray/desktop/model/tests.rs", r"\bserde_json::from_value\b", fixture)
+    assert not fixture_pattern_allowed("src/tray/desktop/model.rs", r"\bserde_json::from_value\b", fixture)
+    assert not fixture_pattern_allowed("src/tray/desktop/model/tests.rs", r"\bstd::fs::read\b", fixture)
     if proof_reference_path("src/telemetry/tests/hook_policy.rs covers hooks") != (
         "src/telemetry/tests/hook_policy.rs"
     ):
@@ -1125,6 +1137,28 @@ def run_self_tests() -> int:
         assert_contains(silent_failure_errors, "src/app/resident/transfer.rs")
         assert_contains(silent_failure_errors, "src/telemetry/runtime.rs")
 
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        path = root / "src/telemetry/windows/keyboard_hook.rs"
+        write_selftest_file(path, "fn observe() { from_observed_keys(LLKHF_ALTDOWN); }")
+        assert not keyboard_modifier_source_errors(root)
+        write_selftest_file(path, "fn observe() { GetAsyncKeyState(0x11); from_observed_keys(LLKHF_ALTDOWN); }")
+        assert_contains(keyboard_modifier_source_errors(root), "asynchronous key-state query")
+        write_selftest_file(path, "fn observe() {}")
+        assert_contains(keyboard_modifier_source_errors(root), "accepted transitions")
+
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        path = root / "tooling/release/windows/smoke/windows-smoke.ps1"
+        valid = "Start-Process $installedExe\nAssert-PipeSecretProvisioned $installDir (Get-InstallId $Channel)"
+        write_selftest_file(path, valid)
+        assert not smoke_credential_owner_errors(root)
+        for primitive in ("Provision-PipeSecret", "ProtectedData", "RandomNumberGenerator"):
+            write_selftest_file(path, valid + "\n" + primitive)
+            assert_contains(smoke_credential_owner_errors(root), "preserve pipe credentials")
+        write_selftest_file(path, "Start-Process $installedExe")
+        assert_contains(smoke_credential_owner_errors(root), "verify the installed owner's pipe credential")
+
     print("OK security guardrail self-tests")
     return 0
 
@@ -1136,6 +1170,8 @@ def main() -> int:
     check_required_security_docs(errors)
     check_pipe_secret_auth_algorithm_drift(errors)
     check_forbidden_runtime_patterns(errors)
+    errors.extend(smoke_credential_owner_errors())
+    errors.extend(keyboard_modifier_source_errors())
     check_sensitive_logging_markers(errors)
     check_audit11_raw_dpapi_does_not_expand_allowlist(errors)
     check_audit11_dpapi_owner_invariants(errors)

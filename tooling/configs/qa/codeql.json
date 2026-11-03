@@ -1,0 +1,12 @@
+{
+  "name": "Sniptale release analysis",
+  "paths-ignore": [
+    ".tmp/**",
+    ".artifacts/**",
+    "target/**",
+    "LICENSES/**",
+    ".git/**",
+    "ui/node_modules/**",
+    "ui/dist/**"
+  ]
+}

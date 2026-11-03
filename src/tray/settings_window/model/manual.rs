@@ -1,42 +1,55 @@
 //! Staged Manual settings mutations and local validation feedback.
 
-use super::*;
+use super::{
+    AudioSourceSupport, SettingsMicrophoneOption, SettingsWindowFeedback, SettingsWindowModel,
+};
+#[cfg(test)]
+use super::{LocalProfileDraft, ManualProfileDraft, SettingsMicrophoneSelection};
+#[cfg(test)]
 use crate::settings::{
     ManualAudioSource, ManualFps, ManualHardwarePreference, ManualHotkeyAction, ManualHotkeyChord,
     ManualHotkeyUpdateError, ManualVideoQuality,
 };
 
 impl SettingsWindowModel {
+    #[cfg(test)]
     pub(crate) fn set_screenshot_include_cursor(&mut self, include_cursor: bool) {
         self.with_manual(|manual| manual.set_screenshot_include_cursor(include_cursor));
     }
 
+    #[cfg(test)]
     pub(crate) fn set_video_quality(&mut self, value: ManualVideoQuality) {
         self.with_manual(|manual| manual.set_video_quality(value));
     }
 
+    #[cfg(test)]
     pub(crate) fn set_video_fps(&mut self, value: ManualFps) {
         self.with_manual(|manual| manual.set_video_fps(value));
     }
 
+    #[cfg(test)]
     pub(crate) fn set_video_bitrate(&mut self, value: Option<u16>) {
         self.with_manual(|manual| manual.set_video_bitrate_override(value));
     }
 
+    #[cfg(test)]
     pub(crate) fn set_video_hardware(&mut self, value: ManualHardwarePreference) {
         self.with_manual(|manual| manual.set_video_hardware_preference(value));
     }
 
+    #[cfg(test)]
     pub(crate) fn toggle_video_cursor(&mut self) {
         if let Some(view) = self.manual_view() {
             self.with_manual(|manual| manual.set_video_include_cursor(!view.video_include_cursor));
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn set_video_duration(&mut self, value: u32) {
         self.with_manual(|manual| manual.set_video_max_duration_seconds(value));
     }
 
+    #[cfg(test)]
     pub(crate) fn set_audio_source(&mut self, value: ManualAudioSource) {
         if self.audio_source_available(value) {
             self.with_manual(|manual| manual.set_audio_source_mode(value));
@@ -45,14 +58,17 @@ impl SettingsWindowModel {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn set_microphone_device_id(&mut self, value: Option<String>) {
         self.with_manual(|manual| manual.set_microphone_device_id(value));
     }
 
+    #[cfg(test)]
     pub(crate) fn set_audio_bitrate(&mut self, value: u16) {
         self.with_manual(|manual| manual.set_audio_bitrate_kbps(value));
     }
 
+    #[cfg(test)]
     pub(crate) fn set_hotkey(
         &mut self,
         action: ManualHotkeyAction,
@@ -76,6 +92,7 @@ impl SettingsWindowModel {
         };
     }
 
+    #[cfg(test)]
     pub(crate) fn cancel_hotkey_edit(&mut self, action: ManualHotkeyAction) {
         if self
             .hotkey_conflict
@@ -100,15 +117,18 @@ impl SettingsWindowModel {
         };
         self.microphones = vec![SettingsMicrophoneOption {
             id: None,
-            label: "System default".to_owned(),
+            label: String::new(),
+            is_default: false,
+            missing: false,
             available: summary.supports_microphone,
         }];
         self.microphones
             .extend(summary.microphone_devices.into_iter().map(|device| {
-                let label = microphone_label(&device);
                 SettingsMicrophoneOption {
                     id: Some(device.id),
-                    label,
+                    label: device.label,
+                    is_default: device.is_default,
+                    missing: false,
                     available: device.available,
                 }
             }));
@@ -120,7 +140,9 @@ impl SettingsWindowModel {
         {
             self.microphones.push(SettingsMicrophoneOption {
                 id: Some(selected),
-                label: "Previously selected microphone (unavailable)".to_owned(),
+                label: String::new(),
+                is_default: false,
+                missing: true,
                 available: false,
             });
         }
@@ -146,6 +168,7 @@ impl SettingsWindowModel {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn select_microphone(&mut self, selection: SettingsMicrophoneSelection) {
         let id = match selection {
             SettingsMicrophoneSelection::SystemDefault => None,
@@ -163,19 +186,12 @@ impl SettingsWindowModel {
         }
     }
 
+    #[cfg(test)]
     fn with_manual(&mut self, mutate: impl FnOnce(&mut ManualProfileDraft)) {
         if let Some(manual) = self.draft.as_mut().and_then(LocalProfileDraft::manual_mut) {
             mutate(manual);
             self.feedback = None;
         }
-    }
-}
-
-fn microphone_label(device: &crate::audio::MicrophoneDeviceDescriptor) -> String {
-    match (device.available, device.is_default) {
-        (false, _) => format!("{} (unavailable)", device.label),
-        (true, true) => format!("{} (default)", device.label),
-        (true, false) => device.label.clone(),
     }
 }
 

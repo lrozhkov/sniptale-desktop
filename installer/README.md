@@ -1,6 +1,6 @@
 # Sniptale Desktop installer
 
-`installer/wix/SniptaleNativeAgent.wxs` is the parameterized per-user WiX v4 package. The supported entrypoint is `tooling/qa/wrappers/package-windows.sh`; direct WiX calls are implementation details checked by release guardrails.
+`installer/wix/SniptaleNativeAgent.wxs` is the parameterized per-user WiX package. The supported entrypoint is `tooling/qa/wrappers/package-windows.sh`. Direct WiX calls are implementation details checked by release guardrails.
 
 ## Inputs
 

@@ -1,19 +1,14 @@
 //! Recording lifecycle progress message cadence bridge.
 
 use super::messages::recording_progress_event;
-#[cfg(test)]
 use super::{RecordingLifecycleService, messages::progress_status};
 use crate::recording::service_contract::RecordingCommandEvent;
 
 use super::super::progress::RecordingProgressSnapshot;
-#[cfg(test)]
 use super::super::runtime::{RecordingRuntime, RecordingRuntimeError};
-#[cfg(test)]
 use super::super::session::RecordingControl as SessionRecordingControl;
-#[cfg(test)]
 use crate::telemetry::RecordingTelemetrySource;
 
-#[cfg(test)]
 impl<R, T> RecordingLifecycleService<R, T>
 where
     R: RecordingRuntime,
@@ -21,7 +16,6 @@ where
 {
     pub(crate) fn progress_tick(
         &mut self,
-        _controller_lease_id: &str,
         observed_epoch_ms: u64,
     ) -> Result<Vec<RecordingCommandEvent>, RecordingRuntimeError> {
         let Some(status) = progress_status(self.session.state()) else {

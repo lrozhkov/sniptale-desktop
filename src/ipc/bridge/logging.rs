@@ -42,15 +42,37 @@ pub(super) const fn bridge_error_forward_phase(error: &BridgeForwardError) -> &'
         | BridgeForwardError::AgentFrame(_) => "browser-to-agent-forward-error",
         BridgeForwardError::AgentProtocol(_)
         | BridgeForwardError::AgentResponseHeader(_)
-        | BridgeForwardError::AgentResponseMissing => "agent-to-browser-forward-error",
+        | BridgeForwardError::AgentResponseMissing
+        | BridgeForwardError::AttachmentRead => "agent-to-browser-forward-error",
         BridgeForwardError::ForwardThread => "bridge-forward-thread-error",
     }
 }
 
 pub(super) const fn wire_message_type(message: &WireMessage) -> &'static str {
     match message {
+        WireMessage::ExtensionRecordingAttachmentManifestRequest(_) => {
+            "extension.recording.attachment.manifest.request"
+        }
+        WireMessage::AppRecordingAttachmentManifest(_) => "app.recording.attachment.manifest",
+        WireMessage::ExtensionRecordingAttachmentChunkRequest(_) => {
+            "extension.recording.attachment.chunk.request"
+        }
+        WireMessage::AppRecordingAttachmentChunk(_) => "app.recording.attachment.chunk",
+        WireMessage::ExtensionRecordingAttachmentAck(_) => "extension.recording.attachment.ack",
+        WireMessage::AppRecordingAttachmentAvailable(_) => "app.recording.attachment.available",
+        WireMessage::ExtensionRecordingEventsManifestRequest(_) => {
+            "extension.recording.events.manifest.request"
+        }
+        WireMessage::AppRecordingEventsManifest(_) => "app.recording.events.manifest",
+        WireMessage::ExtensionRecordingEventsChunkRequest(_) => {
+            "extension.recording.events.chunk.request"
+        }
+        WireMessage::AppRecordingEventsChunk(_) => "app.recording.events.chunk",
+        WireMessage::ExtensionRecordingEventsAck(_) => "extension.recording.events.ack",
+        WireMessage::AppRecordingEventsAvailable(_) => "app.recording.events.available",
         WireMessage::ExtensionHello(_) => "extension.hello",
         WireMessage::AppHello(_) => "app.hello",
+        WireMessage::AppConnectionClosed(_) => "app.connection.closed",
         WireMessage::ExtensionControllerAcquire(_) => "extension.controller.acquire",
         WireMessage::AppControllerLease(_) => "app.controller.lease",
         WireMessage::ExtensionSettingsSync(_) => "extension.settings.sync",
@@ -89,6 +111,7 @@ fn error_code(error: &BridgeForwardError) -> &'static str {
         BridgeForwardError::AgentProtocol(_) => "agent-protocol",
         BridgeForwardError::AgentResponseHeader(_) => "agent-response-header",
         BridgeForwardError::AgentResponseMissing => "agent-response-missing",
+        BridgeForwardError::AttachmentRead => "attachment-read",
         BridgeForwardError::ForwardThread => "forward-thread",
     }
 }

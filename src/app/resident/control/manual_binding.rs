@@ -4,7 +4,7 @@ use crate::{
     assets::{AssetFormat, AssetJob, prepare_manual_asset_job},
     protocol::{DeliveryRoute, NativeRecordingSource, OperationAuthority, VideoMode},
     recording::{RecordingDeliverySession, RecordingStartPolicy, RecordingStartRequest},
-    settings::{ActiveSettings, ModeEpoch, OperatingMode},
+    settings::{ActiveSettings, ModeEpoch},
     transfer::identity::derived_media_id,
 };
 
@@ -66,7 +66,11 @@ pub(crate) fn bind_manual_recording(
         request,
         RecordingStartPolicy {
             max_duration_ms: preferences.max_duration_ms,
-            telemetry: crate::telemetry::RecordingTelemetryPolicy::default(),
+            telemetry: crate::telemetry::RecordingTelemetryPolicy {
+                collect_cursor: preferences.collect_pointer_events,
+                collect_clicks: preferences.collect_pointer_events,
+                ..crate::telemetry::RecordingTelemetryPolicy::default()
+            },
         },
     ))
 }
@@ -86,7 +90,7 @@ pub(crate) fn bind_manual_operation(
     let epoch = settings
         .epoch()
         .map_err(|_| ManualOperationBindError::ModeUnavailable)?;
-    if epoch.stable_mode() != Some(OperatingMode::Manual) {
+    if epoch.stable_mode().is_none() {
         return Err(ManualOperationBindError::ModeUnavailable);
     }
     let profile = settings
@@ -109,12 +113,19 @@ pub(crate) fn bind_manual_operation(
         destination.root,
     )
     .map_err(|_| ManualOperationBindError::DestinationUnavailable)?;
+    let destinations = settings
+        .browser_targets()
+        .map_err(|_| ManualOperationBindError::DestinationUnavailable)?;
     Ok(ManualOperationBinding {
         epoch,
         authority: OperationAuthority::Manual {
             profile_revision: profile.revision().to_string(),
         },
-        delivery_route: DeliveryRoute::LocalAsset { asset_job_id },
+        delivery_route: DeliveryRoute::DesktopDelivery {
+            asset_job_id,
+            target_id: destinations.default_target_id().map(str::to_owned),
+            ask_after_capture: destinations.ask_after_capture(),
+        },
         job,
     })
 }
@@ -156,7 +167,11 @@ mod tests {
         ));
         assert!(matches!(
             binding.delivery_route,
-            DeliveryRoute::LocalAsset { .. }
+            DeliveryRoute::DesktopDelivery {
+                target_id: None,
+                ask_after_capture: false,
+                ..
+            }
         ));
         assert_eq!(binding.epoch.generation(), 2);
         assert!(matches!(
@@ -167,14 +182,14 @@ mod tests {
     }
 
     #[test]
-    fn extension_mode_cannot_create_a_local_asset_binding() -> Result<(), Box<dyn std::error::Error>>
-    {
+    fn missing_destination_cannot_create_a_local_asset_binding()
+    -> Result<(), Box<dyn std::error::Error>> {
         let profile =
             ensure_local_profile_from_path(None).map_err(|_| std::io::Error::other("profile"))?;
         let settings = ActiveSettings::from_profile(&profile);
         assert!(matches!(
             bind_manual_operation(&settings, "operation-1", AssetFormat::Png),
-            Err(ManualOperationBindError::ModeUnavailable)
+            Err(ManualOperationBindError::DestinationUnavailable)
         ));
         Ok(())
     }

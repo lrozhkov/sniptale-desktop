@@ -19,7 +19,12 @@ from system import download_https, validate_resources
 from limits import directory_allocated_bytes, directory_bytes
 
 HOST_PACKAGES = (
-    "qemu-system-x86", "qemu-utils", "ovmf", "swtpm", "swtpm-tools", "genisoimage",
+    "qemu-system-x86",
+    "qemu-utils",
+    "ovmf",
+    "swtpm",
+    "swtpm-tools",
+    "genisoimage",
 )
 HOST_COMMANDS = ("ssh", "scp", "ssh-keygen", "tar", "sha256sum")
 
@@ -36,7 +41,9 @@ class Check:
 
 
 def _host_tool(paths: LabPaths, name: str) -> str | None:
-    return shutil.which(name) or (str(paths.cache / f"host-tools/bin/{name}") if (paths.cache / f"host-tools/bin/{name}").exists() else None)
+    return shutil.which(name) or (
+        str(paths.cache / f"host-tools/bin/{name}") if (paths.cache / f"host-tools/bin/{name}").exists() else None
+    )
 
 
 def _port_available(port: int) -> bool:
@@ -71,7 +78,9 @@ def doctor(paths: LabPaths, config: LabConfig) -> list[Check]:
         Check("kvm-access", kvm_passed, kvm_detail),
     ]
     for command in HOST_COMMANDS:
-        checks.append(Check(f"command:{command}", shutil.which(command) is not None, shutil.which(command) or "missing"))
+        checks.append(
+            Check(f"command:{command}", shutil.which(command) is not None, shutil.which(command) or "missing")
+        )
     for command in ("qemu-system-x86_64", "qemu-img", "genisoimage"):
         value = _host_tool(paths, command)
         checks.append(Check(f"command:{command}", value is not None, value or "missing"))
@@ -81,39 +90,65 @@ def doctor(paths: LabPaths, config: LabConfig) -> list[Check]:
             min_free_gib=config.limits.min_free_gib,
             min_memory_mib=config.limits.min_available_memory_mib,
         )
-        checks.append(Check("resources", True, f"{resources['free_disk_gib']} GiB free, {resources['available_memory_mib']} MiB available RAM"))
+        checks.append(
+            Check(
+                "resources",
+                True,
+                f"{resources['free_disk_gib']} GiB free, {resources['available_memory_mib']} MiB available RAM",
+            )
+        )
     except LabError as exc:
         checks.append(Check("resources", False, str(exc)))
-    cache_gib = directory_bytes(paths.cache) / (1024 ** 3)
-    checks.append(Check(
-        "cache-limit",
-        cache_gib <= config.limits.max_cache_gib,
-        f"{cache_gib:.2f} GiB of {config.limits.max_cache_gib} GiB",
-    ))
-    temporary_gib = directory_allocated_bytes(paths.lab) / (1024 ** 3)
-    persistent_gib = directory_allocated_bytes(paths.artifacts) / (1024 ** 3)
-    checks.extend((
+    cache_gib = directory_bytes(paths.cache) / (1024**3)
+    checks.append(
         Check(
-            "temporary-limit", temporary_gib <= config.limits.max_temporary_gib,
-            f"{temporary_gib:.2f} GiB of {config.limits.max_temporary_gib} GiB",
-        ),
-        Check(
-            "persistent-limit", persistent_gib <= config.limits.max_persistent_gib,
-            f"{persistent_gib:.2f} GiB of {config.limits.max_persistent_gib} GiB",
-        ),
-    ))
+            "cache-limit",
+            cache_gib <= config.limits.max_cache_gib,
+            f"{cache_gib:.2f} GiB of {config.limits.max_cache_gib} GiB",
+        )
+    )
+    temporary_gib = directory_allocated_bytes(paths.lab) / (1024**3)
+    persistent_gib = directory_allocated_bytes(paths.artifacts) / (1024**3)
+    checks.extend(
+        (
+            Check(
+                "temporary-limit",
+                temporary_gib <= config.limits.max_temporary_gib,
+                f"{temporary_gib:.2f} GiB of {config.limits.max_temporary_gib} GiB",
+            ),
+            Check(
+                "persistent-limit",
+                persistent_gib <= config.limits.max_persistent_gib,
+                f"{persistent_gib:.2f} GiB of {config.limits.max_persistent_gib} GiB",
+            ),
+        )
+    )
     for lane in config.lanes.values():
         checks.append(Check(f"loopback:ssh:{lane.name}", _port_available(lane.ssh_port), f"127.0.0.1:{lane.ssh_port}"))
-        checks.append(Check(f"loopback:vnc:{lane.name}", _port_available(5900 + lane.vnc_display), f"127.0.0.1:{5900 + lane.vnc_display}"))
+        checks.append(
+            Check(
+                f"loopback:vnc:{lane.name}",
+                _port_available(5900 + lane.vnc_display),
+                f"127.0.0.1:{5900 + lane.vnc_display}",
+            )
+        )
     return checks
 
 
 def _apt_dependencies(packages: tuple[str, ...]) -> list[str]:
     command = [
-        "apt-cache", "depends", "--recurse", "--no-recommends", "--no-suggests",
-        "--no-conflicts", "--no-breaks", "--no-replaces", "--no-enhances", *packages,
+        "apt-cache",
+        "depends",
+        "--recurse",
+        "--no-recommends",
+        "--no-suggests",
+        "--no-conflicts",
+        "--no-breaks",
+        "--no-replaces",
+        "--no-enhances",
+        *packages,
     ]
-    result = subprocess.run(command, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+    result = subprocess.run(command, text=True, capture_output=True, check=False)
     if result.returncode != 0:
         raise LabError(f"could not resolve host packages: {result.stderr.strip()}")
     names = set(packages)
@@ -126,16 +161,21 @@ def _apt_dependencies(packages: tuple[str, ...]) -> list[str]:
 
 def _installed(package: str) -> bool:
     result = subprocess.run(
-        ["dpkg-query", "-W", "-f=${db:Status-Abbrev}", package], text=True,
-        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, check=False,
+        ["dpkg-query", "-W", "-f=${db:Status-Abbrev}", package],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        check=False,
     )
     return result.returncode == 0 and result.stdout.startswith("ii ")
 
 
 def _download_deb(package: str, destination: Path) -> Path:
     result = subprocess.run(
-        ["apt-get", "--print-uris", "download", package], text=True,
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
+        ["apt-get", "--print-uris", "download", package],
+        text=True,
+        capture_output=True,
+        check=False,
     )
     if result.returncode != 0:
         raise LabError(f"could not resolve official Ubuntu package {package}: {result.stderr.strip()}")
@@ -150,14 +190,14 @@ def _download_deb(package: str, destination: Path) -> Path:
     if repository_path.startswith("ubuntu/"):
         repository_path = repository_path.removeprefix("ubuntu/")
     metadata = subprocess.run(
-        ["apt-cache", "show", package], text=True, stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE, check=False,
+        ["apt-cache", "show", package],
+        text=True,
+        capture_output=True,
+        check=False,
     )
     checksum = ""
     for stanza in metadata.stdout.split("\n\n"):
-        fields = dict(
-            line.split(": ", 1) for line in stanza.splitlines() if ": " in line
-        )
+        fields = dict(line.split(": ", 1) for line in stanza.splitlines() if ": " in line)
         if fields.get("Filename") == repository_path:
             checksum = fields.get("SHA256", "")
             break
@@ -177,10 +217,10 @@ def _write_wrapper(prefix: Path, name: str) -> None:
     wrapper.write_text(
         "#!/usr/bin/env bash\n"
         "set -euo pipefail\n"
-        "PREFIX=\"$(cd -- \"$(dirname -- \"${BASH_SOURCE[0]}\")/..\" && pwd -P)\"\n"
-        "export LD_LIBRARY_PATH=\"$PREFIX/usr/lib/x86_64-linux-gnu:$PREFIX/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH:-}\"\n"
-        "export QEMU_MODULE_DIR=\"$PREFIX/usr/lib/x86_64-linux-gnu/qemu\"\n"
-        f"exec \"$PREFIX/usr/bin/{name}\" {extra}\"$@\"\n",
+        'PREFIX="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"\n'
+        'export LD_LIBRARY_PATH="$PREFIX/usr/lib/x86_64-linux-gnu:$PREFIX/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH:-}"\n'
+        'export QEMU_MODULE_DIR="$PREFIX/usr/lib/x86_64-linux-gnu/qemu"\n'
+        f'exec "$PREFIX/usr/bin/{name}" {extra}"$@"\n',
         encoding="utf-8",
     )
     wrapper.chmod(0o700)

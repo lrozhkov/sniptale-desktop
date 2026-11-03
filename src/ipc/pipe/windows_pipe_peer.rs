@@ -46,7 +46,7 @@ pub(crate) fn connected_client_identity(handle: HANDLE) -> io::Result<WindowsPip
 fn named_pipe_client_process_id(handle: HANDLE) -> io::Result<u32> {
     let mut process_id = 0_u32;
     // SAFETY: `handle` is a connected named-pipe server handle and `process_id` is a valid out ptr.
-    unsafe { GetNamedPipeClientProcessId(handle, &mut process_id) }
+    unsafe { GetNamedPipeClientProcessId(handle, &raw mut process_id) }
         .map_err(|error| to_io_error(&error))?;
     Ok(process_id)
 }
@@ -54,7 +54,7 @@ fn named_pipe_client_process_id(handle: HANDLE) -> io::Result<u32> {
 fn named_pipe_client_session_id(handle: HANDLE) -> io::Result<u32> {
     let mut session_id = 0_u32;
     // SAFETY: `handle` is a connected named-pipe server handle and `session_id` is a valid out ptr.
-    unsafe { GetNamedPipeClientSessionId(handle, &mut session_id) }
+    unsafe { GetNamedPipeClientSessionId(handle, &raw mut session_id) }
         .map_err(|error| to_io_error(&error))?;
     Ok(session_id)
 }
@@ -89,13 +89,13 @@ fn parent_process_id_from_snapshot(snapshot: HANDLE, process_id: u32) -> io::Res
     };
     // SAFETY: `entry` points to writable PROCESSENTRY32W storage whose `dwSize` is initialized as
     // required by ToolHelp before the enumeration call.
-    unsafe { Process32FirstW(snapshot, &mut entry) }.map_err(|error| to_io_error(&error))?;
+    unsafe { Process32FirstW(snapshot, &raw mut entry) }.map_err(|error| to_io_error(&error))?;
     loop {
         if entry.th32ProcessID == process_id {
             return Ok(entry.th32ParentProcessID);
         }
         // SAFETY: `entry` remains valid writable storage for the next ToolHelp enumeration result.
-        if unsafe { Process32NextW(snapshot, &mut entry) }.is_err() {
+        if unsafe { Process32NextW(snapshot, &raw mut entry) }.is_err() {
             return Err(io::Error::new(
                 io::ErrorKind::NotFound,
                 "pipe peer parent process not found",
@@ -115,7 +115,7 @@ fn query_process_image_path(process: HANDLE) -> io::Result<String> {
             process,
             PROCESS_NAME_WIN32,
             PWSTR(buffer.as_mut_ptr()),
-            &mut len,
+            &raw mut len,
         )
     }
     .map_err(|error| to_io_error(&error))?;

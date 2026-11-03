@@ -5,9 +5,14 @@
 use std::{ffi::OsStr, io, os::windows::ffi::OsStrExt};
 
 use windows::{
-    Win32::UI::WindowsAndMessaging::{
-        AppendMenuW, CreatePopupMenu, DestroyMenu, HMENU, MENU_ITEM_FLAGS, MF_CHECKED, MF_DISABLED,
-        MF_GRAYED, MF_STRING, MFT_RADIOCHECK,
+    Win32::{
+        Foundation::{HWND, LPARAM, POINT, WPARAM},
+        Graphics::Dwm::DwmFlush,
+        UI::WindowsAndMessaging::{
+            AppendMenuW, CreatePopupMenu, DestroyMenu, HMENU, MENU_ITEM_FLAGS, MF_CHECKED,
+            MF_DISABLED, MF_GRAYED, MF_STRING, MFT_RADIOCHECK, PostMessageW, SetForegroundWindow,
+            TPM_RETURNCMD, TPM_RIGHTBUTTON, TrackPopupMenu, WM_NULL,
+        },
     },
     core::PCWSTR,
 };
@@ -31,15 +36,34 @@ impl WindowsTrayMenu {
         Ok(menu)
     }
 
-    pub(crate) const fn handle(&self) -> HMENU {
-        self.handle
+    pub(crate) fn track_at(&self, owner: HWND, point: POINT) -> io::Result<Option<u32>> {
+        // SAFETY: callers supply their owned root after a user menu gesture, matching the tray handoff.
+        let _ = unsafe { SetForegroundWindow(owner) };
+        // SAFETY: this menu remains owned throughout the synchronous nested loop; Windows retains neither borrowed handle.
+        let command = unsafe {
+            TrackPopupMenu(
+                self.handle,
+                TPM_RETURNCMD | TPM_RIGHTBUTTON,
+                point.x,
+                point.y,
+                Some(0),
+                owner,
+                None,
+            )
+        };
+        // SAFETY: this documented benign message completes popup task switching. A closed owner rejects it without a command effect.
+        unsafe { PostMessageW(Some(owner), WM_NULL, WPARAM(0), LPARAM(0)) }
+            .map_err(|error| to_io_error(&error))?;
+        // SAFETY: wait for dismissal to reach DWM before a selected command can start capture or recording.
+        unsafe { DwmFlush() }.map_err(|error| to_io_error(&error))?;
+        Ok((command.0 != 0).then_some(command.0.cast_unsigned()))
     }
 
     fn append_entries(&self, parent: HMENU, entries: &[TrayMenuRenderEntry]) -> io::Result<()> {
         for entry in entries {
             match entry {
-                TrayMenuRenderEntry::Item(item) => self.append_item(parent, item)?,
-                TrayMenuRenderEntry::Separator => self.append_separator(parent)?,
+                TrayMenuRenderEntry::Item(item) => Self::append_item(parent, item)?,
+                TrayMenuRenderEntry::Separator => Self::append_separator(parent)?,
                 TrayMenuRenderEntry::Submenu {
                     label,
                     enabled,
@@ -51,7 +75,7 @@ impl WindowsTrayMenu {
         Ok(())
     }
 
-    fn append_item(&self, parent: HMENU, item: &TrayMenuRenderItem) -> io::Result<()> {
+    fn append_item(parent: HMENU, item: &TrayMenuRenderItem) -> io::Result<()> {
         let label = menu_label(item);
         let wide = wide_null(&label);
         let flags = menu_flags(item);
@@ -67,7 +91,7 @@ impl WindowsTrayMenu {
             .map_err(|error| to_io_error(&error))
     }
 
-    fn append_separator(&self, parent: HMENU) -> io::Result<()> {
+    fn append_separator(parent: HMENU) -> io::Result<()> {
         // SAFETY: `parent` is an owned popup menu handle in this menu tree.
         unsafe {
             AppendMenuW(

@@ -66,7 +66,10 @@ fn structured_log_record_serializes_required_fields_and_redacts_message()
     assert_eq!(serialized.level, "warn");
     assert_eq!(serialized.target, "sniptale_native_agent::ipc");
     assert_eq!(serialized.app_version, "0.1.0");
-    assert_eq!(serialized.protocol_version, 1);
+    assert_eq!(
+        serialized.protocol_version,
+        crate::protocol::PROTOCOL_VERSION
+    );
     assert_eq!(serialized.settings_schema_version, 1);
     assert_eq!(serialized.app_cache_schema_version, 1);
     assert_eq!(serialized.platform.kind, "windows");
@@ -130,7 +133,7 @@ fn structured_log_record_redacts_urls_and_media_bytes() -> Result<(), Box<dyn Er
 fn context() -> StructuredLogContext {
     StructuredLogContext {
         app_version: "0.1.0".to_owned(),
-        protocol_version: 1,
+        protocol_version: 2,
         settings_schema_version: 1,
         app_cache_schema_version: 1,
         platform_kind: "windows".to_owned(),

@@ -6,11 +6,14 @@ use std::{
     time::Duration,
 };
 
+#[cfg(test)]
+use super::BridgeForwardLogSink;
+#[cfg(test)]
+use super::forwarding::forward_agent_response_batches;
+
 use super::{
-    AgentPipeReadShutdown, BridgeForwardError, BridgeForwardLogSink,
-    forwarding::{forward_agent_response_batches, forward_browser_payloads_to_agent},
-    logging::log_bridge_error,
-    shutdown::is_expected_shutdown_forward_error,
+    AgentPipeReadShutdown, BridgeForwardError, forwarding::forward_browser_payloads_to_agent,
+    logging::log_bridge_error, shutdown::is_expected_shutdown_forward_error,
 };
 
 // Windows process scheduling can delay a resident response after Native Messaging closes stdin.
@@ -51,12 +54,12 @@ where
     })
 }
 
-#[cfg(any(windows, test))]
+#[cfg(test)]
 pub(crate) fn forward_native_host_stream_duplex_with_shutdown<BR, BW, AR, AW, S>(
     browser_reader: &mut BR,
     browser_writer: &mut BW,
-    mut agent_reader: AR,
-    mut agent_writer: AW,
+    agent_reader: AR,
+    agent_writer: AW,
     shutdown: S,
     log: Option<&BridgeForwardLogSink>,
 ) -> Result<(), BridgeForwardError>
@@ -67,6 +70,33 @@ where
     AW: Write + Send,
     S: AgentPipeReadShutdown,
 {
+    forward_native_host_stream_duplex_with_runtime(
+        browser_reader,
+        browser_writer,
+        agent_reader,
+        agent_writer,
+        shutdown,
+        super::BridgeForwardRuntime::without_attachments(log.cloned()),
+    )
+}
+
+pub(crate) fn forward_native_host_stream_duplex_with_runtime<BR, BW, AR, AW, S>(
+    browser_reader: &mut BR,
+    browser_writer: &mut BW,
+    mut agent_reader: AR,
+    mut agent_writer: AW,
+    shutdown: S,
+    runtime: super::BridgeForwardRuntime,
+) -> Result<(), BridgeForwardError>
+where
+    BR: Read + Send,
+    BW: Write + Send,
+    AR: Read + Send,
+    AW: Write + Send,
+    S: AgentPipeReadShutdown,
+{
+    let log = runtime.log.as_ref();
+    let mut attachment_reader = runtime.attachment_reader;
     thread::scope(|scope| {
         let browser_log = log.cloned();
         let browser_to_agent = scope.spawn(move || {
@@ -87,7 +117,12 @@ where
         });
         let agent_log = log.cloned();
         let agent_to_browser = scope.spawn(move || {
-            forward_agent_response_batches(&mut agent_reader, browser_writer, agent_log.as_ref())
+            super::forwarding::forward_agent_response_batches_with_attachment_reader(
+                &mut agent_reader,
+                browser_writer,
+                agent_log.as_ref(),
+                attachment_reader.as_mut(),
+            )
         });
 
         let browser_result = browser_to_agent

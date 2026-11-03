@@ -67,6 +67,7 @@ pub(crate) struct ExtensionScreenshotAckMessage {
     pub(crate) controller_lease_id: String,
     pub(crate) capture_id: String,
     pub(crate) asset_id: String,
+    pub(crate) receipt: super::receipt::DurableMediaReceipt,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]

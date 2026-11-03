@@ -1,6 +1,8 @@
 # Testing policy
 
-Tests prove owner behavior and trust-boundary failure modes. Exact test inventory, scenario size limits, property markers, performance markers, and coverage floors are machine-owned by `tooling/qa/rules/verify_test_policy.py` and `tooling/qa/rules/coverage-floor.py`.
+Tests prove owner behavior and trust-boundary failure modes. Exact test inventory, property markers, performance markers, and coverage floors are machine-owned by `tooling/qa/rules/verify_test_policy.py` and `tooling/qa/rules/coverage-floor.py`.
+
+File and function sizes, including the exact existing test-file exceptions, follow [implementation rules](implementation-rules.md). Native Clippy boundary probes and QA negative tests verify threshold edges, warning propagation, exact exceptions and stale expectations.
 
 ## Contract tests
 
@@ -20,7 +22,7 @@ Recording, screenshot, transfer, controller lease, settings mode, asset publicat
 
 ## Transfer integrity tests
 
-Transfer proof covers total bytes, raw and base64 chunk limits, complete JSON budget, indexes, per-chunk and whole-file SHA-256, protected read failures, finalized-only recovery, acknowledgement, rejection, expiry, and cleanup.
+Transfer proof covers total bytes, raw and base64 chunk limits, complete JSON budget, indexes, and per-chunk and whole-file SHA-256. It also covers protected read failures, finalized-only recovery, acknowledgement, rejection, expiry, and cleanup.
 
 ## Diagnostics redaction tests
 
@@ -30,6 +32,8 @@ The corpus at `contracts/security/redaction-corpus.json` is checked against logs
 
 `coverage-floor.py` is the only owner of numeric aggregate and owner floors. Floors ratchet upward and are not copied into documentation. Coverage supplements negative proof and never replaces it.
 
+Nextest preserves the complete result matrix and failing-test output in the JUnit report configured by `.config/nextest.toml`. The bounded QA console log is not a complete test-result inventory.
+
 ## Platform proof
 
-Deterministic owner tests run on Linux where possible. Windows-target check/test compilation is required in checkpoint. Privileged API, MSI, Native Messaging registration, tray, DPI, capture, recording, audio, consent, and accessibility behavior uses Windows smoke or isolated desktop E2E evidence when unit tests cannot prove the OS result.
+Deterministic owner tests run on Linux where possible. Windows-target check/test compilation is required in checkpoint. Use Windows smoke or isolated desktop E2E when unit tests cannot prove the OS result. This applies to privileged APIs, MSI, Native Messaging registration, tray, DPI, capture, recording, audio, consent, and accessibility.

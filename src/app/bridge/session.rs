@@ -225,8 +225,14 @@ pub(super) fn write_response_batch(
     for response in responses {
         let response_payload =
             serde_json::to_vec(&response).map_err(AgentPipeSessionError::Json)?;
-        parse_wire_message_with_limit(&response_payload, HOST_TO_EXTENSION_MAX_MESSAGE_BYTES)
-            .map_err(AgentPipeSessionError::Protocol)?;
+        if let Err(error) =
+            parse_wire_message_with_limit(&response_payload, HOST_TO_EXTENSION_MAX_MESSAGE_BYTES)
+            && crate::protocol::trajectory::parse_trajectory_read_grant(&response_payload).is_err()
+            && crate::protocol::recording_events::parse_events_read_grant(&response_payload)
+                .is_err()
+        {
+            return Err(AgentPipeSessionError::Protocol(error));
+        }
         write_payload(pipe, &response_payload, HOST_TO_EXTENSION_MAX_MESSAGE_BYTES)
             .map_err(AgentPipeSessionError::Frame)?;
     }

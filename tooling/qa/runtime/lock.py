@@ -7,6 +7,7 @@ import secrets
 from pathlib import Path
 
 from .storage import atomic_write_json, ensure_private_directory, read_json
+import contextlib
 
 
 LOCK_RELATIVE_PATH = Path(".tmp/qa/locks/blocking.json")
@@ -35,10 +36,8 @@ def _claim(path: Path, value: dict[str, object]) -> bool:
     atomic_write_json(candidate, value)
     try:
         os.link(candidate, path)
-        try:
+        with contextlib.suppress(OSError):
             path.chmod(0o600)
-        except OSError:
-            pass
         return True
     except FileExistsError:
         return False

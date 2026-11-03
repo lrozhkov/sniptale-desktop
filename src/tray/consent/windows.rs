@@ -43,7 +43,7 @@ fn show_connection_consent_prompt(
     let title = wide_null("Sniptale Native Agent");
     let instruction = wide_null("Allow this browser connection?");
     let content = wide_null(&format!(
-        "Extension: {}\r\nLauncher: {} ({}, diagnostic only)\r\n\r\nAllow applies only to this connection in production builds.",
+        "Extension: {}\r\nLauncher: {} ({}, diagnostic only)\r\n\r\nAllow remembers this extension and launcher for this installed app.",
         request.extension_label, request.parent_label, request.parent_category
     ));
     let mut timer = PromptTimerState {
@@ -65,7 +65,8 @@ fn show_connection_consent_prompt(
     let mut button = IDNO.0;
     // SAFETY: config and all referenced UTF-16/timer storage remain alive for the synchronous
     // TaskDialogIndirect call. The callback only accesses lpCallbackData on this same UI thread.
-    let result = unsafe { TaskDialogIndirect(&config, Some(&mut button), None, None) };
+    let result =
+        unsafe { TaskDialogIndirect(&raw const config, Some(&raw mut button), None, None) };
     if result.is_err() {
         ConnectionConsentPromptResult::UiUnavailable
     } else if timer.timed_out {

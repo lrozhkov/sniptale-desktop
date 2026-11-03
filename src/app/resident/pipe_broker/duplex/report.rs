@@ -62,3 +62,22 @@ pub(super) fn join_finished_sessions<T>(
     }
     Ok(())
 }
+
+pub(super) fn record_session_accepted(
+    report: &Arc<Mutex<AgentPipeServerReport>>,
+    log: Option<&super::super::logging::AgentPipeServerLogSink>,
+) -> Result<(), AgentPipeServerError> {
+    let accepted = increment_accepted(report)?;
+    tracing::info!(
+        target: "sniptale_native_agent::resident_pipe",
+        accepted,
+        "resident pipe accepted native-host session"
+    );
+    super::super::logging::log_resident_pipe_event(
+        log,
+        "session-accepted",
+        "resident pipe accepted native-host session",
+        None,
+    );
+    Ok(())
+}

@@ -1,4 +1,5 @@
 """Bounded QMP framing; asynchronous events never replace command replies."""
+
 from __future__ import annotations
 
 import json

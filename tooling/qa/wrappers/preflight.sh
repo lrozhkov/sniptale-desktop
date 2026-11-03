@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
-# shellcheck disable=SC1091
+# shellcheck source=../runtime/lib.sh
 source "$ROOT/tooling/qa/runtime/lib.sh"
 ensure_rust_env
 cd "$ROOT"
@@ -38,8 +38,7 @@ for path in \
   docs/security/threat-model.md \
   docs/tooling/qa.md \
   docs/oss/provenance.md \
-  docs/engineering/testing-policy.md
-do
+  docs/engineering/testing-policy.md; do
   if [[ -f "$path" ]]; then
     printf 'OK %s\n' "$path"
   else

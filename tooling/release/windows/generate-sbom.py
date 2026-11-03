@@ -20,7 +20,16 @@ def spdx_id(value: str) -> str:
 
 def cargo_metadata() -> dict:
     result = subprocess.run(
-        ["cargo", "metadata", "--format-version", "1", "--locked", "--filter-platform", "x86_64-pc-windows-msvc", "--all-features"],
+        [
+            "cargo",
+            "metadata",
+            "--format-version",
+            "1",
+            "--locked",
+            "--filter-platform",
+            "x86_64-pc-windows-msvc",
+            "--all-features",
+        ],
         cwd=ROOT,
         check=True,
         capture_output=True,
@@ -79,8 +88,19 @@ def build_sbom(metadata: dict, legal_manifest: dict, manifest_digest: str, revis
         metadata_by_key.setdefault(package_key(package), []).append(package)
 
     selected: list[tuple[dict, str | None]] = []
+    web_packages: list[dict] = []
     selected_ids: set[str] = set()
     for record in legal_manifest["packages"]:
+        source = record.get("source") or ""
+        if source.startswith(("https://registry.npmjs.org/", "bundled-font:")):
+            web_packages.append(
+                {
+                    **record,
+                    "id": f"web:{source}:{record['name']}@{record['version']}",
+                    "license": record.get("declaredLicense"),
+                }
+            )
+            continue
         key = package_key(record)
         matches = metadata_by_key.get(key, [])
         if len(matches) != 1:
@@ -99,6 +119,11 @@ def build_sbom(metadata: dict, legal_manifest: dict, manifest_digest: str, revis
 
     selected.sort(key=lambda item: package_key(item[0]))
     packages = [package_entry(root)] + [package_entry(package, license_value) for package, license_value in selected]
+    for package in web_packages:
+        entry = package_entry(package)
+        if (package.get("source") or "").startswith("bundled-font:"):
+            entry["downloadLocation"] = "NOASSERTION"
+        packages.append(entry)
     relationships = [
         {
             "spdxElementId": "SPDXRef-DOCUMENT",
@@ -118,6 +143,14 @@ def build_sbom(metadata: dict, legal_manifest: dict, manifest_digest: str, revis
             if dependency_id in packages_by_id:
                 dependency_edges.add((package_spdx_id(package), package_spdx_id(packages_by_id[dependency_id])))
     relationships.extend(
+        {
+            "spdxElementId": package_spdx_id(root),
+            "relationshipType": "CONTAINS",
+            "relatedSpdxElement": package_spdx_id(package),
+        }
+        for package in web_packages
+    )
+    relationships.extend(
         {"spdxElementId": source, "relationshipType": "DEPENDS_ON", "relatedSpdxElement": target}
         for source, target in sorted(dependency_edges)
     )
@@ -125,7 +158,7 @@ def build_sbom(metadata: dict, legal_manifest: dict, manifest_digest: str, revis
         "spdxVersion": "SPDX-2.3",
         "dataLicense": "CC0-1.0",
         "SPDXID": "SPDXRef-DOCUMENT",
-        "name": "sniptale-desktop-windows-runtime-cargo-sbom",
+        "name": "sniptale-desktop-windows-runtime-sbom",
         "documentNamespace": f"https://sniptale.invalid/spdx/sniptale-desktop/{revision}/{manifest_digest}",
         "creationInfo": {
             "created": created,
@@ -138,16 +171,22 @@ def build_sbom(metadata: dict, legal_manifest: dict, manifest_digest: str, revis
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Generate an SPDX SBOM for the collected Windows runtime dependency closure")
+    parser = argparse.ArgumentParser(
+        description="Generate an SPDX SBOM for the collected Windows runtime dependency closure"
+    )
     parser.add_argument("--out", default=".tmp/release/sbom.spdx.json", help="SBOM output path")
-    parser.add_argument("--legal-manifest", default="THIRD_PARTY_DEPENDENCIES.json", help="Tracked dependency legal manifest")
+    parser.add_argument(
+        "--legal-manifest", default="THIRD_PARTY_DEPENDENCIES.json", help="Tracked dependency legal manifest"
+    )
     args = parser.parse_args()
     manifest_path = ROOT / args.legal_manifest
     manifest_bytes = manifest_path.read_bytes()
     legal_manifest = json.loads(manifest_bytes)
     output = ROOT / args.out
     output.parent.mkdir(parents=True, exist_ok=True)
-    sbom = build_sbom(cargo_metadata(), legal_manifest, hashlib.sha256(manifest_bytes).hexdigest(), source_revision(), created_at())
+    sbom = build_sbom(
+        cargo_metadata(), legal_manifest, hashlib.sha256(manifest_bytes).hexdigest(), source_revision(), created_at()
+    )
     output.write_text(json.dumps(sbom, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(f"SBOM written: {output.relative_to(ROOT).as_posix()}")
     return 0

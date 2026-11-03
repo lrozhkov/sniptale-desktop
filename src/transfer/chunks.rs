@@ -150,3 +150,8 @@ fn validate_json_message_len(
         Ok(())
     }
 }
+
+#[cfg(test)]
+pub(crate) fn decode_chunk_for_test(encoded: &str) -> Result<Vec<u8>, base64::DecodeError> {
+    STANDARD.decode(encoded)
+}

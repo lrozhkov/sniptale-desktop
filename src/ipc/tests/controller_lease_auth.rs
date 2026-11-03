@@ -294,3 +294,39 @@ fn release_is_owner_scoped_and_idempotent() -> Result<(), ControllerLeaseError> 
     ));
     Ok(())
 }
+
+#[test]
+fn observer_projection_has_future_expiry_without_granting_or_refreshing_authority()
+-> Result<(), ControllerLeaseError> {
+    let mut book = ControllerLeaseBook::new(100)?;
+    let active = identity("active", "one");
+    let observer = identity("observer", "two");
+    let projection = book.observer_decision(observer.clone(), 10)?;
+    assert_eq!(projection.controller, observer);
+    assert_eq!(projection.status, ControllerLeaseStatus::Rejected);
+    assert_eq!(projection.granted_lease_id, None);
+    assert_eq!(projection.expires_at_epoch_ms, 110);
+    assert_eq!(
+        book.validate(&observer, "anything", 10),
+        Err(ControllerLeaseError::NoActiveLease)
+    );
+    book.acquire(
+        active.clone(),
+        &ControllerAcquireReason::InitialConnect,
+        10,
+        "active-lease",
+    )?;
+    let projection = book.observer_decision(observer.clone(), 90)?;
+    assert_eq!(projection.expires_at_epoch_ms, 190);
+    assert!(book.validate(&active, "active-lease", 100).is_ok());
+    assert_eq!(
+        book.validate(&active, "active-lease", 110),
+        Err(ControllerLeaseError::StaleLease)
+    );
+    assert!(book.validate(&observer, "active-lease", 100).is_err());
+    assert_eq!(
+        book.observer_decision(observer, u64::MAX),
+        Err(ControllerLeaseError::ExpiryOverflow)
+    );
+    Ok(())
+}

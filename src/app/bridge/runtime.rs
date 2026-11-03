@@ -11,8 +11,8 @@ use super::windows_runtime::run_pipe_forwarding_bridge;
 use crate::ipc::PipeSecret;
 #[cfg(all(windows, not(test)))]
 use crate::ipc::{
-    AuthenticatedDuplexAgentPipe, BridgeForwardLogSink, BridgeHello,
-    forward_authenticated_native_host_stream_duplex_with_authenticated_hook,
+    AuthenticatedDuplexAgentPipe, BridgeForwardLogSink, BridgeForwardRuntime, BridgeHello,
+    forward_authenticated_native_host_stream_duplex_with_runtime,
 };
 #[cfg(test)]
 use crate::ipc::{BridgeHello, forward_authenticated_native_host_stream};
@@ -89,13 +89,18 @@ pub(crate) fn run_authenticated_pipe_forwarding_bridge_with_log(
         client_nonce: config.client_nonce.clone(),
     };
     let bridge_log = log.and_then(NativeHostRuntimeLog::bridge_forward_log);
-    forward_authenticated_native_host_stream_duplex_with_authenticated_hook(
+    forward_authenticated_native_host_stream_duplex_with_runtime(
         reader,
         writer,
         agent_pipe,
         &hello,
         &config.secret,
-        bridge_log,
+        BridgeForwardRuntime {
+            log: bridge_log,
+            attachment_reader: Box::new(
+                super::attachments::NativeTrajectoryAttachmentReader::default(),
+            ),
+        },
         || {
             if let Some(log) = log {
                 log.phase("pipe-authenticated", "resident agent pipe authenticated");

@@ -1,4 +1,5 @@
 """Bounded PE import admission for the standalone Windows alpha executable."""
+
 from __future__ import annotations
 
 import re
@@ -8,12 +9,37 @@ from pathlib import Path
 
 MAX_PE_BYTES = 64 * 1024 * 1024
 SYSTEM_DLLS = {
-    "advapi32.dll", "bcrypt.dll", "bcryptprimitives.dll", "combase.dll", "comctl32.dll",
-    "crypt32.dll", "d2d1.dll", "d3d11.dll", "dbghelp.dll", "dwmapi.dll", "dwrite.dll",
-    "gdi32.dll", "kernel32.dll", "mfplat.dll", "mfreadwrite.dll", "msvcrt.dll", "ntdll.dll",
-    "ole32.dll", "oleaut32.dll", "propsys.dll", "rpcrt4.dll", "secur32.dll", "shell32.dll",
-    "ucrtbase.dll", "user32.dll", "userenv.dll", "uxtheme.dll", "version.dll", "winmm.dll",
-    "wintrust.dll", "ws2_32.dll",
+    "advapi32.dll",
+    "bcrypt.dll",
+    "bcryptprimitives.dll",
+    "combase.dll",
+    "comctl32.dll",
+    "crypt32.dll",
+    "d2d1.dll",
+    "d3d11.dll",
+    "dbghelp.dll",
+    "dwmapi.dll",
+    "dwrite.dll",
+    "gdi32.dll",
+    "kernel32.dll",
+    "mfplat.dll",
+    "mfreadwrite.dll",
+    "msvcrt.dll",
+    "ntdll.dll",
+    "ole32.dll",
+    "oleaut32.dll",
+    "propsys.dll",
+    "rpcrt4.dll",
+    "secur32.dll",
+    "shell32.dll",
+    "ucrtbase.dll",
+    "user32.dll",
+    "userenv.dll",
+    "uxtheme.dll",
+    "version.dll",
+    "winmm.dll",
+    "wintrust.dll",
+    "ws2_32.dll",
 }
 
 
@@ -21,7 +47,7 @@ def imports(payload: bytes) -> set[str]:
     def take(offset: int, size: int) -> memoryview:
         if offset < 0 or size < 0 or offset + size > len(payload):
             raise ValueError("truncated PE import structure")
-        return memoryview(payload)[offset:offset + size]
+        return memoryview(payload)[offset : offset + size]
 
     def u16(offset: int) -> int:
         return struct.unpack("<H", take(offset, 2))[0]
@@ -31,12 +57,12 @@ def imports(payload: bytes) -> set[str]:
 
     if len(payload) > MAX_PE_BYTES or take(0, 2) != b"MZ":
         raise ValueError("invalid or oversized PE executable")
-    pe = u32(0x3c)
+    pe = u32(0x3C)
     if take(pe, 4) != b"PE\0\0" or u16(pe + 4) != 0x8664:
         raise ValueError("expected Windows x64 PE executable")
     count, optional_size = u16(pe + 6), u16(pe + 20)
     optional = pe + 24
-    if not 1 <= count <= 96 or optional_size < 128 or u16(optional) != 0x20b or u32(optional + 108) < 2:
+    if not 1 <= count <= 96 or optional_size < 128 or u16(optional) != 0x20B or u32(optional + 108) < 2:
         raise ValueError("invalid PE32+ import headers")
     take(optional, optional_size)
     sections = []

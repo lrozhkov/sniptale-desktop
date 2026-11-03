@@ -41,6 +41,5 @@ def path_terms(rule_id: str) -> dict[str, set[str]]:
 def exact_edges(rule_id: str) -> dict[tuple[str, str, str], str]:
     entry = exception(rule_id)
     return {
-        (edge["path"], edge["owner"], edge["imports"]): entry["rationale"]
-        for edge in entry["exactScope"]["exactEdges"]
+        (edge["path"], edge["owner"], edge["imports"]): entry["rationale"] for edge in entry["exactScope"]["exactEdges"]
     }

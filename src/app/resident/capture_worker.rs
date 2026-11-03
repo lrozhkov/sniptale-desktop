@@ -79,6 +79,8 @@ pub(super) fn run_capture_worker(
             Ok(
                 WorkerCommand::ApplyHotkeyPlan { .. }
                 | WorkerCommand::ManualHotkeyAction { .. }
+                | WorkerCommand::DesktopCapture { .. }
+                | WorkerCommand::DesktopSettings { .. }
                 | WorkerCommand::RestoreHotkeys { .. }
                 | WorkerCommand::ApplyTrayRegistry { .. }
                 | WorkerCommand::ShowTrayNotice { .. }
@@ -86,6 +88,7 @@ pub(super) fn run_capture_worker(
                 | WorkerCommand::RefreshTrayConnectionStatus
                 | WorkerCommand::StartRecording { .. }
                 | WorkerCommand::ControlRecording { .. }
+                | WorkerCommand::ControlObservedRecording { .. }
                 | WorkerCommand::ControlActiveRecording { .. }
                 | WorkerCommand::StartRecordingTelemetry { .. }
                 | WorkerCommand::PauseRecordingTelemetry { .. }
@@ -95,7 +98,9 @@ pub(super) fn run_capture_worker(
                 | WorkerCommand::DiscardRecordingTelemetry { .. }
                 | WorkerCommand::SnapshotRecordingTelemetry { .. }
                 | WorkerCommand::PrepareManualAsset { .. }
-                | WorkerCommand::PublishManualAsset { .. },
+                | WorkerCommand::PublishManualAsset { .. }
+                | WorkerCommand::RecoverPendingAssets
+                | WorkerCommand::ChooseMediaDestination { .. },
             ) => {}
             #[cfg(test)]
             Ok(WorkerCommand::TrayMenuCommandSelected { .. }) => {}
@@ -110,6 +115,19 @@ fn run_capture_command(
     agent_events: &AgentEventHub,
     asset_sender: Option<&SyncSender<WorkerCommand>>,
 ) {
+    if let Some(job) = request.delivery_route.local_asset_job_id() {
+        agent_events.desktop.begin(
+            &request.operation_id,
+            Some(job),
+            crate::tray::desktop::model::CaptureKind::Screenshot,
+            if request.mode == crate::protocol::ScreenshotMode::Region {
+                crate::tray::desktop::model::CapturePhase::Selecting
+            } else {
+                crate::tray::desktop::model::CapturePhase::Starting
+            },
+            None,
+        );
+    }
     let Some(runner) = runner.as_mut() else {
         publish_capture_failure(
             agent_events,
@@ -123,9 +141,16 @@ fn run_capture_command(
         Ok(events) => {
             for event in events {
                 if let ScreenshotCaptureEvent::Completed(completion) = &event
-                    && let DeliveryRoute::LocalAsset { asset_job_id } = &completion.delivery_route
+                    && let Some(asset_job_id) = completion.delivery_route.local_asset_job_id()
                 {
-                    enqueue_manual_asset_publish(asset_sender, completion, asset_job_id);
+                    agent_events.desktop.advance(
+                        &request.operation_id,
+                        crate::tray::desktop::model::CapturePhase::Saving,
+                    );
+                    if enqueue_manual_asset_publish(asset_sender, completion, asset_job_id).is_err()
+                    {
+                        agent_events.desktop.fail_save(&request.operation_id);
+                    }
                 }
                 if let Some(event) = screenshot_command_event(event, extension_controller_lease_id)
                 {
@@ -146,23 +171,24 @@ fn enqueue_manual_asset_publish(
     asset_sender: Option<&SyncSender<WorkerCommand>>,
     completion: &crate::capture::ScreenshotCaptureCompletion,
     asset_job_id: &str,
-) {
-    let Some(sender) = asset_sender else {
-        return;
-    };
-    let Ok(job_id) = crate::assets::AssetJobId::parse(asset_job_id.to_owned()) else {
-        return;
-    };
-    let Ok(store) = crate::capture::ScreenshotTransferStore::open_default() else {
-        return;
-    };
-    let Ok(reader) = store.manual_asset_reader(&completion.capture_id, asset_job_id) else {
-        return;
-    };
-    let _ = sender.try_send(WorkerCommand::PublishManualAsset {
-        job_id,
-        source: Box::new(reader),
-    });
+) -> Result<(), ()> {
+    let sender = asset_sender.ok_or(())?;
+    let job_id = crate::assets::AssetJobId::parse(asset_job_id.to_owned()).map_err(|_| ())?;
+    let store = crate::capture::ScreenshotTransferStore::open_default().map_err(|_| ())?;
+    let reader = store
+        .manual_asset_reader(&completion.capture_id, asset_job_id)
+        .map_err(|_| ())?;
+    sender
+        .try_send(WorkerCommand::PublishManualAsset {
+            delivery: Some(Box::new(super::delivery::DesktopMediaDelivery {
+                media_id: completion.capture_id.clone(),
+                kind: crate::transfer::browser_delivery::BrowserMediaKind::Screenshot,
+                route: completion.delivery_route.clone(),
+            })),
+            job_id,
+            source: Box::new(reader),
+        })
+        .map_err(|_| ())
 }
 
 fn publish_capture_failure(
@@ -171,6 +197,11 @@ fn publish_capture_failure(
     extension_controller_lease_id: Option<&str>,
     kind: OperationalErrorKind,
 ) {
+    if kind == OperationalErrorKind::ScreenshotSelectionCancelled {
+        agent_events.desktop.cancel(&request.operation_id);
+    } else {
+        agent_events.desktop.fail(&request.operation_id);
+    }
     if matches!(
         (&request.authority, &request.delivery_route),
         (

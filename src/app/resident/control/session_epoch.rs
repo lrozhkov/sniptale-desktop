@@ -39,7 +39,7 @@ mod tests {
         ensure_local_profile_from_path,
     };
 
-    use super::{ExtensionSessionEpoch, ExtensionSessionEpochError};
+    use super::ExtensionSessionEpoch;
 
     #[test]
     fn extension_session_snapshot_is_invalidated_by_a_mode_transition()
@@ -64,10 +64,11 @@ mod tests {
     }
 
     #[test]
-    fn manual_mode_cannot_admit_an_extension_session() {
-        assert!(matches!(
-            ExtensionSessionEpoch::admit(ActiveSettings::for_test_mode(OperatingMode::Manual)),
-            Err(ExtensionSessionEpochError::ExtensionIngressUnavailable)
-        ));
+    fn manual_mode_admits_a_current_delivery_session() -> Result<(), Box<dyn std::error::Error>> {
+        let gate =
+            ExtensionSessionEpoch::admit(ActiveSettings::for_test_mode(OperatingMode::Manual))
+                .map_err(|_| "delivery ingress")?;
+        assert!(gate.remains_current());
+        Ok(())
     }
 }

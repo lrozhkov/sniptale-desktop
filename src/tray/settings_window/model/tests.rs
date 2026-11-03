@@ -96,10 +96,10 @@ fn microphone_presentation_uses_labels_but_selects_stable_ids() {
         "private-device-id".to_owned(),
     ));
     let presentation = model.presentation();
-    assert_eq!(
-        presentation.microphones()[1].label(),
-        "Studio microphone (default)"
-    );
+    assert_eq!(presentation.microphones()[1].name(), "Studio microphone");
+    assert!(presentation.microphones()[1].is_default());
+    assert!(!presentation.microphones()[1].missing());
+    assert!(!presentation.microphones()[1].system_default());
     assert_eq!(presentation.selected_microphone_index(), 1);
     assert_eq!(
         model
@@ -174,12 +174,15 @@ fn appearance_and_inline_feedback_are_projected_without_dirtying_capture_setting
 }
 
 #[test]
-fn navigation_is_presentation_only_and_all_sections_have_copy() {
+fn navigation_preserves_the_entire_settings_draft() {
     let mut model = SettingsWindowModel::default();
+    model.stage_manual_destination("destination".to_owned(), "C:\\Capture".to_owned());
+    model.set_video_bitrate(Some(40));
+    let draft = model.manual_view();
     for section in SettingsWindowSection::ALL {
         model.navigate(section);
         assert_eq!(model.presentation().section(), section);
-        assert!(!section.label().is_empty());
+        assert_eq!(model.manual_view(), draft);
     }
 }
 
@@ -197,4 +200,69 @@ fn available_audio(
         supports_mixed_audio: true,
         unavailable_reasons: Vec::new(),
     }
+}
+
+#[test]
+fn configured_legacy_extension_profile_exposes_desktop_controls_without_migration()
+-> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempdir()?;
+    let path = directory.path().join("profile.json");
+    let profile = ensure_local_profile_from_path(Some(path.clone())).map_err(debug_error)?;
+    let active = ActiveSettings::from_profile(&profile);
+    let mut manual = ManualProfileDraft::with_defaults(
+        "legacy-destination".to_owned(),
+        directory.path().to_string_lossy().into_owned(),
+    );
+    manual.set_screenshot_include_cursor(false);
+    crate::settings::apply_local_profile_draft_from_path(
+        Some(path.clone()),
+        &active,
+        &LocalProfileDraft::manual(manual),
+    )
+    .map_err(debug_error)?;
+    let mut value = serde_json::to_value(active.profile_snapshot().map_err(debug_error)?)?;
+    value["operatingMode"] = serde_json::json!("extension-managed");
+    std::fs::write(&path, serde_json::to_vec(&value)?)?;
+    let before = crate::settings::load_local_profile_from_path(Some(path.clone()))
+        .map_err(debug_error)?
+        .ok_or("legacy profile missing")?;
+    let legacy = ensure_local_profile_from_path(Some(path.clone())).map_err(debug_error)?;
+    let active = ActiveSettings::from_profile(&legacy);
+    let mut model = SettingsWindowModel::default();
+    assert_eq!(
+        model
+            .show(&active, crate::settings::UiPreferencesHealth::Missing)
+            .map_err(debug_error)?,
+        SettingsWindowView::ManualDraft
+    );
+    assert!(model.presentation().shows_navigation());
+    assert!(model.presentation().shows_footer());
+    assert!(!model.dirty());
+    assert!(!model.presentation().switching_mode());
+    assert_eq!(
+        crate::settings::load_local_profile_from_path(Some(path.clone())).map_err(debug_error)?,
+        Some(before.clone())
+    );
+    model.refresh_audio_capabilities(available_audio(Vec::new()));
+    let destination = directory.path().join("new-output");
+    model.stage_manual_destination(
+        "new-destination".to_owned(),
+        destination.to_string_lossy().into_owned(),
+    );
+    let candidate = model.apply_candidate().map_err(debug_error)?;
+    assert_eq!(
+        candidate.target_mode(),
+        crate::settings::OperatingMode::ExtensionManaged
+    );
+    let manual = candidate.manual_view().ok_or("manual values lost")?;
+    assert!(!manual.screenshot_include_cursor);
+    assert_eq!(
+        manual.destination_path,
+        destination.to_string_lossy().into_owned()
+    );
+    assert_eq!(
+        crate::settings::load_local_profile_from_path(Some(path.clone())).map_err(debug_error)?,
+        Some(before.clone())
+    );
+    Ok(())
 }

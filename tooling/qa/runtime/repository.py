@@ -21,9 +21,7 @@ SHARED_CONTROL_FILES = {
 
 
 def _git(*args: str, check: bool = True) -> bytes:
-    completed = subprocess.run(
-        ["git", *args], cwd=ROOT, check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE
-    )
+    completed = subprocess.run(["git", *args], cwd=ROOT, check=False, capture_output=True)
     if check and completed.returncode != 0:
         raise RuntimeError(completed.stderr.decode("utf-8", errors="replace").strip())
     return completed.stdout
@@ -37,13 +35,7 @@ def revision() -> str:
 def current_targets() -> list[str]:
     tracked = _git("diff", "--name-only", "--no-renames", "-z", "HEAD", check=False).split(b"\0")
     untracked = _git("ls-files", "--others", "--exclude-standard", "-z").split(b"\0")
-    return sorted(
-        {
-            item.decode("utf-8", errors="surrogateescape")
-            for item in [*tracked, *untracked]
-            if item
-        }
-    )
+    return sorted({item.decode("utf-8", errors="surrogateescape") for item in [*tracked, *untracked] if item})
 
 
 def is_harness_target(path: str) -> bool:

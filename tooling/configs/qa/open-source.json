@@ -11,19 +11,22 @@
   "licenseSource": {
     "url": "https://opensource.org/license/mit",
     "templateSha256": "21785883212d06d2c262b7e9f73f92ae7a03a7f2fe86809d7c7ad9bd6961d265",
-    "recordedEdits": ["added MIT License heading", "replaced copyright placeholders", "normalized typographic quotation marks to ASCII"]
+    "recordedEdits": [
+      "added MIT License heading",
+      "replaced copyright placeholders",
+      "normalized typographic quotation marks to ASCII"
+    ]
   },
   "trackedDigests": {
     "LICENSE": "aa61163adc349270c7b5e8630a6e5b5bd9def2d0a3ff89a418648ae2609d02cc",
     "NOTICE": "89968d9118122d927235856ccbbef76e93d9b076383aa2d733d2338ec1983d13",
-    "CONTRIBUTING.md": "52fb0c4f8fe9588dd20946d9ef7d67a12211055b61cae7f366254337622c61ee"
+    "CONTRIBUTING.md": "c180a44e7e7c8fc6f04a58652f5d0d8ed0ce22770e12af91da08fd3df77e335c"
   },
   "dependencyLicenses": {
     "target": "x86_64-pc-windows-msvc",
     "allFeatures": true,
     "includeTransitive": true,
     "includeBuildOnly": false,
-    "includeDevOnly": false,
-    "cargoAboutVersion": "0.9.1"
+    "includeDevOnly": false
   }
 }

@@ -10,18 +10,22 @@ pub(super) struct TypingSpanAccumulator {
 }
 
 impl TypingSpanAccumulator {
-    pub(super) fn record(&mut self, time_ms: u64, count: u16) {
+    pub(super) fn record(&mut self, time_ms: u64, count: u16) -> Option<RecordingTelemetrySignal> {
+        if count == 0 {
+            return None;
+        }
+        let completed = if self.count.checked_add(count).is_none() {
+            self.take_signal()
+        } else {
+            None
+        };
         if self.start_time_ms.is_none() {
             self.start_time_ms = Some(time_ms);
         }
         self.end_time_ms = Some(time_ms);
-        self.count = self.count.saturating_add(count);
-    }
-
-    pub(super) fn flush_at(&mut self, time_ms: u64) {
-        if self.start_time_ms.is_some() {
-            self.end_time_ms = Some(time_ms);
-        }
+        // A completed span has been emitted before starting another bounded counter.
+        self.count += count;
+        completed
     }
 
     pub(super) fn take_signal(&mut self) -> Option<RecordingTelemetrySignal> {

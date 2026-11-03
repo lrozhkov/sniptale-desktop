@@ -35,9 +35,9 @@ mod platform {
         unsafe {
             GetDiskFreeSpaceExW(
                 PCWSTR(path.as_ptr()),
-                Some(&mut available_bytes),
-                Some(&mut capacity_bytes),
-                Some(&mut free_bytes),
+                Some(&raw mut available_bytes),
+                Some(&raw mut capacity_bytes),
+                Some(&raw mut free_bytes),
             )
         }
         .map_err(|_| RecordingDiskGuardError::ProbeFailed)?;

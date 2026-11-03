@@ -75,9 +75,20 @@ def create_run_dir(runs: Path) -> tuple[str, Path]:
 
 def validate_receipt(value: dict[str, Any]) -> None:
     required = {
-        "schema_version", "run_id", "source", "commit_sha", "dirty_state_sha256",
-        "artifact_manifest_sha256", "evidence_manifest_sha256", "artifacts", "lanes",
-        "snapshots", "test_matrix", "durations_ms", "teardown", "result",
+        "schema_version",
+        "run_id",
+        "source",
+        "commit_sha",
+        "dirty_state_sha256",
+        "artifact_manifest_sha256",
+        "evidence_manifest_sha256",
+        "artifacts",
+        "lanes",
+        "snapshots",
+        "test_matrix",
+        "durations_ms",
+        "teardown",
+        "result",
     }
     missing = required - set(value)
     if missing:

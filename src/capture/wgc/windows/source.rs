@@ -46,7 +46,7 @@ pub(super) struct CaptureTarget {
 
 impl CaptureTargets {
     pub(super) fn resolve(
-        mode: ScreenshotMode,
+        mode: &ScreenshotMode,
         selected_region: Option<PhysicalRect>,
     ) -> Result<Self, ScreenshotCaptureError> {
         match mode {
@@ -70,19 +70,19 @@ pub(crate) fn recording_source_bounds(
 pub(super) fn recording_targets(
     source: &NativeRecordingSource,
 ) -> Result<CaptureTargets, ScreenshotCaptureError> {
-    let mode = recording_mode(source.mode.clone());
+    let mode = recording_mode(&source.mode);
     let region = source
         .region
         .as_ref()
         .map(|region| {
-            let x = i32::try_from(region.x).map_err(|_| ScreenshotCaptureError::UnsupportedMode)?;
-            let y = i32::try_from(region.y).map_err(|_| ScreenshotCaptureError::UnsupportedMode)?;
+            let x = region.x;
+            let y = region.y;
             PhysicalRect::new(x, y, region.width, region.height)
                 .map_err(|_| ScreenshotCaptureError::UnsupportedMode)
         })
         .transpose()
         .map_err(|_| ScreenshotCaptureError::UnsupportedMode)?;
-    CaptureTargets::resolve(mode, region)
+    CaptureTargets::resolve(&mode, region)
 }
 
 impl CaptureTarget {
@@ -101,7 +101,7 @@ impl CaptureTarget {
     }
 }
 
-const fn recording_mode(mode: VideoMode) -> ScreenshotMode {
+const fn recording_mode(mode: &VideoMode) -> ScreenshotMode {
     match mode {
         VideoMode::Screen => ScreenshotMode::Screen,
         VideoMode::ActiveWindow => ScreenshotMode::ActiveWindow,

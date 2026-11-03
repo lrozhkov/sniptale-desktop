@@ -119,11 +119,11 @@ fn disconnected_or_native_only_tray_actions_do_not_emit_extension_requests()
         "invocation-3",
         TrayActionKind::CaptureScreenshot,
     );
-    assert!(responses_for_tray_action(&disconnected, &request).is_empty());
+    assert_eq!(responses_for_tray_action(&disconnected, &request).len(), 0);
 
     let connected = connected_native_host_session()?;
     let quit = tray_request("quit", "invocation-4", TrayActionKind::Quit);
-    assert!(responses_for_tray_action(&connected, &quit).is_empty());
+    assert_eq!(responses_for_tray_action(&connected, &quit).len(), 0);
     Ok(())
 }
 
@@ -1164,7 +1164,7 @@ fn duplex_pipe_server_readiness_timeout_does_not_block_next_session() -> Result<
         .lock()
         .map_err(|_| IoError::other("lock"))?
         .clone();
-    assert!(read_framed_json_values(&first_output)?.is_empty());
+    assert_eq!(read_framed_json_values(&first_output)?.len(), 0);
     let _ = release_first_split.send(());
     let _ = release_first_eof.send(());
     stop.store(true, Ordering::Release);
@@ -1236,7 +1236,7 @@ fn duplex_pipe_server_does_not_accept_over_active_session_limit() -> Result<(), 
         .lock()
         .map_err(|_| IoError::other("lock"))?
         .clone();
-    assert!(read_framed_json_values(&second_output)?.is_empty());
+    assert_eq!(read_framed_json_values(&second_output)?.len(), 0);
     stop.store(true, Ordering::Release);
     let report = server
         .join()

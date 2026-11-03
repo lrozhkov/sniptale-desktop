@@ -24,35 +24,6 @@ mod tests;
 
 use audio::AudioSourceSupport;
 
-#[cfg(any(windows, test))]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) enum SettingsWindowEvent {
-    Navigate(SettingsWindowSection),
-    BrowseDestination,
-    ToggleScreenshotCursor,
-    SetVideoQuality(crate::settings::ManualVideoQuality),
-    SetVideoFps(crate::settings::ManualFps),
-    SetVideoBitrate(Option<u16>),
-    SetVideoHardware(crate::settings::ManualHardwarePreference),
-    ToggleVideoCursor,
-    SetVideoDuration(u32),
-    SetAudioSource(crate::settings::ManualAudioSource),
-    SelectMicrophone(SettingsMicrophoneSelection),
-    SetAudioBitrate(u16),
-    SetHotkey {
-        action: crate::settings::ManualHotkeyAction,
-        chord: Option<crate::settings::ManualHotkeyChord>,
-    },
-    CancelHotkeyCapture(crate::settings::ManualHotkeyAction),
-    RefreshMicrophones,
-    SelectAppearanceTheme(AppearanceThemePreference),
-    UseExtensionManaged,
-    Apply,
-    RequestClose,
-    ConfirmDiscard,
-    KeepEditing,
-}
-
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum SettingsWindowModelError {
     SettingsUnavailable,
@@ -61,6 +32,7 @@ pub(crate) enum SettingsWindowModelError {
     InvalidDraft,
 }
 
+#[cfg(test)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum CloseDisposition {
     Hide,
@@ -94,7 +66,9 @@ impl Default for SettingsWindowModel {
             active_mode: None,
             microphones: vec![SettingsMicrophoneOption {
                 id: None,
-                label: "System default".to_owned(),
+                label: String::new(),
+                is_default: false,
+                missing: false,
                 available: false,
             }],
             audio_support: AudioSourceSupport::default(),
@@ -108,6 +82,11 @@ impl Default for SettingsWindowModel {
 }
 
 impl SettingsWindowModel {
+    #[must_use]
+    pub(crate) const fn visible(&self) -> bool {
+        self.visible
+    }
+
     pub(crate) fn show(
         &mut self,
         active: &ActiveSettings,
@@ -116,7 +95,9 @@ impl SettingsWindowModel {
         let profile = active.profile_snapshot().map_err(map_settings_error)?;
         self.visible = true;
         self.active_mode = Some(profile.operating_mode());
-        self.baseline = (profile.operating_mode() == OperatingMode::Manual)
+        self.baseline = profile
+            .manual_destination()
+            .is_some()
             .then(|| LocalProfileDraft::from(&profile));
         self.draft.clone_from(&self.baseline);
         self.section = SettingsWindowSection::Capture;
@@ -129,6 +110,9 @@ impl SettingsWindowModel {
 
     #[must_use]
     pub(crate) fn view(&self) -> SettingsWindowView {
+        if self.manual_view().is_some() {
+            return SettingsWindowView::ManualDraft;
+        }
         match self.draft.as_ref().map(LocalProfileDraft::target_mode) {
             Some(OperatingMode::Manual) => SettingsWindowView::ManualDraft,
             Some(OperatingMode::ExtensionManaged) => SettingsWindowView::ExtensionManagedDraft,
@@ -174,6 +158,7 @@ impl SettingsWindowModel {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn navigate(&mut self, section: SettingsWindowSection) {
         self.section = section;
         self.confirm_discard = false;
@@ -204,11 +189,13 @@ impl SettingsWindowModel {
         self.feedback = None;
     }
 
+    #[cfg(test)]
     pub(crate) fn appearance_saved(&mut self, theme: AppearanceThemePreference) {
         self.appearance = theme;
         self.feedback = None;
     }
 
+    #[cfg(test)]
     pub(crate) fn appearance_save_failed(&mut self) {
         self.feedback = Some(SettingsWindowFeedback::AppearanceSaveFailed);
     }
@@ -229,6 +216,7 @@ impl SettingsWindowModel {
             .ok_or(SettingsWindowModelError::ManualDraftRequired)
     }
 
+    #[cfg(test)]
     pub(crate) fn request_close(&mut self) -> CloseDisposition {
         if self.dirty() {
             self.confirm_discard = true;
@@ -239,6 +227,7 @@ impl SettingsWindowModel {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn keep_editing(&mut self) {
         self.confirm_discard = false;
     }

@@ -32,8 +32,21 @@ impl<T> TelemetryHookEventQueue<T> {
         self.events.push_back(event);
     }
 
+    #[cfg(test)]
     pub(crate) fn drain(&mut self) -> TelemetryHookQueueSnapshot<T> {
-        let events = self.events.drain(..).collect();
+        self.drain_while(|_| true)
+    }
+
+    pub(crate) fn drain_while(
+        &mut self,
+        mut predicate: impl FnMut(&T) -> bool,
+    ) -> TelemetryHookQueueSnapshot<T> {
+        let mut events = Vec::new();
+        while self.events.front().is_some_and(&mut predicate) {
+            if let Some(event) = self.events.pop_front() {
+                events.push(event);
+            }
+        }
         let dropped_events = self.dropped_events;
         self.dropped_events = 0;
         TelemetryHookQueueSnapshot {
@@ -46,5 +59,9 @@ impl<T> TelemetryHookEventQueue<T> {
     pub(crate) fn clear(&mut self) {
         self.events.clear();
         self.dropped_events = 0;
+    }
+
+    pub(crate) fn front(&self) -> Option<&T> {
+        self.events.front()
     }
 }

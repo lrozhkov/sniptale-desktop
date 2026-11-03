@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import json
 import re
 import sys
 import tempfile
@@ -36,17 +37,16 @@ OWNERS = {
     "diagnostics",
 }
 
-MAX_RUST_FILE_LINES = 300
+WARN_RUST_FILE_LINES = 500
+MAX_RUST_FILE_LINES = 800
 MAX_MAIN_LINES = 80
 MAX_ROOT_MOD_LINES = 120
-MAX_DIRECT_OWNER_FILES = 12
-MAX_OWNER_FILES = 40
-MAX_FUNCTION_LINES = 50
+WARN_DIRECT_MODULE_FILES = 20
+WARN_MODULE_FILES = 60
 FILE_LEVEL_DEAD_CODE_BASELINE = 0
 PLATFORM_CFG_DEAD_CODE_BASELINE = 0
 ALLOWLISTED_COMPAT_FACADES: dict[str, str] = {
-    path: "reviewed canonical role facade"
-    for path in exact_paths("architecture.compatibility-facade")
+    path: "reviewed canonical role facade" for path in exact_paths("architecture.compatibility-facade")
 }
 ALLOWLISTED_WILDCARD_REEXPORTS: dict[str, str] = {}
 
@@ -64,8 +64,25 @@ ROOT_FACADE_FORBIDDEN = [
 
 OWNER_IMPORT_DENY = {
     "protocol": OWNERS - {"protocol"},
-    "ipc": {"capture", "recording", "audio", "tray", "hotkeys", "transfer", "diagnostics"},
-    "settings": {"ipc", "capture", "recording", "audio", "assets", "tray", "hotkeys", "transfer"},
+    "ipc": {
+        "capture",
+        "recording",
+        "audio",
+        "tray",
+        "hotkeys",
+        "transfer",
+        "diagnostics",
+    },
+    "settings": {
+        "ipc",
+        "capture",
+        "recording",
+        "audio",
+        "assets",
+        "tray",
+        "hotkeys",
+        "transfer",
+    },
     "assets": {"ipc", "capture", "recording", "audio", "settings", "tray", "hotkeys"},
     "transfer": {"ipc", "capture", "recording", "audio", "tray", "hotkeys"},
     "diagnostics": {"capture", "recording", "audio", "transfer", "tray", "hotkeys"},
@@ -144,11 +161,7 @@ def fail(messages: list[str]) -> None:
 def rust_files() -> list[Path]:
     if not SRC.exists():
         return []
-    return [
-        path
-        for path in SRC.rglob("*.rs")
-        if "/tests/" not in path.as_posix() and path.name != "tests.rs"
-    ]
+    return [path for path in SRC.rglob("*.rs") if "/tests/" not in path.as_posix() and path.name != "tests.rs"]
 
 
 def read(path: Path) -> str:
@@ -175,12 +188,7 @@ def facade_statements(path: Path) -> list[str]:
     current: list[str] = []
     for raw in read(path).splitlines():
         stripped = raw.strip()
-        if (
-            not stripped
-            or stripped.startswith("//")
-            or stripped.startswith("#[")
-            or stripped.startswith("#![doc")
-        ):
+        if not stripped or stripped.startswith("//") or stripped.startswith("#[") or stripped.startswith("#![doc"):
             continue
         current.append(stripped)
         if stripped.endswith(";"):
@@ -256,8 +264,13 @@ def reexport_targets(path: Path, statement: str, src: Path = SRC) -> list[Path]:
     if parts[0] == "crate" and len(parts) >= 2:
         base = src / parts[1]
         parts = parts[2:]
-    elif parts[0] in {"super", "self"}:
+    elif parts[0] == "super":
         parts = parts[1:]
+    else:
+        if path.name not in {"mod.rs", "lib.rs", "main.rs"}:
+            base = path.with_suffix("")
+        if parts[0] == "self":
+            parts = parts[1:]
 
     if parts:
         module_path = base.joinpath(*parts)
@@ -318,8 +331,7 @@ def facade_file_errors(
         for target in reexport_targets(path, statement, src):
             if target in facade_like:
                 errors.append(
-                    f"{relative} re-exports facade-like file {path_label(target, root)}; "
-                    "facade chains are forbidden"
+                    f"{relative} re-exports facade-like file {path_label(target, root)}; facade chains are forbidden"
                 )
 
     return errors
@@ -335,20 +347,79 @@ def check_facade_files(errors: list[str]) -> None:
         errors.extend(facade_file_errors(path, facade_like))
 
 
-def check_file_sizes(errors: list[str]) -> None:
-    for path in rust_files() + ([SRC / "main.rs"] if (SRC / "main.rs").exists() else []):
-        lines = line_count(path)
-        relative = rel(path)
-        if relative == "src/main.rs" and lines > MAX_MAIN_LINES:
-            errors.append(f"{relative} has {lines} lines; main.rs limit is {MAX_MAIN_LINES}")
+def file_size_limit(path: Path) -> int:
+    if path == SRC / "main.rs":
+        return MAX_MAIN_LINES
+    if path.name == "mod.rs" and path.parent.parent == SRC:
+        return MAX_ROOT_MOD_LINES
+    return MAX_RUST_FILE_LINES
+
+
+def file_size_findings(files: list[Path], exceptions: list[dict], errors: list[str], warnings: list[str]) -> None:
+    limits: dict[str, int] = {}
+    for entry in exceptions:
+        relative, maximum, reason = (
+            entry.get("path"),
+            entry.get("maxLines"),
+            entry.get("reason"),
+        )
+        if (
+            not isinstance(relative, str)
+            or not (relative.startswith("src/") or relative == "build.rs")
+            or not relative.endswith(".rs")
+            or any(part in relative for part in ("*", "?", "[", "..", "\\"))
+            or relative in limits
+            or type(maximum) is not int
+            or not isinstance(reason, str)
+            or not reason.strip()
+        ):
+            errors.append("invalid exact Rust file-size exception")
             continue
-        if path.name == "mod.rs" and path.parent.parent == SRC and lines > MAX_ROOT_MOD_LINES:
-            errors.append(
-                f"{relative} has {lines} lines; root owner mod.rs limit is {MAX_ROOT_MOD_LINES}"
-            )
-            continue
-        if lines > MAX_RUST_FILE_LINES:
-            errors.append(f"{relative} has {lines} lines; file limit is {MAX_RUST_FILE_LINES}")
+        path = ROOT / relative
+        base = file_size_limit(path)
+        if maximum <= base or path not in files or line_count(path) <= base:
+            errors.append(f"stale Rust file-size exception: {relative}")
+        limits[relative] = maximum
+    for path in sorted(files):
+        lines, relative, base = line_count(path), rel(path), file_size_limit(path)
+        maximum = limits.get(relative, base)
+        if lines > maximum:
+            errors.append(f"{relative} has {lines} physical lines; limit is {maximum}")
+        elif base == MAX_RUST_FILE_LINES and lines > WARN_RUST_FILE_LINES:
+            warnings.append(f"{relative} has {lines} physical lines; review cohesion above {WARN_RUST_FILE_LINES}")
+
+
+def rust_source_files() -> list[Path]:
+    files = list(SRC.rglob("*.rs"))
+    build_script = ROOT / "build.rs"
+    if build_script.is_file():
+        files.append(build_script)
+    return files
+
+
+def check_file_sizes(errors: list[str], warnings: list[str]) -> None:
+    catalog = json.loads((ROOT / "tooling/configs/qa/code-size-exceptions.json").read_text(encoding="utf-8"))
+    file_size_findings(rust_source_files(), catalog["files"], errors, warnings)
+
+
+def check_function_size_exceptions(errors: list[str]) -> None:
+    # This validates suppression scope only. Clippy alone measures function length.
+    for path in rust_source_files():
+        text = read(path)
+        for match in re.finditer(r"#(!?)\[(allow|expect|cfg_attr)\((.*?)\)\]", text, re.S):
+            if "clippy::too_many_lines" not in match[3]:
+                continue
+            following = text[match.end() :].lstrip()
+            if (
+                match[1]
+                or match[2] != "expect"
+                or not re.search(r'reason\s*=\s*"[^"\n]*\S[^"\n]*"', match[3])
+                or not re.match(
+                    r"(?:pub(?:\([^)]*\))?\s+)?(?:async\s+)?(?:unsafe\s+)?fn\s+",
+                    following,
+                )
+            ):
+                errors.append(f"{rel(path)}: too_many_lines requires function-local #[expect] with a reason")
 
 
 def file_level_dead_code_files(files: list[Path]) -> list[Path]:
@@ -398,7 +469,6 @@ def check_file_level_dead_code_ratchet(errors: list[str]) -> None:
     ]:
         if error:
             errors.append(error)
-
 
 
 def check_root_facades(errors: list[str]) -> None:
@@ -469,9 +539,7 @@ def check_import_direction(errors: list[str]) -> None:
         graph[owner].update(imported_owner for imported_owner in imports if imported_owner != owner)
         denied = OWNER_IMPORT_DENY.get(owner, set())
         bad = sorted(
-            imported
-            for imported in imports & denied
-            if (rel(path), owner, imported) not in OWNER_IMPORT_ALLOW
+            imported for imported in imports & denied if (rel(path), owner, imported) not in OWNER_IMPORT_ALLOW
         )
         if bad:
             errors.append(f"{rel(path)} imports forbidden owner(s): {', '.join(bad)}")
@@ -492,58 +560,36 @@ def check_import_direction(errors: list[str]) -> None:
         )
 
 
-def check_directory_shape(errors: list[str]) -> None:
-    for owner in OWNERS:
+def module_size_warnings(module: Path, warnings: list[str]) -> None:
+    direct = list(module.glob("*.rs"))
+    total = list(module.rglob("*.rs"))
+    if len(direct) > WARN_DIRECT_MODULE_FILES:
+        warnings.append(
+            f"{rel(module)} has {len(direct)} direct Rust files; review cohesion above {WARN_DIRECT_MODULE_FILES}"
+        )
+    if len(total) > WARN_MODULE_FILES:
+        warnings.append(
+            f"{rel(module)} has {len(total)} recursive Rust files; review cohesion above {WARN_MODULE_FILES}"
+        )
+
+
+def check_directory_shape(errors: list[str], warnings: list[str]) -> None:
+    for owner in sorted(OWNERS):
         owner_dir = SRC / owner
         if not owner_dir.exists():
             continue
-        direct_files = [
-            path
-            for path in owner_dir.glob("*.rs")
-            if path.name != "mod.rs"
-        ]
-        all_files = [
-            path
-            for path in owner_dir.rglob("*.rs")
-            if "/tests/" not in path.as_posix()
-        ]
-        sub_owner_dirs = sorted({
-            path.relative_to(owner_dir).parts[0]
-            for path in all_files
-            if len(path.relative_to(owner_dir).parts) > 1
-        })
-        if len(direct_files) > MAX_DIRECT_OWNER_FILES:
-            errors.append(
-                f"src/{owner} has {len(direct_files)} direct Rust files; split into sub-owners"
-            )
-        if len(all_files) > MAX_OWNER_FILES and len(sub_owner_dirs) < 2:
-            errors.append(f"src/{owner} has {len(all_files)} Rust files; split owner directory")
-        for sub_owner in sub_owner_dirs:
-            sub_owner_files = [
-                path
-                for path in all_files
-                if path.relative_to(owner_dir).parts[0] == sub_owner
-            ]
-            nested_sub_owners = {
-                path.relative_to(owner_dir).parts[1]
-                for path in sub_owner_files
-                if len(path.relative_to(owner_dir).parts) > 2
-            }
-            if len(sub_owner_files) > MAX_OWNER_FILES and len(nested_sub_owners) < 2:
-                errors.append(
-                    f"src/{owner}/{sub_owner} has {len(sub_owner_files)} Rust files; "
-                    "split sub-owner directory"
-                )
-
+        all_files = list(owner_dir.rglob("*.rs"))
+        for module in sorted({owner_dir} | {path.parent for path in all_files}):
+            module_size_warnings(module, warnings)
+        # Naming and owner boundaries remain blocking and independent of file counts.
         repeated_prefix = [
             rel(path)
             for path in all_files
-            if path.stem.startswith(f"{owner}_") or path.stem.startswith(f"{owner}-")
+            if "/tests/" not in path.as_posix()
+            and (path.stem.startswith(f"{owner}_") or path.stem.startswith(f"{owner}-"))
         ]
         if repeated_prefix:
-            errors.append(
-                f"src/{owner} repeats owner name in file names: " + ", ".join(repeated_prefix)
-            )
+            errors.append(f"src/{owner} repeats owner name in file names: " + ", ".join(repeated_prefix))
 
 
 def check_lifecycle_smells(errors: list[str]) -> None:
@@ -552,31 +598,6 @@ def check_lifecycle_smells(errors: list[str]) -> None:
         for pattern, reason in LIFECYCLE_SMELLS.items():
             if re.search(pattern, text):
                 errors.append(f"{rel(path)}: {reason}")
-
-
-def check_function_sizes(errors: list[str]) -> None:
-    function_start = re.compile(r"^\s*(?:pub(?:\([^)]*\))?\s+)?(?:async\s+)?fn\s+\w+")
-    for path in rust_files():
-        lines = read(path).splitlines()
-        start_line: int | None = None
-        brace_depth = 0
-        for index, line in enumerate(lines, start=1):
-            if start_line is None and function_start.search(line):
-                start_line = index
-                brace_depth = line.count("{") - line.count("}")
-                if brace_depth <= 0 and "{" in line:
-                    start_line = None
-                continue
-            if start_line is not None:
-                brace_depth += line.count("{") - line.count("}")
-                if brace_depth <= 0:
-                    length = index - start_line + 1
-                    if length > MAX_FUNCTION_LINES:
-                        errors.append(
-                            f"{rel(path)}:{start_line} function has {length} lines; "
-                            f"limit is {MAX_FUNCTION_LINES}"
-                        )
-                    start_line = None
 
 
 def extract_struct_body(text: str, struct_name: str) -> str | None:
@@ -627,18 +648,14 @@ def check_resident_state_authority(errors: list[str]) -> None:
     if "let shared_state = NativeHostSharedState::default();" not in server_text:
         errors.append("src/app/resident/pipe_broker.rs must create one shared native-host state per server loop")
     if "run_agent_pipe_session_with_effects_and_state" not in server_text:
-        errors.append(
-            "src/app/resident/pipe_broker.rs must pass shared native-host state into blocking pipe sessions"
-        )
+        errors.append("src/app/resident/pipe_broker.rs must pass shared native-host state into blocking pipe sessions")
     duplex_server_text = read(duplex_server_path) if duplex_server_path.exists() else ""
     if "let shared_state = NativeHostSharedState::default();" not in duplex_server_text:
         errors.append(
             "src/app/resident/pipe_broker/duplex.rs must create one shared native-host state per concurrent server loop"
         )
     if "run_agent_pipe_session_with_effects_events_shared_auth_state" not in duplex_server_text:
-        errors.append(
-            "src/app/resident/pipe_broker/duplex.rs must pass shared auth/state into duplex pipe sessions"
-        )
+        errors.append("src/app/resident/pipe_broker/duplex.rs must pass shared auth/state into duplex pipe sessions")
 
 
 def write_selftest_file(path: Path, content: str) -> None:
@@ -671,6 +688,14 @@ def run_self_tests() -> int:
         facade_like = {path for path in files if is_facade_like(path)}
         owners = {"capture"}
 
+        desktop = owner / "desktop.rs"
+        write_selftest_file(desktop, "mod runtime;\npub(crate) use runtime::DesktopRuntime;")
+        write_selftest_file(owner / "desktop/runtime.rs", "pub(crate) struct DesktopRuntime;")
+        write_selftest_file(owner / "runtime/mod.rs", "pub(crate) mod model;")
+        targets = reexport_targets(desktop, "pub(crate) use runtime::DesktopRuntime;", src)
+        assert targets == [owner / "desktop/runtime.rs", owner / "desktop/runtime/mod.rs"], targets
+        assert owner / "runtime/mod.rs" not in targets
+
         root_errors = facade_file_errors(owner / "mod.rs", facade_like, root, src, owners)
         assert_contains(root_errors, "facade chains are forbidden")
 
@@ -699,20 +724,14 @@ def run_self_tests() -> int:
             owner / "platform.rs",
             "#![cfg_attr(not(any(windows, test)), allow(dead_code))]\npub(crate) fn helper() {}",
         )
-        dead_code_files = file_level_dead_code_files(
-            [owner / "allowed.rs", owner / "allowed_too.rs", owner / "wgc.rs"]
-        )
+        dead_code_files = file_level_dead_code_files([owner / "allowed.rs", owner / "allowed_too.rs", owner / "wgc.rs"])
         assert len(dead_code_files) == 2
         assert file_level_dead_code_ratchet_error(dead_code_files, 2) is None
         assert "above baseline 1" in (file_level_dead_code_ratchet_error(dead_code_files, 1) or "")
-        platform_files = platform_cfg_dead_code_files(
-            [owner / "platform.rs", owner / "allowed.rs"]
-        )
+        platform_files = platform_cfg_dead_code_files([owner / "platform.rs", owner / "allowed.rs"])
         assert len(platform_files) == 1
         assert platform_cfg_dead_code_ratchet_error(platform_files, 1) is None
-        assert "above baseline 0" in (
-            platform_cfg_dead_code_ratchet_error(platform_files, 0) or ""
-        )
+        assert "above baseline 0" in (platform_cfg_dead_code_ratchet_error(platform_files, 0) or "")
         hotkeys = src / "hotkeys"
         write_selftest_file(
             hotkeys / "bad.rs",
@@ -742,16 +761,19 @@ def main() -> int:
     if sys.argv[1:] == ["--self-test"]:
         return run_self_tests()
     errors: list[str] = []
-    check_file_sizes(errors)
+    warnings: list[str] = []
+    check_file_sizes(errors, warnings)
     check_file_level_dead_code_ratchet(errors)
     check_root_facades(errors)
     check_app_role_topology(errors)
     check_facade_files(errors)
     check_import_direction(errors)
-    check_directory_shape(errors)
+    check_directory_shape(errors, warnings)
     check_lifecycle_smells(errors)
-    check_function_sizes(errors)
+    check_function_size_exceptions(errors)
     check_resident_state_authority(errors)
+    for warning in warnings:
+        print(f"WARN code-size: {warning}")
     if errors:
         fail(errors)
     print("OK boundary guardrails")

@@ -1,5 +1,10 @@
 //! Channel-scoped runtime install identity.
 
+#[cfg(any(windows, test))]
+mod client;
+#[cfg(all(windows, not(test)))]
+pub(crate) use client::current_desktop_client_id;
+
 use super::registry::{
     InstallChannel, expected_allowed_extension_origins, expected_host_name,
     expected_install_channel, expected_install_id,

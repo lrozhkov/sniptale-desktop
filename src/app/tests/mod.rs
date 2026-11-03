@@ -73,7 +73,10 @@ use crate::{
     tray::{TrayActionKind, TrayActionRequest, TrayNoticeKind},
 };
 
-const ALLOWED_NATIVE_ORIGIN: &str = "chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/";
+const ALLOWED_NATIVE_ORIGIN: &str = match option_env!("SNIPTALE_ALLOWED_EXTENSION_ORIGIN") {
+    Some(origin) => origin,
+    None => "chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/",
+};
 
 fn args(items: &[&str]) -> Vec<OsString> {
     items.iter().map(OsString::from).collect()
@@ -881,6 +884,12 @@ impl Default for RecordingTerminalEffects {
 }
 
 impl NativeHostSideEffects for RecordingTerminalEffects {
+    fn pending_recordings_for_reconnect(
+        &mut self,
+    ) -> Result<Vec<PendingRecordingTransfer>, NativeHostSideEffectError> {
+        Ok(vec![pending_recording_transfer()])
+    }
+
     fn apply_hotkey_plan(
         &mut self,
         _plan: HotkeyRegistrationPlan,
@@ -928,6 +937,12 @@ impl Default for ScreenshotTerminalEffects {
 }
 
 impl NativeHostSideEffects for ScreenshotTerminalEffects {
+    fn pending_screenshots_for_reconnect(
+        &mut self,
+    ) -> Result<Vec<PendingScreenshotTransfer>, NativeHostSideEffectError> {
+        Ok(vec![pending_screenshot_transfer()])
+    }
+
     fn apply_hotkey_plan(
         &mut self,
         _plan: HotkeyRegistrationPlan,
@@ -973,6 +988,10 @@ fn native_test_transfer_chunk(index: u64, is_complete: bool) -> NativeHostTransf
 
 fn pending_recording_transfer() -> PendingRecordingTransfer {
     PendingRecordingTransfer {
+        recording_events: None,
+        cursor_trajectory: None,
+        telemetry: None,
+        delivery_route: Some(crate::protocol::DeliveryRoute::ExtensionTransfer),
         recording_id: "recording-1".to_owned(),
         filename: "sniptale-recording.mp4".to_owned(),
         duration_ms: 4_000,
@@ -989,6 +1008,7 @@ fn pending_recording_transfer() -> PendingRecordingTransfer {
 
 fn pending_screenshot_transfer() -> PendingScreenshotTransfer {
     PendingScreenshotTransfer {
+        delivery_route: Some(crate::protocol::DeliveryRoute::ExtensionTransfer),
         capture_id: "capture-1".to_owned(),
         mode: ScreenshotMode::Screen,
         filename: "capture-1.png".to_owned(),
@@ -1088,21 +1108,21 @@ fn read_framed_json_values(output: &[u8]) -> Result<Vec<Value>, Box<dyn Error>> 
 
 fn extension_hello() -> &'static [u8] {
     br#"{
-        "type": "extension.hello",
-        "protocolVersion": 1,
+        "type": "extension.hello", "connectionIntent": "automatic",
+        "protocolVersion": 2,
         "settingsSchemaVersion": 1,
         "extensionVersion": "0.1.0",
         "extensionId": "abcdefghijklmnopqrstuvwxzyabcdef",
         "minAppVersion": "0.1.0",
-        "supportedProtocolVersions": [1],
-        "supportedSettingsSchemaVersions": [1]
+        "supportedProtocolVersions": [2],
+        "supportedSettingsSchemaVersions": [1], "capabilities": ["desktop-settings-v1", "durable-media-ack-v1"]
     }"#
 }
 
 fn extension_controller_acquire() -> &'static [u8] {
     br#"{
         "type": "extension.controller.acquire",
-        "protocolVersion": 1,
+        "protocolVersion": 2,
         "connectionId": "connection-1",
         "browserFamily": "chrome",
         "profileKey": "profile-1",
@@ -1116,7 +1136,7 @@ fn extension_controller_acquire_with_connection(connection_id: &str) -> Vec<u8> 
     format!(
         r#"{{
         "type": "extension.controller.acquire",
-        "protocolVersion": 1,
+        "protocolVersion": 2,
         "connectionId": "{connection_id}",
         "browserFamily": "chrome",
         "profileKey": "profile-{connection_id}",
@@ -1131,7 +1151,7 @@ fn extension_controller_acquire_with_connection(connection_id: &str) -> Vec<u8> 
 fn extension_screenshot_capture_command() -> &'static [u8] {
     br#"{
         "type": "extension.screenshot.capture",
-        "protocolVersion": 1,
+        "protocolVersion": 2,
         "controllerLeaseId": "lease:connection-1",
         "commandId": "command-1",
         "mode": "screen",
@@ -1144,7 +1164,7 @@ fn extension_screenshot_capture_command() -> &'static [u8] {
 fn extension_recording_start_command() -> &'static [u8] {
     br#"{
         "type": "extension.recording.start",
-        "protocolVersion": 1,
+        "protocolVersion": 2,
         "controllerLeaseId": "lease:connection-1",
         "commandId": "command-1",
         "source": {
@@ -1166,7 +1186,7 @@ fn extension_recording_start_command() -> &'static [u8] {
 fn app_operation_failed() -> &'static [u8] {
     br#"{
         "type": "app.operation.failed",
-        "protocolVersion": 1,
+        "protocolVersion": 2,
         "controllerLeaseId": "lease:connection-1",
         "operation": "screenshot",
         "operationId": "command-1",
@@ -1183,7 +1203,7 @@ fn app_operation_failed() -> &'static [u8] {
 fn extension_settings_sync() -> &'static [u8] {
     br#"{
         "type": "extension.settings.sync",
-        "protocolVersion": 1,
+        "protocolVersion": 2,
         "controllerLeaseId": "lease:connection-1",
         "revision": "settings-revision-1",
         "schemaVersion": 1,
@@ -1228,7 +1248,7 @@ fn extension_settings_sync() -> &'static [u8] {
 fn extension_settings_sync_with_tray_action() -> &'static [u8] {
     br#"{
         "type": "extension.settings.sync",
-        "protocolVersion": 1,
+        "protocolVersion": 2,
         "controllerLeaseId": "lease:connection-1",
         "revision": "settings-revision-2",
         "schemaVersion": 1,
@@ -1279,7 +1299,7 @@ fn extension_settings_sync_with_tray_action() -> &'static [u8] {
 fn extension_settings_sync_with_duplicate_tray_action() -> &'static [u8] {
     br#"{
         "type": "extension.settings.sync",
-        "protocolVersion": 1,
+        "protocolVersion": 2,
         "controllerLeaseId": "lease:connection-1",
         "revision": "settings-revision-3",
         "schemaVersion": 1,

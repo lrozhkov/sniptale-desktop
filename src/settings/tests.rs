@@ -213,7 +213,7 @@ fn preset_quality_preserves_geometry_and_calculates_bitrate() -> Result<(), Sett
     );
     assert_eq!(effective.effective_audio_bitrate_kbps.as_u64(), Some(128));
     assert_eq!(effective.encoder, NativeEffectiveEncoder::Hardware);
-    assert!(effective.warnings.is_empty());
+    assert_eq!(effective.warnings.len(), 0);
     Ok(())
 }
 
@@ -343,7 +343,7 @@ fn settings_sync_effective_settings_does_not_emit_placeholder_when_video_disable
 
     assert!(effective.screenshots.include_cursor);
     assert!(!effective.video.enabled);
-    assert!(effective.warnings.is_empty());
+    assert_eq!(effective.warnings.len(), 0);
     Ok(())
 }
 

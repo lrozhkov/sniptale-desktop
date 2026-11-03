@@ -3,8 +3,6 @@
 use std::path::PathBuf;
 use std::{error::Error, fmt, path::Path};
 
-#[cfg(any(windows, test))]
-use crate::tray::settings_window::model::SettingsWindowEvent;
 use crate::tray::{
     icon::state::{TrayIconVariant, TrayNoticeKind},
     menu::render::TrayMenuRenderPlan,
@@ -15,13 +13,12 @@ use crate::tray::{
 pub(crate) enum TrayRuntimeEvent {
     #[cfg(any(windows, test))]
     MenuCommand { command_id: u32 },
-    #[cfg(any(windows, test))]
-    SettingsWindow { event: SettingsWindowEvent },
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum TrayRuntimeError {
     RenderFailed,
+    NoCaptureWindow,
     #[cfg(windows)]
     PollFailed,
 }
@@ -29,6 +26,7 @@ pub(crate) enum TrayRuntimeError {
 impl fmt::Display for TrayRuntimeError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::NoCaptureWindow => formatter.write_str("no capture window available"),
             Self::RenderFailed => formatter.write_str("tray render failed"),
             #[cfg(windows)]
             Self::PollFailed => formatter.write_str("tray event polling failed"),
@@ -39,6 +37,30 @@ impl fmt::Display for TrayRuntimeError {
 impl Error for TrayRuntimeError {}
 
 pub(crate) trait TrayCommandSource {
+    #[cfg(windows)]
+    fn attach_desktop(&mut self, _desktop: crate::tray::desktop::DesktopHandle) {}
+
+    #[cfg(windows)]
+    fn capture_window_available(&self) -> bool {
+        false
+    }
+
+    fn finish_capture_dispatch(&mut self, _accepted: bool) {}
+
+    /// Settle native presentation before an admitted capture. Media admission stays in its owner.
+    fn prepare_capture(
+        &mut self,
+        _action: crate::tray::ShellActionId,
+    ) -> Result<(), TrayRuntimeError> {
+        Ok(())
+    }
+
+    fn choose_delivery_destination(
+        &mut self,
+        _request: &crate::tray::delivery::DeliveryPromptRequest,
+    ) -> crate::tray::delivery::DeliveryChoice {
+        crate::tray::delivery::DeliveryChoice::Later
+    }
     fn apply_render_plan(
         &mut self,
         plan: &TrayMenuRenderPlan,
@@ -70,17 +92,11 @@ pub(crate) trait TrayCommandSource {
     fn open_save_folder(&mut self, destination: &Path) -> Result<(), TrayRuntimeError>;
 }
 
-/// Decodes a `NOTIFYICON_VERSION_4` callback without exposing Win32 types to the tray owner.
-#[must_use]
-pub(crate) const fn is_tray_popup_callback(lparam: isize) -> bool {
-    matches!(lparam & 0xffff, 0x007b | 0x0202 | 0x0205 | 0x0400)
-}
-
-#[cfg(not(windows))]
+#[cfg(any(not(windows), test))]
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub(crate) struct NoopTrayCommandSource;
 
-#[cfg(not(windows))]
+#[cfg(any(not(windows), test))]
 impl TrayCommandSource for NoopTrayCommandSource {
     fn apply_render_plan(
         &mut self,
@@ -117,19 +133,5 @@ impl TrayCommandSource for NoopTrayCommandSource {
 
     fn open_save_folder(&mut self, _destination: &Path) -> Result<(), TrayRuntimeError> {
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::is_tray_popup_callback;
-
-    #[test]
-    fn accepts_select_context_and_button_events_with_a_nonzero_icon_id() {
-        assert!(is_tray_popup_callback((1_isize << 16) | 0x007b));
-        assert!(is_tray_popup_callback((1_isize << 16) | 0x0202));
-        assert!(is_tray_popup_callback((1_isize << 16) | 0x0205));
-        assert!(is_tray_popup_callback((1_isize << 16) | 0x0400));
-        assert!(!is_tray_popup_callback((1_isize << 16) | 0x0201));
     }
 }

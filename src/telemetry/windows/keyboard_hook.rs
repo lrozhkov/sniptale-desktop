@@ -6,39 +6,36 @@ use std::{
     io,
     sync::{
         Mutex, OnceLock,
-        atomic::{AtomicU64, Ordering},
+        atomic::{AtomicBool, AtomicU64, Ordering},
     },
 };
 
 use windows::Win32::{
     Foundation::{LPARAM, LRESULT, WPARAM},
-    UI::{
-        Input::KeyboardAndMouse::GetAsyncKeyState,
-        WindowsAndMessaging::{
-            CallNextHookEx, HHOOK, KBDLLHOOKSTRUCT, LLKHF_ALTDOWN, LLKHF_INJECTED,
-            LLKHF_LOWER_IL_INJECTED, LLKHF_UP, SetWindowsHookExW, UnhookWindowsHookEx,
-            WH_KEYBOARD_LL, WM_KEYDOWN, WM_SYSKEYDOWN,
-        },
+    UI::WindowsAndMessaging::{
+        CallNextHookEx, HHOOK, KBDLLHOOKSTRUCT, LLKHF_ALTDOWN, LLKHF_INJECTED,
+        LLKHF_LOWER_IL_INJECTED, LLKHF_UP, SetWindowsHookExW, UnhookWindowsHookEx, WH_KEYBOARD_LL,
+        WM_KEYDOWN, WM_KEYUP, WM_SYSKEYDOWN, WM_SYSKEYUP,
     },
 };
 
 use super::super::hook_queue::{TelemetryHookEventQueue, TelemetryHookQueueSnapshot};
-use super::key::{WindowsKeyEvent, WindowsKeyModifiers};
+use super::key::{
+    WindowsKeyEvent, WindowsKeyModifiers, WindowsKeyObservation, WindowsKeyTransition,
+};
 
 const KEYBOARD_HOOK_QUEUE_CAPACITY: usize = 512;
-const VK_CONTROL: i32 = 0x11;
-const VK_SHIFT: i32 = 0x10;
-const VK_LWIN: i32 = 0x5B;
-const VK_RWIN: i32 = 0x5C;
-const KEY_DOWN_MASK: i16 = i16::MIN;
 
 static KEYBOARD_HOOK_STATE: OnceLock<Mutex<KeyboardHookState>> = OnceLock::new();
 static KEYBOARD_HOOK_LOCK_DROPS: AtomicU64 = AtomicU64::new(0);
+static KEYBOARD_HOOK_NEXT_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+static KEYBOARD_HOOK_STATE_UNCERTAIN: AtomicBool = AtomicBool::new(false);
 
 #[derive(Debug)]
 struct KeyboardHookState {
     hook_installed: bool,
-    queue: TelemetryHookEventQueue<WindowsKeyEvent>,
+    queue: TelemetryHookEventQueue<WindowsKeyObservation>,
+    keys: [WindowsKeyTransition; 256],
 }
 
 impl Default for KeyboardHookState {
@@ -46,6 +43,7 @@ impl Default for KeyboardHookState {
         Self {
             hook_installed: false,
             queue: TelemetryHookEventQueue::new(KEYBOARD_HOOK_QUEUE_CAPACITY),
+            keys: [WindowsKeyTransition::Unknown; 256],
         }
     }
 }
@@ -72,30 +70,37 @@ impl WindowsKeyboardTelemetryHook {
                 return Err(WindowsKeyboardTelemetryHookError::AlreadyInstalled);
             }
             state.queue.clear();
+            state.keys.fill(WindowsKeyTransition::Unknown);
+            KEYBOARD_HOOK_NEXT_SEQUENCE.store(0, Ordering::Relaxed);
+            KEYBOARD_HOOK_STATE_UNCERTAIN.store(false, Ordering::Relaxed);
             state.hook_installed = true;
         }
 
         // SAFETY: installs a low-level keyboard hook for this process callback. The callback does
         // not retain raw LPARAM pointers, does not block, and only writes typed events into a
         // bounded queue owned by this adapter.
-        let handle =
-            match unsafe { SetWindowsHookExW(WH_KEYBOARD_LL, Some(keyboard_hook_proc), None, 0) } {
-                Ok(handle) => handle,
-                Err(_) => {
-                    clear_installed_flag();
-                    return Err(WindowsKeyboardTelemetryHookError::InstallFailed);
-                }
-            };
+        let Ok(handle) =
+            (unsafe { SetWindowsHookExW(WH_KEYBOARD_LL, Some(keyboard_hook_proc), None, 0) })
+        else {
+            clear_installed_flag();
+            return Err(WindowsKeyboardTelemetryHookError::InstallFailed);
+        };
         Ok(Self { handle })
     }
 
     pub(crate) fn drain_events(
         &mut self,
-    ) -> io::Result<TelemetryHookQueueSnapshot<WindowsKeyEvent>> {
+        source_cutoff_ms: Option<u64>,
+    ) -> io::Result<TelemetryHookQueueSnapshot<WindowsKeyObservation>> {
+        if self.handle.0.is_null() {
+            return Err(io::Error::other("telemetry hook is unavailable"));
+        }
         keyboard_hook_state()
             .lock()
             .map(|mut state| {
-                let mut snapshot = state.queue.drain();
+                let mut snapshot = state.queue.drain_while(|event| {
+                    source_cutoff_ms.is_none_or(|cutoff| event.source_time_ms <= cutoff)
+                });
                 snapshot.dropped_events = snapshot
                     .dropped_events
                     .saturating_add(KEYBOARD_HOOK_LOCK_DROPS.swap(0, Ordering::Relaxed));
@@ -114,7 +119,7 @@ impl Drop for WindowsKeyboardTelemetryHook {
 }
 
 unsafe extern "system" fn keyboard_hook_proc(code: i32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
-    if code >= 0 && is_key_down_message(wparam) {
+    if code >= 0 && is_key_message(wparam) {
         // SAFETY: for WH_KEYBOARD_LL callbacks, Windows documents LPARAM as a valid pointer to
         // KBDLLHOOKSTRUCT for the duration of the callback. We copy only scalar fields immediately.
         let event = unsafe { keyboard_event_from_hook(lparam) };
@@ -127,57 +132,70 @@ unsafe extern "system" fn keyboard_hook_proc(code: i32, wparam: WPARAM, lparam: 
     unsafe { CallNextHookEx(None, code, wparam, lparam) }
 }
 
-unsafe fn keyboard_event_from_hook(lparam: LPARAM) -> Option<WindowsKeyEvent> {
+unsafe fn keyboard_event_from_hook(lparam: LPARAM) -> Option<RawKeyboardFact> {
     if lparam.0 == 0 {
         return None;
     }
     // SAFETY: caller guarantees LPARAM points to KBDLLHOOKSTRUCT for this callback invocation.
     let hook = unsafe { &*(lparam.0 as *const KBDLLHOOKSTRUCT) };
-    if hook.flags.contains(LLKHF_UP)
-        || hook.flags.contains(LLKHF_INJECTED)
-        || hook.flags.contains(LLKHF_LOWER_IL_INJECTED)
-    {
+    if hook.flags.contains(LLKHF_INJECTED) || hook.flags.contains(LLKHF_LOWER_IL_INJECTED) {
+        KEYBOARD_HOOK_STATE_UNCERTAIN.store(true, Ordering::Relaxed);
         return None;
     }
-    Some(WindowsKeyEvent {
+    let source_time_ms = crate::telemetry::trajectory_clock::extend_windows_message_time(
+        hook.time,
+        super::mouse_hook::current_boot_ms(),
+    )
+    .ok()?;
+    Some(RawKeyboardFact {
         virtual_key: hook.vkCode,
-        modifiers: current_modifiers(hook.flags.contains(LLKHF_ALTDOWN)),
+        alt_down: hook.flags.contains(LLKHF_ALTDOWN),
+        source_time_ms,
+        up: hook.flags.contains(LLKHF_UP),
     })
 }
 
-fn is_key_down_message(wparam: WPARAM) -> bool {
-    matches!(u32::try_from(wparam.0), Ok(WM_KEYDOWN | WM_SYSKEYDOWN))
+fn is_key_message(wparam: WPARAM) -> bool {
+    matches!(
+        u32::try_from(wparam.0),
+        Ok(WM_KEYDOWN | WM_SYSKEYDOWN | WM_KEYUP | WM_SYSKEYUP)
+    )
 }
 
-fn current_modifiers(alt_down: bool) -> WindowsKeyModifiers {
-    let mut modifiers = WindowsKeyModifiers::default();
-    if key_is_down(VK_CONTROL) {
-        modifiers = modifiers.with(WindowsKeyModifiers::CTRL);
-    }
-    if key_is_down(VK_SHIFT) {
-        modifiers = modifiers.with(WindowsKeyModifiers::SHIFT);
-    }
-    if alt_down {
-        modifiers = modifiers.with(WindowsKeyModifiers::ALT);
-    }
-    if key_is_down(VK_LWIN) || key_is_down(VK_RWIN) {
-        modifiers = modifiers.with(WindowsKeyModifiers::META);
-    }
-    modifiers
+#[derive(Clone, Copy)]
+struct RawKeyboardFact {
+    virtual_key: u32,
+    alt_down: bool,
+    source_time_ms: u64,
+    up: bool,
 }
 
-fn key_is_down(virtual_key: i32) -> bool {
-    // SAFETY: GetAsyncKeyState reads key state for a virtual-key code constant and returns a value
-    // by copy; no pointers or handles cross this boundary.
-    unsafe { GetAsyncKeyState(virtual_key) & KEY_DOWN_MASK != 0 }
-}
-
-fn push_keyboard_event(event: WindowsKeyEvent) {
-    match keyboard_hook_state().try_lock() {
-        Ok(mut state) => state.queue.push(event),
-        Err(_) => {
-            KEYBOARD_HOOK_LOCK_DROPS.fetch_add(1, Ordering::Relaxed);
+fn push_keyboard_event(fact: RawKeyboardFact) {
+    let Ok(key) = usize::try_from(fact.virtual_key) else {
+        return;
+    };
+    if key >= 256 {
+        return;
+    }
+    let sequence = KEYBOARD_HOOK_NEXT_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+    if let Ok(mut state) = keyboard_hook_state().try_lock() {
+        if KEYBOARD_HOOK_STATE_UNCERTAIN.swap(false, Ordering::Relaxed) {
+            state.keys.fill(WindowsKeyTransition::Unknown);
         }
+        let phase = state.keys[key].observe(fact.up);
+        let modifiers = WindowsKeyModifiers::from_observed_keys(&state.keys, fact.alt_down);
+        state.queue.push(WindowsKeyObservation {
+            event: WindowsKeyEvent {
+                virtual_key: fact.virtual_key,
+                modifiers,
+            },
+            source_time_ms: fact.source_time_ms,
+            sequence,
+            phase,
+        });
+    } else {
+        KEYBOARD_HOOK_STATE_UNCERTAIN.store(true, Ordering::Relaxed);
+        KEYBOARD_HOOK_LOCK_DROPS.fetch_add(1, Ordering::Relaxed);
     }
 }
 
@@ -189,6 +207,7 @@ fn clear_installed_flag() {
     if let Ok(mut state) = keyboard_hook_state().lock() {
         state.hook_installed = false;
         state.queue.clear();
+        state.keys.fill(WindowsKeyTransition::Unknown);
     }
     KEYBOARD_HOOK_LOCK_DROPS.store(0, Ordering::Relaxed);
 }

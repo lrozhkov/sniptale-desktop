@@ -22,7 +22,7 @@ class LabPaths:
     locks: Path
 
     @classmethod
-    def discover(cls, root: Path | None = None) -> "LabPaths":
+    def discover(cls, root: Path | None = None) -> LabPaths:
         repo = (root or Path(__file__).resolve().parents[3]).resolve()
         lab = repo / ".tmp/qa/desktop-e2e-lab"
         artifacts = repo / ".artifacts/desktop-e2e-lab"
@@ -68,7 +68,9 @@ class LabPaths:
 
     def _migrate_legacy_persistent_state(self) -> None:
         for name, destination in (
-            ("cache", self.cache), ("images", self.images), ("golden", self.golden),
+            ("cache", self.cache),
+            ("images", self.images),
+            ("golden", self.golden),
         ):
             legacy = self.lab / name
             if not legacy.exists():

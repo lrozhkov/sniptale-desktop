@@ -38,6 +38,20 @@ pub(crate) enum AssetJobError {
 }
 
 impl AssetJob {
+    pub(super) fn prepare_recovery(
+        &mut self,
+        bytes: u64,
+        sha256: &str,
+    ) -> Result<(), AssetJobError> {
+        if self.state == AssetJobState::BoundAwaitingArtifact {
+            return self.attach_finalized_artifact(bytes, sha256.to_owned());
+        }
+        if self.expected_bytes != Some(bytes) || self.expected_sha256.as_deref() != Some(sha256) {
+            return Err(AssetJobError::InvalidMetadata);
+        }
+        self.state = AssetJobState::Pending;
+        self.validate()
+    }
     pub(crate) fn prepare(
         job_id: AssetJobId,
         format: AssetFormat,

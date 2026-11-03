@@ -14,9 +14,7 @@ use windows::{
                 NIM_DELETE, NIM_MODIFY, NIM_SETVERSION, NOTIFY_ICON_MESSAGE, NOTIFYICON_VERSION_4,
                 NOTIFYICONDATAW, Shell_NotifyIconW,
             },
-            WindowsAndMessaging::{
-                HICON, ICON_BIG, ICON_SMALL, IDI_APPLICATION, LoadIconW, SendMessageW, WM_SETICON,
-            },
+            WindowsAndMessaging::{HICON, IDI_APPLICATION, LoadIconW},
         },
     },
     core::PCWSTR,
@@ -47,27 +45,6 @@ pub(crate) fn load_resource_icon(variant: TrayIconVariant) -> io::Result<Windows
     .or_else(|_| unsafe { LoadIconW(None, IDI_APPLICATION) })
     .map_err(to_io_error)?;
     WindowsTrayIconImage::shared_resource(icon)
-}
-
-pub(crate) fn apply_main_icon_to_window(window: HWND) {
-    let Ok(icon) = load_resource_icon(TrayIconVariant::Normal) else {
-        return;
-    };
-    // SAFETY: the shared resource HICON remains valid for process life and WM_SETICON retains it.
-    unsafe {
-        SendMessageW(
-            window,
-            WM_SETICON,
-            Some(windows::Win32::Foundation::WPARAM(ICON_BIG as usize)),
-            Some(windows::Win32::Foundation::LPARAM(icon.handle.0 as isize)),
-        );
-        SendMessageW(
-            window,
-            WM_SETICON,
-            Some(windows::Win32::Foundation::WPARAM(ICON_SMALL as usize)),
-            Some(windows::Win32::Foundation::LPARAM(icon.handle.0 as isize)),
-        );
-    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -230,8 +207,12 @@ impl WindowsTrayIcon {
         if let Some((kind, notice)) = notice {
             data.uFlags |= NIF_INFO;
             data.dwInfoFlags = match kind {
-                TrayNoticeKind::ActionRejected => NIIF_WARNING,
-                TrayNoticeKind::ExtensionDisconnected => NIIF_INFO,
+                TrayNoticeKind::ActionRejected
+                | TrayNoticeKind::DestinationRequired
+                | TrayNoticeKind::LocalSaveFailed => NIIF_WARNING,
+                TrayNoticeKind::ExtensionDisconnected
+                | TrayNoticeKind::SavedLocally
+                | TrayNoticeKind::WaitingForBrowser => NIIF_INFO,
             };
             copy_wide_truncated(notice.title, &mut data.szInfoTitle);
             copy_wide_truncated(notice.body, &mut data.szInfo);
@@ -256,5 +237,7 @@ fn copy_wide_truncated<const N: usize>(value: &str, target: &mut [u16; N]) {
 }
 
 fn to_io_error(error: windows::core::Error) -> io::Error {
-    io::Error::from_raw_os_error(error.code().0)
+    let code = error.code().0;
+    drop(error);
+    io::Error::from_raw_os_error(code)
 }

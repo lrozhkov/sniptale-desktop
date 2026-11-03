@@ -1,4 +1,5 @@
 use super::*;
+mod recording_receipts;
 use std::path::Path;
 use std::sync::mpsc;
 use std::time::{SystemTime, UNIX_EPOCH};

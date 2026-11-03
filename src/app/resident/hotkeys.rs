@@ -129,7 +129,9 @@ impl<Handle> HotkeyWorker<Handle> {
                 );
                 Ok(HotkeyWorkerControl::Continue)
             }
-            WorkerCommand::ApplyTrayRegistry { .. }
+            WorkerCommand::DesktopCapture { .. }
+            | WorkerCommand::DesktopSettings { .. }
+            | WorkerCommand::ApplyTrayRegistry { .. }
             | WorkerCommand::ManualHotkeyAction { .. }
             | WorkerCommand::ShowTrayNotice { .. }
             | WorkerCommand::UpdateTrayRecordingStatus { .. }
@@ -137,6 +139,7 @@ impl<Handle> HotkeyWorker<Handle> {
             | WorkerCommand::CaptureScreenshot { .. }
             | WorkerCommand::StartRecording { .. }
             | WorkerCommand::ControlRecording { .. }
+            | WorkerCommand::ControlObservedRecording { .. }
             | WorkerCommand::ControlActiveRecording { .. }
             | WorkerCommand::StartRecordingTelemetry { .. }
             | WorkerCommand::PauseRecordingTelemetry { .. }
@@ -146,7 +149,9 @@ impl<Handle> HotkeyWorker<Handle> {
             | WorkerCommand::DiscardRecordingTelemetry { .. }
             | WorkerCommand::SnapshotRecordingTelemetry { .. }
             | WorkerCommand::PrepareManualAsset { .. }
-            | WorkerCommand::PublishManualAsset { .. } => Ok(HotkeyWorkerControl::Continue),
+            | WorkerCommand::PublishManualAsset { .. }
+            | WorkerCommand::RecoverPendingAssets
+            | WorkerCommand::ChooseMediaDestination { .. } => Ok(HotkeyWorkerControl::Continue),
             #[cfg(test)]
             WorkerCommand::TrayMenuCommandSelected { .. } => Ok(HotkeyWorkerControl::Continue),
             WorkerCommand::Stop => Ok(HotkeyWorkerControl::Stop),

@@ -53,16 +53,6 @@ impl TrayConnectionState {
         };
         true
     }
-
-    #[cfg(any(windows, test))]
-    pub(crate) fn clear(&self) {
-        if let Ok(mut projection) = self.0.lock() {
-            *projection = TrayConnectionProjection {
-                status: TrayConnectionStatus::Disconnected,
-                generation: None,
-            };
-        }
-    }
 }
 
 #[cfg(test)]

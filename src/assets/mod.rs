@@ -3,6 +3,7 @@
 mod destination;
 mod job;
 mod publisher;
+mod recovery;
 mod route;
 mod service;
 mod source;

@@ -236,7 +236,9 @@ fn duplex_forwarder_independently_forwards_browser_and_agent_streams() -> Result
 
 #[test]
 fn malformed_browser_payload_is_not_forwarded_to_agent() -> Result<(), Box<dyn Error>> {
-    let mut browser_reader = Cursor::new(frame(br#"{"type":"extension.hello""#)?);
+    let mut browser_reader = Cursor::new(frame(
+        br#"{"type":"extension.hello", "connectionIntent": "automatic""#,
+    )?);
     let mut browser_writer = Vec::new();
     let mut agent_pipe = DuplexPipe::new(agent_response_frames(&[operation_failed()])?);
 
@@ -247,15 +249,15 @@ fn malformed_browser_payload_is_not_forwarded_to_agent() -> Result<(), Box<dyn E
         result,
         Err(BridgeForwardError::BrowserProtocol(_))
     ));
-    assert!(agent_pipe.written.is_empty());
-    assert!(browser_writer.is_empty());
+    assert_eq!(agent_pipe.written.len(), 0);
+    assert_eq!(browser_writer.len(), 0);
     Ok(())
 }
 
 #[test]
 fn logged_forwarder_does_not_log_unparsed_browser_type() -> Result<(), Box<dyn Error>> {
     let secret_type = "browser-secret-token";
-    let payload = br#"{"type":"browser-secret-token","protocolVersion":1}"#;
+    let payload = br#"{"type":"browser-secret-token","protocolVersion":2}"#;
     let mut browser_reader = Cursor::new(frame(payload)?);
     let mut browser_writer = Vec::new();
     let mut agent_pipe = DuplexPipe::new(Vec::new());
@@ -272,8 +274,8 @@ fn logged_forwarder_does_not_log_unparsed_browser_type() -> Result<(), Box<dyn E
         result,
         Err(BridgeForwardError::BrowserProtocol(_))
     ));
-    assert!(agent_pipe.written.is_empty());
-    assert!(browser_writer.is_empty());
+    assert_eq!(agent_pipe.written.len(), 0);
+    assert_eq!(browser_writer.len(), 0);
     assert_no_log_message_contains(&entries, secret_type);
     Ok(())
 }
@@ -290,8 +292,8 @@ fn malformed_agent_response_is_not_written_to_browser() -> Result<(), Box<dyn Er
         forward_native_host_stream(&mut browser_reader, &mut browser_writer, &mut agent_pipe);
 
     assert!(matches!(result, Err(BridgeForwardError::AgentProtocol(_))));
-    assert!(!agent_pipe.written.is_empty());
-    assert!(browser_writer.is_empty());
+    assert_ne!(agent_pipe.written.len(), 0);
+    assert_eq!(browser_writer.len(), 0);
     Ok(())
 }
 
@@ -302,7 +304,7 @@ fn logged_forwarder_does_not_log_unparsed_agent_type() -> Result<(), Box<dyn Err
     let mut browser_writer = Vec::new();
     let mut agent_response = frame(&agent_pipe_response_header_payload(1)?)?;
     agent_response.extend(frame(
-        br#"{"type":"agent-secret-token","protocolVersion":1}"#,
+        br#"{"type":"agent-secret-token","protocolVersion":2}"#,
     )?);
     let mut agent_pipe = DuplexPipe::new(agent_response);
     let (log, entries) = CapturingBridgeLog::sink();
@@ -315,8 +317,8 @@ fn logged_forwarder_does_not_log_unparsed_agent_type() -> Result<(), Box<dyn Err
     );
 
     assert!(matches!(result, Err(BridgeForwardError::AgentProtocol(_))));
-    assert!(!agent_pipe.written.is_empty());
-    assert!(browser_writer.is_empty());
+    assert_ne!(agent_pipe.written.len(), 0);
+    assert_eq!(browser_writer.len(), 0);
     assert!(
         log_messages(&entries)
             .iter()
@@ -334,8 +336,8 @@ fn clean_browser_eof_does_not_touch_agent_pipe() -> Result<(), Box<dyn Error>> {
 
     forward_native_host_stream(&mut browser_reader, &mut browser_writer, &mut agent_pipe)?;
 
-    assert!(agent_pipe.written.is_empty());
-    assert!(browser_writer.is_empty());
+    assert_eq!(agent_pipe.written.len(), 0);
+    assert_eq!(browser_writer.len(), 0);
     Ok(())
 }
 
@@ -400,7 +402,7 @@ fn authenticated_forwarder_rejects_malformed_challenge_before_forwarding()
     let mut written = Cursor::new(agent_pipe.written);
     assert!(read_payload(&mut written, FRAME_LIMIT)?.is_some());
     assert!(read_payload(&mut written, FRAME_LIMIT)?.is_none());
-    assert!(browser_writer.is_empty());
+    assert_eq!(browser_writer.len(), 0);
     Ok(())
 }
 
@@ -539,7 +541,7 @@ fn authenticated_forwarder_does_not_run_hook_after_failed_auth() -> Result<(), B
         Err(AuthenticatedBridgeForwardError::Handshake(_))
     ));
     assert_eq!(hook_calls, 0);
-    assert!(browser_writer.is_empty());
+    assert_eq!(browser_writer.len(), 0);
     Ok(())
 }
 
@@ -601,21 +603,21 @@ fn secret() -> Result<PipeSecret, Box<dyn Error>> {
 
 fn extension_hello() -> &'static [u8] {
     br#"{
-        "type": "extension.hello",
-        "protocolVersion": 1,
+        "type": "extension.hello", "connectionIntent": "automatic",
+        "protocolVersion": 2,
         "settingsSchemaVersion": 1,
         "extensionVersion": "0.1.0",
         "extensionId": "abcdefghijklmnopqrstuvwxzyabcdef",
         "minAppVersion": "0.1.0",
-        "supportedProtocolVersions": [1],
-        "supportedSettingsSchemaVersions": [1]
+        "supportedProtocolVersions": [2],
+        "supportedSettingsSchemaVersions": [1], "capabilities": ["desktop-settings-v1", "durable-media-ack-v1"]
     }"#
 }
 
 fn extension_controller_acquire() -> &'static [u8] {
     br#"{
         "type": "extension.controller.acquire",
-        "protocolVersion": 1,
+        "protocolVersion": 2,
         "connectionId": "connection-1",
         "browserFamily": "chrome",
         "profileKey": "profile-1",
@@ -629,7 +631,7 @@ fn malformed_controller_acquire_missing_browser_family(profile_key: &str) -> Vec
     format!(
         r#"{{
         "type": "extension.controller.acquire",
-        "protocolVersion": 1,
+        "protocolVersion": 2,
         "connectionId": "connection-1",
         "profileKey": "{profile_key}",
         "documentId": "document-1",
@@ -643,9 +645,11 @@ fn malformed_controller_acquire_missing_browser_family(profile_key: &str) -> Vec
 fn app_hello() -> &'static [u8] {
     br#"{
         "type": "app.hello",
-        "protocolVersion": 1,
+        "protocolVersion": 2,
+        "appIdentity": {"clientId": "0000000000000000000000000000000000000000000000000000000000000000", "trustVersion": 1},
+        "settingsAuthority": "desktop",
         "settingsSchemaVersion": 1,
-        "supportedProtocolVersions": [1],
+        "supportedProtocolVersions": [2],
         "supportedSettingsSchemaVersions": [1],
         "minExtensionVersion": "0.1.0",
         "appInstanceId": "sniptale-native-agent",
@@ -709,7 +713,8 @@ fn app_hello() -> &'static [u8] {
 fn app_controller_lease() -> &'static [u8] {
     br#"{
         "type": "app.controller.lease",
-        "protocolVersion": 1,
+        "protocolVersion": 2,
+        "selectionStatus": "selected",
         "controllerLeaseId": "lease:connection-1",
         "controller": {
             "extensionId": "abcdefghijklmnopqrstuvwxzyabcdef",
@@ -726,7 +731,7 @@ fn app_controller_lease() -> &'static [u8] {
 fn operation_failed() -> &'static [u8] {
     br#"{
         "type": "app.operation.failed",
-        "protocolVersion": 1,
+        "protocolVersion": 2,
         "controllerLeaseId": "lease:connection-1",
         "operation": "screenshot",
         "operationId": "command-1",
@@ -743,7 +748,7 @@ fn operation_failed() -> &'static [u8] {
 fn command_accepted() -> &'static [u8] {
     br#"{
         "type": "app.command.accepted",
-        "protocolVersion": 1,
+        "protocolVersion": 2,
         "controllerLeaseId": "lease:connection-1",
         "commandId": "command-1",
         "operation": "screenshot",

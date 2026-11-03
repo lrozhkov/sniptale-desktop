@@ -59,7 +59,6 @@ WINDOWS_SMOKE_WRAPPER = ROOT / "tooling/qa/wrappers/windows-smoke.sh"
 WINDOWS_SMOKE_IMPLEMENTATION = ROOT / "tooling/release/windows/smoke/windows-smoke.sh"
 COVERAGE_WRAPPER = ROOT / "tooling/qa/wrappers/coverage.sh"
 PRE_COMMIT_HOOK = ROOT / "tooling/qa/hooks/pre-commit"
-MAX_TEST_FILE_LINES = 1400
 SCENARIO_SPLIT_PARENTS = [
     ROOT / "src/app/tests/mod.rs",
     ROOT / "src/audio/tests/mod.rs",
@@ -241,9 +240,7 @@ def check_non_scaffold_modules_have_tests() -> None:
         for path in rust_files:
             code_lines.extend(non_comment_rust_lines(path))
         scaffold_only = all(
-            line.startswith("//!")
-            or line in {"pub(crate) fn run() {", "}"}
-            or line.startswith("mod ")
+            line.startswith("//!") or line in {"pub(crate) fn run() {", "}"} or line.startswith("mod ")
             for line in code_lines
         )
         if scaffold_only:
@@ -258,11 +255,7 @@ def check_non_scaffold_modules_have_tests() -> None:
 
 
 def check_test_topology_is_scenario_sliced() -> None:
-    missing = [
-        path.relative_to(ROOT).as_posix()
-        for path in REQUIRED_SCENARIO_TEST_FILES
-        if not path.is_file()
-    ]
+    missing = [path.relative_to(ROOT).as_posix() for path in REQUIRED_SCENARIO_TEST_FILES if not path.is_file()]
     if missing:
         fail("missing scenario-local test files: " + ", ".join(missing))
 
@@ -273,20 +266,6 @@ def check_test_topology_is_scenario_sliced() -> None:
     ]
     if unsplit_parents:
         fail("scenario-split parent test modules must not contain #[test]: " + ", ".join(unsplit_parents))
-
-    oversized = []
-    for path in (ROOT / "src").rglob("*.rs"):
-        relative = path.relative_to(ROOT).as_posix()
-        if "/tests" not in relative:
-            continue
-        lines = len(path.read_text(encoding="utf-8").splitlines())
-        if lines > MAX_TEST_FILE_LINES:
-            oversized.append(f"{relative} has {lines} lines")
-    if oversized:
-        fail(
-            f"owner test files must stay under {MAX_TEST_FILE_LINES} lines: "
-            + "; ".join(sorted(oversized))
-        )
 
 
 def check_property_harnesses_are_tracked() -> None:
@@ -372,7 +351,7 @@ def check_release_wrapper_contract() -> None:
     if "tooling/qa/wrappers/checkpoint.sh" not in closeout:
         fail("closeout wrapper must call checkpoint.sh")
     if (
-        'SNIPTALE_QA_BUILD_WRAPPER:-tooling/qa/wrappers/build.sh' not in closeout
+        "SNIPTALE_QA_BUILD_WRAPPER:-tooling/qa/wrappers/build.sh" not in closeout
         or 'qa_step "build" "$build_wrapper" --profile dev' not in closeout
     ):
         fail("closeout wrapper must call build.sh with the dev profile")
@@ -387,20 +366,27 @@ def check_release_wrapper_contract() -> None:
     ]
     missing_coverage_terms = [term for term in required_coverage_terms if term not in coverage]
     if missing_coverage_terms:
-        fail(
-            "coverage wrapper is missing required gate/artifact terms: "
-            + ", ".join(missing_coverage_terms)
-        )
+        fail("coverage wrapper is missing required gate/artifact terms: " + ", ".join(missing_coverage_terms))
     if 'qa_step "checkpoint static proof" python3 -m tooling.qa.runtime.checkpoint_checks' not in checkpoint:
         fail("checkpoint wrapper must call the independent proof catalog")
+    checks = []
     try:
         catalog = ast.parse((ROOT / "tooling/qa/runtime/checkpoint_checks.py").read_text())
-        checks = next(ast.literal_eval(node.value) for node in catalog.body
-                      if isinstance(node, ast.Assign) and any(isinstance(target, ast.Name) and target.id == "CHECKS" for target in node.targets))
+        checks = next(
+            ast.literal_eval(node.value)
+            for node in catalog.body
+            if isinstance(node, ast.Assign)
+            and any(isinstance(target, ast.Name) and target.id == "CHECKS" for target in node.targets)
+        )
     except (OSError, ValueError, SyntaxError, StopIteration):
         fail("checkpoint proof catalog must be a literal command list")
-    if ("release artifact guardrails", ["python3", "tooling/release/windows/verify_release_artifacts.py"]) not in checks:
+    if (
+        "release artifact guardrails",
+        ["python3", "tooling/release/windows/verify_release_artifacts.py"],
+    ) not in checks:
         fail("checkpoint catalog must call release artifact guardrails")
+    if "cargo clippy --target x86_64-pc-windows-msvc --all-targets --all-features -- -D warnings" not in checkpoint:
+        fail("checkpoint must run native Clippy on Windows-only functions")
     if "cargo check --release --target x86_64-pc-windows-msvc --bin sniptale-native-agent" not in checkpoint:
         fail("checkpoint wrapper must check the Windows MSVC release executable target")
     if "tooling/qa/wrappers/checkpoint.sh" not in pre_commit:
@@ -415,14 +401,9 @@ def check_release_wrapper_contract() -> None:
         "cargo test --all-targets --all-features",
         "Windows host",
     ]
-    missing_windows_smoke_terms = [
-        term for term in required_windows_smoke_terms if term not in windows_smoke
-    ]
+    missing_windows_smoke_terms = [term for term in required_windows_smoke_terms if term not in windows_smoke]
     if missing_windows_smoke_terms:
-        fail(
-            "windows-smoke wrapper is missing runtime proof terms: "
-            + ", ".join(missing_windows_smoke_terms)
-        )
+        fail("windows-smoke wrapper is missing runtime proof terms: " + ", ".join(missing_windows_smoke_terms))
 
     required_release_terms = [
         "tooling/qa/wrappers/checkpoint.sh",

@@ -35,15 +35,18 @@ def _step(args: argparse.Namespace) -> int:
     if not command:
         raise SystemExit("step command is required")
     return run_step(
-        Path(args.record), Path(args.log), args.step_id, args.label, command, args.sensitive,
+        Path(args.record),
+        Path(args.log),
+        args.step_id,
+        args.label,
+        command,
+        args.sensitive,
         args.stream_output,
     )
 
 
 def _begin_step(args: argparse.Namespace) -> int:
-    started_at, started_ns = begin_shell_step(
-        Path(args.log), args.step_id, args.label, args.sensitive
-    )
+    started_at, started_ns = begin_shell_step(Path(args.log), args.step_id, args.label, args.sensitive)
     print(f"{started_at}|{started_ns}")
     return 0
 
@@ -76,6 +79,16 @@ def _state(args: argparse.Namespace) -> int:
         write_state(ROOT, args.name, args.run_id)
     else:
         assert_state(ROOT, args.name)
+    return 0
+
+
+def _require_harness(_args: argparse.Namespace) -> int:
+    require_harness_if_needed(ROOT)
+    return 0
+
+
+def _assert_inputs(args: argparse.Namespace) -> int:
+    assert_run_inputs(Path(args.record))
     return 0
 
 
@@ -131,11 +144,11 @@ def main() -> int:
     state_parser.set_defaults(handler=_state)
 
     harness_parser = sub.add_parser("require-harness")
-    harness_parser.set_defaults(handler=lambda _args: (require_harness_if_needed(ROOT), 0)[1])
+    harness_parser.set_defaults(handler=_require_harness)
 
     inputs_parser = sub.add_parser("assert-inputs")
     inputs_parser.add_argument("--record", required=True)
-    inputs_parser.set_defaults(handler=lambda args: (assert_run_inputs(Path(args.record)), 0)[1])
+    inputs_parser.set_defaults(handler=_assert_inputs)
 
     fingerprint_parser = sub.add_parser("fingerprint")
     fingerprint_parser.set_defaults(handler=lambda _args: (print(fingerprint()), 0)[1])

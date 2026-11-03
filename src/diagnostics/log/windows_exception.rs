@@ -44,5 +44,5 @@ fn exception_code(exception_info: *const EXCEPTION_POINTERS) -> Option<u32> {
     // duration. Null is checked above, and the nested exception record pointer is checked with
     // `as_ref` before reading the code.
     let record = unsafe { (*exception_info).ExceptionRecord.as_ref()? };
-    Some(record.ExceptionCode.0 as u32)
+    Some(record.ExceptionCode.0.cast_unsigned())
 }

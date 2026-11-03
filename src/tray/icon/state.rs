@@ -37,6 +37,14 @@ pub(crate) enum TrayIconVariant {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum TrayNoticeKind {
+    #[cfg(any(windows, test))]
+    DestinationRequired,
+    #[cfg(any(windows, test))]
+    SavedLocally,
+    #[cfg(any(windows, test))]
+    WaitingForBrowser,
+    #[cfg(any(windows, test))]
+    LocalSaveFailed,
     ActionRejected,
     #[cfg(any(windows, test))]
     ExtensionDisconnected,
@@ -150,6 +158,22 @@ const fn recording_label(recording: TrayRecordingStatus) -> &'static str {
 #[cfg(windows)]
 pub(crate) const fn notice_content(kind: TrayNoticeKind) -> TrayNotice {
     match kind {
+        TrayNoticeKind::DestinationRequired => TrayNotice {
+            title: "Sniptale",
+            body: "Choose a local save folder in Desktop Settings before capturing.",
+        },
+        TrayNoticeKind::SavedLocally => TrayNotice {
+            title: "Sniptale",
+            body: "Your capture is saved in the selected local folder.",
+        },
+        TrayNoticeKind::WaitingForBrowser => TrayNotice {
+            title: "Sniptale",
+            body: "The capture is retained while waiting for the selected browser. Use Recover pending results to try again.",
+        },
+        TrayNoticeKind::LocalSaveFailed => TrayNotice {
+            title: "Sniptale",
+            body: "Local saving failed. Your capture is retained. Check the save folder and use Recover pending results.",
+        },
         TrayNoticeKind::ActionRejected => TrayNotice {
             title: "Sniptale",
             body: "The requested tray action could not be completed.",

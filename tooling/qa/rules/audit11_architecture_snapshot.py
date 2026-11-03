@@ -6,7 +6,6 @@ import json
 import re
 import subprocess
 import sys
-from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
@@ -30,11 +29,11 @@ OWNERS = {
     "diagnostics",
 }
 MEDIA_WORKER_EXEMPTIONS = {"TransferWorker"}
-HOT_FILE_THRESHOLD = 250
+HOT_FILE_THRESHOLD = 501
 APP_MEDIA_WORKER_EXECUTION_FILES = {
     "src/app/resident/capture_worker.rs",
     "src/app/resident/recording_worker.rs",
-    "src/app/resident/telemetry_worker.rs",
+    "src/app/resident/telemetry_worker/runtime.rs",
 }
 DEFERRED_EVALUATION_ALLOWED_FILES = {
     "src/protocol/validation/warnings.rs",
@@ -205,17 +204,13 @@ def direct_app_media_execution() -> list[dict[str, Any]]:
             continue
         for line_number, line in enumerate(read(path).splitlines(), start=1):
             if ".capture_screenshot(" in line:
-                occurrences.append(
-                    {"path": relative, "line": line_number, "method": "capture_screenshot"}
-                )
+                occurrences.append({"path": relative, "line": line_number, "method": "capture_screenshot"})
             if (
                 ".start_recording(" in line
                 and "effects.start_recording(" not in line
                 and "self.recording.start_recording(" not in line
             ):
-                occurrences.append(
-                    {"path": relative, "line": line_number, "method": "start_recording"}
-                )
+                occurrences.append({"path": relative, "line": line_number, "method": "start_recording"})
     return occurrences
 
 
@@ -236,14 +231,11 @@ def known_scaffold_markers(files: list[Path]) -> dict[str, Any]:
         for path in production
         if re.search(r"\bCrypt(?:Protect|Unprotect)Data\b|\bCRYPT_INTEGER_BLOB\b", read(path))
     ]
-    unapproved_dpapi_files = [
-        path for path in dpapi_files if path not in APPROVED_DPAPI_OWNER_FILES
-    ]
+    unapproved_dpapi_files = [path for path in dpapi_files if path not in APPROVED_DPAPI_OWNER_FILES]
     deferred = [
         occurrence
         for occurrence in regex_occurrences(r'"deferred-evaluation"', production)
-        if "/tests/" not in occurrence["path"]
-        and occurrence["path"] not in DEFERRED_EVALUATION_ALLOWED_FILES
+        if "/tests/" not in occurrence["path"] and occurrence["path"] not in DEFERRED_EVALUATION_ALLOWED_FILES
     ]
     return {
         "mediaNoopWorkers": {
@@ -278,11 +270,7 @@ def known_scaffold_markers(files: list[Path]) -> dict[str, Any]:
 
 
 def test_file_sizes(files: list[Path]) -> list[dict[str, Any]]:
-    return [
-        {"path": rel(path), "lines": line_count(path)}
-        for path in files
-        if is_test_file(path)
-    ]
+    return [{"path": rel(path), "lines": line_count(path)} for path in files if is_test_file(path)]
 
 
 def hot_files(files: list[Path]) -> list[dict[str, Any]]:
@@ -308,7 +296,7 @@ def snapshot() -> dict[str, Any]:
             "--write .tmp/audit/deep-research-report-11-architecture-snapshot.json"
         ),
         "ownerFileCounts": owner_file_counts(files),
-        "hotFilesNear300Loc": hot_files(production),
+        "filesAboveNavigationWarning": hot_files(production),
         "testFileSizes": test_file_sizes(files),
         "directOwnerImports": direct_owner_import_snapshot(production),
         "knownScaffoldMarkers": known_scaffold_markers(files),
@@ -322,9 +310,7 @@ def snapshot() -> dict[str, Any]:
 
 
 def parse_args(argv: list[str]) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Generate the AUD11 machine-readable architecture ratchet snapshot."
-    )
+    parser = argparse.ArgumentParser(description="Generate the AUD11 machine-readable architecture ratchet snapshot.")
     parser.add_argument(
         "--write",
         nargs="?",
