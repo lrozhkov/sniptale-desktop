@@ -89,7 +89,7 @@ The Nextest development profile excludes two complete-hour integration scenarios
 
 PR CI runs the scoped checkpoint. The existing checks workflow runs complete release proof nightly. Alpha packaging explicitly requests complete release proof through the same workflow. A manual checks dispatch can select release proof. Required check names remain unchanged. PR checks produce no distributable release artifact.
 
-Closeout accepts successful checkpoint state only when revision, changed files, contents, modes, scope, tool paths, relevant flags, and frontend output match. Failed checkpoint reruns clear prior success state. Closeout also requires applicable harness success, including after checkpoint reuse. Source or configuration changes invalidate reuse. Coverage and supply-chain reports do not require another checkpoint when its inputs remain unchanged. Release admission separately requires full checkpoint and fresh advisory-audit modes. Local state never substitutes for hosted release evidence.
+Closeout accepts successful checkpoint state only when revision, changed files, contents, modes, scope, tool paths, relevant flags, and frontend output match. Failed checkpoint reruns clear prior success state. Closeout also requires applicable harness success, including after checkpoint reuse. Source or configuration changes invalidate reuse. `CARGO_INCREMENTAL` selects compiler cache behavior and does not invalidate proof. Coverage can change that cache mode without repeating checkpoint. Coverage and supply-chain reports do not require another checkpoint when its inputs remain unchanged. Release admission separately requires full checkpoint and fresh advisory-audit modes. Local state never substitutes for hosted release evidence.
 
 ## Feedback time
 

@@ -74,7 +74,10 @@ class ScopeTests(unittest.TestCase):
                 check=True,
             )
             (root / "old.md").rename(root / "new.md")
-            with mock.patch.object(repository, "ROOT", root):
+            with (
+                mock.patch.object(repository, "ROOT", root),
+                mock.patch.dict("os.environ", {"SNIPTALE_QA_BASE": ""}),
+            ):
                 before = repository.fingerprint()
                 original_mode = (root / "new.md").stat().st_mode
                 (root / "new.md").chmod(0o755)
@@ -102,6 +105,25 @@ class StateTests(unittest.TestCase):
                     self.assertRaisesRegex(RuntimeError, "changed during proof"),
                 ):
                     state.assert_run_inputs(Path("fixture.json"))
+
+    def test_incremental_cache_mode_does_not_invalidate_coverage_admission(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with (
+                mock.patch.object(state, "current_targets", return_value=[]),
+                mock.patch.object(state, "revision", return_value="a" * 40),
+                mock.patch.object(state, "fingerprint", return_value="1" * 64),
+                mock.patch.object(state, "check_plan", return_value=["docs", "rust"]),
+                mock.patch.dict("os.environ", {"CARGO_INCREMENTAL": "1", "RUSTFLAGS": ""}),
+            ):
+                state.write_state(root, "checkpoint", "dev-run")
+                with mock.patch.dict("os.environ", {"CARGO_INCREMENTAL": "0"}):
+                    state.assert_state(root, "checkpoint")
+                with (
+                    mock.patch.dict("os.environ", {"RUSTFLAGS": "-C opt-level=1"}),
+                    self.assertRaisesRegex(RuntimeError, "context"),
+                ):
+                    state.assert_state(root, "checkpoint")
 
     def test_reuse_rejects_changed_flags_plan_frontend_and_failed_state(self) -> None:
         import json

@@ -28,13 +28,6 @@ def proof_context(root: Path, name: str) -> dict:
                 or k in {"CARGO_BUILD_TARGET", "CARGO_ENCODED_RUSTFLAGS", "CARGO_TARGET_DIR"}
             }
         )
-        release = (
-            name == "checkpoint-full"
-            or name == "build-release"
-            or os.environ.get("CI") in {"1", "true"}
-            or os.environ.get("GITHUB_ACTIONS") == "true"
-        )
-        flags["CARGO_INCREMENTAL"] = os.environ.get("CARGO_INCREMENTAL", "0" if release else "1")
     result = {
         "plan": plan,
         "platform": platform.platform(),
