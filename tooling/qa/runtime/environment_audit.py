@@ -29,13 +29,16 @@ CATALOG = ROOT / "tooling/configs/qa/tool-versions.json"
 
 def catalog_tools(value: dict[str, Any], *, historical: bool = False) -> dict[str, str]:
     tools = {
-        "python": value["python"]["version"],
         "rust": value["rust"]["channel"],
-        "node": value["browserAutomation"]["node"],
-        "playwright-core": value["browserAutomation"]["playwrightCore"],
         "wix": value["windows"]["wix"],
-        "windows-sdk": value["windows"]["sdkPackage"],
     }
+    if not historical or "python" in value:
+        tools["python"] = value["python"]["version"]
+    if not historical or "browserAutomation" in value:
+        tools["node"] = value["browserAutomation"]["node"]
+        tools["playwright-core"] = value["browserAutomation"]["playwrightCore"]
+    if not historical or "sdkPackage" in value["windows"]:
+        tools["windows-sdk"] = value["windows"]["sdkPackage"]
     # Retain removed-tool identities when comparing an older security baseline.
     if historical and "uiAutomation" in value["windows"]:
         tools["flaui-core"] = value["windows"]["uiAutomation"]
@@ -43,7 +46,7 @@ def catalog_tools(value: dict[str, Any], *, historical: bool = False) -> dict[st
     inventories = [
         value["cargoSubcommands"],
         {name: item["version"] for name, item in value["externalTools"].items()},
-        value["githubActions"],
+        value.get("githubActions", {}) if historical else value["githubActions"],
         {name: item["version"] for name, item in value.get("scriptTools", {}).items()},
     ]
     for inventory in inventories:

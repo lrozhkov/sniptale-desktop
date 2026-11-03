@@ -26,6 +26,24 @@ VULNERABLE_PYTHON_3121 = "2305ca51448552542b2414186252123a8dc87db7"
 
 
 class EnvironmentAuditTests(unittest.TestCase):
+    def test_historical_pre_python_catalog_keeps_only_recorded_identities(self):
+        catalog = {
+            "schemaVersion": 1,
+            "rust": {"channel": "1.96.0"},
+            "windows": {"wix": "4.0.6", "sdk": "10.0.26100.0"},
+            "cargoSubcommands": {"cargo-audit": "0.22.2"},
+            "externalTools": {"gitleaks": {"version": "8.30.1"}},
+        }
+        self.assertEqual(
+            catalog_tools(catalog, historical=True),
+            {"rust": "1.96.0", "wix": "4.0.6", "cargo-audit": "0.22.2", "gitleaks": "8.30.1"},
+        )
+        with self.assertRaises(KeyError):
+            catalog_tools(catalog)
+        catalog["rust"]["channel"] = "invalid"
+        with self.assertRaises(AdvisoryError):
+            catalog_tools(catalog, historical=True)
+
     def test_retired_ui_tool_is_identified_only_in_historical_baselines(self):
         catalog = json.loads((ROOT / "tooling/configs/qa/tool-versions.json").read_text())
         self.assertNotIn("flaui-core", catalog_tools(catalog))
