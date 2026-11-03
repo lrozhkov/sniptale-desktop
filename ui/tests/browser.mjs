@@ -54,6 +54,18 @@ try {
       assert.ok(layout.fontLoaded, 'Bundled interface font did not load');
       assert.ok(layout.scrollWidth <= layout.width, `Page overflow in ${view.name}`);
       assert.ok(layout.left >= 0 && layout.right <= layout.width, `Toolbar overflow in ${view.name}`);
+      const grip = toolbar.locator('.drag-handle');
+      assert.ok(await grip.isVisible(), `Drag handle hidden in ${view.name}`);
+      await grip.scrollIntoViewIfNeeded();
+      const beforeDrag = await toolbar.boundingBox();
+      const gripBounds = await grip.boundingBox();
+      assert.ok(gripBounds.width >= 24, 'Drag handle must retain its pointer target');
+      await page.mouse.move(gripBounds.x + gripBounds.width / 2, gripBounds.y + gripBounds.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(gripBounds.x + gripBounds.width / 2, gripBounds.y + gripBounds.height / 2 + 36, {steps:4});
+      await page.mouse.up();
+      const afterDrag = await toolbar.boundingBox();
+      assert.ok(afterDrag.y - beforeDrag.y >= 10, `Toolbar did not move in ${view.name}`);
       await page.screenshot({ path: `${output}/${view.name}.png`, fullPage: true });
       if (view.name === 'desktop-dark') {
         assert.equal(await toolbar.locator('button:not(:disabled)').evaluateAll((buttons) => buttons.filter((button) => button.tabIndex >= 0).length), 1, 'Toolbar must have one Tab entry');
@@ -385,6 +397,16 @@ try {
     assert.equal(await page.evaluate(() => window.panelFixture.frames[0].first), true);
     assert.equal(await page.evaluate(() => window.panelFixture.frames[0].pixelRatio), 1.5);
     await page.screenshot({path:`${output}/native-panel-shell.png`, omitBackground:true});
+    await page.setViewportSize({width:480, height:500});
+    const grip = toolbar.locator('.drag-handle');
+    await grip.waitFor({state:'visible'});
+    await grip.click({button:'right'});
+    assert.equal(await page.evaluate(() => window.panelFixture.dragCalls), 0);
+    await grip.click();
+    await page.waitForFunction(() => window.panelFixture.dragCalls === 1);
+    await page.screenshot({path:`${output}/native-panel-compact-drag.png`, omitBackground:true});
+    await page.setViewportSize({width:760, height:500});
+
     await page.evaluate(() => { window.panelFixture.above = true; });
     const options = toolbar.getByRole('button', {name:'Capture options', exact:true});
     await options.click();

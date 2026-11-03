@@ -53,6 +53,10 @@ Run `closeout.sh -m "chore(oss): prepare Sniptale Desktop release"` for the cohe
 
 ## Unsigned alpha
 
+For a private extension development build, use `tooling/release/windows/dev-package.ps1` from Windows PowerShell. Build `ui/dist` and run checkpoint first. Pass the exact `-ExtensionOrigin` and a new `-Output` directory. This path reuses Windows smoke with the development compilation cache. It fixes the dev channel and enables executable-bound local trust. It does not sign artifacts or install certificates. It does not produce public release evidence.
+
+Uninstall an existing Desktop package before installing this private dev package. Run the bundled `install-dev.ps1` to install the MSI and create the local trust marker. Installing the MSI alone does not enable unsigned browser integration. The script verifies bundle hashes and the installed executable and manifest before creating the marker. Normal uninstall removes the marker. The extension must select `com.sniptale.dev.native_host` and have the configured ID. For an unpacked extension, retain its loading path and select a dev `version_name` in its generated manifest. Reload it after changing that manifest. This development process does not change published alpha artifacts.
+
 The first release is `v0.1.0-alpha.1`, with numeric Cargo/MSI version `0.1.0` and runtime channel `dev`. This release supports Manual settings, screenshots, and local MP4 recording. Trusted extension integration is unsupported. No dev-local browser trust flag or marker is shipped. Missing signature is an expected diagnostic limitation, never a production trust claim.
 
 Alpha, beta, and stable currently share the install directory and UpgradeCode, so side-by-side installation is unsupported.

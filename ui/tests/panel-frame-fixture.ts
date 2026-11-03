@@ -3,7 +3,7 @@ import { mockIPC, mockWindows } from '@tauri-apps/api/mocks';
 import { emit } from '@tauri-apps/api/event';
 import { FixtureCaptureClient } from '../src/sandbox/fixture-client';
 import type { PanelFrameRequest } from '../src/client/panel-frame';
-const controls = {above:false, frames:[] as PanelFrameRequest[], settingsOpened:false, closed:false,
+const controls = {dragCalls:0, above:false, frames:[] as PanelFrameRequest[], settingsOpened:false, closed:false,
   delayCommand:false, releaseCommand:undefined as undefined | (() => void)};
 Object.assign(window, {isTauri:true, panelFixture:controls});
 history.replaceState(null, '', '/');
@@ -27,7 +27,7 @@ mockIPC(async (command, args) => {
   }
   if (command === 'desktop_open_settings') { controls.settingsOpened = true; return; }
   if (command === 'desktop_close_panel') { controls.closed = true; return; }
-  if (command === 'desktop_drag_panel') return;
+  if (command === 'desktop_drag_panel') { controls.dragCalls += 1; return; }
   throw new Error('Unexpected panel fixture command');
 }, {shouldMockEvents:true});
 mockWindows('capture-panel');
