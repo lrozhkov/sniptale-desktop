@@ -4,7 +4,11 @@
 pub(crate) mod consent;
 #[cfg(any(windows, test))]
 pub(crate) mod delivery;
+#[cfg(any(windows, test))]
+pub(crate) mod desktop;
 mod icon;
+#[cfg(any(windows, test))]
+pub(crate) mod localization;
 mod menu;
 #[cfg(any(windows, test))]
 pub(crate) mod runtime;
@@ -46,7 +50,7 @@ pub(crate) use menu::render::{TrayMenuCommand, plan_menu_render};
 pub(crate) use menu::render::{TrayMenuRenderEntry, TrayMenuRenderPlan};
 #[cfg(any(windows, test))]
 pub(crate) use runtime::browser::plan_open_settings_fallback;
-#[cfg(all(test, not(windows)))]
+#[cfg(test)]
 pub(crate) use runtime::source::NoopTrayCommandSource;
 #[cfg(any(windows, test))]
 pub(crate) use runtime::source::TrayCommandSource;

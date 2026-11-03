@@ -76,6 +76,27 @@ def assert_source(commit: str) -> None:
         raise ValueError("release requires a clean source checkout")
 
 
+def frontend_files(directory: Path) -> dict[str, str]:
+    """Admit the current Vite entrypoint, its bundles, and their bundled fonts."""
+    if directory.is_symlink() or not (directory / "index.html").is_file():
+        raise ValueError("missing or redirected alpha frontend")
+    inventory = files(directory)
+    index = (directory / "index.html").read_text(encoding="utf-8")
+    references = set(re.findall(r'(?:src|href)="/(assets/[A-Za-z0-9_.-]+\.(?:js|css))"', index))
+    if not any(name.endswith(".js") for name in references) or not any(name.endswith(".css") for name in references):
+        raise ValueError("alpha frontend requires script and style bundles")
+    required = {"index.html", *references}
+    for name in references:
+        if name not in inventory:
+            raise ValueError("missing referenced alpha frontend bundle")
+        if name.endswith(".css"):
+            stylesheet = (directory / name).read_text(encoding="utf-8")
+            required.update(re.findall(r"url\([\'\"]?/(assets/[A-Za-z0-9_.-]+\.woff2)[\'\"]?\)", stylesheet))
+    if set(inventory) != required:
+        raise ValueError("alpha frontend inventory differs from referenced assets")
+    return inventory
+
+
 def version_tag(tag: str) -> str:
     match = re.fullmatch(r"v(0\.\d+\.\d+)-alpha\.([1-9][0-9]*)", tag)
     if not match:
@@ -109,6 +130,8 @@ def make_proof(output: Path) -> None:
         (".tmp/release/supply-chain/cargo-deny.txt", "cargo-deny.txt"),
     ]:
         shutil.copyfile(ROOT / source, output / name)
+    frontend_files(ROOT / "ui/dist")
+    shutil.copytree(ROOT / "ui/dist", output / "frontend")
     write_json(
         output / "qa-proof.json",
         {
@@ -128,11 +151,12 @@ def verify_proof(directory: Path, commit: str) -> dict:
     proof = read_json(directory / "qa-proof.json")
     actual = files(directory)
     actual.pop("qa-proof.json", None)
+    required = PROOF_FILES | {f"frontend/{name}" for name in frontend_files(directory / "frontend")}
     if (
         proof.get("schemaVersion") != 1
         or proof.get("kind") != "sniptale-alpha-qa"
         or proof.get("commit") != commit
-        or set(files(directory)) != PROOF_FILES
+        or set(files(directory)) != required
         or proof.get("files") != actual
         or set(proof.get("gates", {})) != GATES
     ):
@@ -236,7 +260,7 @@ def verify_bundle(directory: Path, commit: str, tag: str) -> dict:
         "THIRD_PARTY_NOTICES.md",
         "THIRD_PARTY_DEPENDENCIES.json",
         "build-environment.json",
-        *[f"qa/{name}" for name in PROOF_FILES],
+        *[f"qa/{name}" for name in files(directory / "qa")],
     }
     for source, destination in [
         ("LICENSE", "LICENSE.txt"),

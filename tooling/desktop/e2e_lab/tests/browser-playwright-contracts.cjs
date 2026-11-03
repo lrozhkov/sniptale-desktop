@@ -62,7 +62,7 @@ async function run(patch = {}) {
       };
       if (name === 'C:/SniptaleLab/browser-tools/package') return {chromium:{connectOverCDP:async (endpoint, options) => {
         connected = true;
-        assert.equal(endpoint, 'http://127.0.0.1:9223');
+        assert.equal(endpoint, `http://127.0.0.1:${patch.port ?? '9223'}`);
         assert.equal(options.timeout, 10000);
         if (patch.connectFailure) throw Error('private connection details');
         return {contexts:() => patch.contexts ?? [{pages:() => patch.input?.scenario==='native-video-editor'?(patch.duplicateEditor?[page,editor,editor]:[page,editor]):[page]}], close:() => assert.fail('persistent browser must remain open')};
@@ -70,6 +70,13 @@ async function run(patch = {}) {
       if (name.endsWith('/package/package.json')) return {version:'1.64.1'};
       if (name === 'node:crypto') return require('node:crypto');
       if (name === 'node:path') return require('node:path');
+      if (name === './desktop-capture-playwright.cjs') return {
+        desktopActions:require('../guest/windows/desktop-capture-playwright.cjs').desktopActions,
+        captureScenario:async (_context, action) => {
+          if (patch.desktopError) throw Error(patch.desktopError);
+          return {passed:true, action};
+        },
+      };
       throw new Error('unexpected sandbox module');
     },
     Buffer, URL, setTimeout:() => 1, clearTimeout:() => {},
@@ -115,7 +122,18 @@ async function run(patch = {}) {
   }
   const canonicalReopen=await run({input:{scenario:'native-video-editor'},reopenedEditorUrl:editorBase+'?project=project-1&id=video-1'});
   assert.equal(canonicalReopen.code,0);
-  for (const patch of [{port:'1234'}, {size:65537}, {nonFile:true}, {growingFile:true}, {connectFailure:true}, {contexts:[]},
+  for (const action of require('../guest/windows/desktop-capture-playwright.cjs').desktopActions) {
+    const desktop = await run({port:'9225', input:{scenario:'desktop-capture', action}});
+    assert.equal(desktop.code, 0);
+    assert.equal(JSON.parse(desktop.output).action, action);
+    assert.equal((await run({port:'9223', input:{scenario:'desktop-capture', action}})).code, 1);
+  }
+  for (const message of ['desktop-settings-open-failed', 'desktop-settings-apply-failed', 'desktop-record-stop-failed', 'private host information']) {
+    const failed = await run({port:'9225', input:{scenario:'desktop-capture', action:'settings-edit'}, desktopError:message});
+    assert.equal(failed.code, 1);
+    assert.equal(failed.error, message.startsWith('desktop-') ? `${message}\n` : 'browser-scenario-failed\n');
+  }
+  for (const patch of [{port:'1234'}, {port:'9225'}, {input:{scenario:'desktop-capture',action:'capture'}}, {port:'9225',input:{scenario:'desktop-capture',action:'unknown'}}, {port:'9225',input:{scenario:'desktop-capture',action:'capture',extra:true}}, {size:65537}, {nonFile:true}, {growingFile:true}, {connectFailure:true}, {contexts:[]},
     {contexts:[{},{}]}, {url:'https://untrusted.invalid/'}, {evaluateFailure:true}, {value:{data:'x'.repeat(1048576)}},
     {input:{scenario:'unknown'}},{input:{scenario:'native-video-editor',expression:'extra'}},
     ...[{recordingId:'../escape'},{editorUrl:'https://untrusted.invalid/'},{editorNotReady:true},{archiveMissing:true},{archiveCount:2},{playheadStuck:true},{canvasWidth:0},

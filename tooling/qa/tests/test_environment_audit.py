@@ -19,13 +19,20 @@ from tooling.qa.runtime.advisories import (
     nvd_query,
     osv_queries,
 )
-from tooling.qa.runtime.environment_audit import audit
+from tooling.qa.runtime.environment_audit import audit, catalog_tools
 
 ROOT = Path(__file__).resolve().parents[3]
 VULNERABLE_PYTHON_3121 = "2305ca51448552542b2414186252123a8dc87db7"
 
 
 class EnvironmentAuditTests(unittest.TestCase):
+    def test_retired_ui_tool_is_identified_only_in_historical_baselines(self):
+        catalog = json.loads((ROOT / "tooling/configs/qa/tool-versions.json").read_text())
+        self.assertNotIn("flaui-core", catalog_tools(catalog))
+        catalog["windows"]["uiAutomation"] = "5.0.0"
+        self.assertEqual(catalog_tools(catalog, historical=True)["flaui-core"], "5.0.0")
+        self.assertNotIn("flaui-core", catalog_tools(catalog))
+
     def setUp(self):
         self.catalog = json.loads((ROOT / "tooling/configs/qa/tool-versions.json").read_text())
         self.policy = json.loads((ROOT / "tooling/configs/qa/environment-audit.json").read_text())
@@ -66,7 +73,11 @@ class EnvironmentAuditTests(unittest.TestCase):
         self.assertIn("not all bundled", report["coverageLimit"])
 
     def test_another_catalog_section_cannot_mask_vulnerable_python(self):
-        self.catalog["scriptTools"]["python"] = {"version": "3.15.2", "manager": "pypi", "package": "unrelated"}
+        self.catalog["scriptTools"]["python"] = {
+            "version": "3.15.2",
+            "manager": "pypi",
+            "package": "unrelated",
+        }
         with self.assertRaisesRegex(AdvisoryError, "collide"):
             audit(self.catalog, self.policy, self.source)
 
@@ -98,12 +109,17 @@ class EnvironmentAuditTests(unittest.TestCase):
             decode(b'{"result":"pass","result":"fail"}')
         with self.assertRaisesRegex(AdvisoryError, "incomplete NVD"):
             nvd_query(
-                "python", "python", "3.12.1", lambda *_: {"totalResults": 2, "startIndex": 0, "vulnerabilities": []}
+                "python",
+                "python",
+                "3.12.1",
+                lambda *_: {"totalResults": 2, "startIndex": 0, "vulnerabilities": []},
             )
         with self.assertRaisesRegex(AdvisoryError, "pagination"):
             osv_queries([{"commit": "a" * 40}], lambda *_: {"next_page_token": "repeated"})
 
-    def test_transport_retry_recovers_transient_failure_and_rejects_persistent_failure(self):
+    def test_transport_retry_recovers_transient_failure_and_rejects_persistent_failure(
+        self,
+    ):
         endpoint = "https://api.osv.dev/v1/vulns/fixture"
         response = mock.MagicMock()
         response.__enter__.return_value.geturl.return_value = endpoint
@@ -135,7 +151,8 @@ class EnvironmentAuditTests(unittest.TestCase):
         from http.client import HTTPMessage
 
         request = urllib.request.Request(
-            "https://api.github.com/repos/owner/repository", headers={"Authorization": "Bearer fixture"}
+            "https://api.github.com/repos/owner/repository",
+            headers={"Authorization": "Bearer fixture"},
         )
         handler = ApprovedRedirects(request.full_url)
         headers = HTTPMessage()
@@ -146,16 +163,27 @@ class EnvironmentAuditTests(unittest.TestCase):
                 "https://user:password@api.github.com/collect",
                 "https://release-assets.githubusercontent.com/collect",
             ):
-                with self.subTest(destination=destination), self.assertRaises(AdvisoryError):
+                with (
+                    self.subTest(destination=destination),
+                    self.assertRaises(AdvisoryError),
+                ):
                     handler.redirect_request(request, response, 302, "Found", headers, destination)
             redirected = handler.redirect_request(
-                request, response, 302, "Found", headers, "https://api.github.com/repos/renamed/repository"
+                request,
+                response,
+                302,
+                "Found",
+                headers,
+                "https://api.github.com/repos/renamed/repository",
             )
             self.assertIsNotNone(redirected)
 
     def test_release_tag_cannot_redirect_commit_identity(self):
         with self.assertRaisesRegex(AdvisoryError, "reference"):
-            cpython_query("3.12.1", lambda *_: {"object": {"type": "commit", "sha": "not-a-commit"}})
+            cpython_query(
+                "3.12.1",
+                lambda *_: {"object": {"type": "commit", "sha": "not-a-commit"}},
+            )
 
 
 if __name__ == "__main__":

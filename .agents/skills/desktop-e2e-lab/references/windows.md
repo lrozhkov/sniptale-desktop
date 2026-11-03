@@ -39,7 +39,9 @@ A supplied release ZIP is validated and packaged without rebuilding the extensio
 
 The laboratory manifest selects the dev host channel, pregrants nativeMessaging, and uses the isolated allowlisted identity. This proves release runtime behavior under that manifest. It does not prove the pristine permission flow or store identity. The older `.tmp/e2e-builds/test` input still invokes the owner's pinned test build when fingerprints change. It is explicitly test runtime and is not release-equivalent.
 
-Guest builds execute the Rust owner tests on Windows with all targets/features before packaging. Their output and duration remain in build evidence. The scenario drives the product runtime in headful Chrome and Edge. It checks lease and settings, decodes and hashes received native PNG media, and reconnects after resident restart.
+By default, guest builds execute the Rust owner tests on Windows with all targets/features before packaging. Their output and duration remain in build evidence. The scenario drives the product runtime in headful Chrome and Edge. It checks lease and settings, decodes and hashes received native PNG media, and reconnects after resident restart.
+
+Use `session build --profile dev --ui-preview` only for interactive UI diagnosis. It omits Rust owner tests and records `rust_tests: not_run`. The controller rejects this option for clean builds, release profiles, and changed dependency locks. Source fingerprints, artifact hashes, installation checks, resource limits, and runtime evidence remain mandatory. Preview results do not replace checkpoint, ordinary Windows builds, clean acceptance, or release gates.
 
 Browser profiles persist for subsequent iterations. Product data in this guest is synthetic.
 
@@ -55,9 +57,11 @@ Close the session when the task ends. Use `session close --save` after a success
 
 If cache creation fails after clean shutdown, the controller retains the disk and an identity-bound shutdown marker. Retry `session close --save` after resolving the reported budget or tool failure. A retry rejects a changed disk, changed VM generation, or running VM.
 
-A later `session open` verifies its hash, age, golden backing, and non-release mode before copying it into a separate writable overlay. Expiration and ordinary close discard the active overlay. Clean acceptance never loads this cache. Cache bounds are owned by `session_cache.py` and the lab configuration.
+A later `session open` verifies its hash, age, golden backing, and non-release mode before creating a small writable overlay above the read-only cache. Expiration and ordinary close discard the active overlay. Clean acceptance never loads this cache. Cache bounds are owned by `session_cache.py` and the lab configuration.
 
 When diagnostic evidence approaches the temporary budget, collect the iterations still needed for review, then use `tooling/desktop/e2e-lab gc --closed-session <session-id>` for one obsolete closed session. This removes only that session's diagnostic directory. It preserves active-session evidence, running VM generations, golden images, and the work-image cache. The controller rejects invalid identities, redirected paths, and missing ownership metadata. This addressed cleanup is available while a different development session is active. Ordinary GC still requires no active session.
+
+Use `gc --retired-iteration <session-id> <iteration-id>` to remove one completed, older diagnostic iteration. The controller preserves the newest iteration and the active build artifact. It rejects incomplete receipts and redirected paths. Use this cleanup after inspecting evidence that the task no longer needs. It does not remove guest disks, the work-image cache, or release evidence.
 
 For required Windows smoke, use the guest's synchronized source at `C:\SniptaleLab\work` after a successful current-source session build and a fresh host checkpoint.
 

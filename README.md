@@ -8,7 +8,8 @@ Sniptale Desktop is a Windows capture application and a native companion for the
 
 - Capture a screen, active window, virtual desktop, or selected region as PNG.
 - Record a screen, window, or region as H.264/AAC MP4. Configure microphone audio, system audio, quality, frame rate, and duration.
-- Control capture through the tray menu and global hotkeys. Pause, resume, or stop a recording.
+- Use a floating panel to select screenshot or video, choose a source, and start capture. Change recording quality in the source popup.
+- Pause, resume, stop, or discard a recording. The tray and global hotkeys remain available after you close the panel.
 - Save media to a selected local folder. Optionally deliver media to a compatible Chromium extension through Native Messaging.
 - Inspect bounded, redacted [diagnostics](docs/operations/diagnostics.md).
 
@@ -19,13 +20,22 @@ Desktop owns capture settings and controls. The user selects a browser destinati
 - Windows 10 or Windows 11 on x64.
 - Rust through `rustup`. [rust-toolchain.toml](rust-toolchain.toml) selects the pinned toolchain and Windows target.
 - Visual Studio 2022 Build Tools with Desktop development with C++, x64 MSVC, and a Windows SDK.
+- The shared Microsoft Edge WebView2 Runtime. The application uses the system WebView.
+- Node.js and npm. Use the Node version from the tool catalog.
 - Git.
 
 The [tool catalog](tooling/configs/qa/tool-versions.json) owns exact managed versions. [QA tooling](docs/tooling/qa.md) explains tool installation.
 
 ## Build from source
 
-Open Developer PowerShell for VS 2022 in the repository root. Build an unsigned development executable:
+Open Developer PowerShell for VS 2022 in the repository root. Prepare the shared interface:
+
+```powershell
+npm --prefix ui ci --ignore-scripts
+npm --prefix ui run build
+```
+
+Build an unsigned development executable:
 
 ```powershell
 $env:SNIPTALE_INSTALL_CHANNEL = "dev"
@@ -39,7 +49,7 @@ Start the tray application:
 .\target\x86_64-pc-windows-msvc\release\sniptale-native-agent.exe
 ```
 
-Open the tray settings. Select Manual mode and a local destination before capture. A direct source build does not install Native Messaging registration, autostart, or MSI state.
+Click the tray icon to open the panel. Open application settings, choose an output folder, and apply the capture profile. Theme and language use the separate settings window. A direct source build does not install Native Messaging registration, autostart, or MSI state.
 
 For extension packaging, set the exact extension origin before the Cargo command:
 
@@ -51,7 +61,7 @@ Rebuild after an origin change. Use the [release procedure](docs/oss/release.md)
 
 ## Limits and security
 
-Windows is the only implemented product platform. Linux is planned. No macOS implementation is currently planned.
+Windows is the only implemented capture platform. The shared web interface prepares the application for macOS and Linux. Those platforms still need system adapters and packaging.
 
 This application does not include a gallery, editor, OCR, transcription, AI features, accounts, cloud sync, or an automatic updater. Capture and audio availability depend on Windows, source protection, hardware, and drivers.
 
@@ -61,7 +71,7 @@ Read the [threat model](docs/security/threat-model.md) before sensitive use. [Da
 
 ## Development and documentation
 
-The product uses Rust with owner-local Windows adapters. The [repository overview](docs/architecture/repository-overview.md) explains runtime modes. The [owner map](docs/architecture/module-ownership.md) defines state authority and dependency direction.
+The product uses Tauri, shared web components, and Rust with owner-local Windows adapters. The [browser sandbox](ui/README.md) uses the real application components. Styling changes do not require a Rust or installer build. The [repository overview](docs/architecture/repository-overview.md) explains runtime modes. The [owner map](docs/architecture/module-ownership.md) defines state authority and dependency direction.
 
 [AGENTS.md](AGENTS.md) defines the implementation and review workflow. [QA tooling](docs/tooling/qa.md) defines canonical local and CI checks. The [documentation index](docs/README.md) lists all active documents.
 

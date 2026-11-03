@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import unittest
+import json
+from pathlib import Path
 
 from tooling.qa.runtime.advisories import AdvisoryError, osv_batch
-from tooling.qa.runtime.tool_dependencies import npm_packages, python_packages
+from tooling.qa.runtime.tool_dependencies import locked_packages, npm_packages, python_packages
 from tooling.qa.rules.verify_script_quality import suppression_errors
 
 
@@ -21,6 +23,14 @@ class ToolDependencyTests(unittest.TestCase):
         for field, value in (("resolved", "file:local"), ("integrity", "missing"), ("version", "^1.2.3")):
             with self.subTest(field=field), self.assertRaises(AdvisoryError):
                 npm_packages({"lockfileVersion": 3, "packages": {"node_modules/example": {**item, field: value}}})
+
+    def test_shared_ui_dependencies_are_in_the_same_advisory_query_inventory(self):
+        root = Path(__file__).resolve().parents[3]
+        package = json.loads((root / "ui/package.json").read_text())
+        selected = locked_packages(root)
+        self.assertIn(("npm", "@tauri-apps/api", package["dependencies"]["@tauri-apps/api"]), selected)
+        self.assertIn(("npm", "react", package["dependencies"]["react"]), selected)
+        self.assertTrue(any(ecosystem == "PyPI" for ecosystem, _, _ in selected))
 
     def test_python_lock_rejects_unpinned_or_unhashed_requirements(self):
         self.assertEqual(

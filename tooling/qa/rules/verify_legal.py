@@ -9,6 +9,9 @@ import sys
 import tomllib
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+from tooling.release.legal.generate_dependency_licenses import reject_placeholder_license
+
 
 ROOT = Path(__file__).resolve().parents[3]
 POLICY = ROOT / "tooling/configs/qa/open-source.json"
@@ -16,6 +19,11 @@ MANIFEST = ROOT / "THIRD_PARTY_DEPENDENCIES.json"
 NOTICE_BUNDLE = ROOT / "THIRD_PARTY_NOTICES.md"
 LICENSE_DIR = ROOT / "LICENSES/third-party"
 EXPECTED_INPUTS = {
+    "ui/package.json",
+    "ui/package-lock.json",
+    "ui/src/styles/fonts/golos-ui/golos-ui-vf.woff2",
+    "ui/src/styles/fonts/golos-ui/LICENSE.txt",
+    "tooling/qa/fixtures/licenses/apache-2.0.txt",
     "Cargo.toml",
     "Cargo.lock",
     "deny.toml",
@@ -30,6 +38,15 @@ EXPECTED_INPUTS = {
 
 def digest(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def unresolved_license_placeholders(text: str, spdx_ids: object) -> bool:
+    license_id = spdx_ids[0] if isinstance(spdx_ids, list) and len(spdx_ids) == 1 else ""
+    try:
+        reject_placeholder_license(text, license_id)
+    except ValueError:
+        return True
+    return False
 
 
 def relative_files(root: Path) -> set[str]:
@@ -150,10 +167,7 @@ def validate_static() -> list[str]:
         path = ROOT / str(record.get("file"))
         if not path.is_file() or digest(path) != record.get("sha256"):
             errors.append(f"dependency license digest drift: {record.get('file')}")
-        elif any(
-            marker in path.read_text(encoding="utf-8").lower()
-            for marker in ("<year>", "<copyright holders>", "<copyright holder>", "[year]", "[yyyy]")
-        ):
+        elif unresolved_license_placeholders(path.read_text(encoding="utf-8"), record.get("spdxIds")):
             errors.append(f"dependency license contains unresolved placeholders: {record.get('file')}")
     if not manifest.get("packages"):
         errors.append("dependency legal manifest contains no packages")

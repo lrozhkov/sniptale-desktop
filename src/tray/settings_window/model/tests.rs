@@ -96,10 +96,10 @@ fn microphone_presentation_uses_labels_but_selects_stable_ids() {
         "private-device-id".to_owned(),
     ));
     let presentation = model.presentation();
-    assert_eq!(
-        presentation.microphones()[1].label(),
-        "Studio microphone (default)"
-    );
+    assert_eq!(presentation.microphones()[1].name(), "Studio microphone");
+    assert!(presentation.microphones()[1].is_default());
+    assert!(!presentation.microphones()[1].missing());
+    assert!(!presentation.microphones()[1].system_default());
     assert_eq!(presentation.selected_microphone_index(), 1);
     assert_eq!(
         model
@@ -174,12 +174,15 @@ fn appearance_and_inline_feedback_are_projected_without_dirtying_capture_setting
 }
 
 #[test]
-fn navigation_is_presentation_only_and_all_sections_have_copy() {
+fn navigation_preserves_the_entire_settings_draft() {
     let mut model = SettingsWindowModel::default();
+    model.stage_manual_destination("destination".to_owned(), "C:\\Capture".to_owned());
+    model.set_video_bitrate(Some(40));
+    let draft = model.manual_view();
     for section in SettingsWindowSection::ALL {
         model.navigate(section);
         assert_eq!(model.presentation().section(), section);
-        assert_ne!(section.label().len(), 0);
+        assert_eq!(model.manual_view(), draft);
     }
 }
 
@@ -235,7 +238,7 @@ fn configured_legacy_extension_profile_exposes_desktop_controls_without_migratio
     assert!(model.presentation().shows_navigation());
     assert!(model.presentation().shows_footer());
     assert!(!model.dirty());
-    assert_eq!(model.presentation().apply_label(), "Save changes");
+    assert!(!model.presentation().switching_mode());
     assert_eq!(
         crate::settings::load_local_profile_from_path(Some(path.clone())).map_err(debug_error)?,
         Some(before.clone())

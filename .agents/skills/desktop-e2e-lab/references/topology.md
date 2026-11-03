@@ -10,7 +10,7 @@
 
 ## Invariants
 
-The controller lock serializes mutations and permits one heavy VM. SSH/VNC bind to loopback and QMP uses a Unix socket. Runtime overlays use a verified flattened golden as read-only backing state. Acceptance overlays are destroyed on success or failure. Forced termination is recorded. Development session overlays remain owned by the controller until close, expiry, or resource-limit termination.
+The controller lock serializes mutations and permits one heavy VM. SSH/VNC bind to loopback and QMP uses a Unix socket. Acceptance overlays use a verified flattened golden as read-only backing state. Acceptance overlays are destroyed on success or failure. Forced termination is recorded. Development session overlays remain owned by the controller until close, expiry, or resource-limit termination.
 
 State, QMP, SSH, guest JSON, artifacts, manifests, and files are untrusted until exact-schema, size, path, and SHA-256 validation succeeds. Destructive paths must resolve below the lab roots. Source archives include current tracked and non-ignored untracked work but exclude `.git`, `target`, `.tmp`, `.artifacts`, VM state, caches, secrets, signing material, and user media.
 
@@ -24,10 +24,12 @@ Development sessions store their lease in `.tmp/qa/desktop-e2e-lab/work-session.
 
 The guest retains its NTFS target directory outside the synchronized source tree. Deleted sources are removed and changed bytes receive fresh mtimes. Transfers explicitly carry vendored Cargo sources, the official Windows Rust toolchain, and WiX/SDK packages. The canonical tool catalog and generated lock resolve toolchain packages. Every transfer requires hash verification. Guest egress remains denied.
 
-A saved Windows work image lives under the controller cache and remains diagnostic-only. Saving uses zstd-compressed QCOW2 and checks the candidate before replacing an older cache. It retains compiled dependencies and synthetic application/browser profiles within age and size bounds. Restore checks its checksum and original golden backing before copying it into a separate overlay.
+A saved Windows work image lives under the controller cache and remains diagnostic-only. Saving uses zstd-compressed QCOW2 and checks the candidate before replacing an older cache. It retains compiled dependencies and synthetic application/browser profiles within age and size bounds. Restore checks its checksum and original golden backing. Development sessions use a small copy-on-write overlay above this read-only cache. Saving flattens the cache against the original golden. The backing chain cannot grow across sessions.
 
 Clean acceptance never restores this cache. Windows KVM guests use explicit paravirtual clocks and timers owned by `vm.cpu_model`. Provisioning uses the same CPU policy.
 
 External extension builds use the same source selection and limits, including new TypeScript files. They bind a streamed source-tree fingerprint instead of creating an unused transport archive. Git-ignored generated state is excluded. Tracked files remain inputs even when an ignore rule matches. Failed bundle creation removes private partial files.
 
 Iteration receipts record temporary storage usage. Before automatic teardown, the watchdog records the expiry or storage-budget reason in the session directory at `termination.json`. Resource ceilings remain owned by the lab configuration. Check these receipts when a session disappears.
+
+Session admission reserves temporary headroom before open, build, and test operations. A refusal preserves the active session and its compiled dependencies. Collect required evidence, then use controller GC. Do not raise the storage limits to repeat an unchanged operation.

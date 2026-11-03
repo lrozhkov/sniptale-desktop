@@ -55,7 +55,7 @@ pub(crate) enum TrayMenuRenderEntry {
     Separator,
     Submenu {
         id: &'static str,
-        label: &'static str,
+        label: String,
         enabled: bool,
         entries: Vec<TrayMenuRenderEntry>,
     },
@@ -91,7 +91,7 @@ fn plan_entries(
                 entries,
             } => render_entries.push(TrayMenuRenderEntry::Submenu {
                 id,
-                label,
+                label: label.clone(),
                 enabled: *enabled,
                 entries: plan_entries(entries, next_command_id, commands)?,
             }),

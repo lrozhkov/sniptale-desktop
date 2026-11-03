@@ -88,8 +88,19 @@ def build_sbom(metadata: dict, legal_manifest: dict, manifest_digest: str, revis
         metadata_by_key.setdefault(package_key(package), []).append(package)
 
     selected: list[tuple[dict, str | None]] = []
+    web_packages: list[dict] = []
     selected_ids: set[str] = set()
     for record in legal_manifest["packages"]:
+        source = record.get("source") or ""
+        if source.startswith(("https://registry.npmjs.org/", "bundled-font:")):
+            web_packages.append(
+                {
+                    **record,
+                    "id": f"web:{source}:{record['name']}@{record['version']}",
+                    "license": record.get("declaredLicense"),
+                }
+            )
+            continue
         key = package_key(record)
         matches = metadata_by_key.get(key, [])
         if len(matches) != 1:
@@ -108,6 +119,11 @@ def build_sbom(metadata: dict, legal_manifest: dict, manifest_digest: str, revis
 
     selected.sort(key=lambda item: package_key(item[0]))
     packages = [package_entry(root)] + [package_entry(package, license_value) for package, license_value in selected]
+    for package in web_packages:
+        entry = package_entry(package)
+        if (package.get("source") or "").startswith("bundled-font:"):
+            entry["downloadLocation"] = "NOASSERTION"
+        packages.append(entry)
     relationships = [
         {
             "spdxElementId": "SPDXRef-DOCUMENT",
@@ -127,6 +143,14 @@ def build_sbom(metadata: dict, legal_manifest: dict, manifest_digest: str, revis
             if dependency_id in packages_by_id:
                 dependency_edges.add((package_spdx_id(package), package_spdx_id(packages_by_id[dependency_id])))
     relationships.extend(
+        {
+            "spdxElementId": package_spdx_id(root),
+            "relationshipType": "CONTAINS",
+            "relatedSpdxElement": package_spdx_id(package),
+        }
+        for package in web_packages
+    )
+    relationships.extend(
         {"spdxElementId": source, "relationshipType": "DEPENDS_ON", "relatedSpdxElement": target}
         for source, target in sorted(dependency_edges)
     )
@@ -134,7 +158,7 @@ def build_sbom(metadata: dict, legal_manifest: dict, manifest_digest: str, revis
         "spdxVersion": "SPDX-2.3",
         "dataLicense": "CC0-1.0",
         "SPDXID": "SPDXRef-DOCUMENT",
-        "name": "sniptale-desktop-windows-runtime-cargo-sbom",
+        "name": "sniptale-desktop-windows-runtime-sbom",
         "documentNamespace": f"https://sniptale.invalid/spdx/sniptale-desktop/{revision}/{manifest_digest}",
         "creationInfo": {
             "created": created,

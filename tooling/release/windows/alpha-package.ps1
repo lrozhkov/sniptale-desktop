@@ -17,6 +17,8 @@ $commit = (& git rev-parse HEAD).Trim()
 if ($LASTEXITCODE -ne 0) { throw "Git source identity unavailable" }
 & python tooling/release/windows/alpha_artifacts.py verify-proof $QaProof --commit $commit
 if ($LASTEXITCODE -ne 0) { throw "Linux release proof rejected" }
+if (Test-Path -LiteralPath "ui/dist") { throw "alpha frontend output must be a new directory" }
+Copy-Item -LiteralPath (Join-Path $QaProof "frontend") -Destination "ui/dist" -Recurse
 if ($Tag -notmatch '^v(0\.\d+\.\d+)-alpha\.[1-9][0-9]*$') { throw "invalid alpha tag" }
 $version = $Matches[1]
 $cargoText = Get-Content Cargo.toml -Raw

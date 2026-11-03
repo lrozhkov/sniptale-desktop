@@ -23,7 +23,7 @@ from .toolchain import check
 
 
 LANGUAGES = ("rust", "python", "javascript", "actions")
-EXTENSIONS = {".rs", ".py", ".sh", ".ps1", ".js", ".cjs", ".mjs", ".yml", ".yaml"}
+EXTENSIONS = {".rs", ".py", ".sh", ".ps1", ".js", ".cjs", ".mjs", ".yml", ".yaml", ".ts", ".tsx"}
 
 
 def read_report(path: Path) -> dict:
@@ -142,6 +142,20 @@ def command(args: list[str], output: Path, timeout: int, metrics: list[dict]) ->
         )
     metrics.append({"command": output.stem, "wallSeconds": round(time.monotonic() - started, 3)})
     print(f"OK {output.stem}: {metrics[-1]['wallSeconds']}s", flush=True)
+
+
+def source_inventory(files: list[str], root: Path = ROOT) -> list[str]:
+    sources = sorted(
+        name
+        for name in files
+        if Path(name).suffix in EXTENSIONS
+        and (name.startswith(("src/", "tooling/", "ui/")) or name == "build.rs")
+        and not name.startswith(("ui/node_modules/", "ui/dist/"))
+        and (root / name).is_file()
+    )
+    if not sources or any((root / name).is_symlink() or (root / name).stat().st_size > 8 * 1024**2 for name in sources):
+        raise ValueError("invalid or empty duplication source inventory")
+    return sources
 
 
 def source_policy_errors(root: Path, sources: list[str]) -> list[str]:
@@ -316,15 +330,7 @@ def main() -> int:
     base = ROOT / ".tmp/qa/static-analysis"
     output = base / run_id
     output.mkdir(parents=True, exist_ok=False)
-    sources = sorted(
-        name
-        for name in inputs["files"]
-        if Path(name).suffix in EXTENSIONS
-        and (name.startswith(("src/", "tooling/")) or name == "build.rs")
-        and (ROOT / name).is_file()
-    )
-    if not sources or any((ROOT / name).is_symlink() or (ROOT / name).stat().st_size > 8 * 1024**2 for name in sources):
-        raise ValueError("invalid or empty duplication source inventory")
+    sources = source_inventory(list(inputs["files"]), ROOT)
     errors = source_policy_errors(ROOT, sources)
     if errors:
         raise ValueError("; ".join(errors))

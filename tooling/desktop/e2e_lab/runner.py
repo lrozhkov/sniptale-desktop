@@ -16,7 +16,7 @@ from artifacts import SourceFingerprint
 from browser_probe import build as build_browser_probe
 from build_cache import restore as restore_build_cache, store as store_build_cache
 from config import LabConfig
-from errors import IntegrityError, LabError
+from errors import IntegrityError, LabError, UsageError
 from limits import enforce_run_limits
 from linux_artifacts import build_current_linux_artifact, inspect_linux_artifact
 from paths import LabPaths
@@ -74,14 +74,15 @@ WINDOWS_CASE_DEPENDENCIES = {
 }
 
 
-def expand_windows_cases(requested: set[str] | None) -> set[str]:
+def expand_windows_cases(requested: set[str] | None, *, development: bool = False) -> set[str]:
     if requested is None:
         return set(WINDOWS_CASES)
-    unknown = requested - WINDOWS_CASES
+    allowed = WINDOWS_CASES
+    unknown = requested - allowed
     if unknown:
         raise LabError("unknown Windows E2E case(s): " + ", ".join(sorted(unknown)))
     expanded = set(requested)
-    if requested:
+    if requested and not development:
         expanded.add("uninstall")
     pending = list(expanded)
     while pending:
@@ -175,7 +176,10 @@ class LaneRunner:
                 status="hit",
                 sourceSha256=source.sha256,
             )
-            (output / "build.log").write_text(f"content-addressed build cache hit: {source.sha256}\n", encoding="utf-8")
+            (output / "build.log").write_text(
+                f"content-addressed build cache hit: {source.sha256}\n",
+                encoding="utf-8",
+            )
             self._record_teardown(lane_name, "build", False, False)
             return cached
         emit_progress(
@@ -197,11 +201,23 @@ class LaneRunner:
         )
         return built
 
-    def _build_windows(self, lane_name: str, profile: str, source: SourceFingerprint, output: Path) -> list[Path]:
+    def _build_windows(
+        self,
+        lane_name: str,
+        profile: str,
+        source: SourceFingerprint,
+        output: Path,
+        *,
+        ui_preview=False,
+    ) -> list[Path]:
+        if ui_preview and (not self.work_session or profile != "dev"):
+            raise UsageError("UI preview requires a development-profile work session")
         pre_forced = False if self.work_session else self.vms.reset(lane_name)
         try:
             self.vms.start(
-                lane_name, allow_guest_network=not self.work_session, windows_audio_capture=self.work_session
+                lane_name,
+                allow_guest_network=not self.work_session,
+                windows_audio_capture=self.work_session,
             )
             ssh = GuestSsh(self.paths, self.config.lanes[lane_name].ssh_port, "lab")
             ssh.wait(
@@ -240,8 +256,17 @@ class LaneRunner:
                 compiler = upload_toolchain(self.paths, ssh)
                 if self.vendor_bundle is not None:
                     ssh.upload(self.vendor_bundle, "vendor.tar.gz", timeout=300)
-                    command.extend(("-VendorBundle", "vendor.tar.gz", "-VendorSha256", sha256_file(self.vendor_bundle)))
+                    command.extend(
+                        (
+                            "-VendorBundle",
+                            "vendor.tar.gz",
+                            "-VendorSha256",
+                            sha256_file(self.vendor_bundle),
+                        )
+                    )
                 upload_wix_ui(self.paths, ssh, output)
+                if ui_preview:
+                    command.append("-UiPreview")
                 command.extend(
                     (
                         "-WorkspaceMode",
@@ -307,7 +332,10 @@ class LaneRunner:
                 host_reserve_mib=1024,
             )
             ssh = GuestSsh(self.paths, self.config.lanes[lane_name].ssh_port, "lab")
-            ssh.wait(self.config.timeouts.boot, health_check=lambda: self.vms.assert_running(lane_name))
+            ssh.wait(
+                self.config.timeouts.boot,
+                health_check=lambda: self.vms.assert_running(lane_name),
+            )
             lockdown = self.paths.root / "tooling/desktop/e2e_lab/guest/linux-network-lockdown.sh"
             ssh.upload(lockdown, "linux-network-lockdown.sh", timeout=120)
             ssh.command(["sudo", "bash", "linux-network-lockdown.sh"], timeout=120)
@@ -315,7 +343,14 @@ class LaneRunner:
             session_exec = self.paths.root / "tooling/desktop/e2e_lab/guest/linux-session-exec.sh"
             ssh.upload(session_exec, "sniptale-session-exec", timeout=120)
             ssh.command(
-                ["sudo", "install", "-m", "0755", "sniptale-session-exec", "/usr/local/bin/sniptale-session-exec"],
+                [
+                    "sudo",
+                    "install",
+                    "-m",
+                    "0755",
+                    "sniptale-session-exec",
+                    "/usr/local/bin/sniptale-session-exec",
+                ],
                 timeout=120,
             )
             script = self.paths.root / "tooling/desktop/e2e_lab/guest/linux-run.sh"
@@ -337,7 +372,14 @@ class LaneRunner:
                 )
             self._enforce_remote_evidence_limit(ssh, windows=False)
             maximum = self._evidence_transfer_maximum()
-            ssh.download("e2e-out/", lane_dir, recursive=True, timeout=600, max_bytes=maximum, max_files=2048)
+            ssh.download(
+                "e2e-out/",
+                lane_dir,
+                recursive=True,
+                timeout=600,
+                max_bytes=maximum,
+                max_files=2048,
+            )
         finally:
             self._collect_qemu_log(lane_name, run_dir)
             self._finish_vm(lane_name, "test", pre_forced)
@@ -394,7 +436,7 @@ class LaneRunner:
         )
         if real_extension_requested and runtime_requested is not None:
             runtime_requested = runtime_requested | {"resident"}
-        selected_cases = expand_windows_cases(runtime_requested)
+        selected_cases = expand_windows_cases(runtime_requested, development=self.work_session)
         if real_extension_requested:
             selected_cases.add("real-extension")
         if self.work_session:
@@ -434,7 +476,7 @@ class LaneRunner:
             expected_exe_sha256 = sha256_file(built_exe)
             previous_exe_sha256 = sha256_file(baseline_exe)
             probe_nonce = secrets.token_hex(32)
-            if real_extension_requested:
+            if real_extension_requested or "capture" in selected_cases:
                 from browser_automation import prepare
 
                 prepare(self.paths, ssh)
@@ -452,6 +494,13 @@ class LaneRunner:
                 "verify_msi_identity.ps1": identity_verifier,
                 "launch-interactive.ps1": launcher,
             }
+            if "capture" in selected_cases:
+                for name in (
+                    "browser-playwright.ps1",
+                    "browser-playwright.cjs",
+                    "desktop-capture-playwright.cjs",
+                ):
+                    uploads[name] = script.with_name(name)
             certificate = artifact.parent / "lab-signing.cer"
             if certificate.is_file():
                 if certificate.is_symlink() or certificate.stat().st_size > 16384:
@@ -472,7 +521,9 @@ class LaneRunner:
                 ):
                     uploads[name] = script.with_name(name)
             try:
-                ssh.upload_many(uploads, timeout=600)
+                items = list(uploads.items())
+                for offset in range(0, len(items), 16):
+                    ssh.upload_many(dict(items[offset : offset + 16]), timeout=600)
             finally:
                 browser_probe.unlink(missing_ok=True)
             if certificate.is_file():
@@ -572,7 +623,14 @@ class LaneRunner:
                     raise runner_error from None
                 raise
             maximum = self._evidence_transfer_maximum()
-            ssh.download("e2e-out/", lane_dir, recursive=True, timeout=600, max_bytes=maximum, max_files=2048)
+            ssh.download(
+                "e2e-out/",
+                lane_dir,
+                recursive=True,
+                timeout=600,
+                max_bytes=maximum,
+                max_files=2048,
+            )
         finally:
             self._collect_qemu_log(lane_name, run_dir)
             self._finish_vm(lane_name, "test", pre_forced)
@@ -703,7 +761,19 @@ class LaneRunner:
             )
         else:
             unsafe = ssh.command(
-                ["find", remote, "-xdev", "!", "-type", "d", "!", "-type", "f", "-print", "-quit"],
+                [
+                    "find",
+                    remote,
+                    "-xdev",
+                    "!",
+                    "-type",
+                    "d",
+                    "!",
+                    "-type",
+                    "f",
+                    "-print",
+                    "-quit",
+                ],
                 timeout=60,
             ).stdout.strip()
             if unsafe:

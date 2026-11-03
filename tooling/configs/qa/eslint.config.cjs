@@ -8,7 +8,7 @@ const recommended = load('@eslint/js').configs.recommended;
 const promise = load('eslint-plugin-promise');
 const security = load('eslint-plugin-security');
 const globals = load('globals');
-module.exports = [{
+const base = {
   files: ['**/*.js', '**/*.cjs', '**/*.mjs'],
   languageOptions: {
     parser: tseslint.parser,
@@ -30,6 +30,24 @@ module.exports = [{
     '@typescript-eslint/no-floating-promises': ['error', {ignoreVoid: false}],
     '@typescript-eslint/no-misused-promises': 'error',
     'promise/catch-or-return': 'error', 'promise/no-return-wrap': 'error',
+    'security/detect-eval-with-expression': 'error',
+    'security/detect-non-literal-require': 'error',
+    'security/detect-unsafe-regex': 'error',
+  },
+};
+const frontend = ['ui/**/*.ts', 'ui/**/*.tsx'];
+module.exports = [base, ...tseslint.configs.recommended.map((config) => ({...config, files: frontend})), {
+  files: ['ui/**/*.ts', 'ui/**/*.tsx', 'ui/**/*.mjs'],
+  languageOptions: {
+    parser: tseslint.parser,
+    parserOptions: {project: path.join(root, 'ui/tsconfig.json'), tsconfigRootDir: root},
+    globals: {...globals.node, ...globals.browser},
+    sourceType: 'module',
+  },
+  plugins: {promise, security, '@typescript-eslint': tseslint.plugin},
+  rules: {
+    '@typescript-eslint/no-floating-promises': ['error', {ignoreVoid: false}],
+    '@typescript-eslint/no-misused-promises': 'error',
     'security/detect-eval-with-expression': 'error',
     'security/detect-non-literal-require': 'error',
     'security/detect-unsafe-regex': 'error',

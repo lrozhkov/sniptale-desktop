@@ -51,3 +51,6 @@ pub(crate) use transfer_store::{RecordingTransferStore, RecordingTransferStoreEr
 
 #[cfg(any(windows, test))]
 pub(crate) use service::recording_monotonic_ns;
+
+#[cfg(any(windows, test))]
+pub(crate) use progress::DEFAULT_PROGRESS_MIN_INTERVAL_MS;

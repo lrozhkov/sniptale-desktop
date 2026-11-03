@@ -1,11 +1,12 @@
 //! Immutable settings-window presentation contract.
 
-use crate::settings::{AppearanceThemePreference, ManualHotkeyAction, ManualProfileDraftView};
+#[cfg(test)]
+use crate::settings::ManualHotkeyAction;
+use crate::settings::{AppearanceThemePreference, ManualProfileDraftView};
 
+#[cfg(test)]
 #[path = "presentation/options.rs"]
 mod options;
-#[cfg(windows)]
-pub(crate) use options::{SettingsVideoBitrateOption, SettingsVideoDurationOption};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum SettingsWindowView {
@@ -18,33 +19,29 @@ pub(crate) enum SettingsWindowView {
 pub(crate) enum SettingsWindowSection {
     #[default]
     Capture,
+    #[cfg(test)]
     Video,
+    #[cfg(test)]
     Audio,
+    #[cfg(test)]
     Shortcuts,
 }
 
 impl SettingsWindowSection {
+    #[cfg(test)]
     pub(crate) const ALL: [Self; 4] = [Self::Capture, Self::Video, Self::Audio, Self::Shortcuts];
-
-    #[must_use]
-    pub(crate) const fn label(self) -> &'static str {
-        match self {
-            Self::Capture => "Capture",
-            Self::Video => "Video",
-            Self::Audio => "Audio",
-            Self::Shortcuts => "Shortcuts",
-        }
-    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum SettingsWindowFeedback {
+    #[cfg(test)]
     AppearanceSaveFailed,
     SaveFailed,
     RecordingBusy,
     HotkeyUnavailable,
     MicrophoneUnavailable,
     AudioSourceUnavailable,
+    #[cfg(test)]
     HotkeyConflict {
         action: ManualHotkeyAction,
         existing: ManualHotkeyAction,
@@ -61,6 +58,8 @@ pub(crate) enum SettingsMicrophoneSelection {
 pub(crate) struct SettingsMicrophoneOption {
     pub(super) id: Option<String>,
     pub(super) label: String,
+    pub(super) is_default: bool,
+    pub(super) missing: bool,
     pub(super) available: bool,
 }
 
@@ -89,8 +88,19 @@ pub(super) enum SettingsWindowCloseState {
 
 impl SettingsMicrophoneOption {
     #[must_use]
-    pub(crate) fn label(&self) -> &str {
+    pub(crate) fn name(&self) -> &str {
         &self.label
+    }
+    #[cfg(test)]
+    pub(crate) const fn is_default(&self) -> bool {
+        self.is_default
+    }
+    pub(crate) const fn missing(&self) -> bool {
+        self.missing
+    }
+    #[cfg(test)]
+    pub(crate) const fn system_default(&self) -> bool {
+        self.id.is_none()
     }
 
     #[must_use]
@@ -123,25 +133,10 @@ impl SettingsAudioSourceOption {
     pub(crate) const fn available(self) -> bool {
         self.available
     }
-
-    #[must_use]
-    pub(crate) const fn label(self) -> &'static str {
-        match (self.source, self.available) {
-            (crate::settings::ManualAudioSource::Microphone, true) => "Microphone",
-            (crate::settings::ManualAudioSource::System, true) => "System audio",
-            (crate::settings::ManualAudioSource::Mixed, true) => "Mixed",
-            (crate::settings::ManualAudioSource::Microphone, false) => "Microphone (unavailable)",
-            (crate::settings::ManualAudioSource::System, false) => "System audio (unavailable)",
-            (crate::settings::ManualAudioSource::Mixed, false) => "Mixed (unavailable)",
-        }
-    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct SettingsWindowPresentation {
-    pub(super) browser_targets: Vec<(String, String)>,
-    pub(super) browser_destination: Option<String>,
-    pub(super) ask_after_capture: bool,
     pub(super) view: SettingsWindowView,
     pub(super) manual: Option<ManualProfileDraftView>,
     pub(super) microphones: Vec<SettingsMicrophoneOption>,
@@ -155,45 +150,32 @@ pub(crate) struct SettingsWindowPresentation {
 }
 
 impl SettingsWindowPresentation {
-    pub(crate) fn browser_destination_labels(&self) -> Vec<&str> {
-        std::iter::once("Local folder")
-            .chain(self.browser_targets.iter().map(|(_, label)| label.as_str()))
-            .collect()
-    }
-    pub(crate) fn selected_browser_destination_index(&self) -> usize {
-        self.browser_destination
-            .as_ref()
-            .and_then(|id| {
-                self.browser_targets
-                    .iter()
-                    .position(|(target, _)| target == id)
-            })
-            .map_or(0, |index| index + 1)
-    }
-    pub(crate) const fn ask_after_capture(&self) -> bool {
-        self.ask_after_capture
-    }
     #[must_use]
+    #[cfg(test)]
     pub(crate) const fn view(&self) -> SettingsWindowView {
         self.view
     }
 
     #[must_use]
+    #[cfg(test)]
     pub(crate) const fn shows_navigation(&self) -> bool {
         matches!(self.view, SettingsWindowView::ManualDraft)
     }
 
     #[must_use]
+    #[cfg(test)]
     pub(crate) const fn shows_footer(&self) -> bool {
         !matches!(self.view, SettingsWindowView::ExtensionManagedReadOnly)
     }
 
     #[must_use]
+    #[cfg(test)]
     pub(crate) const fn shows_manual_setup(&self) -> bool {
         matches!(self.view, SettingsWindowView::ExtensionManagedReadOnly)
     }
 
     #[must_use]
+    #[cfg(test)]
     pub(crate) const fn section(&self) -> SettingsWindowSection {
         self.section
     }
@@ -220,11 +202,13 @@ impl SettingsWindowPresentation {
     }
 
     #[must_use]
+    #[cfg(test)]
     pub(crate) const fn confirm_discard(&self) -> bool {
         matches!(self.close_state, SettingsWindowCloseState::ConfirmDiscard)
     }
 
     #[must_use]
+    #[cfg(test)]
     pub(crate) fn manual(&self) -> Option<&ManualProfileDraftView> {
         self.manual.as_ref()
     }
@@ -240,6 +224,7 @@ impl SettingsWindowPresentation {
     }
 
     #[must_use]
+    #[cfg(test)]
     pub(crate) fn microphone_selection(&self, index: usize) -> Option<SettingsMicrophoneSelection> {
         self.microphones
             .get(index)
@@ -247,6 +232,7 @@ impl SettingsWindowPresentation {
     }
 
     #[must_use]
+    #[cfg(test)]
     pub(crate) fn audio_source_selection(
         &self,
         index: usize,
@@ -255,6 +241,7 @@ impl SettingsWindowPresentation {
     }
 
     #[must_use]
+    #[cfg(test)]
     pub(crate) fn selected_microphone_index(&self) -> usize {
         let selected = self
             .manual
@@ -270,16 +257,5 @@ impl SettingsWindowPresentation {
     #[cfg(test)]
     pub(crate) const fn switching_mode(&self) -> bool {
         self.switching_mode
-    }
-
-    #[must_use]
-    pub(crate) const fn apply_label(&self) -> &'static str {
-        match (self.view, self.switching_mode) {
-            (SettingsWindowView::ManualDraft, true) => "Save and switch to Manual",
-            (SettingsWindowView::ExtensionManagedDraft, true) => "Switch to extension",
-            (SettingsWindowView::ManualDraft, false) => "Save changes",
-            (SettingsWindowView::ExtensionManagedReadOnly, _)
-            | (SettingsWindowView::ExtensionManagedDraft, false) => "Set up Manual mode",
-        }
     }
 }

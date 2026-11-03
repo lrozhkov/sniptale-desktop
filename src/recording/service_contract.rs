@@ -110,6 +110,11 @@ impl Default for RecordingStartPolicy {
 
 #[cfg(any(windows, test))]
 pub(crate) trait RecordingRunner {
+    fn tick(
+        &mut self,
+        observed_epoch_ms: u64,
+    ) -> Result<Vec<RecordingCommandEvent>, RecordingRuntimeError>;
+
     fn start_recording(
         &mut self,
         request: &RecordingStartRequest,

@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import tomllib
 import unittest
 from pathlib import Path
 import unittest.mock as mock
@@ -19,7 +20,54 @@ import alpha_acceptance as acceptance  # noqa: E402 -- resolve the standalone re
 
 class AlphaArtifactTests(unittest.TestCase):
     commit = "a" * 40
-    tag = "v0.1.0-alpha.1"
+    version = tomllib.loads((ROOT / "Cargo.toml").read_text())["package"]["version"]
+    tag = f"v{version}-alpha.1"
+
+    @staticmethod
+    def frontend(directory: Path) -> None:
+        (directory / "assets").mkdir(parents=True)
+        (directory / "index.html").write_text(
+            '<script src="/assets/app-123.js"></script><link href="/assets/app-123.css">'
+        )
+        (directory / "assets/app-123.js").write_text("export {};")
+        (directory / "assets/app-123.css").write_text("@font-face{src:url(/assets/font-123.woff2)}")
+        (directory / "assets/font-123.woff2").write_bytes(b"font")
+
+    def test_frontend_handoff_rejects_missing_extra_redirected_and_changed_assets(self):
+        for mutation in ("none", "missing", "extra", "symlink", "changed"):
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as name:
+                directory = Path(name)
+                self.bundle(directory)
+                frontend = directory / "qa/frontend"
+                if mutation == "missing":
+                    (frontend / "assets/app-123.js").unlink()
+                elif mutation == "extra":
+                    (frontend / "assets/extra.js").write_text("extra")
+                elif mutation == "symlink":
+                    (frontend / "assets/app-123.js").unlink()
+                    (frontend / "assets/app-123.js").symlink_to(frontend / "index.html")
+                elif mutation == "changed":
+                    (frontend / "assets/app-123.css").write_text("changed")
+                if mutation == "none":
+                    artifacts.verify_proof(directory / "qa", self.commit)
+                else:
+                    with self.assertRaises(ValueError):
+                        artifacts.verify_proof(directory / "qa", self.commit)
+
+    def test_frontend_inventory_rejects_incomplete_reference_even_with_fresh_hashes(self):
+        with tempfile.TemporaryDirectory() as name:
+            directory = Path(name)
+            self.frontend(directory / "frontend")
+            (directory / "frontend/assets/font-123.woff2").unlink()
+            with self.assertRaises(ValueError):
+                artifacts.frontend_files(directory / "frontend")
+
+    def test_windows_packager_copies_verified_frontend_before_cargo(self):
+        script = (ROOT / "tooling/release/windows/alpha-package.ps1").read_text()
+        verified = script.index("alpha_artifacts.py verify-proof")
+        copied = script.index('Copy-Item -LiteralPath (Join-Path $QaProof "frontend")')
+        self.assertLess(verified, copied)
+        self.assertLess(copied, script.index("& cargo build"))
 
     def test_release_handoff_rejects_review_only_analysis(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -44,6 +92,7 @@ class AlphaArtifactTests(unittest.TestCase):
                 path = root / name
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text("{}\n")
+            self.frontend(root / "ui/dist")
             with (
                 mock.patch.object(artifacts, "ROOT", root),
                 mock.patch.object(artifacts, "git", return_value=self.commit),
@@ -64,6 +113,7 @@ class AlphaArtifactTests(unittest.TestCase):
         qa.mkdir()
         for name in artifacts.PROOF_FILES - {"qa-proof.json"}:
             (qa / name).write_text("{}")
+        self.frontend(qa / "frontend")
         artifacts.write_json(
             qa / "qa-proof.json",
             {
@@ -85,7 +135,7 @@ class AlphaArtifactTests(unittest.TestCase):
         ]:
             shutil.copyfile(ROOT / source, directory / target)
         shutil.copytree(ROOT / "LICENSES", directory / "LICENSES")
-        (directory / "SniptaleNativeAgent-dev-0.1.0.msi").write_bytes(b"msi")
+        (directory / f"SniptaleNativeAgent-dev-{self.version}.msi").write_bytes(b"msi")
         (directory / "sniptale-native-agent.exe").write_bytes(b"exe")
         (directory / "build-environment.json").write_text("{}")
         artifacts.write_json(
@@ -273,6 +323,8 @@ class AlphaArtifactTests(unittest.TestCase):
                     target = configs / relative
                     target.parent.mkdir(parents=True, exist_ok=True)
                     shutil.copyfile(ROOT / "tooling/configs/qa" / relative, target)
+                (root / "ui").mkdir()
+                shutil.copyfile(ROOT / "ui/package-lock.json", root / "ui/package-lock.json")
                 shutil.copyfile(ROOT / "rust-toolchain.toml", root / "rust-toolchain.toml")
                 shutil.copyfile(ROOT / "Cargo.lock", root / "Cargo.lock")
                 shutil.copyfile(ROOT / "Cargo.toml", root / "Cargo.toml")

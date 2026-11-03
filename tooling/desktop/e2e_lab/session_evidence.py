@@ -23,7 +23,11 @@ def inventory(directory):
         if len(entries) >= 3000 or total > 1024 * 1024 * 1024:
             raise IntegrityError("development evidence exceeds collection budget")
         entries.append(
-            {"name": path.relative_to(directory).as_posix(), "bytes": path.stat().st_size, "sha256": sha256_file(path)}
+            {
+                "name": path.relative_to(directory).as_posix(),
+                "bytes": path.stat().st_size,
+                "sha256": sha256_file(path),
+            }
         )
     return entries
 
@@ -89,7 +93,10 @@ def sanitize_real_extension(value):
         """Bounds for this short physical-input fixture, not product history quotas."""
         fields(item, "cursor events")
         for kind, proof in item.items():
-            fields(proof, "blocks records bytes sha256" + (" samples" if kind == "cursor" else ""))
+            fields(
+                proof,
+                "blocks records bytes sha256" + (" samples" if kind == "cursor" else ""),
+            )
             require(type(proof["blocks"]) is int and 1 <= proof["blocks"] <= 16)
             require(type(proof["records"]) is int and proof["blocks"] <= proof["records"] <= 512 * proof["blocks"])
             require(type(proof["bytes"]) is int and 0 < proof["bytes"] <= 1048576 - 4 * proof["blocks"])
@@ -139,15 +146,26 @@ def sanitize_real_extension(value):
             require(any(version.startswith("Edg/" if item["browser"] == "edge" else "Chrome/") for version in versions))
             automation(connection["automation"])
         recovery = item["recovery"]
-        fields(recovery, "cancelledRetained localPreserved explicitRecovery sourceReleased media")
+        fields(
+            recovery,
+            "cancelledRetained localPreserved explicitRecovery sourceReleased media",
+        )
         require(
             all(
                 recovery[key] is True
-                for key in ("cancelledRetained", "localPreserved", "explicitRecovery", "sourceReleased")
+                for key in (
+                    "cancelledRetained",
+                    "localPreserved",
+                    "explicitRecovery",
+                    "sourceReleased",
+                )
             )
         )
         for media in (item["media"], recovery["media"]):
-            fields(media, "passed sha256 bytes width height mimeType storageKind automation")
+            fields(
+                media,
+                "passed sha256 bytes width height mimeType storageKind automation",
+            )
             require(media["passed"] is True and media["mimeType"] == "image/png")
             require(isinstance(media["storageKind"], str) and media["storageKind"] in {"opfs", "indexeddb-blob"})
             require(isinstance(media["sha256"], str) and re.fullmatch(r"[0-9a-f]{64}", media["sha256"]) is not None)
@@ -195,7 +213,13 @@ def sanitize_real_extension(value):
             require(
                 all(
                     editor[key] is True
-                    for key in ("archivedHistoryVisible", "reopenedHistoryVisible", "seekStart", "seekEnd", "reopened")
+                    for key in (
+                        "archivedHistoryVisible",
+                        "reopenedHistoryVisible",
+                        "seekStart",
+                        "seekEnd",
+                        "reopened",
+                    )
                 )
             )
         else:

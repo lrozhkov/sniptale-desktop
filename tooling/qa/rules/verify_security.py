@@ -8,9 +8,9 @@ import tempfile
 from pathlib import Path
 
 try:
-    from .exception_registry import exact_paths
+    from .exception_registry import exact_paths, path_terms
 except ImportError:
-    from exception_registry import exact_paths
+    from exception_registry import exact_paths, path_terms
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -49,6 +49,8 @@ PARSER_ALLOWED = (
     "src/ipc/",
     "src/app/resident/pipe_peer/",
 )
+
+BOUNDARY_FIXTURE_TERMS = path_terms("security.boundary-test-fixture")
 
 REQUIRED_SECURITY_DOCS = {
     "docs/security/ipc-auth.md": [
@@ -244,6 +246,13 @@ def fail(messages: list[str]) -> None:
     raise SystemExit(1)
 
 
+def fixture_pattern_allowed(
+    relative: str, pattern: str, fixtures: dict[str, set[str]] = BOUNDARY_FIXTURE_TERMS
+) -> bool:
+    term = pattern.removeprefix(r"\b").removesuffix(r"\b")
+    return term in fixtures.get(relative, set())
+
+
 def check_forbidden_runtime_patterns(errors: list[str]) -> None:
     for path in rust_files():
         relative = rel(path)
@@ -251,7 +260,7 @@ def check_forbidden_runtime_patterns(errors: list[str]) -> None:
         for pattern, reason in FORBIDDEN_RUNTIME_PATTERNS.items():
             if not re.search(pattern, text):
                 continue
-            if relative.startswith(PARSER_ALLOWED):
+            if relative.startswith(PARSER_ALLOWED) or fixture_pattern_allowed(relative, pattern):
                 continue
             errors.append(f"{relative}: {reason}")
 
@@ -890,6 +899,10 @@ def assert_contains(values: list[str], needle: str) -> None:
 
 
 def run_self_tests() -> int:
+    fixture = {"src/tray/desktop/model/tests.rs": {"serde_json::from_value"}}
+    assert fixture_pattern_allowed("src/tray/desktop/model/tests.rs", r"\bserde_json::from_value\b", fixture)
+    assert not fixture_pattern_allowed("src/tray/desktop/model.rs", r"\bserde_json::from_value\b", fixture)
+    assert not fixture_pattern_allowed("src/tray/desktop/model/tests.rs", r"\bstd::fs::read\b", fixture)
     if proof_reference_path("src/telemetry/tests/hook_policy.rs covers hooks") != (
         "src/telemetry/tests/hook_policy.rs"
     ):

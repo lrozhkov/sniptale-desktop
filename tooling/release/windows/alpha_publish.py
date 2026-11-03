@@ -141,11 +141,13 @@ def main() -> None:
                 zipped.writestr(entry, path.read_bytes())
     notes = directory / "notes.txt"
     notes.write_text(
-        f"""First Windows alpha for Manual settings, screenshots and local MP4 recording.
+        f"""Sniptale Desktop alpha: a floating capture panel and separate application settings.
 
-Install `{msi_name}`. For the first launch, run `%LOCALAPPDATA%\\Sniptale\\NativeAgent\\sniptale-native-agent.exe`; later Windows sign-ins use the registered autostart. In the tray menu choose Mode > Manual, select a local output folder, and choose Save and switch to Manual. Capture and recording controls are in the tray menu. This is an unsigned development-channel build; Windows can display an unknown-publisher warning. Trusted browser-extension integration is unsupported in this alpha. No development trust bypass is shipped.
+Install `{msi_name}`. First, run `%LOCALAPPDATA%\\Sniptale\\NativeAgent\\sniptale-native-agent.exe`. Later Windows sign-ins use the registered autostart. Click the tray icon to open the capture panel. Open application settings, select an output folder, and apply the capture profile. Select screenshot or video, choose the source, and start capture from the panel. Recording quality is available in the source popup. Theme and language are in application settings.
 
-Tested on the Windows 11 laboratory image identified in windows-acceptance.json; Windows 10 compatibility is not certified. Development/beta/stable packages currently share the install location: uninstall any existing Sniptale Desktop package before this alpha. Side-by-side installation is unsupported. Future releases must advance the numeric MSI version before distribution.
+The application requires the shared Microsoft Edge WebView2 Runtime. This unsigned development-channel build can trigger a Windows publisher warning. Trusted browser-extension integration remains unsupported in this alpha. The package includes no development trust bypass.
+
+Windows acceptance identifies the tested Windows 11 laboratory image. Windows 10 compatibility is not certified. Development, beta, and stable packages share the install location. Uninstall any existing Sniptale Desktop package before this alpha. Side-by-side installation is unsupported. Future releases must advance the numeric MSI version before distribution.
 
 The ZIP contains the exact EXE/MSI, manifest, licenses, SBOM, supply-chain reports, source/run provenance and SHA256SUMS. Verify SHA256SUMS after extracting it. Source: {commit}. Actions run: https://github.com/{REPO}/actions/runs/{run_id} (attempt {run["run_attempt"]}).
 """,

@@ -93,6 +93,7 @@ fn failed_write_preserves_the_last_valid_preference() -> Result<(), std::io::Err
             UiPreferences {
                 schema_version: UI_PREFERENCES_SCHEMA_VERSION,
                 theme: AppearanceThemePreference::Dark,
+                locale: UiLocale::English,
             },
         ),
         Err(UiPreferencesError::Io)
@@ -107,4 +108,93 @@ fn failed_write_preserves_the_last_valid_preference() -> Result<(), std::io::Err
 
 fn debug_error(error: UiPreferencesError) -> std::io::Error {
     std::io::Error::other(format!("{error:?}"))
+}
+
+#[test]
+fn legacy_theme_files_load_with_english_and_patch_preserves_other_fields()
+-> Result<(), std::io::Error> {
+    let directory = tempdir()?;
+    let path = directory.path().join(UI_PREFERENCES_FILE_NAME);
+    fs::write(&path, br#"{"schemaVersion":1,"theme":"light"}"#)?;
+    assert_eq!(
+        load_ui_preferences_from_path(Some(path.clone()))
+            .map_err(debug_error)?
+            .locale,
+        UiLocale::English
+    );
+    update_ui_preferences_from_path(Some(path.clone()), None, Some(UiLocale::Russian))
+        .map_err(debug_error)?;
+    persist_appearance_theme_from_path(Some(path.clone()), AppearanceThemePreference::Dark)
+        .map_err(debug_error)?;
+    assert_eq!(
+        load_ui_preferences_from_path(Some(path)).map_err(debug_error)?,
+        AppearancePreferences {
+            theme: AppearanceThemePreference::Dark,
+            locale: UiLocale::Russian,
+        }
+    );
+    Ok(())
+}
+
+#[test]
+fn malformed_or_empty_updates_do_not_overwrite_persisted_preferences() -> Result<(), std::io::Error>
+{
+    let directory = tempdir()?;
+    let path = directory.path().join(UI_PREFERENCES_FILE_NAME);
+    for payload in [
+        br#"{"schemaVersion":1,"theme":"dark","locale":"xx"}"#.as_slice(),
+        br#"{"schemaVersion":1,"theme":"dark","locale":null}"#.as_slice(),
+    ] {
+        fs::write(&path, payload)?;
+        assert_eq!(
+            update_ui_preferences_from_path(
+                Some(path.clone()),
+                Some(AppearanceThemePreference::Light),
+                None
+            ),
+            Err(UiPreferencesError::InvalidJson)
+        );
+        assert_eq!(fs::read(&path)?, payload);
+    }
+    assert_eq!(
+        update_ui_preferences_from_path(Some(path.clone()), None, None),
+        Err(UiPreferencesError::EmptyPatch)
+    );
+    Ok(())
+}
+
+#[test]
+fn parallel_theme_and_locale_writers_merge_without_lost_updates() -> Result<(), std::io::Error> {
+    let directory = tempdir()?;
+    let path = directory.path().join(UI_PREFERENCES_FILE_NAME);
+    let barrier = std::sync::Arc::new(std::sync::Barrier::new(3));
+    let theme_path = path.clone();
+    let theme_start = barrier.clone();
+    let theme = std::thread::spawn(move || {
+        theme_start.wait();
+        persist_appearance_theme_from_path(Some(theme_path), AppearanceThemePreference::Dark)
+    });
+    let locale_path = path.clone();
+    let locale_start = barrier.clone();
+    let locale = std::thread::spawn(move || {
+        locale_start.wait();
+        update_ui_preferences_from_path(Some(locale_path), None, Some(UiLocale::Russian))
+    });
+    barrier.wait();
+    theme
+        .join()
+        .map_err(|_| std::io::Error::other("theme writer failed"))?
+        .map_err(debug_error)?;
+    locale
+        .join()
+        .map_err(|_| std::io::Error::other("locale writer failed"))?
+        .map_err(debug_error)?;
+    assert_eq!(
+        load_ui_preferences_from_path(Some(path)).map_err(debug_error)?,
+        AppearancePreferences {
+            theme: AppearanceThemePreference::Dark,
+            locale: UiLocale::Russian,
+        }
+    );
+    Ok(())
 }

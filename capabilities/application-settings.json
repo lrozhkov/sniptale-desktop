@@ -1,0 +1,16 @@
+{
+  "identifier": "application-settings",
+  "description": "Local application presentation commands only",
+  "local": true,
+  "windows": [
+    "application-settings"
+  ],
+  "permissions": [
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "allow-desktop-preferences-snapshot",
+    "allow-desktop-preferences-save",
+    "allow-desktop-settings-command",
+    "allow-desktop-close-settings"
+  ]
+}

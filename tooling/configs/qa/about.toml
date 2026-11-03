@@ -16,6 +16,28 @@ ignore-build-dependencies = true
 ignore-dev-dependencies = true
 private = { ignore = true }
 
+# These archives omit MIT text. Pin upstream files at their published VCS revisions.
+[fluent-langneg.clarify]
+license = "MIT"
+override-git-commit = "7fdc590466ea63ca2367ac10fb1b881fe561f1a8"
+[[fluent-langneg.clarify.git]]
+path = "LICENSE-MIT"
+checksum = "016fcc02048817d628b04b140c54db290fd9d29a5e8a55b77871194e810716ac"
+
+[intl_pluralrules.clarify]
+license = "MIT"
+override-git-commit = "d0715d5b7cca72e228d6e6c4de154bd30dfdd06a"
+[[intl_pluralrules.clarify.git]]
+path = "intl_pluralrules/LICENSE-MIT"
+checksum = "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+
+# Preserve all notices in the package's combined MIT file.
+[type-map.clarify]
+license = "MIT"
+[[type-map.clarify.files]]
+path = "LICENSE-MIT"
+checksum = "b47fb719a40d9ef9c8e3be525c41ce129c46d613cfc96a91bddd7c19dcebf7a1"
+
 [windows.clarify]
 license = "MIT"
 [[windows.clarify.files]]
@@ -85,5 +107,57 @@ checksum = "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383"
 [windows-threading.clarify]
 license = "MIT"
 [[windows-threading.clarify.files]]
+path = "license-mit"
+checksum = "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383"
+
+# Exact runtime license sources for the Tauri dependency closure.
+[alloc-stdlib.clarify]
+license = "BSD-3-Clause"
+override-git-commit = "0a81fd6928ea3b33c8cd484aa4575d50ffb98012"
+[[alloc-stdlib.clarify.git]]
+path = "LICENSE"
+checksum = "c0c56f26d9c051cac4d200c34c84e7ae9aaa853e01a982a1df08b09931e518ae"
+
+[brotli-decompressor.clarify]
+license = "BSD-3-Clause"
+[[brotli-decompressor.clarify.files]]
+path = "LICENSE"
+checksum = "c0c56f26d9c051cac4d200c34c84e7ae9aaa853e01a982a1df08b09931e518ae"
+
+[dpi.clarify]
+license = "Apache-2.0 AND MIT"
+[[dpi.clarify.files]]
+path = "LICENSE"
+license = "Apache-2.0"
+checksum = "6dc0e068dcf3a5bc8e054205b85b7720e1d49265bbc64bf515d2cf79197df69a"
+[[dpi.clarify.files]]
+path = "LICENSE-LIBM-MIT"
+license = "MIT"
+checksum = "9eff396a99bafd208e7126602420d6864f6066c08b84485a5b032320a9c01997"
+
+[webview2-com-macros.clarify]
+license = "MIT"
+override-git-commit = "dffa41a8a46d3f5565eefbff2de57d38d399f158"
+[[webview2-com-macros.clarify.git]]
+path = "LICENSE"
+checksum = "0dcf41516e608bbcb6cdc5229feb7b86fe4a643b85e7df251133c93408fdac73"
+
+[webview2-com-sys.clarify]
+license = "MIT"
+override-git-commit = "edc2caf886175ccaebe86078c9cfe1ae2a187328"
+[[webview2-com-sys.clarify.git]]
+path = "LICENSE"
+checksum = "0dcf41516e608bbcb6cdc5229feb7b86fe4a643b85e7df251133c93408fdac73"
+
+[webview2-com.clarify]
+license = "MIT"
+override-git-commit = "edc2caf886175ccaebe86078c9cfe1ae2a187328"
+[[webview2-com.clarify.git]]
+path = "LICENSE"
+checksum = "0dcf41516e608bbcb6cdc5229feb7b86fe4a643b85e7df251133c93408fdac73"
+
+[windows-version.clarify]
+license = "MIT"
+[[windows-version.clarify.files]]
 path = "license-mit"
 checksum = "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383"

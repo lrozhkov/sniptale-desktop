@@ -19,11 +19,13 @@ The stable product owner set is `app`, `protocol`, `ipc`, `settings`, `assets`, 
 - `install/**` owns runtime install identity and stable Desktop client identity, manifests, autostart, signatures, ACL assessment, registration repair assessment, and pipe-secret provisioning.
 - `diagnostics/**` owns redacted logs, health checks, observability summaries, crash categories, doctor output, and support bundles. It never receives raw media payloads.
 
+The shared web presentation lives in `ui/`. It owns components, visual tokens, localization projection, and the typed presentation client. Tauri transport adapters remain thin. [ADR 0008](adr/0008-tauri-presentation-boundary.md) owns migration boundaries and lifecycle requirements.
+
 ## State authority
 
 Authoritative state belongs only to the owner above. Advisory caches and disposable temp state must be separate types and paths. Read paths do not repair persisted state. Capture and recording persist an immutable authority/delivery snapshot before media side effects.
 
-Desktop settings and capture controls remain native-owned. A trusted browser registers an available destination. Only an explicit Desktop choice selects it. Its controller lease authorizes assigned-media transfer, not settings mutation or capture. [ADR 0005](adr/0005-dual-settings-authority-and-local-asset-delivery.md) owns the authority and frozen-delivery contract.
+Rust owners retain authority over Desktop settings and capture. The shared web interface supplies presentation. A trusted browser registers an available destination. Only an explicit Desktop choice selects it. Its controller lease authorizes assigned-media transfer, not settings mutation or capture. [ADR 0005](adr/0005-dual-settings-authority-and-local-asset-delivery.md) owns the authority and frozen-delivery contract.
 
 DPAPI is intentionally split: `install/**` unwraps the per-install pipe secret and `transfer/**` protects per-media keys. [ADR 0002](adr/0002-dpapi-owner-local-adapters.md) owns that exception.
 

@@ -1,6 +1,6 @@
 {
   "provenance": {
-    "collector": "PSScriptAnalyzer 1.25.0 TypeDataCollector",
+    "collector": "PSScriptAnalyzer 1.25.0 TypeDataCollector; Microsoft .NET Framework API documentation",
     "runtime": "Windows PowerShell 5.1; .NET Framework 4.8",
     "scope": "Public APIs of explicitly loaded framework types only; no module or host inventory"
   },
@@ -2899,6 +2899,33 @@
                 "Get"
               ],
               "Type": "System.Drawing.Rectangle"
+            }
+          }
+        }
+      }
+    },
+    "System.Windows.Automation.SelectionItemPattern": {
+      "assembly": {
+        "Name": "UIAutomationClient",
+        "PublicKeyToken": "Mb84Vq02TjU=",
+        "Version": "4.0.0.0"
+      },
+      "source": "https://learn.microsoft.com/en-us/dotnet/api/system.windows.automation.selectionitempattern",
+      "data": {
+        "Static": {
+          "Fields": {
+            "Pattern": {
+              "Type": "System.Windows.Automation.AutomationPattern"
+            }
+          }
+        },
+        "Instance": {
+          "Methods": {
+            "Select": {
+              "OverloadParameters": [
+                []
+              ],
+              "ReturnType": "System.Void"
             }
           }
         }

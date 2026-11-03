@@ -37,7 +37,7 @@ impl ManualHotkeyChord {
     }
 
     #[must_use]
-    #[cfg(any(windows, test))]
+    #[cfg(test)]
     pub(crate) fn canonical_label(self) -> String {
         let mut parts = Vec::with_capacity(5);
         for (modifier, label) in [

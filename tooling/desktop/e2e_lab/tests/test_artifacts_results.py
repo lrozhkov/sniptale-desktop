@@ -74,7 +74,9 @@ class ArtifactResultTests(unittest.TestCase):
             (root / "runtime.js").write_bytes(b"synthetic extension")
             self.assertEqual(artifact_files(root)[0]["name"], "runtime.js")
 
-    def test_failed_rerun_resolves_supplied_msi_by_receipt_hash_from_persistent_cache(self) -> None:
+    def test_failed_rerun_resolves_supplied_msi_by_receipt_hash_from_persistent_cache(
+        self,
+    ) -> None:
         with tempfile.TemporaryDirectory() as directory:
             paths = LabPaths.discover(Path(directory) / "repo")
             paths.ensure()
@@ -98,7 +100,9 @@ class ArtifactResultTests(unittest.TestCase):
                 cached.resolve(),
             )
 
-    def test_focused_audio_requires_recording_but_not_unrelated_screenshot_evidence(self) -> None:
+    def test_focused_audio_requires_recording_but_not_unrelated_screenshot_evidence(
+        self,
+    ) -> None:
         expected = {("windows-11", "recording-system-audio", "pass", 1)}
         receipt = {
             "run_mode": "focused-test",
@@ -111,7 +115,9 @@ class ArtifactResultTests(unittest.TestCase):
             {"logs", "recordings"},
         )
 
-    def test_focused_capture_requires_screenshot_but_not_recording_evidence(self) -> None:
+    def test_focused_capture_requires_screenshot_but_not_recording_evidence(
+        self,
+    ) -> None:
         expected = {("windows-11", "capture", "pass", 1)}
         receipt = {
             "run_mode": "focused-test",
@@ -132,7 +138,8 @@ class ArtifactResultTests(unittest.TestCase):
                 self.assertEqual(_required_evidence_directories(receipt, expected), {"logs"})
                 receipt["result"] = "pass"
                 self.assertEqual(
-                    _required_evidence_directories(receipt, expected), {"logs", "screenshots", "recordings"}
+                    _required_evidence_directories(receipt, expected),
+                    {"logs", "screenshots", "recordings"},
                 )
 
     def test_windows_case_expansion_keeps_focused_rerun_prerequisites(self) -> None:
@@ -151,7 +158,14 @@ class ArtifactResultTests(unittest.TestCase):
         )
         self.assertEqual(
             expand_windows_cases({"network-isolation"}),
-            {"network-isolation", "install", "upgrade", "repair", "resident", "uninstall"},
+            {
+                "network-isolation",
+                "install",
+                "upgrade",
+                "repair",
+                "resident",
+                "uninstall",
+            },
         )
         self.assertEqual(
             expand_windows_cases({"capture"}),
@@ -168,6 +182,18 @@ class ArtifactResultTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(LabError, "unknown Windows E2E"):
             expand_windows_cases({"unknown-case"})
+
+    def test_retired_native_catalog_cases_are_rejected_in_every_lane(self) -> None:
+        for name in ("design-sandbox", "design-sandbox-settings"):
+            for development in (False, True):
+                with (
+                    self.subTest(name=name, development=development),
+                    self.assertRaisesRegex(LabError, "unknown Windows E2E"),
+                ):
+                    expand_windows_cases({name}, development=development)
+        capture = expand_windows_cases({"capture"}, development=True)
+        self.assertTrue({"network-isolation", "resident", "tray", "capture"} <= capture)
+        self.assertNotIn("uninstall", capture)
 
     def test_rerun_failed_finds_nested_cached_artifact(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -306,9 +332,17 @@ class ArtifactResultTests(unittest.TestCase):
                                 "duration_ms": 1,
                                 "detail": "token=super-secret-token",
                             },
-                            {"name": "recording-microphone", "status": "pass", "duration_ms": 2, "detail": "ok"},
+                            {
+                                "name": "recording-microphone",
+                                "status": "pass",
+                                "duration_ms": 2,
+                                "detail": "ok",
+                            },
                         ],
-                        "environment": {"token": "super-secret-token", "display": "win32"},
+                        "environment": {
+                            "token": "super-secret-token",
+                            "display": "win32",
+                        },
                         "artifacts": ["capture.png"],
                     }
                 ),
@@ -324,7 +358,8 @@ class ArtifactResultTests(unittest.TestCase):
             self.assertEqual(agent["token"], "[redacted]")
             result = json.loads((guest / "result.json").read_text(encoding="utf-8"))
             self.assertEqual(
-                [case["name"] for case in result["tests"]], ["recording-system-audio", "recording-microphone"]
+                [case["name"] for case in result["tests"]],
+                ["recording-system-audio", "recording-microphone"],
             )
             self.assertEqual(result["environment"]["token"], "[redacted]")
             self.assertNotIn("super-secret-token", json.dumps(result))
@@ -393,7 +428,10 @@ class ArtifactResultTests(unittest.TestCase):
         edge = copy.deepcopy(chrome)
         edge["browser"] = "edge"
         for name in ("connection", "selected", "reconnect", "resident_restart"):
-            edge[name] = {**connection, "browserVersion": ["Chrome/150.0.0.0", "Edg/150.0.0.0"]}
+            edge[name] = {
+                **connection,
+                "browserVersion": ["Chrome/150.0.0.0", "Edg/150.0.0.0"],
+            }
         valid = [chrome, edge]
         self.assertEqual(sanitize_real_extension(valid), valid)
         observer = copy.deepcopy(valid)
@@ -412,12 +450,27 @@ class ArtifactResultTests(unittest.TestCase):
             video["normalization"] = "microseconds-q8-verified"
             video["cursorSamples"] = 6
             video["historyAttachments"] = {
-                "cursor": {"blocks": 1, "records": 8, "samples": 6, "bytes": 1800, "sha256": "b" * 64},
-                "events": {"blocks": 1, "records": 8, "bytes": 2800, "sha256": "c" * 64},
+                "cursor": {
+                    "blocks": 1,
+                    "records": 8,
+                    "samples": 6,
+                    "bytes": 1800,
+                    "sha256": "b" * 64,
+                },
+                "events": {
+                    "blocks": 1,
+                    "records": 8,
+                    "bytes": 2800,
+                    "sha256": "c" * 64,
+                },
             }
             item["recording"]["editor"].pop("historySegments")
             item["recording"]["editor"].update(
-                archivedHistoryVisible=True, reopenedHistoryVisible=True, seekStart=True, seekEnd=True, reopened=True
+                archivedHistoryVisible=True,
+                reopenedHistoryVisible=True,
+                seekStart=True,
+                seekEnd=True,
+                reopened=True,
             )
         self.assertEqual(sanitize_real_extension(immutable), immutable)
         rejected = [valid[:1], [chrome, chrome], {"browsers": valid}]
@@ -502,7 +555,10 @@ class ArtifactResultTests(unittest.TestCase):
             candidate[0][path[0]][path[1]] = bad
             rejected.append(candidate)
         for candidate in rejected:
-            with self.subTest(candidate=candidate), self.assertRaisesRegex(IntegrityError, "invalid real extension"):
+            with (
+                self.subTest(candidate=candidate),
+                self.assertRaisesRegex(IntegrityError, "invalid real extension"),
+            ):
                 sanitize_real_extension(candidate)
         with tempfile.TemporaryDirectory() as directory:
             guest = Path(directory)
@@ -515,7 +571,9 @@ class ArtifactResultTests(unittest.TestCase):
                 LaneRunner._sanitize_guest_text_tree(guest)
             self.assertFalse(report.exists())
 
-    def test_windows_callback_error_remains_primary_while_invalid_evidence_is_sanitized(self) -> None:
+    def test_windows_callback_error_remains_primary_while_invalid_evidence_is_sanitized(
+        self,
+    ) -> None:
         with tempfile.TemporaryDirectory() as directory:
             guest = Path(directory)
             invalid = guest / "a-partial.log"
@@ -555,7 +613,17 @@ class ArtifactResultTests(unittest.TestCase):
                 runner._validate_windows_evidence(guest, None)
             self.assertFalse(invalid.exists())
 
-    def test_guest_evidence_rejects_unknown_or_oversized_text_before_reading(self) -> None:
+    def test_guest_evidence_rejects_unknown_or_oversized_text_before_reading(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            guest = Path(directory)
+            retired = guest / "sandbox-interaction.json"
+            retired.write_text('{"version":"capture-panel-1"}', encoding="utf-8")
+            with self.assertRaisesRegex(LabError, "unsupported JSON"):
+                LaneRunner._sanitize_guest_text_tree(guest)
+            self.assertFalse(retired.exists())
+
         with tempfile.TemporaryDirectory() as directory:
             guest = Path(directory)
             unknown = guest / "transcript.yaml"
@@ -586,7 +654,8 @@ class ArtifactResultTests(unittest.TestCase):
             manifest_path.write_text(json.dumps(manifest, sort_keys=True) + "\n", encoding="utf-8")
             evidence_manifest_path = run / "evidence-manifest.json"
             evidence_manifest_path.write_text(
-                json.dumps(evidence_manifest(run), sort_keys=True) + "\n", encoding="utf-8"
+                json.dumps(evidence_manifest(run), sort_keys=True) + "\n",
+                encoding="utf-8",
             )
             snapshot = {"linux-wayland": {"disk_sha256": "d" * 64}}
             (run / "environment.json").write_text(
@@ -627,7 +696,12 @@ class ArtifactResultTests(unittest.TestCase):
                     }
                 ],
                 "durations_ms": {"linux-wayland": 1, "total": 1},
-                "teardown": {"linux-wayland": {"test_pre_forced": False, "test_post_forced": False}},
+                "teardown": {
+                    "linux-wayland": {
+                        "test_pre_forced": False,
+                        "test_post_forced": False,
+                    }
+                },
                 "result": "pass",
             }
             (run / "receipt.json").write_text(json.dumps(receipt), encoding="utf-8")
@@ -679,7 +753,10 @@ class ArtifactResultTests(unittest.TestCase):
             write_junit(run / "junit.xml", [GuestResult("linux-wayland", (case,), {}, ())])
             receipt["lanes"].append("linux-x11")
             receipt["snapshots"]["linux-x11"] = {"disk_sha256": "e" * 64}
-            receipt["teardown"]["linux-x11"] = {"test_pre_forced": False, "test_post_forced": False}
+            receipt["teardown"]["linux-x11"] = {
+                "test_pre_forced": False,
+                "test_post_forced": False,
+            }
             (run / "receipt.json").write_text(json.dumps(receipt), encoding="utf-8")
             environment = json.loads((run / "environment.json").read_text(encoding="utf-8"))
             environment["lanes"] = receipt["snapshots"]
@@ -725,7 +802,9 @@ class ArtifactResultTests(unittest.TestCase):
         self.assertEqual(plan.kind, "appimage-v1")
         self.assertEqual(plan.executable, "./artifact.AppImage")
 
-    def test_browser_probe_is_deterministic_and_has_expected_extension_identity(self) -> None:
+    def test_browser_probe_is_deterministic_and_has_expected_extension_identity(
+        self,
+    ) -> None:
         root = Path(__file__).resolve().parents[4]
         with tempfile.TemporaryDirectory() as directory:
             first = build_browser_probe(root, Path(directory) / "probe-one.zip")
@@ -778,7 +857,39 @@ class ArtifactResultTests(unittest.TestCase):
                 Provisioner(paths, mock.Mock())._windows(mock.Mock())
             self.assertEqual(list(paths.images.iterdir()), [])
 
-    def test_source_bundle_includes_dirty_files_and_excludes_state_secrets_and_media(self) -> None:
+    def test_guest_source_contains_built_ui_and_font_but_no_npm_cache(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "repo"
+            root.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+            (root / "tauri.conf.json").write_text("{}")
+            (root / ".gitignore").write_text("ui/dist/\nui/node_modules/\n")
+            archive = Path(directory) / "source.tar.gz"
+            with self.assertRaisesRegex(IntegrityError, "packaged UI is missing"):
+                create_source_bundle(root, archive)
+            for name in (
+                "ui/dist/index.html",
+                "ui/dist/assets/interface.woff2",
+                "ui/src/styles/fonts/interface.woff2",
+                "ui/node_modules/cache.js",
+            ):
+                path = root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b"synthetic build input")
+            create_source_bundle(root, archive)
+            with tarfile.open(archive, "r:gz") as bundle:
+                names = set(bundle.getnames())
+            self.assertIn("ui/dist/index.html", names)
+            self.assertIn("ui/dist/assets/interface.woff2", names)
+            self.assertIn("ui/src/styles/fonts/interface.woff2", names)
+            self.assertNotIn("ui/node_modules/cache.js", names)
+            (root / "ui/dist/assets/escape").symlink_to(root.parent)
+            with self.assertRaisesRegex(IntegrityError, "must not contain symlinks"):
+                create_source_bundle(root, archive)
+
+    def test_source_bundle_includes_dirty_files_and_excludes_state_secrets_and_media(
+        self,
+    ) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "repo"
             root.mkdir()
@@ -805,6 +916,10 @@ class ArtifactResultTests(unittest.TestCase):
             (root / "desktop-shot.png").write_bytes(b"media")
             (root / "resources").mkdir()
             (root / "resources/icon.png").write_bytes(b"synthetic-resource")
+            locale = root / "resources/locales/en-US/desktop.ftl"
+            locale.parent.mkdir(parents=True)
+            locale.write_text("command-capture = Capture\n", encoding="utf-8")
+            (root / ".env.ftl").write_text("private fixture", encoding="utf-8")
             archive = Path(directory) / "source.tar.gz"
             fingerprint = create_source_bundle(root, archive)
             second = Path(directory) / "source-second.tar.gz"
@@ -818,12 +933,28 @@ class ArtifactResultTests(unittest.TestCase):
                     "NOTICE",
                     "dirty-new.txt",
                     "resources/icon.png",
+                    "resources/locales/en-US/desktop.ftl",
                     "src/install/pipe_secret.rs",
                     "tracked.rs",
                 },
             )
-            self.assertEqual(fingerprint.file_count, 6)
+            self.assertEqual(fingerprint.file_count, 7)
             self.assertEqual(archive.read_bytes(), second.read_bytes())
+
+    def test_source_fingerprint_binds_dirty_fluent_messages(self):
+        from artifacts import source_tree_fingerprint
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "repo"
+            root.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+            locale = root / "resources/locales/ru/desktop.ftl"
+            locale.parent.mkdir(parents=True)
+            locale.write_text("command-capture = Capture\n", encoding="utf-8")
+            before = source_tree_fingerprint(root)
+            locale.write_text("command-capture = Updated\n", encoding="utf-8")
+            after = source_tree_fingerprint(root)
+            self.assertNotEqual(after["source_tree_sha256"], before["source_tree_sha256"])
 
     def test_source_fingerprint_ignores_generated_files_and_binds_new_typescript(self):
         from artifacts import source_tree_fingerprint
@@ -887,7 +1018,9 @@ class ArtifactResultTests(unittest.TestCase):
         self.assertEqual(structured["nested"]["api_key"], "[redacted]")
         self.assertEqual(structured["nested"]["safe"], "ok")
 
-    def test_redaction_preserves_safe_scenario_enums_but_not_recording_ids(self) -> None:
+    def test_redaction_preserves_safe_scenario_enums_but_not_recording_ids(
+        self,
+    ) -> None:
         safe = '"scenario":"recording-system-audio" recording-microphone'
         self.assertEqual(redact(safe), safe)
         self.assertEqual(redact("recording-system-audio-secret"), "[redacted]")
@@ -980,8 +1113,14 @@ class ArtifactResultTests(unittest.TestCase):
                 guest.mkdir(parents=True)
                 (guest / "desktop.png").write_bytes(content)
                 LaneRunner._classify_evidence(run / "guest" / lane, run)
-            self.assertEqual((run / "screenshots/linux-wayland-evidence-desktop.png").read_bytes(), b"wayland")
-            self.assertEqual((run / "screenshots/linux-x11-evidence-desktop.png").read_bytes(), b"x11")
+            self.assertEqual(
+                (run / "screenshots/linux-wayland-evidence-desktop.png").read_bytes(),
+                b"wayland",
+            )
+            self.assertEqual(
+                (run / "screenshots/linux-x11-evidence-desktop.png").read_bytes(),
+                b"x11",
+            )
 
     def test_declared_guest_artifacts_must_match_transferred_files(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -994,7 +1133,12 @@ class ArtifactResultTests(unittest.TestCase):
     def test_guest_results_reject_skip_missing_and_corruption(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "result.json"
-            base = {"schema_version": 1, "lane": "linux-x11", "environment": {}, "artifacts": []}
+            base = {
+                "schema_version": 1,
+                "lane": "linux-x11",
+                "environment": {},
+                "artifacts": [],
+            }
             base["tests"] = [{"name": "session", "status": "skip", "duration_ms": 1, "detail": ""}]
             path.write_text(json.dumps(base), encoding="utf-8")
             skipped = parse_guest_result(path, expected_lane="linux-x11", required_cases={"session"})
@@ -1003,7 +1147,11 @@ class ArtifactResultTests(unittest.TestCase):
             base["tests"] = [{"name": "session", "status": "pass", "duration_ms": 1, "detail": ""}]
             path.write_text(json.dumps(base), encoding="utf-8")
             with self.assertRaisesRegex(IntegrityError, "silently omitted"):
-                parse_guest_result(path, expected_lane="linux-x11", required_cases={"session", "portal"})
+                parse_guest_result(
+                    path,
+                    expected_lane="linux-x11",
+                    required_cases={"session", "portal"},
+                )
             path.write_text("not-json", encoding="utf-8")
             with self.assertRaisesRegex(IntegrityError, "invalid JSON"):
                 parse_guest_result(path, expected_lane="linux-x11", required_cases={"session"})

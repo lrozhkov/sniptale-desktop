@@ -44,6 +44,7 @@ impl LocalProfileDraft {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn manual_mut(&mut self) -> Option<&mut ManualProfileDraft> {
         self.manual_profile.as_mut()
     }

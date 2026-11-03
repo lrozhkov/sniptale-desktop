@@ -18,7 +18,12 @@ def upload_wix_ui(paths, ssh, output):
     remote = r"C:/SniptaleLab/build-tools/packages"
     transfers = []
     for name, item in lock["nuget"].items():
-        if name not in {"wix", "wixtoolset.ui.wixext", "microsoft.windows.sdk.cpp", "microsoft.windows.sdk.cpp.x64"}:
+        if name not in {
+            "wix",
+            "wixtoolset.ui.wixext",
+            "microsoft.windows.sdk.cpp",
+            "microsoft.windows.sdk.cpp.x64",
+        }:
             raise IntegrityError("unexpected Windows tool package")
         version = versions["windows"]["sdkPackage" if name.startswith("microsoft.windows.sdk.") else "wix"]
         if not isinstance(version, str) or re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+(?:\.[0-9]+)?", version) is None:
@@ -54,7 +59,13 @@ def upload_wix_ui(paths, ssh, output):
     if package.is_symlink():
         raise IntegrityError("Windows Python cache redirected")
     if not package.exists():
-        download_https(expected_url, package, python["sha256"], timeout=120, max_bytes=32 * 1024 * 1024)
+        download_https(
+            expected_url,
+            package,
+            python["sha256"],
+            timeout=120,
+            max_bytes=32 * 1024 * 1024,
+        )
     require_sha256(package, python["sha256"])
     transfers.append((f"{remote}/{package.name}", python["sha256"], package))
     expressions = [

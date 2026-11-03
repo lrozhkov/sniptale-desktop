@@ -70,6 +70,7 @@ SENSITIVE_NAMES = {
 UNTRACKED_MEDIA_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}
 UNTRACKED_SOURCE_SUFFIXES = {
     ".css",
+    ".ftl",
     ".html",
     ".js",
     ".jsx",
@@ -129,11 +130,33 @@ def excluded(relative: PurePosixPath, *, tracked: bool = False) -> bool:
     )
 
 
+def packaged_ui_files(root: Path) -> set[str]:
+    """Transfer built presentation inputs, without npm caches or host dependencies."""
+    if not (root / "tauri.conf.json").is_file():
+        return set()
+    dist = root / "ui/dist"
+    if not (dist / "index.html").is_file():
+        raise IntegrityError("packaged UI is missing; run npm --prefix ui run build before the guest build")
+    result = set()
+    for directory in (dist, root / "ui/src/styles/fonts"):
+        if directory.is_symlink():
+            raise IntegrityError("packaged UI directory must not be a symlink")
+        for path in directory.rglob("*"):
+            if path.is_symlink():
+                raise IntegrityError("packaged UI must not contain symlinks")
+            if path.is_file():
+                result.add(path.relative_to(root).as_posix())
+    return result
+
+
 def source_files(root: Path) -> Iterable[tuple[Path, PurePosixPath]]:
     tracked_output = _git(root, "ls-files", "-z")
     tracked = set(tracked_output.split("\0")) if tracked_output != "unavailable" else set()
     visible_output = _git(root, "ls-files", "--cached", "--others", "--exclude-standard", "-z")
     visible = None if visible_output == "unavailable" else set(visible_output.split("\0"))
+    packaged_ui = packaged_ui_files(root)
+    if visible is not None:
+        visible.update(packaged_ui)
     visible_directories = {
         PurePosixPath(*PurePosixPath(item).parts[:depth]).as_posix()
         for item in (visible or ())
@@ -178,6 +201,7 @@ def source_files(root: Path) -> Iterable[tuple[Path, PurePosixPath]]:
                 continue
             if (
                 not tracked_path
+                and relative.as_posix() not in packaged_ui
                 and relative.suffix.lower() not in UNTRACKED_SOURCE_SUFFIXES
                 and not (len(relative.parts) == 1 and relative.name in UNTRACKED_ROOT_TEXT_NAMES)
             ):

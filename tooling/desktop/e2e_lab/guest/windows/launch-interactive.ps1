@@ -146,7 +146,16 @@ try {
         throw "interactive runner returned $($info.LastTaskResult) without result.json: $detail"
       }
       $result = Get-Content -Raw -LiteralPath $resultPath | ConvertFrom-Json
-      if (@($result.tests | Where-Object { $_.status -ne "pass" }).Count -gt 0) { exit 1 }
+      if (@($result.tests | Where-Object { $_.status -ne "pass" }).Count -gt 0) {
+        if (Test-Path -LiteralPath $taskLog) {
+          Copy-Item -LiteralPath $taskLog -Destination (Join-Path $outputPath "logs\interactive-task.log") -Force
+          if ($result.artifacts -notcontains "interactive-task.log") {
+            $result.artifacts = @($result.artifacts) + "interactive-task.log"
+          }
+          [IO.File]::WriteAllText($resultPath, ($result | ConvertTo-Json -Depth 8), [Text.UTF8Encoding]::new($false))
+        }
+        exit 1
+      }
       if ($info.LastTaskResult -ne 0) { throw "interactive runner returned $($info.LastTaskResult)" }
       exit 0
     }

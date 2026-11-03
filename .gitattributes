@@ -13,3 +13,5 @@ THIRD_PARTY_NOTICES.md -text
 *.png binary
 
 .agents/skills/asd-ste100/LICENSE -text
+
+ui/src/styles/fonts/golos-ui/LICENSE.txt -text

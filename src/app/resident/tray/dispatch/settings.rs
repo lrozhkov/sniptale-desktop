@@ -1,5 +1,7 @@
 //! Settings-window event coordination for the tray worker.
 
+use crate::tray::desktop::{model::DesktopError, settings::SettingsRequest};
+
 use crate::{
     app::resident::{
         control::{
@@ -12,34 +14,9 @@ use crate::{
     },
     tray::{
         TrayCommandSource, TrayRecordingStatus,
-        settings_window::model::{
-            CloseDisposition, SettingsWindowEvent, SettingsWindowFeedback, SettingsWindowModel,
-        },
+        settings_window::model::{SettingsWindowFeedback, SettingsWindowModel},
     },
 };
-
-pub(crate) fn dispatch_settings_event(
-    event: SettingsWindowEvent,
-    active_settings: &crate::settings::ActiveSettings,
-    model: &mut SettingsWindowModel,
-    manual_dispatcher: &mut Option<ManualActionDispatcher>,
-    manual_senders: &ManualWorkerSenders,
-    recording_status: TrayRecordingStatus,
-    source: &mut impl TrayCommandSource,
-) -> bool {
-    dispatch_settings_event_with_paths(
-        event,
-        SettingsEventContext {
-            active_settings,
-            model,
-            manual_dispatcher,
-            manual_senders,
-            recording_status,
-            source,
-            paths: SettingsPersistencePaths::runtime(),
-        },
-    )
-}
 
 struct SettingsEventContext<'a, Source> {
     active_settings: &'a crate::settings::ActiveSettings,
@@ -51,9 +28,17 @@ struct SettingsEventContext<'a, Source> {
     paths: SettingsPersistencePaths,
 }
 
-fn dispatch_settings_event_with_paths<Source: TrayCommandSource>(
-    event: SettingsWindowEvent,
-    context: SettingsEventContext<'_, Source>,
+fn refresh_window(model: &SettingsWindowModel, source: &mut impl TrayCommandSource) {
+    let _ = source.show_settings_window(model.presentation());
+}
+
+fn refresh_audio_capabilities(model: &mut SettingsWindowModel) {
+    model.refresh_audio_capabilities(crate::audio::runtime_audio_capability_summary());
+}
+
+fn apply_settings_draft(
+    context: SettingsEventContext<'_, impl TrayCommandSource>,
+    keep_open: bool,
 ) -> bool {
     let SettingsEventContext {
         active_settings,
@@ -64,108 +49,6 @@ fn dispatch_settings_event_with_paths<Source: TrayCommandSource>(
         source,
         paths,
     } = context;
-    match event {
-        SettingsWindowEvent::Navigate(section) => model.navigate(section),
-        SettingsWindowEvent::BrowseDestination => stage_settings_destination(model, source),
-        SettingsWindowEvent::ToggleScreenshotCursor => {
-            let include_cursor = model
-                .manual_view()
-                .is_some_and(|manual| !manual.screenshot_include_cursor);
-            model.set_screenshot_include_cursor(include_cursor);
-        }
-        SettingsWindowEvent::SetVideoQuality(value) => model.set_video_quality(value),
-        SettingsWindowEvent::SetVideoFps(value) => model.set_video_fps(value),
-        SettingsWindowEvent::SetVideoBitrate(value) => model.set_video_bitrate(value),
-        SettingsWindowEvent::SetVideoHardware(value) => model.set_video_hardware(value),
-        SettingsWindowEvent::ToggleVideoCursor => model.toggle_video_cursor(),
-        SettingsWindowEvent::TogglePointerTelemetry => model.toggle_pointer_telemetry(),
-        SettingsWindowEvent::SetVideoDuration(value) => model.set_video_duration(value),
-        SettingsWindowEvent::SetAudioSource(value) => model.set_audio_source(value),
-        SettingsWindowEvent::SelectMicrophone(selection) => model.select_microphone(selection),
-        SettingsWindowEvent::SetAudioBitrate(value) => model.set_audio_bitrate(value),
-        SettingsWindowEvent::SetHotkey { action, chord } => model.set_hotkey(action, chord),
-        SettingsWindowEvent::CancelHotkeyCapture(action) => model.cancel_hotkey_edit(action),
-        SettingsWindowEvent::RefreshMicrophones => refresh_audio_capabilities(model),
-        SettingsWindowEvent::SelectBrowserDestination(index) => {
-            model.select_browser_destination(index);
-        }
-        SettingsWindowEvent::ToggleAskAfterCapture => model.toggle_ask_after_capture(),
-        SettingsWindowEvent::RefreshBrowserTargets => {
-            model.refresh_browser_targets(active_settings);
-        }
-        SettingsWindowEvent::SaveBrowserDestination => {
-            if recording_status == TrayRecordingStatus::Idle {
-                model.save_browser_destination(active_settings);
-            } else {
-                model.set_apply_feedback(SettingsWindowFeedback::RecordingBusy);
-            }
-        }
-        SettingsWindowEvent::SelectAppearanceTheme(theme) => {
-            if crate::settings::persist_appearance_theme_from_path(paths.appearance, theme).is_ok()
-            {
-                model.appearance_saved(theme);
-            } else {
-                model.appearance_save_failed();
-            }
-        }
-        SettingsWindowEvent::UseExtensionManaged => model.stage_extension_managed(),
-        SettingsWindowEvent::Apply => {
-            return apply_settings_draft(
-                active_settings,
-                model,
-                manual_dispatcher,
-                manual_senders,
-                recording_status,
-                source,
-                paths.profile,
-            );
-        }
-        SettingsWindowEvent::RequestClose => {
-            if model.request_close() == CloseDisposition::Hide {
-                let _ = source.hide_settings_window();
-                return false;
-            }
-        }
-        SettingsWindowEvent::ConfirmDiscard => {
-            model.discard_and_hide();
-            let _ = source.hide_settings_window();
-            return false;
-        }
-        SettingsWindowEvent::KeepEditing => model.keep_editing(),
-    }
-    refresh_window(model, source);
-    false
-}
-
-fn refresh_window(model: &SettingsWindowModel, source: &mut impl TrayCommandSource) {
-    let _ = source.show_settings_window(model.presentation());
-}
-
-fn refresh_audio_capabilities(model: &mut SettingsWindowModel) {
-    model.refresh_audio_capabilities(crate::audio::runtime_audio_capability_summary());
-}
-
-fn stage_settings_destination(
-    model: &mut SettingsWindowModel,
-    source: &mut impl TrayCommandSource,
-) {
-    if let Ok(Some(destination)) = source.pick_settings_destination() {
-        model.stage_manual_destination(
-            "manual-destination".to_owned(),
-            destination.to_string_lossy().into_owned(),
-        );
-    }
-}
-
-fn apply_settings_draft(
-    active_settings: &crate::settings::ActiveSettings,
-    model: &mut SettingsWindowModel,
-    manual_dispatcher: &mut Option<ManualActionDispatcher>,
-    manual_senders: &ManualWorkerSenders,
-    recording_status: TrayRecordingStatus,
-    source: &mut impl TrayCommandSource,
-    profile_path: Option<std::path::PathBuf>,
-) -> bool {
     let Ok(draft) = model.apply_candidate() else {
         model.set_apply_feedback(SettingsWindowFeedback::SaveFailed);
         refresh_window(model, source);
@@ -178,7 +61,7 @@ fn apply_settings_draft(
         failure: None,
     };
     let result =
-        apply_profile_draft_with_barrier(profile_path, active_settings, &draft, &mut barrier);
+        apply_profile_draft_with_barrier(paths.profile, active_settings, &draft, &mut barrier);
     match result {
         Ok(profile) => finish_apply(
             &profile,
@@ -187,6 +70,7 @@ fn apply_settings_draft(
             manual_dispatcher,
             manual_senders,
             source,
+            keep_open,
         ),
         Err(_error) => {
             model.set_apply_feedback(apply_feedback(barrier.failure));
@@ -218,11 +102,21 @@ fn finish_apply(
     manual_dispatcher: &mut Option<ManualActionDispatcher>,
     manual_senders: &ManualWorkerSenders,
     source: &mut impl TrayCommandSource,
+    keep_open: bool,
 ) -> bool {
     let _ = profile;
     *manual_dispatcher = Some(manual_senders.dispatcher(active_settings.clone()));
-    model.discard_and_hide();
-    let _ = source.hide_settings_window();
+    if keep_open {
+        let theme = model.presentation().theme();
+        let _ = model.show(
+            active_settings,
+            crate::settings::UiPreferencesHealth::Available(theme),
+        );
+        refresh_window(model, source);
+    } else {
+        model.discard_and_hide();
+        let _ = source.hide_settings_window();
+    }
     true
 }
 
@@ -292,6 +186,233 @@ const fn apply_feedback(failure: Option<BarrierFailure>) -> SettingsWindowFeedba
         Some(BarrierFailure::HotkeyUnavailable) => SettingsWindowFeedback::HotkeyUnavailable,
         Some(BarrierFailure::RuntimeUnavailable) | None => SettingsWindowFeedback::SaveFailed,
     }
+}
+
+pub(in crate::app::resident) fn dispatch_desktop_settings(
+    request: crate::tray::desktop::settings::SettingsRequest,
+    active_settings: &crate::settings::ActiveSettings,
+    model: &mut SettingsWindowModel,
+    manual_dispatcher: &mut Option<ManualActionDispatcher>,
+    manual_senders: &ManualWorkerSenders,
+    recording_status: TrayRecordingStatus,
+    source: &mut impl TrayCommandSource,
+) -> Result<
+    crate::tray::desktop::settings::SettingsSnapshot,
+    crate::tray::desktop::model::DesktopError,
+> {
+    dispatch_desktop_settings_with_context(
+        request,
+        SettingsEventContext {
+            active_settings,
+            model,
+            manual_dispatcher,
+            manual_senders,
+            recording_status,
+            source,
+            paths: SettingsPersistencePaths::runtime(),
+        },
+        refresh_audio_capabilities,
+    )
+}
+
+fn dispatch_desktop_settings_with_context(
+    request: crate::tray::desktop::settings::SettingsRequest,
+    context: SettingsEventContext<'_, impl TrayCommandSource>,
+    refresh_audio: impl Fn(&mut SettingsWindowModel),
+) -> Result<
+    crate::tray::desktop::settings::SettingsSnapshot,
+    crate::tray::desktop::model::DesktopError,
+> {
+    let SettingsEventContext {
+        active_settings,
+        model,
+        manual_dispatcher,
+        manual_senders,
+        recording_status,
+        source,
+        paths,
+    } = context;
+    if matches!(request, SettingsRequest::Open {}) || !model.visible() {
+        model
+            .show(
+                active_settings,
+                crate::settings::ui_preferences_health_from_path(paths.appearance.clone()),
+            )
+            .map_err(|_| DesktopError::Unavailable)?;
+        refresh_audio(model);
+    }
+    let mut selected_folder = None;
+    match request {
+        SettingsRequest::ChooseFolder {} => {
+            if let Some(path) = source
+                .pick_settings_destination()
+                .map_err(|_| DesktopError::Unavailable)?
+            {
+                let path = path.to_string_lossy().into_owned();
+                model.stage_manual_destination("manual-destination".to_owned(), path.clone());
+                selected_folder = Some(path);
+            }
+        }
+        SettingsRequest::RefreshDevices {} => refresh_audio(model),
+        SettingsRequest::Open {} | SettingsRequest::RefreshBrowsers {} => {}
+        SettingsRequest::SaveDelivery {
+            target_id,
+            ask_after_capture,
+        } => {
+            if recording_status != TrayRecordingStatus::Idle {
+                return Err(DesktopError::RecordingBusy);
+            }
+            active_settings
+                .select_browser_target(target_id.as_deref(), ask_after_capture)
+                .map_err(|error| match error {
+                    crate::settings::BrowserTargetError::Stale => DesktopError::StaleSettings,
+                    _ => DesktopError::Unavailable,
+                })?;
+        }
+        SettingsRequest::Apply {
+            expected_revision,
+            draft,
+        } => {
+            apply_desktop_profile(
+                SettingsEventContext {
+                    active_settings,
+                    model,
+                    manual_dispatcher,
+                    manual_senders,
+                    recording_status,
+                    source,
+                    paths,
+                },
+                expected_revision,
+                draft,
+                &refresh_audio,
+            )?;
+        }
+    }
+    let mut snapshot = desktop_settings_snapshot(active_settings, model)?;
+    snapshot.selected_folder = selected_folder;
+    Ok(snapshot)
+}
+
+fn apply_desktop_profile(
+    context: SettingsEventContext<'_, impl TrayCommandSource>,
+    expected_revision: u64,
+    draft: crate::settings::ManualProfileDraftView,
+    refresh_audio: &impl Fn(&mut SettingsWindowModel),
+) -> Result<(), crate::tray::desktop::model::DesktopError> {
+    let profile = context
+        .active_settings
+        .profile_snapshot()
+        .map_err(|_| DesktopError::Unavailable)?;
+    if profile.revision() != expected_revision {
+        return Err(DesktopError::StaleSettings);
+    }
+    let destination_id = profile.manual_destination().map_or_else(
+        || "manual-destination".to_owned(),
+        |destination| destination.id,
+    );
+    let draft = crate::settings::ManualProfileDraft::from_view(draft, destination_id)
+        .map_err(|_| DesktopError::InvalidSettings)?;
+    context
+        .model
+        .stage_manual(crate::settings::LocalProfileDraft::manual(draft));
+    refresh_audio(context.model);
+    if context.model.dirty() {
+        // The web surface stays open. The same barrier still owns runtime admission and rollback.
+        let model = &mut *context.model;
+        let applied = apply_settings_draft(
+            SettingsEventContext {
+                active_settings: context.active_settings,
+                model,
+                manual_dispatcher: context.manual_dispatcher,
+                manual_senders: context.manual_senders,
+                recording_status: context.recording_status,
+                source: context.source,
+                paths: context.paths,
+            },
+            true,
+        );
+        if !applied {
+            return Err(match model.presentation().feedback() {
+                Some(SettingsWindowFeedback::RecordingBusy) => DesktopError::RecordingBusy,
+                Some(SettingsWindowFeedback::HotkeyUnavailable) => DesktopError::HotkeyUnavailable,
+                _ if !model.presentation().can_apply() => DesktopError::MicrophoneUnavailable,
+                _ => DesktopError::Unavailable,
+            });
+        }
+    }
+    refresh_audio(context.model);
+    Ok(())
+}
+
+fn desktop_settings_snapshot(
+    active_settings: &crate::settings::ActiveSettings,
+    model: &SettingsWindowModel,
+) -> Result<
+    crate::tray::desktop::settings::SettingsSnapshot,
+    crate::tray::desktop::model::DesktopError,
+> {
+    use crate::tray::{
+        desktop::{
+            model::DesktopError,
+            settings::{
+                AudioSourceOption, BrowserDelivery, BrowserDestination, MicrophoneOption,
+                SettingsSnapshot,
+            },
+        },
+        settings_window::model::SettingsMicrophoneSelection,
+    };
+    let profile = active_settings
+        .profile_snapshot()
+        .map_err(|_| DesktopError::Unavailable)?;
+    let presentation = model.presentation();
+    let registry = active_settings
+        .browser_targets()
+        .map_err(|_| DesktopError::Unavailable)?;
+    Ok(SettingsSnapshot {
+        profile_revision: profile.revision(),
+        selected_folder: None,
+        delivery: BrowserDelivery {
+            targets: registry
+                .targets()
+                .iter()
+                .map(|target| BrowserDestination {
+                    id: target.id.clone(),
+                    label: target.label(),
+                })
+                .collect(),
+            target_id: registry.default_target_id().map(str::to_owned),
+            ask_after_capture: registry.ask_after_capture(),
+        },
+        draft: model.manual_view().unwrap_or_else(|| {
+            crate::settings::ManualProfileDraft::with_defaults(
+                "manual-destination".to_owned(),
+                String::new(),
+            )
+            .view()
+        }),
+        microphones: presentation
+            .microphones()
+            .iter()
+            .map(|option| MicrophoneOption {
+                id: match option.selection() {
+                    SettingsMicrophoneSelection::SystemDefault => None,
+                    SettingsMicrophoneSelection::Device(id) => Some(id),
+                },
+                name: option.name().to_owned(),
+                missing: option.missing(),
+                available: option.available(),
+            })
+            .collect(),
+        audio_sources: presentation
+            .audio_sources()
+            .iter()
+            .map(|option| AudioSourceOption {
+                source: option.source(),
+                available: option.available(),
+            })
+            .collect(),
+    })
 }
 
 #[cfg(test)]

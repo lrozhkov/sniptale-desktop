@@ -4,7 +4,7 @@
 #[path = "dispatch/settings.rs"]
 mod settings;
 #[cfg(any(windows, test))]
-pub(super) use settings::dispatch_settings_event;
+pub(super) use settings::dispatch_desktop_settings;
 mod extension_intent;
 pub(super) mod mode;
 pub(super) use mode::{open_extension_managed, open_manual_setup};
@@ -39,6 +39,10 @@ pub(super) fn open_settings(
     model: &mut crate::tray::settings_window::model::SettingsWindowModel,
     source: &mut impl TrayCommandSource,
 ) {
+    if model.visible() {
+        let _ = source.show_settings_window(model.presentation());
+        return;
+    }
     let result = model
         .show(
             active_settings,
@@ -158,6 +162,12 @@ pub(super) fn dispatch_manual_command(
     dispatcher: &mut ManualActionDispatcher,
     source: &mut impl TrayCommandSource,
 ) -> bool {
+    if let Some(action) = ShellActionId::from_extension_action_id(action_id)
+        && source.prepare_capture(action).is_err()
+    {
+        let _ = source.show_notice(TrayNoticeKind::ActionRejected);
+        return true;
+    }
     let result = match action_id {
         id if id == ShellActionId::ScreenshotScreen.as_str() => {
             Some(dispatcher.enqueue_screenshot(ScreenshotMode::Screen))
@@ -227,9 +237,23 @@ mod tests {
     struct Source {
         opened: bool,
         notices: Vec<TrayNoticeKind>,
+        blocked_capture: bool,
+        prepared: Vec<crate::tray::ShellActionId>,
     }
 
     impl TrayCommandSource for Source {
+        fn prepare_capture(
+            &mut self,
+            action: crate::tray::ShellActionId,
+        ) -> Result<(), TrayRuntimeError> {
+            self.prepared.push(action);
+            if self.blocked_capture {
+                Err(TrayRuntimeError::RenderFailed)
+            } else {
+                Ok(())
+            }
+        }
+
         fn apply_render_plan(
             &mut self,
             _plan: &TrayMenuRenderPlan,
@@ -292,6 +316,54 @@ mod tests {
 
         assert!(source.opened);
         assert_eq!(source.notices.len(), 0);
+        Ok(())
+    }
+    #[test]
+    fn rejected_capture_presentation_cannot_prepare_assets_or_enqueue_media()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let directory = tempdir()?;
+        let settings = ActiveSettings::extension_managed_default();
+        let draft = LocalProfileDraft::manual(ManualProfileDraft::with_defaults(
+            "fixture-destination".to_owned(),
+            directory.path().to_string_lossy().into_owned(),
+        ));
+        let prepared = settings
+            .prepare_profile_transition(&draft)
+            .map_err(|error| format!("{error:?}"))?;
+        settings
+            .commit_profile_transition(&prepared)
+            .map_err(|error| format!("{error:?}"))?;
+        let (assets, asset_commands) = std::sync::mpsc::sync_channel(1);
+        let (capture, capture_commands) = std::sync::mpsc::sync_channel(1);
+        let mut dispatcher =
+            crate::app::resident::control::manual_dispatch::ManualActionDispatcher::new(
+                settings,
+                Some(capture),
+                None,
+                Some(assets),
+            );
+        let mut source = Source {
+            blocked_capture: true,
+            ..Source::default()
+        };
+        assert!(super::dispatch_manual_command(
+            crate::tray::ShellActionId::ScreenshotActiveWindow.as_str(),
+            &mut dispatcher,
+            &mut source
+        ));
+        assert_eq!(
+            source.prepared,
+            vec![crate::tray::ShellActionId::ScreenshotActiveWindow]
+        );
+        assert_eq!(source.notices, vec![TrayNoticeKind::ActionRejected]);
+        assert!(matches!(
+            asset_commands.try_recv(),
+            Err(std::sync::mpsc::TryRecvError::Empty)
+        ));
+        assert!(matches!(
+            capture_commands.try_recv(),
+            Err(std::sync::mpsc::TryRecvError::Empty)
+        ));
         Ok(())
     }
 }

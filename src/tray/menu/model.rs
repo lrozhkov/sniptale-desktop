@@ -61,7 +61,7 @@ pub(crate) enum TrayMenuEntry {
     Separator,
     Submenu {
         id: &'static str,
-        label: &'static str,
+        label: String,
         enabled: bool,
         entries: Vec<TrayMenuEntry>,
     },
@@ -77,13 +77,13 @@ impl TrayMenuEntry {
     #[must_use]
     pub(crate) fn submenu(
         id: &'static str,
-        label: &'static str,
+        label: impl Into<String>,
         enabled: bool,
         entries: Vec<TrayMenuEntry>,
     ) -> Self {
         Self::Submenu {
             id,
-            label,
+            label: label.into(),
             enabled,
             entries,
         }

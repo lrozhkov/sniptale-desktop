@@ -7,8 +7,6 @@ use crate::settings::{
 
 #[path = "model/audio.rs"]
 mod audio;
-#[path = "model/destinations.rs"]
-mod destinations;
 #[path = "model/manual.rs"]
 mod manual;
 #[path = "model/presentation.rs"]
@@ -17,8 +15,6 @@ pub(crate) use presentation::{
     SettingsAudioSourceOption, SettingsMicrophoneOption, SettingsMicrophoneSelection,
     SettingsWindowFeedback, SettingsWindowPresentation, SettingsWindowSection, SettingsWindowView,
 };
-#[cfg(windows)]
-pub(crate) use presentation::{SettingsVideoBitrateOption, SettingsVideoDurationOption};
 #[cfg(test)]
 #[path = "model/presentation_tests.rs"]
 mod presentation_tests;
@@ -28,40 +24,6 @@ mod tests;
 
 use audio::AudioSourceSupport;
 
-#[cfg(any(windows, test))]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) enum SettingsWindowEvent {
-    Navigate(SettingsWindowSection),
-    BrowseDestination,
-    ToggleScreenshotCursor,
-    SetVideoQuality(crate::settings::ManualVideoQuality),
-    SetVideoFps(crate::settings::ManualFps),
-    SetVideoBitrate(Option<u16>),
-    SetVideoHardware(crate::settings::ManualHardwarePreference),
-    ToggleVideoCursor,
-    TogglePointerTelemetry,
-    SetVideoDuration(u32),
-    SetAudioSource(crate::settings::ManualAudioSource),
-    SelectMicrophone(SettingsMicrophoneSelection),
-    SetAudioBitrate(u16),
-    SetHotkey {
-        action: crate::settings::ManualHotkeyAction,
-        chord: Option<crate::settings::ManualHotkeyChord>,
-    },
-    CancelHotkeyCapture(crate::settings::ManualHotkeyAction),
-    RefreshMicrophones,
-    SelectBrowserDestination(usize),
-    ToggleAskAfterCapture,
-    SaveBrowserDestination,
-    RefreshBrowserTargets,
-    SelectAppearanceTheme(AppearanceThemePreference),
-    UseExtensionManaged,
-    Apply,
-    RequestClose,
-    ConfirmDiscard,
-    KeepEditing,
-}
-
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum SettingsWindowModelError {
     SettingsUnavailable,
@@ -70,6 +32,7 @@ pub(crate) enum SettingsWindowModelError {
     InvalidDraft,
 }
 
+#[cfg(test)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum CloseDisposition {
     Hide,
@@ -92,9 +55,6 @@ pub(crate) struct SettingsWindowModel {
         crate::settings::ManualHotkeyAction,
     )>,
     confirm_discard: bool,
-    browser_targets: Vec<crate::settings::BrowserTarget>,
-    browser_destination: Option<String>,
-    ask_after_capture: bool,
 }
 
 impl Default for SettingsWindowModel {
@@ -106,7 +66,9 @@ impl Default for SettingsWindowModel {
             active_mode: None,
             microphones: vec![SettingsMicrophoneOption {
                 id: None,
-                label: "System default".to_owned(),
+                label: String::new(),
+                is_default: false,
+                missing: false,
                 available: false,
             }],
             audio_support: AudioSourceSupport::default(),
@@ -115,14 +77,16 @@ impl Default for SettingsWindowModel {
             feedback: None,
             hotkey_conflict: None,
             confirm_discard: false,
-            browser_targets: Vec::new(),
-            browser_destination: None,
-            ask_after_capture: false,
         }
     }
 }
 
 impl SettingsWindowModel {
+    #[must_use]
+    pub(crate) const fn visible(&self) -> bool {
+        self.visible
+    }
+
     pub(crate) fn show(
         &mut self,
         active: &ActiveSettings,
@@ -141,7 +105,6 @@ impl SettingsWindowModel {
         self.feedback = None;
         self.hotkey_conflict = None;
         self.confirm_discard = false;
-        self.refresh_browser_targets(active);
         Ok(self.view())
     }
 
@@ -192,16 +155,10 @@ impl SettingsWindowModel {
             } else {
                 presentation::SettingsWindowCloseState::Editing
             },
-            browser_targets: self
-                .browser_targets
-                .iter()
-                .map(|target| (target.id.clone(), target.label()))
-                .collect(),
-            browser_destination: self.browser_destination.clone(),
-            ask_after_capture: self.ask_after_capture,
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn navigate(&mut self, section: SettingsWindowSection) {
         self.section = section;
         self.confirm_discard = false;
@@ -232,11 +189,13 @@ impl SettingsWindowModel {
         self.feedback = None;
     }
 
+    #[cfg(test)]
     pub(crate) fn appearance_saved(&mut self, theme: AppearanceThemePreference) {
         self.appearance = theme;
         self.feedback = None;
     }
 
+    #[cfg(test)]
     pub(crate) fn appearance_save_failed(&mut self) {
         self.feedback = Some(SettingsWindowFeedback::AppearanceSaveFailed);
     }
@@ -257,6 +216,7 @@ impl SettingsWindowModel {
             .ok_or(SettingsWindowModelError::ManualDraftRequired)
     }
 
+    #[cfg(test)]
     pub(crate) fn request_close(&mut self) -> CloseDisposition {
         if self.dirty() {
             self.confirm_discard = true;
@@ -267,6 +227,7 @@ impl SettingsWindowModel {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn keep_editing(&mut self) {
         self.confirm_discard = false;
     }

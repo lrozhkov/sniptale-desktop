@@ -14,9 +14,7 @@ use windows::{
                 NIM_DELETE, NIM_MODIFY, NIM_SETVERSION, NOTIFY_ICON_MESSAGE, NOTIFYICON_VERSION_4,
                 NOTIFYICONDATAW, Shell_NotifyIconW,
             },
-            WindowsAndMessaging::{
-                HICON, ICON_BIG, ICON_SMALL, IDI_APPLICATION, LoadIconW, SendMessageW, WM_SETICON,
-            },
+            WindowsAndMessaging::{HICON, IDI_APPLICATION, LoadIconW},
         },
     },
     core::PCWSTR,
@@ -47,27 +45,6 @@ pub(crate) fn load_resource_icon(variant: TrayIconVariant) -> io::Result<Windows
     .or_else(|_| unsafe { LoadIconW(None, IDI_APPLICATION) })
     .map_err(to_io_error)?;
     WindowsTrayIconImage::shared_resource(icon)
-}
-
-pub(crate) fn apply_main_icon_to_window(window: HWND) {
-    let Ok(icon) = load_resource_icon(TrayIconVariant::Normal) else {
-        return;
-    };
-    // SAFETY: the shared resource HICON remains valid for process life and WM_SETICON retains it.
-    unsafe {
-        SendMessageW(
-            window,
-            WM_SETICON,
-            Some(windows::Win32::Foundation::WPARAM(ICON_BIG as usize)),
-            Some(windows::Win32::Foundation::LPARAM(icon.handle.0 as isize)),
-        );
-        SendMessageW(
-            window,
-            WM_SETICON,
-            Some(windows::Win32::Foundation::WPARAM(ICON_SMALL as usize)),
-            Some(windows::Win32::Foundation::LPARAM(icon.handle.0 as isize)),
-        );
-    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

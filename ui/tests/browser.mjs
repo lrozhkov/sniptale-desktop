@@ -1,0 +1,443 @@
+import assert from 'node:assert/strict';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+import { chromium } from 'playwright-core';
+import { createServer } from 'vite';
+
+const output = fileURLToPath(new URL('../../.tmp/qa/ui-browser/', import.meta.url));
+await mkdir(output, { recursive: true });
+const server = await createServer({
+  root: fileURLToPath(new URL('../', import.meta.url)),
+  configFile: fileURLToPath(new URL('../vite.config.mjs', import.meta.url)),
+  server: { host: '127.0.0.1', port: 0, strictPort: false },
+});
+let browser;
+const results = [];
+try {
+  await server.listen();
+  const address = server.httpServer.address();
+  assert.ok(address && typeof address !== 'string');
+  const base = `http://127.0.0.1:${address.port}/sandbox`;
+  browser = await chromium.launch({ headless: true });
+  for (const view of [
+    { name: 'desktop-dark', width: 1440, height: 900, theme: 'dark', locale: 'en-US' },
+    { name: 'desktop-light', width: 1440, height: 900, theme: 'light', locale: 'en-US' },
+    { name: 'narrow-russian', width: 640, height: 820, theme: 'dark', locale: 'ru-RU' },
+    { name: 'mobile-light', width: 390, height: 900, theme: 'light', locale: 'en-US' },
+    { name: 'expanded-rtl-200', width: 900, height: 1000, theme: 'dark', locale: 'en-US', stress: true },
+  ]) {
+    const context = await browser.newContext({ viewport: { width: view.width, height: view.height },
+      colorScheme: view.theme, locale: view.locale });
+    context.setDefaultTimeout(5000);
+    try {
+      const page = await context.newPage();
+      const errors = [];
+      page.on('pageerror', (error) => errors.push(error.message));
+      await page.goto(base);
+      const toolbar = page.getByRole('toolbar');
+      await toolbar.waitFor();
+      await page.evaluate(() => document.fonts.ready);
+      const iconSize = await toolbar.locator('.capture-mode-switch svg').first().evaluate((element) => element.getBoundingClientRect().width);
+      if (view.stress) {
+        await page.getByRole('button', { name: 'Text preview', exact: true }).click();
+        await page.getByRole('menuitemradio', { name: 'Expanded RTL (test)', exact: true }).click();
+        await page.getByRole('button', { name: 'Panel scale', exact: true }).click();
+        await page.getByRole('menuitemradio', { name: '200%', exact: true }).click();
+      }
+      if (view.stress) assert.equal(await toolbar.locator('.capture-mode-switch svg').first().evaluate((element) => element.getBoundingClientRect().width), iconSize * 2, 'Panel scale did not scale its icons');
+      const layout = await page.evaluate(() => {
+        const toolbar = document.querySelector('[role="toolbar"]').getBoundingClientRect();
+        return { scrollWidth: document.documentElement.scrollWidth, width: innerWidth,
+          fontLoaded: document.fonts.check('14px "Sniptale Interface"'),
+          left: toolbar.left, right: toolbar.right, height: toolbar.height };
+      });
+      assert.ok(layout.fontLoaded, 'Bundled interface font did not load');
+      assert.ok(layout.scrollWidth <= layout.width, `Page overflow in ${view.name}`);
+      assert.ok(layout.left >= 0 && layout.right <= layout.width, `Toolbar overflow in ${view.name}`);
+      await page.screenshot({ path: `${output}/${view.name}.png`, fullPage: true });
+      if (view.name === 'desktop-dark') {
+        assert.equal(await toolbar.locator('button:not(:disabled)').evaluateAll((buttons) => buttons.filter((button) => button.tabIndex >= 0).length), 1, 'Toolbar must have one Tab entry');
+        const mode = toolbar.locator('.capture-mode-switch');
+        const modeBounds = await mode.boundingBox();
+        await page.mouse.move(modeBounds.x + 10, modeBounds.y + 10);
+        await page.mouse.down();
+        await page.waitForTimeout(160); // Allow the declared press transition to settle.
+        assert.equal(await mode.locator('span').first().evaluate((element) => getComputedStyle(element).transform), 'none', 'Press must not move the selected mode surface');
+        await page.mouse.move(5, 5);
+        await page.mouse.up();
+        const dismiss = toolbar.getByRole('button', { name: 'Hide capture toolbar', exact: true });
+        await dismiss.hover();
+        await page.waitForTimeout(180);
+        assert.equal(await dismiss.evaluate((element) => getComputedStyle(element).backgroundColor), 'rgba(0, 0, 0, 0)', 'Dismiss chrome must remain quiet on hover');
+        const appearance = page.getByRole('button', { name: 'Appearance', exact: true });
+        await appearance.click();
+        assert.equal(await page.locator('html').getAttribute('data-input-mode'), 'pointer');
+        assert.equal(await appearance.evaluate((element) => getComputedStyle(element).outlineStyle), 'none');
+        const systemChoice = page.getByRole('menuitemradio', { name: 'System', exact: true });
+        assert.equal(await systemChoice.evaluate((element) => getComputedStyle(element).outlineStyle), 'none');
+        await page.screenshot({ path: `${output}/pointer-menu.png`, fullPage: true });
+        await appearance.click();
+        await systemChoice.waitFor({ state: 'hidden' });
+        await appearance.focus();
+        await page.keyboard.press('Enter');
+        await page.getByRole('menuitemradio', { name: 'System', exact: true }).waitFor();
+        assert.equal(await page.locator('html').getAttribute('data-input-mode'), 'keyboard');
+        await page.waitForFunction(() => document.activeElement?.getAttribute('role') === 'menuitemradio');
+        assert.equal(await page.locator(':focus').evaluate((element) => getComputedStyle(element).outlineStyle), 'solid');
+        await page.screenshot({ path: `${output}/keyboard-menu.png`, fullPage: true });
+        await page.keyboard.press('ArrowDown');
+        await page.keyboard.press('Escape');
+        assert.ok(await appearance.evaluate((element) => element === document.activeElement));
+        assert.equal(await page.locator('html').getAttribute('data-theme'), 'dark');
+        async function scenario(name) {
+          await page.getByRole('button', { name: 'Scenario', exact: true }).click();
+          await page.getByRole('menuitemradio', { name, exact: true }).click();
+        }
+        const start = () => page.getByRole('button', { name: 'Take screenshot', exact: true });
+        const saved = () => page.getByText('Capture saved', { exact: true });
+        const options = page.getByRole('button', { name: 'Capture options', exact: true });
+        // A pointer release outside and cancelled Space must not open the popup.
+        const optionBounds = await options.boundingBox();
+        await page.mouse.move(optionBounds.x + optionBounds.width / 2, optionBounds.y + optionBounds.height / 2);
+        await page.mouse.down();
+        await page.mouse.move(5, 5);
+        await page.mouse.up();
+        assert.equal(await options.getAttribute('aria-expanded'), 'false');
+        await options.focus();
+        await page.keyboard.down('Space');
+        await page.keyboard.press('Escape');
+        await page.keyboard.up('Space');
+        assert.equal(await options.getAttribute('aria-expanded'), 'false');
+        await page.keyboard.down('Enter');
+        await page.keyboard.down('Enter');
+        assert.equal(await options.getAttribute('aria-expanded'), 'true');
+        await page.keyboard.up('Enter');
+        await page.keyboard.press('Escape');
+        await options.click();
+        assert.equal(await options.evaluate((element) => getComputedStyle(element).outlineStyle), 'none');
+        const parameters = page.getByRole('dialog', { name: 'Capture options', exact: true });
+        await parameters.waitFor();
+        await options.click();
+        await parameters.waitFor({ state: 'hidden' });
+        const positionBefore = await toolbar.boundingBox();
+        await start().click();
+        await saved().waitFor();
+        const positionAfter = await toolbar.boundingBox();
+        assert.equal(positionBefore.y, positionAfter.y, 'Feedback moved the toolbar');
+        assert.ok(await start().evaluate((element) => element === document.activeElement), 'Capture completion lost command focus');
+        await scenario('Pending capture');
+        await start().click();
+        const pending = page.getByRole('button', { name: 'Select an area…', exact: true });
+        assert.ok(await pending.isDisabled());
+        assert.equal(await toolbar.getAttribute('aria-busy'), 'true');
+        await page.screenshot({ path: `${output}/pending.png`, fullPage: true });
+        await scenario('Permission denied');
+        await start().click();
+        await page.getByRole('alert').waitFor();
+        assert.match(await page.getByRole('alert').innerText(), /permission was denied/);
+        await scenario('Save failure');
+        await start().click();
+        await page.getByRole('alert').waitFor();
+        assert.match(await page.getByRole('alert').innerText(), /could not be saved/);
+        await scenario('Unsupported backend');
+        assert.ok(await start().isDisabled());
+        await page.getByText('Capture is not supported by this backend. No capture will start', { exact: true }).waitFor();
+        await scenario('Command refused');
+        await start().click();
+        await page.getByRole('alert').waitFor();
+        assert.match(await page.getByRole('alert').innerText(), /Another capture action/);
+        assert.ok(await start().isEnabled(), 'Owner refusal must allow a later retry');
+        await page.screenshot({path:`${output}/capture-command-refused.png`, fullPage:true});
+        await scenario('Connection failure');
+        await page.getByRole('button', {name:'Retry', exact:true}).click();
+        await page.getByRole('alert').waitFor({state:'hidden'});
+        await scenario('Window became unavailable');
+        await options.click();
+        await parameters.getByRole('radio', {name:'Active window', exact:true}).check();
+        await options.click();
+        await start().click();
+        await page.getByRole('alert').waitFor();
+        assert.match(await page.getByRole('alert').innerText(), /No capture window/);
+        assert.ok(await start().isDisabled());
+        await page.screenshot({path:`${output}/capture-window-unavailable.png`, fullPage:true});
+        await options.click();
+        await parameters.getByRole('radio', {name:'Current screen', exact:true}).check();
+        await options.click();
+        await page.getByRole('alert').waitFor({state:'hidden'});
+        assert.ok(await start().isEnabled());
+        await scenario('Successful capture');
+        await page.getByRole('button', { name: 'Switch to video', exact: true }).click();
+        await options.click();
+        const highQuality = parameters.getByRole('radio', { name: 'High', exact: true });
+        const qualityFace = highQuality.locator('..');
+        const qualityIdle = await qualityFace.evaluate((element) => getComputedStyle(element).backgroundColor);
+        await highQuality.hover();
+        assert.notEqual(await qualityFace.evaluate((element) => getComputedStyle(element).backgroundColor), qualityIdle, 'Unselected quality must respond to hover');
+        await parameters.getByRole('radio', { name: 'High', exact: true }).check();
+        assert.ok(await parameters.getByRole('radio', { name: 'High', exact: true }).isChecked());
+        await page.screenshot({ path: `${output}/capture-parameters.png`, fullPage: true });
+        await options.click();
+        await parameters.waitFor({ state: 'hidden' });
+        await page.getByRole('button', { name: 'Start recording', exact: true }).click();
+        await page.getByRole('button', { name: 'Pause', exact: true }).click();
+        await page.getByRole('button', { name: 'Resume', exact: true }).waitFor();
+        await page.screenshot({ path: `${output}/recording-paused.png`, fullPage: true });
+        await page.getByRole('button', { name: 'Hide capture toolbar', exact: true }).click();
+        await page.getByRole('button', { name: 'Show toolbar', exact: true }).click();
+        await page.getByRole('button', { name: 'Resume', exact: true }).click();
+        await page.getByRole('button', { name: 'Discard recording', exact: true }).click();
+        const dialog = page.getByRole('dialog');
+        await dialog.waitFor();
+        assert.ok(await dialog.getByRole('button', { name: 'Cancel', exact: true }).evaluate((element) => element === document.activeElement));
+        await page.keyboard.press('Escape');
+        await dialog.waitFor({ state: 'hidden' });
+        await page.getByRole('button', { name: 'Discard recording', exact: true }).click();
+        await dialog.waitFor();
+        // Fixture driver replaces backend state while the native modal makes product controls inert.
+        await page.getByRole('button', { name: 'Reset preview', exact: true }).evaluate((element) => element.click());
+        await dialog.waitFor({ state: 'hidden' });
+        await page.getByRole('button', { name: 'Take screenshot', exact: true }).waitFor();
+        await page.getByRole('button', { name: 'Switch to video', exact: true }).click();
+        await page.getByRole('button', { name: 'Start recording', exact: true }).click();
+        await page.getByRole('button', { name: 'Stop', exact: true }).click();
+        await saved().waitFor();
+        await scenario('Save folder required');
+        assert.ok(await toolbar.locator('[data-action="start"]').isDisabled());
+        await page.getByText('Choose a save folder in Application settings before capture', {exact:true}).waitFor();
+        await page.screenshot({path:`${output}/capture-setup-required.png`, fullPage:true});
+        const popup = page.waitForEvent('popup');
+        await toolbar.getByRole('button', { name: 'Application settings', exact: true }).click();
+        const settings = await popup;
+        await settings.setViewportSize({ width: 680, height: 600 });
+        settings.on('pageerror', (error) => errors.push(error.message));
+        await settings.getByRole('heading', { name: 'Application settings', exact: true }).waitFor();
+        await settings.getByRole('button', { name: 'Light', exact: true }).click();
+        await page.waitForFunction(() => document.documentElement.dataset.theme === 'light');
+        await settings.waitForFunction(() => document.documentElement.dataset.theme === 'light');
+        assert.equal(await settings.getByRole('button', { name: 'Light', exact: true }).getAttribute('aria-pressed'), 'true');
+        const section = (name) => settings.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name, exact: true }).click();
+        const apply = settings.getByRole('button', { name: 'Apply', exact: true });
+        const cancel = settings.getByRole('button', { name: 'Cancel', exact: true });
+        await section('Video');
+        await settings.getByRole('button', { name: 'Quality', exact: true }).click();
+        await settings.getByRole('menuitemradio', { name: 'Maximum', exact: true }).click();
+        assert.ok(await apply.isEnabled(), 'Selecting quality must create an unsaved draft');
+        await settings.getByRole('button', { name: 'Frame rate', exact: true }).click();
+        assert.ok(await apply.isEnabled(), 'Opening a dropdown must not implicitly submit the form');
+        await settings.getByRole('button', { name: 'Frame rate', exact: true }).click();
+        assert.equal(await settings.getByRole('menu').count(), 0, 'Second click must close the settings dropdown');
+        await settings.screenshot({ path: `${output}/settings-video.png`, fullPage: true });
+        await section('Audio');
+        await section('Video');
+        assert.match(await settings.getByRole('button', { name: 'Quality', exact: true }).innerText(), /Maximum/);
+        await cancel.click();
+        assert.match(await settings.getByRole('button', { name: 'Quality', exact: true }).innerText(), /High/);
+        const bitrate = settings.getByRole('spinbutton', { name: 'Video bitrate', exact: true });
+        await bitrate.fill('18');
+        await settings.getByRole('button', { name: 'Scenario', exact: true }).click();
+        await settings.getByRole('menuitemradio', { name: 'Save failure', exact: true }).click();
+        await apply.click();
+        assert.match(await settings.getByRole('alert').innerText(), /could not be saved/);
+        assert.equal(await bitrate.inputValue(), '18', 'Save failure must retain the draft');
+        await settings.getByRole('button', { name: 'Scenario', exact: true }).click();
+        await settings.getByRole('menuitemradio', { name: 'Applying', exact: true }).click();
+        assert.ok(await bitrate.isDisabled());
+        assert.ok(await apply.isDisabled());
+        await settings.getByRole('button', { name: 'Scenario', exact: true }).click();
+        await settings.getByRole('menuitemradio', { name: 'Unavailable', exact: true }).click();
+        assert.ok(await bitrate.isDisabled());
+        await settings.getByRole('button', { name: 'Scenario', exact: true }).click();
+        await settings.getByRole('menuitemradio', { name: 'Ready', exact: true }).click();
+        await apply.click();
+        assert.ok(await apply.isDisabled());
+        await section('Shortcuts');
+        const shortcut = settings.getByRole('button', { name: 'Capture region', exact: true });
+        const shortcutDescription = await shortcut.getAttribute('aria-describedby');
+        assert.ok(shortcutDescription, 'Assigned shortcuts must expose their value to assistive technology');
+        assert.equal(await settings.locator(`[id="${shortcutDescription}"]`).innerText(), 'Ctrl+Shift+S');
+        await shortcut.click();
+        await settings.keyboard.press('Escape');
+        assert.match(await shortcut.innerText(), /Ctrl\+Shift\+S/);
+        await shortcut.click();
+        await settings.keyboard.press('Control+Alt+K');
+        assert.match(await shortcut.innerText(), /Ctrl\+Alt\+K/);
+        await shortcut.click();
+        await settings.keyboard.press('Tab');
+        assert.ok(await shortcut.evaluate((element) => element !== document.activeElement), 'Shortcut editing must allow Tab navigation');
+        await settings.screenshot({ path: `${output}/settings-shortcuts.png`, fullPage: true });
+        await cancel.click();
+        assert.match(await shortcut.innerText(), /Ctrl\+Shift\+S/);
+        await section('Result destination');
+        await settings.locator('.settings-page').getByRole('button', {name:'Result destination', exact:true}).click();
+        await settings.getByRole('menuitemradio', {name:'Preview browser — Personal', exact:true}).click();
+        const destination = settings.locator('.settings-page').getByRole('button', {name:'Result destination', exact:true});
+        const selectedDescription = await destination.getAttribute('aria-describedby');
+        assert.ok(selectedDescription);
+        assert.equal(await settings.locator(`[id="${selectedDescription}"]`).textContent(), 'Preview browser — Personal');
+        await settings.getByRole('checkbox', {name:'Ask where to save after each capture', exact:true}).check();
+        await settings.screenshot({path:`${output}/settings-delivery.png`, fullPage:true});
+        await apply.click();
+        assert.ok(await apply.isDisabled());
+        await section('General');
+        await settings.getByRole('button', { name: 'Language', exact: true }).click();
+        const language = settings.getByRole('button', { name: 'Language', exact: true });
+        assert.equal(await language.evaluate((element) => getComputedStyle(element).outlineStyle), 'none');
+        await settings.screenshot({ path: `${output}/settings-language-menu.png`, fullPage: true });
+        await settings.getByRole('menuitemradio', { name: 'Русский', exact: true }).click();
+        await page.waitForFunction(() => document.documentElement.lang === 'ru');
+        await settings.getByRole('heading', { name: 'Настройки приложения', exact: true }).waitFor();
+        await settings.evaluate(() => document.fonts.ready);
+        await settings.screenshot({ path: `${output}/application-settings.png`, fullPage: true });
+        await settings.close();
+        results.push({ workflow: 'success, pending, failures, unsupported, recording, pause/reopen, discard cancellation, stop', passed: true });
+      }
+      if (view.name !== 'desktop-dark' && !view.stress) {
+        const settings = await context.newPage();
+        await settings.goto(base.replace('/sandbox', '/settings?preview=1'));
+        const russian = view.locale.startsWith('ru');
+        const navigation = settings.getByRole('navigation', { name: russian ? 'Разделы настроек' : 'Settings sections' });
+        for (const name of russian ? ['Общие', 'Захват', 'Видео', 'Звук', 'Сочетания клавиш', 'Куда отправлять результаты'] : ['General', 'Capture', 'Video', 'Audio', 'Shortcuts', 'Result destination']) {
+          await navigation.getByRole('button', { name, exact: true }).click();
+          assert.ok(await settings.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `Settings overflow in ${view.name}: ${name}`);
+        }
+        await settings.screenshot({ path: `${output}/settings-${view.name}.png`, fullPage: true });
+        await settings.close();
+      }
+      assert.deepEqual(errors, [], `Browser errors in ${view.name}`);
+      results.push({ view: view.name, ...layout, passed: true });
+    } finally { await context.close(); }
+  }
+  // Exercise the actual desktop settings adapter through Tauri's official IPC mock.
+  const context = await browser.newContext({ viewport:{width:680, height:700}, colorScheme:'light' });
+  try {
+    const page = await context.newPage();
+    const errors = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    await page.goto(`http://127.0.0.1:${address.port}/tests/desktop-settings-fixture.html`);
+    const sections = page.getByRole('navigation', {name:'Settings sections'});
+    await sections.waitFor();
+    await page.getByRole('button', {name:'Light', exact:true}).click();
+    await page.waitForFunction(() => window.settingsFixture.preferenceWrites.length === 1);
+    await page.getByRole('button', {name:'Dark', exact:true}).click();
+    assert.equal(await page.evaluate(() => window.settingsFixture.preferenceWrites.length), 1, 'A later preference intent must wait for the earlier write');
+    await page.evaluate(() => window.settingsFixture.releasePreferences());
+    await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
+    assert.deepEqual(await page.evaluate(() => window.settingsFixture.preferenceWrites), [{theme:'light'}, {theme:'dark'}]);
+    await sections.getByRole('button', {name:'Capture', exact:true}).click();
+    await page.getByRole('button', {name:'Change folder…', exact:true}).click();
+    await page.getByText('D:\\Captures', {exact:true}).waitFor();
+    await sections.getByRole('button', {name:'Video', exact:true}).click();
+    const bitrate = page.getByRole('spinbutton', {name:'Video bitrate', exact:true});
+    await bitrate.fill('24');
+    await page.evaluate(() => { window.settingsFixture.failure = 'recording-busy'; });
+    await page.getByRole('button', {name:'Apply', exact:true}).click();
+    assert.match(await page.getByRole('alert').innerText(), /Stop the recording/);
+    assert.equal(await bitrate.inputValue(), '24');
+    await page.screenshot({path:`${output}/settings-owner-refusal.png`, fullPage:true});
+    await page.evaluate(() => { window.settingsFixture.failure = ''; });
+    await page.getByRole('button', {name:'Apply', exact:true}).click();
+    await page.waitForFunction(() => window.settingsFixture.writes === 1);
+    await page.getByRole('button', {name:'Apply', exact:true}).waitFor({state:'visible'});
+    await page.waitForFunction(() => document.querySelector('button[type="submit"]')?.disabled);
+    await sections.getByRole('button', {name:'Result destination', exact:true}).click();
+    await page.locator('.settings-page').getByRole('button', {name:'Result destination', exact:true}).click();
+    await page.getByRole('menuitemradio', {name:'Chrome — Personal', exact:true}).click();
+    await page.getByRole('button', {name:'Apply', exact:true}).click();
+    await page.waitForFunction(() => window.settingsFixture.deliveryWrites === 1);
+    const ask = page.getByRole('checkbox', {name:'Ask where to save after each capture', exact:true});
+    await ask.check();
+    await sections.getByRole('button', {name:'Video', exact:true}).click();
+    await bitrate.fill('32');
+    await page.getByRole('button', {name:'Apply', exact:true}).click();
+    await page.waitForFunction(() => window.settingsFixture.writes === 2);
+    await page.waitForFunction(() => document.querySelector('button[type="submit"]')?.disabled);
+    await sections.getByRole('button', {name:'Result destination', exact:true}).click();
+    assert.ok(await ask.isChecked(), 'Applying the capture profile must preserve unsaved delivery edits');
+    assert.ok(await page.getByRole('button', {name:'Apply', exact:true}).isEnabled());
+    await sections.getByRole('button', {name:'Video', exact:true}).click();
+    assert.equal(await bitrate.inputValue(), '32');
+    // Only delivery remains dirty. Closing must still protect that independent form.
+    await page.evaluate(async () => { const {emit} = await import('/node_modules/@tauri-apps/api/event.js'); await emit('tauri://close-requested'); });
+    const dialog = page.getByRole('dialog', {name:'Discard changes', exact:true});
+    await dialog.waitFor();
+    await page.screenshot({path:`${output}/settings-unsaved-close.png`, fullPage:true});
+    await dialog.getByRole('button', {name:'Cancel', exact:true}).click();
+    assert.equal(await bitrate.inputValue(), '32');
+    assert.equal(await page.evaluate(() => window.settingsFixture.closed), false);
+    await page.evaluate(async () => { const {emit} = await import('/node_modules/@tauri-apps/api/event.js'); await emit('tauri://close-requested'); });
+    await dialog.getByRole('button', {name:'Discard changes', exact:true}).click();
+    await page.waitForFunction(() => window.settingsFixture.closed);
+    assert.deepEqual(errors, []);
+    results.push({workflow:'desktop settings adapter, ordered preferences, owner refusal/retry, independent delivery draft and dirty-close confirmation', passed:true});
+  } finally { await context.close(); }
+
+  const panelContext = await browser.newContext({viewport:{width:760,height:500}, deviceScaleFactor:1.5, colorScheme:'dark'});
+  panelContext.setDefaultTimeout(5000);
+  try {
+    const page = await panelContext.newPage();
+    const errors = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+    await page.goto(`http://127.0.0.1:${address.port}/tests/panel-frame-fixture.html`);
+    const toolbar = page.getByRole('toolbar');
+    await toolbar.waitFor();
+    assert.equal(await page.locator('body').evaluate((element) => getComputedStyle(element).backgroundColor), 'rgba(0, 0, 0, 0)');
+    await page.waitForFunction(() => window.panelFixture.frames.length > 0);
+    assert.equal(await page.evaluate(() => window.panelFixture.frames[0].first), true);
+    assert.equal(await page.evaluate(() => window.panelFixture.frames[0].pixelRatio), 1.5);
+    await page.screenshot({path:`${output}/native-panel-shell.png`, omitBackground:true});
+    await page.evaluate(() => { window.panelFixture.above = true; });
+    const options = toolbar.getByRole('button', {name:'Capture options', exact:true});
+    await options.click();
+    await page.waitForFunction(() => document.querySelector('.desktop-panel-host')?.getAttribute('style')?.includes('332px'));
+    const popup = page.getByRole('dialog', {name:'Capture options', exact:true});
+    await popup.waitFor();
+    const popupBounds = await popup.boundingBox();
+    assert.ok(popupBounds.y >= 0 && popupBounds.y+popupBounds.height <= 500, 'Expanded panel options must fit above the toolbar');
+    await page.screenshot({path:`${output}/native-panel-options-above.png`, omitBackground:true});
+    await options.click();
+    await popup.waitFor({state:'hidden'});
+    await page.waitForFunction(() => !window.panelFixture.frames.at(-1).overlay);
+    await page.waitForFunction(() => document.querySelector('.desktop-panel-host')?.style.getPropertyValue('--panel-top') === '12px');
+    await page.evaluate(() => { window.panelFixture.above = false; });
+    const before = await toolbar.boundingBox();
+    await page.getByRole('button', {name:'Take screenshot', exact:true}).click();
+    await page.getByText('Capture saved', {exact:true}).waitFor();
+    await page.waitForFunction(() => window.panelFixture.frames.at(-1).feedbackHeight > 0);
+    const after = await toolbar.boundingBox();
+    assert.equal(after.y, before.y, 'Feedback must not move the toolbar inside its returned frame');
+    await page.evaluate(() => { window.panelFixture.delayCommand = true; });
+    await page.getByRole('button', {name:'Take screenshot', exact:true}).click();
+    await page.waitForFunction(() => !!window.panelFixture.releaseCommand);
+    assert.equal(await page.getByText('Capture saved', {exact:true}).isVisible(), false, 'A previous save must not appear as completion of a pending command');
+    assert.equal(await page.locator('[data-action="start"]').isEnabled(), false);
+    assert.equal(await toolbar.getAttribute('aria-busy'), 'true');
+    assert.equal(await options.isEnabled(), false);
+    assert.equal(await toolbar.getByRole('button', {name:'Switch to video', exact:true}).isEnabled(), false);
+    await page.screenshot({path:`${output}/native-panel-pending-next-capture.png`, omitBackground:true});
+    await page.evaluate(() => { window.panelFixture.delayCommand = false; window.panelFixture.releaseCommand(); });
+    await page.getByText('Capture saved', {exact:true}).waitFor();
+    await toolbar.getByRole('button', {name:'Application settings', exact:true}).click();
+    await page.waitForFunction(() => window.panelFixture.settingsOpened);
+    await toolbar.getByRole('button', {name:'Switch to video', exact:true}).click();
+    await page.getByRole('button', {name:'Start recording', exact:true}).click();
+    await page.getByRole('button', {name:'Discard recording', exact:true}).click();
+    const discard = page.getByRole('dialog');
+    await discard.waitFor();
+    await page.waitForFunction(() => window.panelFixture.frames.at(-1).modal);
+    assert.equal(await discard.evaluate((element) => getComputedStyle(element, '::backdrop').backgroundColor), 'rgba(0, 0, 0, 0)', 'A native floating dialog must not paint a rectangular desktop backdrop');
+    await page.screenshot({path:`${output}/native-panel-discard.png`, omitBackground:true});
+    await discard.getByRole('button', {name:'Cancel', exact:true}).click();
+    await page.waitForFunction(() => !window.panelFixture.frames.at(-1).modal);
+    assert.ok(await page.evaluate(() => window.panelFixture.frames.length < 30), 'Panel measurements must settle instead of looping');
+    await toolbar.getByRole('button', {name:'Hide capture toolbar', exact:true}).click();
+    await page.waitForFunction(() => window.panelFixture.closed);
+    assert.deepEqual(errors, []);
+    results.push({workflow:'real desktop panel host, transparent background, scaled frame request, above popup, feedback, separate settings and discard sizing', passed:true});
+  } finally { await panelContext.close(); }
+
+} finally {
+  const cleanup = await Promise.allSettled([browser?.close(), server.close()]);
+  await writeFile(`${output}/result.json`, JSON.stringify(results, null, 2));
+  assert.ok(cleanup.every((result) => result.status === 'fulfilled'), 'UI browser cleanup failed');
+}
+console.log(JSON.stringify(results, null, 2));

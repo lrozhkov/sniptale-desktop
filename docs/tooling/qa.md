@@ -6,6 +6,8 @@ Canonical executable tooling lives under `tooling/**`. Generated logs, state, re
 
 Edit versions only in `tooling/configs/qa/tool-versions.json`, then run `tooling/qa/wrappers/toolchain.sh --sync`. The resolver verifies official release metadata and produces `toolchain-lock.json`, Rust configuration, pinned GitHub Action commits, and hosted Python settings. `--check` is offline. The tooling gate rejects stale generated inputs and incomplete release metadata.
 
+Use `tooling/qa/wrappers/toolchain.sh --sync-cargo` when only Cargo.lock changes. It refreshes Cargo release metadata and validates the complete candidate. It preserves unchanged platform tools and workflow pins. Failed validation or a concurrent lock edit prevents publication.
+
 Run `--install-rust`, `tooling/qa/installers/install-release-tools.sh`, and `tooling/qa/installers/install-script-tools.sh` to prepare local QA tools. The script installer verifies the cataloged Python and Node.js runtimes, binary checksums, npm lockfile integrity, and hash-locked Python dependencies.
 
 If the cataloged Python is absent on Ubuntu 24.04 x64, it extracts the checksum-verified official GitHub Actions Python distribution. It does not compile CPython or require development headers.

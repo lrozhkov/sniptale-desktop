@@ -62,6 +62,8 @@ pub(in crate::app::resident) fn run_telemetry_worker(
             Ok(
                 WorkerCommand::ApplyHotkeyPlan { .. }
                 | WorkerCommand::ManualHotkeyAction { .. }
+                | WorkerCommand::DesktopCapture { .. }
+                | WorkerCommand::DesktopSettings { .. }
                 | WorkerCommand::RestoreHotkeys { .. }
                 | WorkerCommand::ApplyTrayRegistry { .. }
                 | WorkerCommand::ShowTrayNotice { .. }
@@ -70,6 +72,7 @@ pub(in crate::app::resident) fn run_telemetry_worker(
                 | WorkerCommand::CaptureScreenshot { .. }
                 | WorkerCommand::StartRecording { .. }
                 | WorkerCommand::ControlRecording { .. }
+                | WorkerCommand::ControlObservedRecording { .. }
                 | WorkerCommand::ControlActiveRecording { .. }
                 | WorkerCommand::PrepareManualAsset { .. }
                 | WorkerCommand::PublishManualAsset { .. }

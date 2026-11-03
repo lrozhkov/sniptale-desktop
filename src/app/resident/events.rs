@@ -58,6 +58,9 @@ pub(crate) enum AgentEventPublishResult {
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct AgentEventHub {
+    #[cfg(windows)]
+    pub(crate) desktop_session: Arc<Mutex<Option<super::desktop::session::DesktopSession>>>,
+    pub(crate) desktop: super::desktop::projection::CaptureProjection,
     subscribers: Arc<Mutex<Vec<SyncSender<AgentOutboundEvent>>>>,
     next_invocation: Arc<AtomicU64>,
 }

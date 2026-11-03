@@ -21,7 +21,7 @@ mod windows_devices;
 #[cfg(windows)]
 mod windows_pcm_capture;
 
-#[cfg(any(windows, test))]
+#[cfg(test)]
 pub(crate) use capabilities::MicrophoneDeviceDescriptor;
 pub(crate) use capabilities::{
     AudioCapabilitySummary, AudioUnavailableReason, runtime_audio_capability_summary,

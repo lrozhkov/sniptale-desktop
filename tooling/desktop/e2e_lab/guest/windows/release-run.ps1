@@ -247,7 +247,10 @@ Add-Test "clean-install" {
 }
 Add-Test "first-run" {
   Start-Agent
-  Tray @("Mode","Manual")
+  Tray @("Settings$([char]0x2026)")
+  $settings=Window "Sniptale Settings"
+  Button $settings "Capture"
+  Button $settings "Change folder$([char]0x2026)"
   Screenshot "manual-folder-opened"
   $picker = Window "Select Folder"
   [AlphaUi]::SetForegroundWindow([IntPtr]$picker.Current.NativeWindowHandle) | Out-Null
@@ -258,9 +261,8 @@ Add-Test "first-run" {
   Wait-For { Folder-Selected $picker ([IO.Path]::GetFileName($exports)) } | Out-Null
   Screenshot "manual-folder-entered"
   Button $picker "Select Folder"
-  $settings=Window "Sniptale $([char]0x2014) Manual settings"
   Screenshot "first-run-settings"
-  Button $settings "Save and switch to Manual"
+  Button $settings "Apply"
   $browserProfile=Wait-For {
     if (Test-Path "$directory/local-profile.json") {
       $value = Get-Content "$directory/local-profile.json" -Raw | ConvertFrom-Json
@@ -268,6 +270,11 @@ Add-Test "first-run" {
     }
   }
   if ($browserProfile.operatingMode -ne "manual" -or $browserProfile.manualProfile.destination.path -ne $exports) { throw "first-run UI did not persist Manual destination" }
+  Wait-For {
+    $settings.FindFirst([System.Windows.Automation.TreeScope]::Descendants,
+      [System.Windows.Automation.PropertyCondition]::new([System.Windows.Automation.AutomationElement]::NameProperty,"Changes applied"))
+  } | Out-Null
+  [AlphaUi]::PostMessage([IntPtr]$settings.Current.NativeWindowHandle,0x0010,[UIntPtr]::Zero,[IntPtr]::Zero) | Out-Null
   Wait-For { Window-Hidden $settings } | Out-Null
 }
 Add-Test "capture" {
@@ -328,13 +335,14 @@ Add-Test "restart" {
   Stop-Agent
   Start-Agent
   Tray @("Settings$([char]0x2026)")
-  $restartedSettings=Window "Sniptale $([char]0x2014) Manual settings"
+  $restartedSettings=Window "Sniptale Settings"
+  Button $restartedSettings "Capture"
   Screenshot "restarted-settings"
   [AlphaUi]::SetForegroundWindow([IntPtr]$restartedSettings.Current.NativeWindowHandle) | Out-Null
   $restartedSettings.SetFocus()
-  [System.Windows.Forms.SendKeys]::SendWait("{ESC}")
+  [AlphaUi]::PostMessage([IntPtr]$restartedSettings.Current.NativeWindowHandle,0x0010,[UIntPtr]::Zero,[IntPtr]::Zero) | Out-Null
   Wait-For { Window-Hidden $restartedSettings } | Out-Null
-  if ((Get-FileHash "$directory/local-profile.json" -Algorithm SHA256).Hash -ne $before) { throw "restart or Escape changed user settings" }
+  if ((Get-FileHash "$directory/local-profile.json" -Algorithm SHA256).Hash -ne $before) { throw "restart or close changed user settings" }
   if (Test-Path "$directory/dev-local-browser-trust.json") { throw "unexpected dev trust after restart" }
 }
 Add-Test "uninstall" {

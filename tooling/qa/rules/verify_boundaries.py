@@ -264,8 +264,13 @@ def reexport_targets(path: Path, statement: str, src: Path = SRC) -> list[Path]:
     if parts[0] == "crate" and len(parts) >= 2:
         base = src / parts[1]
         parts = parts[2:]
-    elif parts[0] in {"super", "self"}:
+    elif parts[0] == "super":
         parts = parts[1:]
+    else:
+        if path.name not in {"mod.rs", "lib.rs", "main.rs"}:
+            base = path.with_suffix("")
+        if parts[0] == "self":
+            parts = parts[1:]
 
     if parts:
         module_path = base.joinpath(*parts)
@@ -682,6 +687,14 @@ def run_self_tests() -> int:
         files = sorted(owner.rglob("*.rs"))
         facade_like = {path for path in files if is_facade_like(path)}
         owners = {"capture"}
+
+        desktop = owner / "desktop.rs"
+        write_selftest_file(desktop, "mod runtime;\npub(crate) use runtime::DesktopRuntime;")
+        write_selftest_file(owner / "desktop/runtime.rs", "pub(crate) struct DesktopRuntime;")
+        write_selftest_file(owner / "runtime/mod.rs", "pub(crate) mod model;")
+        targets = reexport_targets(desktop, "pub(crate) use runtime::DesktopRuntime;", src)
+        assert targets == [owner / "desktop/runtime.rs", owner / "desktop/runtime/mod.rs"], targets
+        assert owner / "runtime/mod.rs" not in targets
 
         root_errors = facade_file_errors(owner / "mod.rs", facade_like, root, src, owners)
         assert_contains(root_errors, "facade chains are forbidden")

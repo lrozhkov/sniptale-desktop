@@ -15,7 +15,7 @@ from typing import Any, Literal, TypedDict, cast
 from artifacts import create_source_bundle
 from errors import IntegrityError, LabError, UsageError
 from errors import ResourceError
-from limits import directory_allocated_bytes
+from limits import directory_allocated_bytes, require_session_headroom
 from progress import emit
 from receipt import create_run_dir
 from results import write_junit
@@ -181,6 +181,7 @@ class WorkSessions:
             raise UsageError("session lifetime must be 600..14400 seconds")
         if load_session(self.paths) is not None or self.vms.current(LANE, clean_stale=False) is not None:
             raise UsageError("close the existing session or VM first")
+        require_session_headroom(self.paths.lab, self.config.limits, "open")
         timings = {}
         root = self.paths.scoped(self.paths.lab / "sessions")
         identity, directory = create_run_dir(root)
@@ -394,6 +395,41 @@ class WorkSessions:
         shutil.rmtree(self.paths.scoped(directory))
         return {"closed_sessions_removed": 1, "bytes_reclaimed": reclaimed}
 
+    def purge_retired_iteration(self, session_id, iteration):
+        for value in (session_id, iteration):
+            if not isinstance(value, str) or re.fullmatch(r"[0-9]{8}T[0-9]{6}Z(?:-[0-9]{3})?", value) is None:
+                raise UsageError("invalid diagnostic iteration identity")
+        root = self.paths.lab / "sessions" / session_id / "iterations"
+        directory = root / iteration
+        if root.resolve(strict=False) != root or directory.is_symlink():
+            raise IntegrityError("diagnostic iteration directory is redirected")
+        if not directory.exists():
+            return {"retired_iterations_removed": 0, "bytes_reclaimed": 0}
+        receipt = read_json(directory / "development-receipt.json")
+        if (
+            receipt is None
+            or type(receipt.get("schema_version")) is not int
+            or receipt.get("schema_version") != 1
+            or receipt.get("mode") != "development-session"
+            or receipt.get("release_admissible") is not False
+            or receipt.get("session_id") != session_id
+            or receipt.get("iteration") != iteration
+            or receipt.get("result") not in {"pass", "fail"}
+            or receipt.get("operation") not in {"build", "test"}
+        ):
+            raise IntegrityError("completed diagnostic iteration ownership is not established")
+        active = load_session(self.paths)
+        if active is not None and active["last_artifact"] is not None:
+            artifact = self.paths.scoped(self.paths.lab / active["last_artifact"])
+            if artifact.is_relative_to(directory):
+                raise UsageError("refusing to remove the active build artifact")
+        latest = max((p.name for p in root.iterdir() if p.is_dir()), default="")
+        if iteration >= latest:
+            raise UsageError("refusing to remove the newest diagnostic iteration")
+        reclaimed = directory_allocated_bytes(directory)
+        shutil.rmtree(self.paths.scoped(directory))
+        return {"retired_iterations_removed": 1, "bytes_reclaimed": reclaimed}
+
     def recover(self):
         state = self.require(allow_failed=True)
         self.ssh.command(
@@ -426,7 +462,11 @@ class WorkSessions:
         )
         return {"recovered": True, "session_id": state["id"], "boot_id": state["boot_id"], "release_admissible": False}
 
-    def iterate(self, operation, profile="dev", cases=None, extension_artifact=None, extension_source=None):
+    def iterate(
+        self, operation, profile="dev", cases=None, extension_artifact=None, extension_source=None, *, ui_preview=False
+    ):
+        if ui_preview and (operation != "build" or profile != "dev"):
+            raise UsageError("UI preview requires a development-profile session build")
         started = time.monotonic()
         timings = {}
         with phase(timings, "preflight"):
@@ -435,8 +475,11 @@ class WorkSessions:
             require_license(self.ssh, min(3600, max(1, state["expires_epoch"] - int(time.time()))))
         if state["iterations"] >= MAX_ITERATIONS:
             raise UsageError("session iteration limit reached; close and reopen")
+        require_session_headroom(self.paths.lab, self.config.limits, operation)
         current_lock = sha256_file(self.paths.root / "Cargo.lock")
         refresh_vendor = current_lock != state["vendor_lock"]
+        if ui_preview and refresh_vendor:
+            raise UsageError("dependency lock changed; complete a full build before UI preview")
         if refresh_vendor and operation != "build":
             raise UsageError("dependency lock changed; build before testing")
         iteration, directory = create_run_dir(self.paths.lab / "sessions" / state["id"] / "iterations")
@@ -455,6 +498,8 @@ class WorkSessions:
             result="fail",
         )
         receipt["snapshot"] = read_json(self.paths.golden / LANE / "identity.json")
+        if operation == "build":
+            receipt["build_proof"] = {"ui_preview": ui_preview, "rust_tests": "not_run" if ui_preview else "required"}
         if (extension_artifact is None) != (extension_source is None):
             raise UsageError("extension artifact and source repository must be supplied together")
         if cases is not None and "real-extension" in cases and extension_artifact is None:
@@ -493,7 +538,11 @@ class WorkSessions:
                 state["health"] = "failed"
                 write_json(state_path(self.paths), state)
                 with phase(timings, "build"):
-                    runner._build_windows(LANE, profile, source, output)
+                    if ui_preview:
+                        runner._build_windows(LANE, profile, source, output, ui_preview=True)
+                    else:
+                        runner._build_windows(LANE, profile, source, output)
+                receipt["build_proof"]["rust_tests"] = "not_run" if ui_preview else "passed"
                 # A completed guest build proves the transferred dependency set. Retain that
                 # input cache even if a later source-stability check rejects the artifacts.
                 state["vendor_lock"] = current_lock

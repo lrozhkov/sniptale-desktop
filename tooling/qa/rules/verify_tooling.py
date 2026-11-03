@@ -146,7 +146,8 @@ def validate_exact_scope(entry: dict[str, Any], errors: list[str]) -> None:
                 imported = edge.get("imports")
                 path = ROOT / str(relative)
                 if not path.is_file() or not re.search(
-                    rf"\b(?:crate\s*::\s*)?{re.escape(str(imported))}\s*::", path.read_text(encoding="utf-8")
+                    rf"\b(?:crate\s*::\s*)?{re.escape(str(imported))}\s*::",
+                    path.read_text(encoding="utf-8"),
                 ):
                     errors.append(f"{entry.get('id')} stale exact edge: {relative}->{imported}")
     elif "catalog" in scope:
@@ -359,6 +360,7 @@ def validate_hosted_qa_policy(errors: list[str]) -> None:
         "tooling/qa/wrappers/environment-audit.sh",
         "tooling/qa/wrappers/fast.sh",
         "tooling/qa/installers/install-script-tools.sh",
+        'source tooling/qa/runtime/script-tools-env.sh\nscript_tools_env "$PWD" --require-node\nnode ui/node_modules/playwright-core/cli.js install --with-deps chromium',
         "python3 -m tooling.qa.runtime.lint_receipts --export .tmp/qa-artifacts/script-lint-proof.json",
         "python3 -m tooling.qa.runtime.script_lints --powershell-inventory",
         "& tooling/qa/runtime/lint-windows-powershell.ps1 -Repository (Get-Location).Path -Inventory .tmp/qa-reports/powershell-inventory.json",
@@ -389,7 +391,10 @@ def validate_hosted_qa_policy(errors: list[str]) -> None:
                     not publisher or job["permissions"] != {"contents": "write", "actions": "read"}
                 ):
                     errors.append("hosted job permission drift")
-                if publisher and job.get("permissions") != {"contents": "write", "actions": "read"}:
+                if publisher and job.get("permissions") != {
+                    "contents": "write",
+                    "actions": "read",
+                }:
                     errors.append("publication permissions missing")
                 if (publisher or job_name == "package") and job.get("if") != "github.ref == 'refs/heads/main'":
                     errors.append("release jobs require reviewed main")
@@ -514,7 +519,10 @@ def validate_hosted_qa_policy(errors: list[str]) -> None:
                 errors.append("alpha package must require canonical QA")
             if name == "checks.yml":
                 fast = workflow["jobs"].get("fast", {})
-                if workflow["jobs"]["qa"].get("needs") != ["fast", "windows-powershell"]:
+                if workflow["jobs"]["qa"].get("needs") != [
+                    "fast",
+                    "windows-powershell",
+                ]:
                     errors.append("compilation must wait for fast environment and script checks")
                 audits = [step for step in fast.get("steps", []) if step.get("run") == "tooling/qa/wrappers/fast.sh"]
                 if len(audits) != 1 or any(step.get("continue-on-error") or "if" in step for step in audits):

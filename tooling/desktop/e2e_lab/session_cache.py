@@ -44,7 +44,7 @@ def restore(paths, qemu_img, golden, golden_sha256, overlay, disk_gib):
             not isinstance(stamp, dict)
             or set(stamp) != required
             or type(stamp["schema_version"]) is not int
-            or stamp["schema_version"] != 1
+            or stamp["schema_version"] != 2
         ):
             raise IntegrityError("work image cache metadata missing or invalid")
         if (
@@ -86,12 +86,20 @@ def restore(paths, qemu_img, golden, golden_sha256, overlay, disk_gib):
     except (IntegrityError, LabError, OSError, ValueError, KeyError, TypeError):
         emit("work-image-cache", status="miss")
         return None
-    # Convert only allocated blocks and retain the original immutable backing. No cache chain.
+    # The verified cache is immutable while its development VM is alive. A small COW
+    # layer avoids expanding every cached block into a second full-sized work image.
+    # Saving still flattens directly against the original golden, so depth never grows.
+    disk.chmod(0o444)
     run(
-        [qemu_img, "convert", "-q", "-O", "qcow2", "-B", str(golden), "-F", "qcow2", str(disk), str(overlay)],
-        timeout=CONVERSION_TIMEOUT,
+        [qemu_img, "create", "-q", "-f", "qcow2", "-F", "qcow2", "-b", str(disk), str(overlay)],
+        timeout=60,
     )
-    emit("work-image-cache", status="restored")
+    emit(
+        "work-image-cache",
+        status="restored",
+        cacheAllocatedBytes=disk.stat().st_blocks * 512,
+        overlayAllocatedBytes=overlay.stat().st_blocks * 512 if overlay.exists() else 0,
+    )
     return stamp
 
 
@@ -103,27 +111,45 @@ def store(paths, qemu_img, golden, overlay, golden_sha256, session_id, maximum_c
     if candidate.is_symlink() or disk.is_symlink():
         raise IntegrityError("work image cache file is redirected")
     candidate.unlink(missing_ok=True)
+
+    def require_candidate_budget():
+        if candidate.exists() and candidate.stat().st_size > MAX_BYTES:
+            raise ResourceError("work image exceeds the persistent compilation cache budget")
+
     try:
+        # convert -B assumes identical input/output bases. A session has an extra
+        # cache layer, so use safe rebase to retain inherited guest-visible data.
         run(
             [
                 qemu_img,
-                "convert",
+                "create",
                 "-q",
-                "-c",
-                "-O",
+                "-f",
                 "qcow2",
                 "-o",
                 "compression_type=zstd",
-                "-B",
-                str(golden),
                 "-F",
                 "qcow2",
+                "-b",
                 str(overlay),
                 str(candidate),
             ],
+            timeout=60,
+        )
+        emit("work-image-cache", status="rebasing", compression="zstd")
+        run(
+            [qemu_img, "rebase", "-q", "-c", "-f", "qcow2", "-F", "qcow2", "-b", str(golden), str(candidate)],
+            timeout=CONVERSION_TIMEOUT,
+            health_check=require_candidate_budget,
+        )
+        emit("work-image-cache", status="checking")
+        run([qemu_img, "check", "-q", str(candidate)], timeout=180)
+        # Validate data equivalence, not only qcow2 metadata, before replacement.
+        emit("work-image-cache", status="comparing")
+        run(
+            [qemu_img, "compare", "-q", "-f", "qcow2", "-F", "qcow2", str(overlay), str(candidate)],
             timeout=CONVERSION_TIMEOUT,
         )
-        run([qemu_img, "check", "-q", str(candidate)], timeout=180)
         existing = disk.stat().st_blocks * 512 if disk.exists() else 0
         if (
             candidate.stat().st_size > MAX_BYTES
@@ -132,7 +158,7 @@ def store(paths, qemu_img, golden, overlay, golden_sha256, session_id, maximum_c
             raise ResourceError("work image exceeds the persistent compilation cache budget")
         created = int(time.time())
         stamp = dict(
-            schema_version=1,
+            schema_version=2,
             mode="development-session",
             release_admissible=False,
             golden_sha256=golden_sha256,
@@ -141,6 +167,7 @@ def store(paths, qemu_img, golden, overlay, golden_sha256, session_id, maximum_c
             expires_epoch=created + MAX_AGE,
             source_session_id=session_id,
         )
+        candidate.chmod(0o444)
         os.replace(candidate, disk)
         write_json(root / "image.json", stamp)
         return stamp

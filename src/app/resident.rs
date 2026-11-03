@@ -15,6 +15,8 @@ mod cursor_writer;
 #[cfg(any(windows, test))]
 mod delivery;
 #[cfg(any(windows, test))]
+mod desktop;
+#[cfg(any(windows, test))]
 mod effects;
 #[cfg(any(windows, test))]
 mod events;
@@ -52,7 +54,7 @@ mod workers;
 
 #[cfg(any(windows, test))]
 use std::{
-    sync::mpsc::{self, Receiver, RecvTimeoutError, SyncSender},
+    sync::mpsc::{self, SyncSender},
     time::Duration,
 };
 
@@ -60,12 +62,14 @@ use std::{
 pub(crate) use events::AgentEventPublishResult;
 #[cfg(any(windows, test))]
 pub(crate) use events::{AgentEventHub, AgentOutboundEvent};
+#[cfg(test)]
+use std::sync::mpsc::{Receiver, RecvTimeoutError};
 #[cfg(any(windows, test))]
 use workers::{start_workers, stop_workers, wait_for_worker_starts};
 
 #[cfg(any(windows, test))]
 const WORKER_START_TIMEOUT: Duration = Duration::from_secs(5);
-#[cfg(any(windows, test))]
+#[cfg(test)]
 const SHUTDOWN_POLL_TIMEOUT: Duration = Duration::from_millis(500);
 #[cfg(any(windows, test))]
 const RUNTIME_APPLY_ACK_TIMEOUT: Duration = Duration::from_secs(5);
@@ -89,6 +93,19 @@ pub(crate) enum AgentShutdownSignal {
 
 #[cfg(any(windows, test))]
 pub(super) enum WorkerCommand {
+    DesktopSettings {
+        request: crate::tray::desktop::settings::SettingsRequest,
+        result_sender: std::sync::mpsc::SyncSender<
+            Result<
+                crate::tray::desktop::settings::SettingsSnapshot,
+                crate::tray::desktop::model::DesktopError,
+            >,
+        >,
+    },
+    DesktopCapture {
+        request: crate::tray::desktop::model::CaptureRequest,
+        result_sender: SyncSender<Result<(), crate::tray::desktop::model::DesktopError>>,
+    },
     ApplyHotkeyPlan {
         plan: crate::hotkeys::HotkeyRegistrationPlan,
         route: crate::hotkeys::HotkeyPlanRoute,
@@ -139,6 +156,10 @@ pub(super) enum WorkerCommand {
     },
     ControlRecording {
         request: Box<crate::recording::RecordingControlRequest>,
+    },
+    ControlObservedRecording {
+        control: crate::protocol::RecordingControl,
+        recording_id: String,
     },
     ControlActiveRecording {
         control: crate::protocol::RecordingControl,
@@ -192,6 +213,8 @@ pub(super) enum WorkerEvent {
 pub(crate) enum AgentRunError {
     StartTimeout(AgentComponent),
     EventChannelClosed,
+    #[cfg(all(windows, not(test)))]
+    DesktopRuntimeUnavailable,
     StartFailed(AgentComponent),
     #[cfg(all(windows, not(test)))]
     ResidentSingletonUnavailable,
@@ -210,6 +233,7 @@ pub(crate) struct AgentRunReport {
 #[cfg(any(windows, test))]
 pub(crate) struct AgentRunInputs {
     pub(crate) startup: AgentStartupInputs,
+    #[cfg(test)]
     pub(crate) shutdown: Receiver<AgentShutdownSignal>,
 }
 
@@ -224,9 +248,11 @@ pub(crate) fn run_resident_agent_with_log(
         crate::settings::persist_browser_start_allowed(&path, true)
             .map_err(|_| AgentRunError::ResidentSingletonUnavailable)?;
     }
+    #[cfg(test)]
     let (_shutdown_sender, shutdown) = mpsc::sync_channel(1);
     let inputs = AgentRunInputs {
         startup: runtime_agent_startup_inputs(),
+        #[cfg(test)]
         shutdown,
     };
     run_resident_agent_until_shutdown_with_log(&inputs, log, worker_start::start_worker)
@@ -263,7 +289,7 @@ fn run_resident_agent_until_shutdown_with_log(
     let plan = plan_agent_start(&inputs.startup);
     let (event_sender, event_receiver) = mpsc::sync_channel(plan.components.len());
     let (shutdown_sender, shutdown_receiver) = mpsc::sync_channel(1);
-    let mut workers = start_workers(
+    let (mut workers, desktop_events) = start_workers(
         &plan.components,
         plan.status,
         &inputs.startup.active_settings,
@@ -274,9 +300,22 @@ fn run_resident_agent_until_shutdown_with_log(
     );
     let started_components = wait_for_worker_starts(&plan.components, &event_receiver)?;
 
-    wait_for_shutdown_request(&inputs.shutdown, &shutdown_receiver)?;
+    #[cfg(all(windows, not(test)))]
+    let run_result = desktop::session::run(
+        &workers,
+        &inputs.startup.active_settings,
+        plan.status,
+        &desktop_events,
+        shutdown_receiver,
+    );
+    #[cfg(any(not(windows), test))]
+    let run_result = {
+        let _ = desktop_events;
+        wait_for_shutdown_request(&inputs.shutdown, &shutdown_receiver)
+    };
 
     let stopped_components = stop_workers(&mut workers)?;
+    run_result?;
     Ok(AgentRunReport {
         startup_status: plan.status,
         started_components,
@@ -284,7 +323,7 @@ fn run_resident_agent_until_shutdown_with_log(
     })
 }
 
-#[cfg(any(windows, test))]
+#[cfg(test)]
 fn wait_for_shutdown_request(
     external: &Receiver<AgentShutdownSignal>,
     internal: &Receiver<AgentShutdownSignal>,

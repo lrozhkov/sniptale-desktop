@@ -9,7 +9,42 @@ import unittest.mock as mock
 from pathlib import Path
 
 from tooling.qa.runtime.analysis_tools import sha256
-from tooling.qa.runtime.static_analysis import RAW_REPORTS, ROOT, scan_inputs, verify_raw
+from tooling.qa.runtime.static_analysis import (
+    RAW_REPORTS,
+    ROOT,
+    scan_inputs,
+    source_inventory,
+    source_policy_errors,
+    verify_raw,
+)
+
+
+class WebSourceInventoryTests(unittest.TestCase):
+    def test_shared_ui_is_analyzed_but_dependencies_and_built_assets_are_not(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            files = [
+                "src/main.rs",
+                "ui/src/panel.tsx",
+                "ui/src/client.ts",
+                "ui/tests/browser.mjs",
+                "ui/node_modules/dependency/index.ts",
+                "ui/dist/assets/bundle.js",
+                ".tmp/probe.py",
+            ]
+            for name in files:
+                path = root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("const probe = 1;\n")
+            selected = source_inventory(files, root)
+            self.assertEqual(set(selected), set(files[:4]))
+            (root / "ui/src/panel.tsx").write_text("// jscpd:ignore-start\n")
+            self.assertTrue(source_policy_errors(root, selected))
+            (root / "ui/src/client.ts").unlink()
+            (root / "outside.ts").write_text("outside")
+            (root / "ui/src/client.ts").symlink_to(root / "outside.ts")
+            with self.assertRaises(ValueError):
+                source_inventory(files, root)
 
 
 class ReclassificationTests(unittest.TestCase):

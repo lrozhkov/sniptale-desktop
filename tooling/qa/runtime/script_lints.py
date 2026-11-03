@@ -20,6 +20,7 @@ LABELS = (
     "shfmt formatting",
     "PowerShell parser and analyzer",
     "ESLint promises and safety",
+    "TypeScript frontend types",
     "actionlint",
     "zizmor",
     "yamllint",
@@ -30,10 +31,26 @@ LABELS = (
 
 def inventory() -> dict[str, list[str]]:
     result: dict[str, list[str]] = {
-        key: [] for key in ("python", "shell", "powershell", "javascript", "yaml", "toml", "json")
+        key: []
+        for key in (
+            "python",
+            "shell",
+            "powershell",
+            "javascript",
+            "typescript",
+            "yaml",
+            "toml",
+            "json",
+        )
     }
     deleted = set(
-        subprocess.run(["git", "ls-files", "--deleted", "-z"], cwd=ROOT, capture_output=True, check=True, timeout=20)
+        subprocess.run(
+            ["git", "ls-files", "--deleted", "-z"],
+            cwd=ROOT,
+            capture_output=True,
+            check=True,
+            timeout=20,
+        )
         .stdout.decode()
         .split("\0")
     )
@@ -58,6 +75,10 @@ def inventory() -> dict[str, list[str]]:
         ".js": "javascript",
         ".cjs": "javascript",
         ".mjs": "javascript",
+        ".ts": "typescript",
+        ".tsx": "typescript",
+        ".mts": "typescript",
+        ".cts": "typescript",
         ".yml": "yaml",
         ".yaml": "yaml",
         ".toml": "toml",
@@ -68,8 +89,8 @@ def inventory() -> dict[str, list[str]]:
         if not path.is_file() or path.is_symlink():
             raise ValueError("script inventory contains missing or redirected source")
         category = suffixes.get(path.suffix)
-        if path.suffix in {".ts", ".tsx", ".mts", ".cts"}:
-            raise ValueError("TypeScript source requires an explicit typed lint lane")
+        if category == "typescript" and not name.startswith("ui/"):
+            raise ValueError("TypeScript source outside ui requires an explicit typed lint lane")
         if category is None:
             with path.open("rb") as stream:
                 first = stream.readline(256)
@@ -105,13 +126,34 @@ def checks(files: dict[str, list[str]]) -> list[tuple[str, list[str]]]:
     result = [
         (
             "Ruff errors and code smells",
-            [str(python / "ruff"), "check", "--config", config + "ruff.toml", *files["python"]],
+            [
+                str(python / "ruff"),
+                "check",
+                "--config",
+                config + "ruff.toml",
+                *files["python"],
+            ],
         ),
         (
             "Ruff formatting",
-            [str(python / "ruff"), "format", "--check", "--config", config + "ruff.toml", *files["python"]],
+            [
+                str(python / "ruff"),
+                "format",
+                "--check",
+                "--config",
+                config + "ruff.toml",
+                *files["python"],
+            ],
         ),
-        ("Pyright types", [str(node / "pyright"), "--project", config + "pyrightconfig.json", *files["python"]]),
+        (
+            "Pyright types",
+            [
+                str(node / "pyright"),
+                "--project",
+                config + "pyrightconfig.json",
+                *files["python"],
+            ],
+        ),
         (
             "ShellCheck",
             [
@@ -122,7 +164,10 @@ def checks(files: dict[str, list[str]]) -> list[tuple[str, list[str]]]:
                 *files["shell"],
             ],
         ),
-        ("shfmt formatting", [binary("shfmt"), "-d", "-i", "2", "-ci", *files["shell"]]),
+        (
+            "shfmt formatting",
+            [binary("shfmt"), "-d", "-i", "2", "-ci", *files["shell"]],
+        ),
         (
             "PowerShell parser and analyzer",
             [
@@ -149,6 +194,27 @@ def checks(files: dict[str, list[str]]) -> list[tuple[str, list[str]]]:
                 "--config",
                 config + "eslint.config.cjs",
                 *files["javascript"],
+                *files["typescript"],
+            ],
+        ),
+        (
+            "TypeScript frontend types",
+            [
+                str(
+                    ROOT
+                    / ".tmp/qa-tools"
+                    / (
+                        "node-"
+                        + json.loads((ROOT / "tooling/configs/qa/tool-versions.json").read_text())["browserAutomation"][
+                            "node"
+                        ]
+                    )
+                    / "bin/node"
+                ),
+                str(ROOT / "ui/node_modules/typescript/bin/tsc"),
+                "--project",
+                "ui/tsconfig.json",
+                "--noEmit",
             ],
         ),
         (
@@ -170,12 +236,31 @@ def checks(files: dict[str, list[str]]) -> list[tuple[str, list[str]]]:
                 ".github/workflows",
             ],
         ),
-        ("yamllint", [str(python / "yamllint"), "--strict", "--config-file", config + "yamllint.yaml", *files["yaml"]]),
+        (
+            "yamllint",
+            [
+                str(python / "yamllint"),
+                "--strict",
+                "--config-file",
+                config + "yamllint.yaml",
+                *files["yaml"],
+            ],
+        ),
         (
             "Taplo syntax and formatting",
-            [binary("taplo"), "format", "--check", "--config", config + "taplo.toml", *files["toml"]],
+            [
+                binary("taplo"),
+                "format",
+                "--check",
+                "--config",
+                config + "taplo.toml",
+                *files["toml"],
+            ],
         ),
-        ("JSON syntax duplicates and schemas", [str(python / "python"), "-m", "tooling.qa.runtime.json_contracts"]),
+        (
+            "JSON syntax duplicates and schemas",
+            [str(python / "python"), "-m", "tooling.qa.runtime.json_contracts"],
+        ),
     ]
     if tuple(label for label, _ in result) != LABELS:
         raise ValueError("lint proof catalog labels drifted")
@@ -206,7 +291,12 @@ def main() -> int:
         return subprocess.run(match[0], cwd=ROOT, check=False, timeout=300).returncode
     from .parallel import run_group
 
-    return run_group(lanes, Path(os.environ["SNIPTALE_QA_RUN_RECORD"]), Path(os.environ["SNIPTALE_QA_RUN_LOG"]), 4)
+    return run_group(
+        lanes,
+        Path(os.environ["SNIPTALE_QA_RUN_RECORD"]),
+        Path(os.environ["SNIPTALE_QA_RUN_LOG"]),
+        4,
+    )
 
 
 if __name__ == "__main__":

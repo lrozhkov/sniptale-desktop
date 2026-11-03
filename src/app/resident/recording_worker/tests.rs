@@ -486,6 +486,13 @@ impl FakeRecordingRunner {
 }
 
 impl RecordingRunner for FakeRecordingRunner {
+    fn tick(
+        &mut self,
+        _observed_epoch_ms: u64,
+    ) -> Result<Vec<RecordingCommandEvent>, RecordingRuntimeError> {
+        Ok(Vec::new())
+    }
+
     fn start_recording(
         &mut self,
         _request: &crate::recording::RecordingStartRequest,
@@ -577,3 +584,137 @@ fn recording_start_request() -> crate::recording::RecordingStartRequest {
 fn recording_control_request() -> crate::recording::RecordingControlRequest {
     extension_control_request(&recording_control_command())
 }
+
+#[derive(Clone)]
+struct ObservedControlRunner(
+    std::sync::Arc<std::sync::Mutex<Vec<crate::recording::RecordingControlRequest>>>,
+);
+impl RecordingRunner for ObservedControlRunner {
+    fn tick(
+        &mut self,
+        _observed_epoch_ms: u64,
+    ) -> Result<Vec<RecordingCommandEvent>, RecordingRuntimeError> {
+        Ok(Vec::new())
+    }
+
+    fn start_recording(
+        &mut self,
+        request: &RecordingStartRequest,
+        _policy: RecordingStartPolicy,
+    ) -> Result<Vec<RecordingCommandEvent>, RecordingRuntimeError> {
+        Ok(vec![RecordingCommandEvent::Progress(
+            RecordingProgressEvent {
+                recording_id: crate::transfer::identity::derived_media_id(
+                    "recording",
+                    &request.operation_id,
+                ),
+                duration_ms: 0,
+                bytes_written: 0,
+                status: RecordingProgressStatus::Recording,
+            },
+        )])
+    }
+    fn control_recording(
+        &mut self,
+        request: &crate::recording::RecordingControlRequest,
+    ) -> Result<Vec<RecordingCommandEvent>, RecordingRuntimeError> {
+        self.0
+            .lock()
+            .map_err(|_| RecordingRuntimeError::RuntimeUnavailable)?
+            .push(request.clone());
+        Ok(Vec::new())
+    }
+}
+
+#[test]
+fn queued_ui_discard_cannot_target_a_replacement_recording_even_with_stale_projection()
+-> Result<(), String> {
+    use crate::app::resident::{
+        control::manual_dispatch::ManualActionDispatcher,
+        desktop::dispatch::dispatch_capture_request,
+    };
+    use crate::tray::desktop::model::CaptureRequest;
+    for refresh_projection in [true, false] {
+        let events = AgentEventHub::default();
+        let state = TrayRecordingState::default();
+        let (event_sender, _event_receiver) = mpsc::sync_channel(1);
+        let (_sender, receiver) = mpsc::sync_channel(1);
+        let observed = ObservedControlRunner(std::sync::Arc::default());
+        let mut worker = RecordingWorkerRuntime::new(RecordingWorkerInputs {
+            event_sender: &event_sender,
+            command_receiver: &receiver,
+            runner: Some(Box::new(observed.clone())),
+            agent_events: &events,
+            tray_command_sender: None,
+            tray_recording_state: &state,
+            asset_sender: None,
+            log: None,
+        });
+        let first = recording_start_request();
+        worker.start(&first, RecordingStartPolicy::default());
+        let (sender, commands) = mpsc::sync_channel(1);
+        let mut dispatcher = ManualActionDispatcher::new(
+            crate::settings::ActiveSettings::extension_managed_default(),
+            None,
+            Some(sender),
+            None,
+        );
+        dispatch_capture_request(
+            CaptureRequest::Discard { expected_epoch: 1 },
+            Some(&mut dispatcher),
+            &events.desktop,
+            state.status(),
+            &mut crate::tray::NoopTrayCommandSource,
+        )
+        .map_err(|_| "discard admission")?;
+        let queued = commands.try_recv().map_err(|_| "missing queued control")?;
+        // Natural termination and a replacement occur after UI admission, before owner consumption.
+        let first_id =
+            crate::transfer::identity::derived_media_id("recording", &first.operation_id);
+        worker.active_recording = None;
+        if refresh_projection {
+            events.desktop.recording_discarded(&first_id);
+        }
+        let mut replacement = recording_start_request();
+        replacement.operation_id = "replacement-operation".to_owned();
+        worker.start(&replacement, RecordingStartPolicy::default());
+        worker.handle_command(queued);
+        assert!(
+            observed.0.lock().map_err(|_| "control log")?.is_empty(),
+            "stale UI discard reached the replacement owner"
+        );
+        let replacement_id =
+            crate::transfer::identity::derived_media_id("recording", &replacement.operation_id);
+        assert!(
+            worker.active_recording.is_some(),
+            "stale UI discard removed replacement metadata"
+        );
+        if refresh_projection {
+            dispatch_capture_request(
+                CaptureRequest::Discard { expected_epoch: 2 },
+                Some(&mut dispatcher),
+                &events.desktop,
+                state.status(),
+                &mut crate::tray::NoopTrayCommandSource,
+            )
+            .map_err(|_| "replacement control admission")?;
+            worker.handle_command(
+                commands
+                    .try_recv()
+                    .map_err(|_| "missing replacement control")?,
+            );
+        } else {
+            // Native safety still targets the actual current owner when UI facts lag.
+            worker.handle_command(WorkerCommand::ControlActiveRecording {
+                control: RecordingControl::Stop,
+            });
+        }
+        let controls = observed.0.lock().map_err(|_| "control log")?;
+        assert_eq!(controls.len(), 1);
+        assert_eq!(controls[0].recording_id, replacement_id);
+    }
+    Ok(())
+}
+
+#[path = "progress_tests.rs"]
+mod progress;

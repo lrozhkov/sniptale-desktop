@@ -57,3 +57,43 @@ fn production_mutators_update_cursor_and_microphone_fields() {
     assert!(!view.video_include_cursor);
     assert_eq!(view.microphone_device_id.as_deref(), Some("microphone-1"));
 }
+
+#[test]
+fn web_draft_rejects_invalid_bounds_paths_hotkeys_and_extra_fields()
+-> Result<(), Box<dyn std::error::Error>> {
+    let directory = tempfile::tempdir()?;
+    let valid = super::ManualProfileDraft::with_defaults(
+        "retained-id".to_owned(),
+        directory.path().to_string_lossy().into_owned(),
+    )
+    .view();
+    let raw = serde_json::to_value(&valid)?;
+    let mut foreign = raw.clone();
+    foreign["unknown"] = serde_json::json!(true);
+    assert!(serde_json::from_value::<super::ManualProfileDraftView>(foreign).is_err());
+    for (field, value) in [
+        ("destinationPath", serde_json::json!("../outside")),
+        ("videoMaxDurationSeconds", serde_json::json!(0)),
+        ("videoBitrateOverrideMbps", serde_json::json!(81)),
+        ("audioBitrateKbps", serde_json::json!(32)),
+        ("microphoneDeviceId", serde_json::json!("x".repeat(129))),
+        ("hotkeys", serde_json::json!({"unknown-action":"Ctrl+S"})),
+        (
+            "hotkeys",
+            serde_json::json!({"screenshot-region":"Ctrl+S", "recording-stop":"Ctrl+S"}),
+        ),
+    ] {
+        let mut changed = raw.clone();
+        changed[field] = value;
+        let view = serde_json::from_value(changed)?;
+        assert!(
+            super::ManualProfileDraft::from_view(view, "retained-id".to_owned()).is_err(),
+            "{field}"
+        );
+    }
+    let draft = super::ManualProfileDraft::from_view(valid.clone(), "retained-id".to_owned())
+        .map_err(|error| format!("{error:?}"))?;
+    assert_eq!(draft.view(), valid);
+    assert_eq!(draft.into_profile().destination.id, "retained-id");
+    Ok(())
+}

@@ -138,6 +138,8 @@ where
             Ok(
                 WorkerCommand::ApplyHotkeyPlan { .. }
                 | WorkerCommand::ManualHotkeyAction { .. }
+                | WorkerCommand::DesktopCapture { .. }
+                | WorkerCommand::DesktopSettings { .. }
                 | WorkerCommand::RestoreHotkeys { .. }
                 | WorkerCommand::ApplyTrayRegistry { .. }
                 | WorkerCommand::ShowTrayNotice { .. }
@@ -146,6 +148,7 @@ where
                 | WorkerCommand::CaptureScreenshot { .. }
                 | WorkerCommand::StartRecording { .. }
                 | WorkerCommand::ControlRecording { .. }
+                | WorkerCommand::ControlObservedRecording { .. }
                 | WorkerCommand::ControlActiveRecording { .. }
                 | WorkerCommand::StartRecordingTelemetry { .. }
                 | WorkerCommand::PauseRecordingTelemetry { .. }

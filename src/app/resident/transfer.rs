@@ -151,6 +151,8 @@ fn run_transfer_worker_with_cleaner(
             Ok(
                 WorkerCommand::ApplyHotkeyPlan { .. }
                 | WorkerCommand::ManualHotkeyAction { .. }
+                | WorkerCommand::DesktopCapture { .. }
+                | WorkerCommand::DesktopSettings { .. }
                 | WorkerCommand::RestoreHotkeys { .. }
                 | WorkerCommand::ApplyTrayRegistry { .. }
                 | WorkerCommand::ShowTrayNotice { .. }
@@ -159,6 +161,7 @@ fn run_transfer_worker_with_cleaner(
                 | WorkerCommand::CaptureScreenshot { .. }
                 | WorkerCommand::StartRecording { .. }
                 | WorkerCommand::ControlRecording { .. }
+                | WorkerCommand::ControlObservedRecording { .. }
                 | WorkerCommand::ControlActiveRecording { .. }
                 | WorkerCommand::StartRecordingTelemetry { .. }
                 | WorkerCommand::PauseRecordingTelemetry { .. }

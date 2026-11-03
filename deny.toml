@@ -34,7 +34,9 @@ workspace-default-features = "allow"
 external-default-features = "allow"
 allow = []
 deny = [
-  { crate = "tokio", reason = "No general async runtime in v1." },
+  { crate = "tokio", wrappers = [
+    "tauri",
+  ], reason = "Only Tauri may own this runtime under ADR 0008. Product owners must not add a general async runtime." },
   { crate = "async-std", reason = "No general async runtime in v1." },
   { crate = "smol", reason = "No general async runtime in v1." },
 ]

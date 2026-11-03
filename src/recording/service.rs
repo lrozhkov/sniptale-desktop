@@ -137,6 +137,13 @@ where
     R: RecordingRuntime,
     T: RecordingTelemetrySource,
 {
+    fn tick(
+        &mut self,
+        observed_epoch_ms: u64,
+    ) -> Result<Vec<RecordingCommandEvent>, RecordingRuntimeError> {
+        self.progress_tick(observed_epoch_ms)
+    }
+
     fn start_recording(
         &mut self,
         request: &RecordingStartRequest,

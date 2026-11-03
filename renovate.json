@@ -219,6 +219,13 @@
         "typescript"
       ],
       "allowedVersions": "<7"
+    },
+    {
+      "matchPackageNames": [
+        "flaui-core",
+        "flaui-uia2"
+      ],
+      "groupName": "FlaUI Windows UI tests"
     }
   ]
 }

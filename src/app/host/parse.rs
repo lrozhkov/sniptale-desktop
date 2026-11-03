@@ -137,3 +137,21 @@ fn validate_parent_window_arg(value: &str) -> Result<(), ModeError> {
         Err(ModeError::UnsupportedArgument)
     }
 }
+
+#[cfg(test)]
+mod sandbox_tests {
+    use super::*;
+
+    #[test]
+    fn retired_native_catalog_mode_is_not_admitted() {
+        for args in [
+            vec!["sniptale", "--design-sandbox"],
+            vec!["sniptale", "--design-sandbox", "--case=core"],
+        ] {
+            assert_eq!(
+                parse_mode(args.into_iter().map(OsString::from)),
+                Err(ModeError::UnsupportedArgument)
+            );
+        }
+    }
+}

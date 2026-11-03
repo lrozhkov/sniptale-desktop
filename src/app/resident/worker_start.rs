@@ -181,6 +181,7 @@ fn run_core_worker(
             command_receiver,
             service.as_ref(),
             senders.tray.as_ref(),
+            Some(&context.agent_events.desktop),
         );
         return true;
     }
@@ -194,7 +195,11 @@ fn run_core_worker(
                 events: &context.agent_events,
                 shutdown_sender: &context.shutdown_sender,
                 active_settings: context.active_settings.clone(),
-                manual_dispatcher: manual_dispatcher(&context.active_settings, senders),
+                manual_dispatcher: manual_dispatcher(
+                    &context.active_settings,
+                    senders,
+                    &context.agent_events,
+                ),
                 manual_senders: super::tray::ManualWorkerSenders::new(
                     senders.capture.clone(),
                     senders.recording.clone(),
@@ -238,18 +243,21 @@ fn run_core_worker(
 fn manual_dispatcher(
     settings: &crate::settings::ActiveSettings,
     senders: &WorkerSenders,
+    events: &AgentEventHub,
 ) -> Option<super::control::manual_dispatch::ManualActionDispatcher> {
     settings
         .epoch()
         .ok()
         .filter(|epoch| epoch.stable_mode().is_some())
         .map(|_| {
-            super::control::manual_dispatch::ManualActionDispatcher::new(
+            let mut dispatcher = super::control::manual_dispatch::ManualActionDispatcher::new(
                 settings.clone(),
                 senders.capture.clone(),
                 senders.recording.clone(),
                 senders.assets.clone(),
-            )
+            );
+            dispatcher.observe_with(events.desktop.clone());
+            dispatcher
         })
 }
 

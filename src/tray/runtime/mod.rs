@@ -10,3 +10,6 @@ pub(crate) mod windows;
 
 #[cfg(windows)]
 pub(crate) use windows::WindowsTrayCommandSource;
+
+#[cfg(any(windows, test))]
+mod activation;

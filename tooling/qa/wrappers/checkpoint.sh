@@ -6,6 +6,9 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 # shellcheck source=../runtime/lib.sh
 source "$ROOT/tooling/qa/runtime/lib.sh"
 ensure_rust_env
+# shellcheck source=../runtime/script-tools-env.sh
+source "$ROOT/tooling/qa/runtime/script-tools-env.sh"
+script_tools_env "$ROOT" --require-node
 cd "$ROOT"
 
 require_command cargo
@@ -21,13 +24,16 @@ qa_fail_if_any "checkpoint static proof summary"
 qa_step "check windows-msvc release executable" \
   env SNIPTALE_WINDOWS_RESOURCES=check-skip \
   cargo check --release --target x86_64-pc-windows-msvc --bin sniptale-native-agent --all-features
+qa_fail_if_any "Windows release compilation summary"
 qa_step "check windows-msvc test compilation" \
   env SNIPTALE_WINDOWS_RESOURCES=check-skip \
   cargo check --target x86_64-pc-windows-msvc --tests --all-features
+qa_fail_if_any "Windows test compilation summary"
 qa_step "clippy windows-msvc" \
   env SNIPTALE_WINDOWS_RESOURCES=check-skip \
   cargo clippy --target x86_64-pc-windows-msvc --all-targets --all-features -- -D warnings
 qa_step "clippy" cargo clippy --all-targets --all-features -- -D warnings
+qa_fail_if_any "compiler and lint summary"
 if command -v cargo-nextest >/dev/null 2>&1; then
   qa_step "tests nextest" \
     env NEXTEST_EXPERIMENTAL_LIBTEST_JSON=1 \

@@ -1,0 +1,115 @@
+@layer tokens, base, components, sandbox, accessibility;
+
+@layer tokens {
+@font-face {
+  font-family: 'Sniptale Interface';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('./fonts/golos-ui/golos-ui-vf.woff2') format('woff2');
+}
+
+/* Semantic values follow Sniptale web's design tokens and toolbar rules. */
+:root {
+  font-family: 'Sniptale Interface', 'Segoe UI', sans-serif;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;
+  color-scheme: light;
+  --canvas: #f6f2ed;
+  --panel: #fffcf8;
+  --input: #f4f4f5;
+  --hover: #e8e2da;
+  --active-row: #e6e0d8;
+  --menu: #fffcf8;
+  --hover-border: #c6beb4;
+  --choice-mark: #9a3412;
+  --selected: #d3cdc4;
+  --text: #27272a;
+  --muted: #4b5563;
+  --subtle: #a1a1aa;
+  --line: #e4e4e7;
+  --accent: #ea580c;
+  --focus: #5c6370;
+  --danger: #b91c1c;
+  --on-primary: #ffffff;
+  --primary: #27272a;
+  --preview: #f0e9e2;
+  --toolbar-shadow: 0 14px 28px -18px rgb(0 0 0 / 24%), 0 5px 12px -9px rgb(0 0 0 / 16%);
+  --menu-shadow: 0 8px 28px #43281825;
+  --control-size: 32px;
+  --control-padding: 6px 8px;
+  --control-gap: 6px;
+  --icon-size: 16px;
+  --font-control-size: 13px;
+  --font-control-line: 18px;
+  --preview-light-panel: #fffcf8;
+  --preview-light-border: #e4ded7;
+  --preview-light-line: #d6d0ca;
+  --preview-light-heading: #47434a;
+  --preview-dark-panel: #18181b;
+  --preview-dark-border: #303034;
+  --preview-dark-line: #3f3f46;
+  --preview-dark-heading: #dedee3;
+  --radius: 4px;
+  --toolbar-radius: 14px;
+  --duration: 150ms;
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --canvas: #09090b;
+  --panel: #18181b;
+  --input: #242427;
+  --hover: #303036;
+  --active-row: #393940;
+  --menu: #222225;
+  --hover-border: #56565f;
+  --choice-mark: #fdba74;
+  --selected: #3b3b43;
+  --text: #f4f4f5;
+  --muted: #bcbcc4;
+  --subtle: #71717a;
+  --line: #303034;
+  --accent: #f97316;
+  --focus: #d4d4dc;
+  --danger: #fca5a5;
+  --on-primary: #18181b;
+  --primary: #eeeef0;
+  --preview: #202023;
+  --toolbar-shadow: 0 14px 28px -18px rgb(0 0 0 / 70%), 0 5px 12px -9px rgb(0 0 0 / 70%);
+  --menu-shadow: 0 8px 28px #0008;
+}
+}
+
+@layer base {
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--canvas); color: var(--text); }
+button, select, input { font: inherit; }
+button { font-size: var(--font-control-size); line-height: var(--font-control-line); font-weight: 400; user-select: none; }
+button { cursor: pointer; }
+button:disabled { cursor: default; opacity: .45; }
+button, a, input { -webkit-tap-highlight-color: transparent; }
+:focus { outline: none; }
+::selection { background: var(--selected); color: var(--text); }
+input, textarea { caret-color: var(--accent); }
+* { scrollbar-color: var(--subtle) var(--canvas); scrollbar-width: thin; }
+svg { inline-size: var(--icon-size); block-size: var(--icon-size); flex-shrink: 0; stroke-width: 1.75; }
+a { color: inherit; text-decoration: none; text-underline-offset: 3px; }
+h1, h2, p { margin: 0; }
+}
+
+@layer accessibility {
+  :root[data-input-mode='keyboard'] :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  :root[data-input-mode='keyboard'] :is(.source-option, .quality-option, .settings-theme-choice):has(input:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
+  :root[data-input-mode='pointer'] :focus { outline: none; }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+    button[data-down='true'] > :is(span, svg), .capture-mode-switch[data-down='true'] > span > svg { transform: none; }
+  }
+  @media (forced-colors: active) {
+    button { border: 1px solid ButtonText; }
+    .choice-check[data-selected='true'], .source-option:has(input:checked) .choice-check { color: Highlight; }
+    .capture-mode-switch > span[data-active='true'], .quality-option:has(input:checked), .settings-theme-choice:has(input:checked) .theme-swatch { outline: 2px solid Highlight; }
+  }
+}

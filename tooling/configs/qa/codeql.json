@@ -5,6 +5,8 @@
     ".artifacts/**",
     "target/**",
     "LICENSES/**",
-    ".git/**"
+    ".git/**",
+    "ui/node_modules/**",
+    "ui/dist/**"
   ]
 }

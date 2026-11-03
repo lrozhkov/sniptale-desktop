@@ -12,14 +12,22 @@ from datetime import datetime, UTC
 from pathlib import Path
 from typing import Any
 
-from .advisories import AdvisoryError, Fetch, cpython_query, decode, nvd_query, osv_queries, request_json
+from .advisories import (
+    AdvisoryError,
+    Fetch,
+    cpython_query,
+    decode,
+    nvd_query,
+    osv_queries,
+    request_json,
+)
 from .repository import ROOT
 
 POLICY = ROOT / "tooling/configs/qa/environment-audit.json"
 CATALOG = ROOT / "tooling/configs/qa/tool-versions.json"
 
 
-def catalog_tools(value: dict[str, Any]) -> dict[str, str]:
+def catalog_tools(value: dict[str, Any], *, historical: bool = False) -> dict[str, str]:
     tools = {
         "python": value["python"]["version"],
         "rust": value["rust"]["channel"],
@@ -28,6 +36,10 @@ def catalog_tools(value: dict[str, Any]) -> dict[str, str]:
         "wix": value["windows"]["wix"],
         "windows-sdk": value["windows"]["sdkPackage"],
     }
+    # Retain removed-tool identities when comparing an older security baseline.
+    if historical and "uiAutomation" in value["windows"]:
+        tools["flaui-core"] = value["windows"]["uiAutomation"]
+        tools["flaui-uia2"] = value["windows"]["uiAutomation"]
     inventories = [
         value["cargoSubcommands"],
         {name: item["version"] for name, item in value["externalTools"].items()},
@@ -56,7 +68,12 @@ def audit_tool(name: str, version: str, policy: dict[str, Any], fetch: Fetch) ->
             or not policy["reason"].strip()
         ):
             raise AdvisoryError("uncovered tool requires an explicit coverage reason")
-        return {**result, "coverage": "manual-review-required", "reason": policy["reason"], "advisories": []}
+        return {
+            **result,
+            "coverage": "manual-review-required",
+            "reason": policy["reason"],
+            "advisories": [],
+        }
     if provider == "cpython":
         if set(policy) != {"provider"}:
             raise AdvisoryError("invalid CPython advisory policy")
@@ -81,7 +98,12 @@ def audit_tool(name: str, version: str, policy: dict[str, Any], fetch: Fetch) ->
 
 def audit(catalog: dict[str, Any], policy: dict[str, Any], fetch: Fetch = request_json) -> dict[str, Any]:
     tools = catalog_tools(catalog)
-    if policy.get("schemaVersion") != 1 or set(policy) != {"schemaVersion", "coverageLimit", "tools", "platformGaps"}:
+    if policy.get("schemaVersion") != 1 or set(policy) != {
+        "schemaVersion",
+        "coverageLimit",
+        "tools",
+        "platformGaps",
+    }:
         raise AdvisoryError("invalid environment audit policy")
     if set(tools) != set(policy["tools"]):
         raise AdvisoryError("every cataloged tool requires exactly one coverage declaration")

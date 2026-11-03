@@ -1,14 +1,16 @@
 # Desktop UI research
 
+The user selected Tauri on 2026-11-02. [ADR 0008](../architecture/adr/0008-tauri-presentation-boundary.md) supersedes the native-catalog strategy. The earlier Win32 assessment below is historical evidence. New component work belongs in the shared web interface.
+
 Assessment date: 2026-10-31. [Design index](index.md) routes the resulting concept and implementation plan. Sources below were checked for this task. Their examples must be interpreted for the actual Desktop implementation rather than copied as framework requirements.
 
-## Actual stack
+## Current stack
 
-Desktop uses Rust with the `windows` crate. The settings adapter uses Win32 HWND controls, GDI control drawing, Direct2D surface drawing, and DirectWrite text. It already has platform-neutral presentation and draft models, a light/dark/system-contrast palette, and DPI-independent layout helpers under `src/tray/settings_window`. Tray commands use typed menu models and a native Windows menu adapter under `src/tray/menu`.
+Desktop uses one React and TypeScript interface hosted by Tauri. Rust owners retain capture, recording, settings, storage, and recovery. The browser sandbox imports the application components. Windows keeps native tray, consent, source selection, and system dialogs. The replaced Win32 settings and capture renderers are retired.
 
-The relevant implementation question is how to make this native surface consistent, accessible, smooth, and easy to preview. The current evidence does not establish a need to replace the runtime with a web shell or a different UI framework. Reconsider the rendering choice only if the native component spike cannot meet the measured interaction and accessibility criteria.
+The [presentation boundary](../architecture/adr/0008-tauri-presentation-boundary.md) owns this decision. The [delivery plan](delivery-plan.md) records actual proof and remaining release checks.
 
-## Sources and decisions
+## Historical native assessment
 
 | Primary source | Guidance that applies here | Desktop consequence |
 | --- | --- | --- |
@@ -25,10 +27,16 @@ The relevant implementation question is how to make this native surface consiste
 
 The sibling Sniptale repository's `DESIGN.md` routes to `docs/design/index.md`. Its `tooling/design-reference` contains a local interactive catalog with groups, required cases, shared tokens, and direct links to the canonical rules. Its verification document requires real pointer and keyboard operation, full press cycles, error recovery, long text, themes, reduced motion, and composition checks.
 
-Adopt that workflow and those semantic distinctions. Copying the HTML specimens into Desktop would not prove native focus, UI Automation, per-monitor DPI, or Windows menu behavior. The native sandbox must exercise the same components and presentation model as the application. A lightweight visual catalog can complement it for browsing rules and comparing concepts, without becoming an independent production component implementation.
+Use the shared component workflow for Desktop. Browser checks cover pointer and keyboard input, delayed responses, failure recovery, themes, localization, scaling, and composition. Windows checks cover actual windows, source selection, tray, capture, recording, and installed provenance. Keep one implementation of each application component.
 
-## Observations requiring a spike
+## Historical spike observations
 
-Existing Desktop colors already belong to the Sniptale family, but the palette tests assert literal values rather than contrast across states. Existing layout code contains fixed row and page heights, and GDI fonts are sized in points while DirectWrite text uses DIPs. These observations justify testing scaled typography, clipping, composition, and shared tokens. They do not by themselves establish that a particular screen fails.
+The earlier native palette tests checked literal colors. They did not measure contrast across every state. GDI and DirectWrite used different units. These observations justified typography and composition checks. They did not establish a defect in a specific screen.
 
 The browser reference combines token CSS with newer group-specific design decisions. Resolve geometry and semantic differences explicitly in Desktop foundations rather than mechanically copying every CSS constant. Circular checkbox drawing and glass treatments in the browser material include proposed decisions. They are not automatic Desktop acceptance requirements.
+
+## Current test clients
+
+Playwright drives application components in the browser. In the isolated Windows guest, it connects to the real WebView2 through a process-local CDP endpoint. Normal application startup does not enable CDP. The [delivery plan](delivery-plan.md) records the confirmed workflow and its limits.
+
+System UI Automation remains for native frames and system dialogs. It does not drive web controls. The native component catalog, its command-line mode, and its FlaUI dependencies are retired. Existing Rust owner tests continue to verify product rules. Clean Windows acceptance verifies the release package.

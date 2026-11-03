@@ -9,7 +9,7 @@ function Invoke-LabNativeEditor([int] $Port) {
 }
 
 function Invoke-LabBrowserRequest([int] $Port, [hashtable] $Payload) {
-  if ($Port -notin @(9223, 9224)) { throw "invalid browser scenario port" }
+  if ($Port -notin @(9223, 9224, 9225)) { throw "invalid browser scenario port" }
   $request = Join-Path $outputPath "playwright-request.json"
   try {
     [IO.File]::WriteAllText($request, ($Payload | ConvertTo-Json -Compress), [Text.UTF8Encoding]::new($false))

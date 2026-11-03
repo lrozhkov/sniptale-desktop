@@ -54,6 +54,7 @@ def parser() -> argparse.ArgumentParser:
     session_collect.add_argument("iteration")
     session_build = session_sub.add_parser("build")
     session_build.add_argument("--profile", choices=("dev", "release"), default="dev")
+    session_build.add_argument("--ui-preview", action="store_true", help="Diagnostic dev build without Rust tests")
     session_test = session_sub.add_parser("test")
     session_test.add_argument("--cases", default="")
     session_test.add_argument("--extension-artifact", type=Path)
@@ -90,6 +91,12 @@ def parser() -> argparse.ArgumentParser:
     stop_group.add_argument("--lane", choices=LANES)
     gc_parser = sub.add_parser("gc")
     gc_parser.add_argument("--closed-session", help="Remove one closed development session's diagnostic evidence")
+    gc_parser.add_argument(
+        "--retired-iteration",
+        nargs=2,
+        metavar=("SESSION", "ITERATION"),
+        help="Remove one completed, unreferenced older diagnostic iteration",
+    )
     destroy_parser = sub.add_parser("destroy")
     destroy_parser.add_argument("lane", choices=LANES)
     destroy_parser.add_argument("--yes", action="store_true")
@@ -697,6 +704,7 @@ def main(argv: list[str] | None = None) -> int:
                             parse_case_selection(getattr(args, "cases", "")),
                             getattr(args, "extension_artifact", None),
                             getattr(args, "extension_source", None),
+                            ui_preview=getattr(args, "ui_preview", False),
                         )
                     )
                 return 0
@@ -707,7 +715,9 @@ def main(argv: list[str] | None = None) -> int:
                 # Explicit recovery remains available even when the lease is corrupted.
                 manager.reset("windows-11")
                 session_state_path(paths).unlink(missing_ok=True)
-            elif load_session(paths) is not None and not (args.command == "gc" and args.closed_session is not None):
+            elif load_session(paths) is not None and not (
+                args.command == "gc" and (args.closed_session is not None or args.retired_iteration is not None)
+            ):
                 raise UsageError("close the development session before clean lab operations")
             if args.command == "bootstrap":
                 print_json(bootstrap(paths))
@@ -732,7 +742,11 @@ def main(argv: list[str] | None = None) -> int:
                     shutil.rmtree(golden)
                 print_json({"destroyed": args.lane})
             elif args.command == "gc":
-                if args.closed_session is not None:
+                if args.closed_session is not None and args.retired_iteration is not None:
+                    raise UsageError("select one diagnostic cleanup target")
+                if args.retired_iteration is not None:
+                    print_json(WorkSessions(paths, config).purge_retired_iteration(*args.retired_iteration))
+                elif args.closed_session is not None:
                     print_json(WorkSessions(paths, config).purge_closed_session(args.closed_session))
                 else:
                     print_json(gc(paths, config))

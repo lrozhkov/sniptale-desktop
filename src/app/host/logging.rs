@@ -93,6 +93,9 @@ pub(super) fn write_logger_startup_warning(
 fn agent_run_error_code(error: &crate::app::resident::AgentRunError) -> &'static str {
     match error {
         crate::app::resident::AgentRunError::StartTimeout(_) => "agent.start_timeout",
+        crate::app::resident::AgentRunError::DesktopRuntimeUnavailable => {
+            "agent.desktop_runtime_unavailable"
+        }
         crate::app::resident::AgentRunError::EventChannelClosed => "agent.event_channel_closed",
         crate::app::resident::AgentRunError::StartFailed(_) => "agent.start_failed",
         crate::app::resident::AgentRunError::ResidentSingletonUnavailable => {

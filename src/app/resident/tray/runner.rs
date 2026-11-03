@@ -124,6 +124,12 @@ fn run_tray_worker_with_source(
     }
     let _ = event_sender.send(WorkerEvent::Started(component));
     loop {
+        #[cfg(windows)]
+        if let Ok(session) = runtime.events.desktop_session.lock()
+            && let Some(session) = session.as_ref()
+        {
+            session.pump(source);
+        }
         match command_receiver.recv_timeout(TRAY_EVENT_POLL_INTERVAL) {
             Ok(command) => {
                 if worker.handle_command(command, runtime.events, runtime.shutdown_sender, source)

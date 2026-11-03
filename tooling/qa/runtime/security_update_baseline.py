@@ -43,7 +43,7 @@ def versions() -> dict[str, str]:
     value = git_object(commit, "tooling/configs/qa/tool-versions.json")
     if value is None:
         return {}
-    result = catalog_tools(value)
+    result = catalog_tools(value, historical=True)
     old_lock = git_object(commit, "tooling/configs/qa/script-node/package-lock.json")
     if old_lock is not None:
         grouped: dict[str, set[str]] = {}

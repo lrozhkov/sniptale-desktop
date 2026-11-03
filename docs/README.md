@@ -13,6 +13,8 @@ This index lists every active document. Code, tracked contracts, and machine pol
 - [ADR 0006](architecture/adr/0006-cursor-trajectory-blocks.md) fixes the jointly agreed cursor trajectory blocks, clock, integrity, and attachment contract.
 - [ADR 0007](architecture/adr/0007-recording-events-blocks.md) fixes lossless blocks for sanitized recording events and keyboard activity.
 
+- [ADR 0008](architecture/adr/0008-tauri-presentation-boundary.md) owns shared web presentation, the typed Tauri bridge, and Win32 retirement.
+
 ## Engineering and QA
 
 - [Implementation rules](engineering/implementation-rules.md) maps each engineering rule to its deterministic guardrail and separates judgment-only rules.
@@ -22,8 +24,9 @@ This index lists every active document. Code, tracked contracts, and machine pol
 
 ## Product design
 
-- [Desktop design index](design/index.md) routes the settings and tray design system.
+- [Desktop design index](design/index.md) routes the shared web design system and capture toolbar.
 - [Desktop foundations](design/foundations.md) owns the target visual and interaction contract.
+- [UI localization](design/localization.md) owns Fluent messages, language fallback, and multilingual layout proof.
 - [Desktop UI research](design/research.md) records the native-stack assessment and primary sources.
 - [Desktop UI delivery plan](design/delivery-plan.md) owns the sandbox-first implementation sequence and acceptance criteria.
 

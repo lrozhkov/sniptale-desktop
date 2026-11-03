@@ -18,8 +18,17 @@ else
   exit 1
 fi
 
+check_cargo_deny() {
+  local targets target
+  targets="$(python3 -c 'import tomllib; print("\n".join(tomllib.load(open("deny.toml", "rb"))["graph"]["targets"]))')" || return "$?"
+  # A union creates impossible Windows-Tauri -> Linux-GTK dependency paths.
+  while IFS= read -r target; do
+    cargo deny --target "$target" check advisories bans licenses sources || return "$?"
+  done <<<"$targets" 2>&1 | tee .tmp/release/supply-chain/cargo-deny.txt
+}
+
 if command -v cargo-deny >/dev/null 2>&1; then
-  qa_step "cargo deny" bash -o pipefail -c 'cargo deny check advisories bans licenses sources 2>&1 | tee .tmp/release/supply-chain/cargo-deny.txt'
+  qa_step "cargo deny" check_cargo_deny
 else
   printf 'Missing cargo-deny. Install with: cargo install --locked cargo-deny\n' >&2
   exit 1

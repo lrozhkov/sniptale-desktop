@@ -21,11 +21,21 @@ class ParallelProofTests(unittest.TestCase):
             record, log = root / "record.json", root / "run.log"
             storage.atomic_write_json(record, {"steps": [], "log": {"path": "run.log"}})
             checks = [
-                ("failure", [sys.executable, "-c", "print('TOKEN=secret-value'); raise SystemExit(7)"]),
+                (
+                    "failure",
+                    [
+                        sys.executable,
+                        "-c",
+                        "print('TOKEN=secret-value'); raise SystemExit(7)",
+                    ],
+                ),
                 ("missing", [str(root / "missing-executable")]),
                 ("success", [sys.executable, "-c", "print('complete')"]),
             ]
-            with mock.patch.object(parallel, "ROOT", root), mock.patch.object(run, "ROOT", root):
+            with (
+                mock.patch.object(parallel, "ROOT", root),
+                mock.patch.object(run, "ROOT", root),
+            ):
                 self.assertEqual(parallel.run_group(checks, record, log, 2), 7)
             steps = storage.read_json(record)["steps"]
             self.assertEqual([s["exitCode"] for s in steps], [7, 127, 0])
@@ -59,7 +69,10 @@ class ParallelProofTests(unittest.TestCase):
                 mock.patch.object(parallel, "ROOT", root),
                 mock.patch.object(parallel, "run_step", side_effect=fake_run),
             ):
-                self.assertEqual(parallel.run_group([(str(i), ["fixture"]) for i in range(6)], record, log, 2), 0)
+                self.assertEqual(
+                    parallel.run_group([(str(i), ["fixture"]) for i in range(6)], record, log, 2),
+                    0,
+                )
             self.assertEqual(peak, 2)
             self.assertEqual(len(storage.read_json(record)["steps"]), 6)
 
@@ -70,11 +83,14 @@ class ParallelProofTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             parallel.run_group([("x", ["true"])] * 2, Path("unused"), Path("unused"), 1)
 
-    def test_catalog_retains_all_twenty_independent_checks(self):
+    def test_catalog_retains_all_required_independent_checks(self):
         self.assertEqual(
             {label for label, _ in CHECKS},
             {
                 "fmt",
+                "shared UI build",
+                "shared UI contracts",
+                "shared UI browser behavior",
                 "documentation policy",
                 "open-source legal policy",
                 "audit11 architecture snapshot",
@@ -107,7 +123,10 @@ class ParallelProofTests(unittest.TestCase):
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         for mutation in ("missing", "dynamic", "omitted"):
-            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as directory:
+            with (
+                self.subTest(mutation=mutation),
+                tempfile.TemporaryDirectory() as directory,
+            ):
                 fixture = Path(directory)
                 catalog = fixture / "tooling/qa/runtime/checkpoint_checks.py"
                 catalog.parent.mkdir(parents=True)
@@ -115,7 +134,10 @@ class ParallelProofTests(unittest.TestCase):
                     catalog.write_text("CHECKS = build_checks()\n")
                 elif mutation == "omitted":
                     catalog.write_text("CHECKS = []\n")
-                with mock.patch.object(module, "ROOT", fixture), self.assertRaises(SystemExit):
+                with (
+                    mock.patch.object(module, "ROOT", fixture),
+                    self.assertRaises(SystemExit),
+                ):
                     module.check_release_wrapper_contract()
 
 
@@ -127,7 +149,10 @@ class MetricsTests(unittest.TestCase):
             ([], []),
             ([], {"revision": "https://example.invalid/private"}),
         ):
-            with self.subTest(steps=steps, source=source), self.assertRaises(ValueError):
+            with (
+                self.subTest(steps=steps, source=source),
+                self.assertRaises(ValueError),
+            ):
                 summarize({"durationMs": 1, "steps": steps, "repository": source})
 
     def test_parallel_children_do_not_double_count_wall_time(self):
@@ -137,7 +162,12 @@ class MetricsTests(unittest.TestCase):
             "durationMs": 100,
             "steps": [
                 {"label": "group", "durationMs": 80, "exitCode": 0},
-                {"label": "child", "durationMs": 60, "exitCode": 0, "parallelGroup": "group"},
+                {
+                    "label": "child",
+                    "durationMs": 60,
+                    "exitCode": 0,
+                    "parallelGroup": "group",
+                },
             ],
         }
         report = summarize(receipt)
@@ -157,7 +187,11 @@ class MetricsTests(unittest.TestCase):
             run_id = "20261030T120000.000000Z-aaaaaaaaaaaa"
             path = root / ".tmp/qa-observability/runs/2026-10-30" / f"{run_id}.json"
             path.parent.mkdir(parents=True)
-            for status, code in (("running", None), ("problems-found", 1), ("all-passed", 1)):
+            for status, code in (
+                ("running", None),
+                ("problems-found", 1),
+                ("all-passed", 1),
+            ):
                 path.write_text(json.dumps({"runId": run_id, "status": status, "exitCode": code}))
                 with self.assertRaises(ValueError):
                     load_run(root, run_id)

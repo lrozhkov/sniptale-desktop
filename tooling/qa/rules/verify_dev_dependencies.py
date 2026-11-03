@@ -18,10 +18,14 @@ REQUIRED_DEV_DEPENDENCIES = {
 }
 
 RUNTIME_DEPENDENCY_JUSTIFICATIONS = {
+    "tauri": "tray-owned system WebView and local-window command bridge under ADR 0008; existing Rust owners retain media/settings authority",
     "base64": "transfer-owned media chunk encoding/decoding boundary",
     "chacha20poly1305": "transfer-owned temp-media key wrapping and authenticated encryption",
     "crc32fast": "bounded non-cryptographic integrity checks where owner contracts require CRC32",
     "getrandom": "OS RNG for install, IPC, transfer, and identifier entropy",
+    "fluent-bundle": "tray-owned embedded UI message formatting; no translated text controls owner state",
+    "fluent-langneg": "tray-owned language negotiation over typed application preferences and embedded locale tags",
+    "unic-langid": "typed BCP 47 tags for tray UI language selection; no external resource loading",
     "hmac": "IPC pipe authentication MAC",
     "serde": "typed protocol/settings/install/diagnostics parsing",
     "serde_json": "typed JSON parser/serializer at owner boundaries",
@@ -32,6 +36,7 @@ RUNTIME_DEPENDENCY_JUSTIFICATIONS = {
 }
 
 HIGH_RISK_DEPENDENCIES = {
+    "tauri": "local WebView IPC, capability restrictions, and desktop lifecycle",
     "base64": "media encoding boundary",
     "chacha20poly1305": "crypto",
     "getrandom": "entropy",

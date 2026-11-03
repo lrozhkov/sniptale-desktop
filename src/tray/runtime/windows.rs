@@ -10,27 +10,24 @@ use std::{
 };
 
 use windows::{
-    Win32::{
-        Foundation::LPARAM,
-        UI::WindowsAndMessaging::{
-            DispatchMessageW, IDYES, MB_ICONQUESTION, MB_SETFOREGROUND, MB_YESNO, MSG, MessageBoxW,
-            PM_REMOVE, PeekMessageW, RegisterWindowMessageW, TranslateMessage, WM_APP,
-        },
+    Win32::UI::WindowsAndMessaging::{
+        DispatchMessageW, IDYES, MB_ICONQUESTION, MB_SETFOREGROUND, MB_YESNO, MSG, MessageBoxW,
+        PM_REMOVE, PeekMessageW, RegisterWindowMessageW, TranslateMessage, WM_APP,
     },
     core::PCWSTR,
 };
 
-use super::source::{
-    TrayCommandSource, TrayRuntimeError, TrayRuntimeEvent, is_tray_popup_callback,
-};
+use super::source::{TrayCommandSource, TrayRuntimeError, TrayRuntimeEvent};
 use crate::tray::{
     icon::{
         state::{TrayIconVariant, TrayNoticeKind},
         windows::{WindowsTrayIcon, WindowsTrayWindow, load_resource_icon},
     },
     menu::{render::TrayMenuRenderPlan, windows::WindowsTrayMenu},
-    settings_window::{model::SettingsWindowPresentation, windows::WindowsSettingsWindow},
+    settings_window::model::SettingsWindowPresentation,
 };
+
+use super::activation::{TrayActivation, tray_activation};
 
 const TRAY_CALLBACK_MESSAGE: u32 = WM_APP + 1;
 const TRAY_ICON_ID: u32 = 1;
@@ -39,38 +36,96 @@ mod callbacks;
 #[path = "windows/message_window.rs"]
 mod message_window;
 use message_window::WindowsMessageWindow;
+#[path = "windows/foreground.rs"]
+mod foreground;
 #[path = "windows/open_folder.rs"]
 mod open_folder;
 #[path = "windows/popup.rs"]
 mod popup;
 
 #[derive(Debug)]
+enum PendingWindow {
+    Capture,
+    Settings,
+}
+
+#[derive(Debug)]
 pub(crate) struct WindowsTrayCommandSource {
+    desktop: Option<crate::tray::desktop::DesktopHandle>,
+    pending_window: Option<PendingWindow>,
     window: WindowsMessageWindow,
     icon: Option<WindowsTrayIcon>,
     menu: Option<WindowsTrayMenu>,
     taskbar_created_message: u32,
     tooltip: String,
     icon_variant: TrayIconVariant,
-    settings_window: WindowsSettingsWindow,
+    foreground: foreground::ForegroundTarget,
 }
 
 impl WindowsTrayCommandSource {
     pub(crate) fn new() -> io::Result<Self> {
         let taskbar_created_message = register_taskbar_created_message()?;
+        let window = WindowsMessageWindow::create()?;
         Ok(Self {
-            window: WindowsMessageWindow::create()?,
+            desktop: None,
+            pending_window: None,
+            window,
+            foreground: foreground::ForegroundTarget::default(),
             icon: None,
             menu: None,
             taskbar_created_message,
             tooltip: String::new(),
             icon_variant: TrayIconVariant::Normal,
-            settings_window: WindowsSettingsWindow::default(),
         })
     }
 }
 
 impl TrayCommandSource for WindowsTrayCommandSource {
+    fn attach_desktop(&mut self, desktop: crate::tray::desktop::DesktopHandle) {
+        if let Some(pending) = self.pending_window.take() {
+            let result = match pending {
+                PendingWindow::Capture => desktop.show_capture(),
+                PendingWindow::Settings => desktop.show_settings(),
+            };
+            if result.is_err() {
+                let _ = self.show_notice(TrayNoticeKind::ActionRejected);
+            }
+        }
+        self.desktop = Some(desktop);
+    }
+    fn capture_window_available(&self) -> bool {
+        self.foreground.available()
+    }
+
+    fn finish_capture_dispatch(&mut self, accepted: bool) {
+        if !accepted && let Some(desktop) = &self.desktop {
+            let _ = desktop.restore_capture();
+        }
+    }
+
+    fn prepare_capture(
+        &mut self,
+        action: crate::tray::ShellActionId,
+    ) -> Result<(), TrayRuntimeError> {
+        self.foreground.observe();
+        if let Some(desktop) = &self.desktop {
+            desktop
+                .hide_for_capture()
+                .map_err(|_| TrayRuntimeError::RenderFailed)?;
+        }
+        let restored = self.foreground.restore();
+        if !restored
+            && matches!(
+                action,
+                crate::tray::ShellActionId::ScreenshotActiveWindow
+                    | crate::tray::ShellActionId::RecordingStartActiveWindow
+            )
+        {
+            return Err(TrayRuntimeError::NoCaptureWindow);
+        }
+        foreground::settle().map_err(|_| TrayRuntimeError::RenderFailed)
+    }
+
     fn choose_delivery_destination(
         &mut self,
         request: &crate::tray::delivery::DeliveryPromptRequest,
@@ -117,20 +172,13 @@ impl TrayCommandSource for WindowsTrayCommandSource {
     }
 
     fn drain_events(&mut self) -> Result<Vec<TrayRuntimeEvent>, TrayRuntimeError> {
+        self.foreground.observe();
         let mut events = Vec::new();
-        events.extend(
-            self.settings_window
-                .drain_events()
-                .into_iter()
-                .map(|event| TrayRuntimeEvent::SettingsWindow { event }),
-        );
         self.drain_tray_callbacks(&mut events)?;
         loop {
             let mut message = MSG::default();
             // SAFETY: this drains messages for the hidden tray window owned by this adapter; MSG
             // storage lives for the duration of the call.
-            // SAFETY: both the hidden tray window and the modeless settings window are owned by
-            // this thread. Draining the thread queue ensures their commands are dispatched.
             let has_message =
                 unsafe { PeekMessageW(&raw mut message, None, 0, 0, PM_REMOVE) }.as_bool();
             if !has_message {
@@ -141,9 +189,9 @@ impl TrayCommandSource for WindowsTrayCommandSource {
                     icon.restore_after_taskbar_restart(&self.tooltip)
                         .map_err(|_| TrayRuntimeError::PollFailed)?;
                 }
-            } else if !self.settings_window.dispatch_dialog_message(&message) {
+            } else {
                 // SAFETY: the message came from this adapter's thread queue. Translation and
-                // dispatch are synchronous and cover both owned top-level HWNDs.
+                // dispatch are synchronous. Tauri owns its separate main-thread window loop.
                 unsafe {
                     let _ = TranslateMessage(&raw const message);
                     DispatchMessageW(&raw const message);
@@ -180,17 +228,27 @@ impl TrayCommandSource for WindowsTrayCommandSource {
 
     fn show_settings_window(
         &mut self,
-        presentation: SettingsWindowPresentation,
+        _presentation: SettingsWindowPresentation,
     ) -> Result<(), TrayRuntimeError> {
-        self.settings_window
-            .show(presentation)
-            .map_err(|_| TrayRuntimeError::RenderFailed)
+        if let Some(desktop) = &self.desktop {
+            return desktop
+                .show_settings()
+                .map_err(|_| TrayRuntimeError::RenderFailed);
+        }
+        self.pending_window = Some(PendingWindow::Settings);
+        Ok(())
     }
 
     fn hide_settings_window(&mut self) -> Result<(), TrayRuntimeError> {
-        self.settings_window
-            .hide()
-            .map_err(|_| TrayRuntimeError::RenderFailed)
+        if let Some(desktop) = &self.desktop {
+            desktop
+                .request_settings_close()
+                .map_err(|_| TrayRuntimeError::RenderFailed)?;
+        }
+        if matches!(self.pending_window, Some(PendingWindow::Settings)) {
+            self.pending_window = None;
+        }
+        Ok(())
     }
 
     fn open_save_folder(&mut self, destination: &Path) -> Result<(), TrayRuntimeError> {
@@ -198,35 +256,38 @@ impl TrayCommandSource for WindowsTrayCommandSource {
     }
 
     fn pick_settings_destination(&mut self) -> Result<Option<PathBuf>, TrayRuntimeError> {
-        self.settings_window
-            .pick_destination()
+        crate::tray::settings_window::windows::folder_picker::pick_folder(None)
             .map_err(|_| TrayRuntimeError::RenderFailed)
     }
 }
 
 impl WindowsTrayCommandSource {
     fn drain_tray_callbacks(
-        &self,
+        &mut self,
         events: &mut Vec<TrayRuntimeEvent>,
     ) -> Result<(), TrayRuntimeError> {
-        if let Some(lparam) = callbacks::take()
-            && is_popup_trigger(LPARAM(lparam))
-        {
-            let command = popup::track_command(self.menu.as_ref(), self.window.handle());
-            // TrackPopupMenu runs a nested message loop. Explorer can emit the trailing mouse
-            // callback from the same gesture while that loop is active; it must not reopen the
-            // menu after its selected command has returned to the tray worker.
-            callbacks::discard();
-            if let Some(command_id) = command? {
-                events.push(TrayRuntimeEvent::MenuCommand { command_id });
+        if let Some(activation) = callbacks::take().and_then(tray_activation) {
+            match activation {
+                TrayActivation::CapturePanel => {
+                    if let Some(desktop) = &self.desktop {
+                        desktop
+                            .show_capture()
+                            .map_err(|_| TrayRuntimeError::RenderFailed)?;
+                    } else {
+                        self.pending_window = Some(PendingWindow::Capture);
+                    }
+                }
+                TrayActivation::ContextMenu => {
+                    let command = popup::track_command(self.menu.as_ref(), self.window.handle());
+                    callbacks::discard();
+                    if let Some(command_id) = command? {
+                        events.push(TrayRuntimeEvent::MenuCommand { command_id });
+                    }
+                }
             }
         }
         Ok(())
     }
-}
-
-fn is_popup_trigger(lparam: LPARAM) -> bool {
-    is_tray_popup_callback(lparam.0)
 }
 
 fn register_taskbar_created_message() -> io::Result<u32> {

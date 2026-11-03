@@ -49,7 +49,8 @@ def python_identity(root: Path) -> str:
 def distribution_identity(spec: dict) -> str:
     return hashlib.sha256(
         json.dumps(
-            {key: spec[key] for key in ("version", "manager", "repository", "tag", "linuxX64")}, sort_keys=True
+            {key: spec[key] for key in ("version", "manager", "repository", "tag", "linuxX64")},
+            sort_keys=True,
         ).encode()
     ).hexdigest()
 
@@ -108,7 +109,13 @@ def install() -> None:
             (Path(directory) / f"node-v{node['version']}-linux-x64").rename(node_target)
     os.environ["PATH"] = str(node_target / "bin") + os.pathsep + os.environ["PATH"]
     if (
-        subprocess.run(["node", "--version"], capture_output=True, text=True, check=True, timeout=10).stdout.strip()
+        subprocess.run(
+            ["node", "--version"],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=10,
+        ).stdout.strip()
         != "v" + node["version"]
     ):
         raise ValueError("script tooling Node runtime differs from catalog")
@@ -128,7 +135,10 @@ def install() -> None:
             staging = Path(directory)
             archive = staging / "asset"
             request = urllib.request.Request(asset["url"], headers={"User-Agent": "SniptaleToolchain/1"})
-            with urllib.request.urlopen(request, timeout=90) as response, archive.open("wb") as output:
+            with (
+                urllib.request.urlopen(request, timeout=90) as response,
+                archive.open("wb") as output,
+            ):
                 remaining = 180 * 1024 * 1024
                 while block := response.read(min(remaining + 1, 1024 * 1024)):
                     remaining -= len(block)
@@ -144,7 +154,10 @@ def install() -> None:
                     members = bounded_members(package, 700 * 1024 * 1024)
                     package.extractall(destination, members=members, filter="data")
                 if name == "shellcheck":
-                    shutil.move(str(next(destination.glob("*/shellcheck"))), destination / "shellcheck")
+                    shutil.move(
+                        str(next(destination.glob("*/shellcheck"))),
+                        destination / "shellcheck",
+                    )
             elif name == "PSScriptAnalyzer":
                 with zipfile.ZipFile(archive) as package:
                     if (
@@ -215,7 +228,8 @@ def install() -> None:
     if not (npm_dir / ".identity").is_file() or (npm_dir / ".identity").read_text() != npm_id:
         run(["npm", "ci", "--ignore-scripts", "--no-audit", "--no-fund"], cwd=npm_dir)
         (npm_dir / ".identity").write_text(npm_id)
-    print("OK verified script tool installation")
+    run(["npm", "ci", "--ignore-scripts", "--no-audit", "--no-fund"], cwd=ROOT / "ui")
+    print("OK verified script tools and locked shared UI dependencies")
 
 
 if __name__ == "__main__":

@@ -12,7 +12,7 @@ Sniptale Desktop is the Windows-native Sniptale process. The installed `sniptale
 
 ## Technology boundary
 
-The release target is Windows MSVC. Product UI and OS integration use Rust with direct Win32, Windows Graphics Capture, WIC, Media Foundation, WASAPI, and WiX adapters. No browser-rendered desktop shell or general async runtime is part of the product.
+The release target is Windows MSVC. The shared web interface uses Tauri and the system WebView under [ADR 0008](adr/0008-tauri-presentation-boundary.md). Tauri owns its internal async runtime. Product owners retain their existing worker lifecycle and must not add a general async runtime. Owner-local Rust adapters provide Win32, Windows Graphics Capture, WIC, Media Foundation, and WASAPI integration. WiX packages the application.
 
 ## Authoritative inputs
 

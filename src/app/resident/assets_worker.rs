@@ -14,6 +14,7 @@ pub(super) fn run_asset_publisher_worker(
     command_receiver: &Receiver<WorkerCommand>,
     service: Option<&AssetPublishService>,
     tray_sender: Option<&SyncSender<WorkerCommand>>,
+    projection: Option<&super::desktop::projection::CaptureProjection>,
 ) {
     let _ = event_sender.send(WorkerEvent::Started(component));
     loop {
@@ -51,6 +52,9 @@ pub(super) fn run_asset_publisher_worker(
                     },
                     |service| service.publish_finalized(&job_id, &mut *source),
                 );
+                if let Some(projection) = projection {
+                    projection.publication(job_id.as_str(), result.is_ok());
+                }
                 if let Some(request) = delivery
                     && let Some(sender) = tray_sender
                 {
@@ -140,6 +144,15 @@ mod tests {
         let (events_tx, events_rx) = mpsc::sync_channel(1);
         let (commands_tx, commands_rx) = mpsc::sync_channel(1);
         let (tray_tx, tray_rx) = mpsc::sync_channel(1);
+        let projection = crate::app::resident::desktop::projection::CaptureProjection::default();
+        projection.begin(
+            "operation",
+            Some(job.id().as_str()),
+            crate::tray::desktop::model::CaptureKind::Screenshot,
+            crate::tray::desktop::model::CapturePhase::Saving,
+            None,
+        );
+        let publisher_projection = projection.clone();
         let worker = thread::spawn(move || {
             run_asset_publisher_worker(
                 AgentComponent::AssetPublisher,
@@ -147,6 +160,7 @@ mod tests {
                 &commands_rx,
                 Some(&service),
                 Some(&tray_tx),
+                Some(&publisher_projection),
             );
         });
         assert_eq!(
@@ -175,6 +189,16 @@ mod tests {
         commands_tx.send(WorkerCommand::Stop)?;
         worker.join().map_err(|_| std::io::Error::other("worker"))?;
         assert!(output.join("capture-1.png").is_file());
+        let snapshot = projection
+            .snapshot(
+                crate::app::resident::desktop::projection::tests::capabilities(),
+                crate::tray::desktop::model::CaptureQuality::Balanced,
+            )
+            .map_err(|_| std::io::Error::other("projection"))?;
+        assert_eq!(
+            snapshot.outcome,
+            Some(crate::tray::desktop::model::CaptureOutcome::Saved)
+        );
         assert!(matches!(
             tray_rx.try_recv(),
             Err(mpsc::TryRecvError::Empty | mpsc::TryRecvError::Disconnected)
@@ -195,6 +219,7 @@ mod tests {
                 &commands_rx,
                 None,
                 Some(&tray_tx),
+                None,
             );
         });
         assert_eq!(

@@ -35,8 +35,8 @@ qa_init "qa:licenses" blocking
 candidate=".tmp/release/license-candidate/$SNIPTALE_QA_RUN_ID"
 mkdir -p "$candidate" .tmp/release/supply-chain
 
-qa_step "cargo-about JSON" cargo about generate --workspace --all-features --frozen --fail --format json --config tooling/configs/qa/about.toml --output-file "$candidate/cargo-about.json"
-qa_step "cargo-about notices" cargo about generate --workspace --all-features --frozen --fail --config tooling/configs/qa/about.toml --output-file "$candidate/THIRD_PARTY_NOTICES.md" tooling/release/legal/third-party-notices.hbs
+# Locked dependencies and hash-pinned Git clarifications permit a cold license cache.
+qa_step "cargo-about JSON" cargo about generate --workspace --all-features --locked --fail --format json --config tooling/configs/qa/about.toml --output-file "$candidate/cargo-about.json"
 qa_step "dependency legal manifest" python3 tooling/release/legal/generate_dependency_licenses.py --cargo-about-json "$candidate/cargo-about.json" --output-dir "$candidate"
 
 qa_fail_if_any "license candidate generation summary"

@@ -17,7 +17,7 @@ pub(super) fn start_workers(
     shutdown_sender: &SyncSender<super::AgentShutdownSignal>,
     log: Option<&AgentProcessLogSink>,
     start_worker: WorkerStarter,
-) -> Vec<WorkerHandle> {
+) -> (Vec<WorkerHandle>, AgentEventHub) {
     let agent_events = AgentEventHub::default();
     let channels = components
         .iter()
@@ -44,7 +44,7 @@ pub(super) fn start_workers(
         );
         workers.push(worker);
     }
-    workers
+    (workers, agent_events)
 }
 
 struct WorkerChannel {

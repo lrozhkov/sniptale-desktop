@@ -67,6 +67,7 @@ fn run_worker(
             &commands_rx,
             Some(&service),
             None,
+            None,
         );
     });
     assert_eq!(

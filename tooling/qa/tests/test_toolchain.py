@@ -11,7 +11,11 @@ class ToolchainAgeTests(unittest.TestCase):
     def test_seven_full_days_required(self):
         check_age((self.now - timedelta(days=7)).isoformat(), self.policy, now=self.now)
         with self.assertRaises(ToolchainError):
-            check_age((self.now - timedelta(days=7) + timedelta(microseconds=1)).isoformat(), self.policy, now=self.now)
+            check_age(
+                (self.now - timedelta(days=7) + timedelta(microseconds=1)).isoformat(),
+                self.policy,
+                now=self.now,
+            )
 
     def test_future_or_ambiguous_dates_fail(self):
         for value in ["2026-10-31T00:00:00Z", "2026-10-01", None, "invalid"]:
@@ -22,7 +26,11 @@ class ToolchainAgeTests(unittest.TestCase):
         for exception in [
             True,
             {"allowYoung": True},
-            {"advisory": "https://example.com/release", "reason": "faster", "fixedVersion": "1.2.3"},
+            {
+                "advisory": "https://example.com/release",
+                "reason": "faster",
+                "fixedVersion": "1.2.3",
+            },
         ]:
             with self.subTest(exception=exception), self.assertRaises(ToolchainError):
                 check_age(self.now.isoformat(), self.policy, exception, now=self.now)
@@ -38,10 +46,23 @@ class ToolchainAgeTests(unittest.TestCase):
     def test_policy_cannot_be_lowered_or_boolean(self):
         for days in [0, 6, True, "7", None]:
             with self.subTest(days=days), self.assertRaises(ToolchainError):
-                check_age("2020-01-01T00:00:00Z", {"minimumReleaseAgeDays": days}, now=self.now)
+                check_age(
+                    "2020-01-01T00:00:00Z",
+                    {"minimumReleaseAgeDays": days},
+                    now=self.now,
+                )
 
 
 class ToolchainLockTests(unittest.TestCase):
+    def test_retired_native_ui_tool_is_rejected_even_with_an_exact_version(self):
+        import json
+        from tooling.qa.runtime.toolchain import ROOT, VERSIONS, validate_versions
+
+        versions = json.loads((ROOT / VERSIONS).read_text())
+        versions["windows"]["uiAutomation"] = "5.0.0"
+        with self.assertRaisesRegex(ToolchainError, "retired native catalog"):
+            validate_versions(versions)
+
     def test_version_strings_are_narrowed_before_shell_generation(self):
         import copy
         import json
@@ -51,6 +72,7 @@ class ToolchainLockTests(unittest.TestCase):
         for section, key, bad in (
             ("windows", "wix", "5.0.2';exit"),
             ("windows", "sdkPackage", "latest"),
+            ("windows", "uiAutomation", "5.0.0';exit"),
             ("python", "version", True),
             ("rust", "channel", "stable"),
             ("githubActions", "actions/cache", "main"),
@@ -84,10 +106,19 @@ class ToolchainLockTests(unittest.TestCase):
             "python-linux-source",
             "python-linux-hash",
         ):
-            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as directory:
+            with (
+                self.subTest(mutation=mutation),
+                tempfile.TemporaryDirectory() as directory,
+            ):
                 root = Path(directory)
                 (root / VERSIONS).parent.mkdir(parents=True)
-                for relative in (VERSIONS, LOCK, Path("rust-toolchain.toml"), Path("Cargo.lock"), Path("Cargo.toml")):
+                for relative in (
+                    VERSIONS,
+                    LOCK,
+                    Path("rust-toolchain.toml"),
+                    Path("Cargo.lock"),
+                    Path("Cargo.toml"),
+                ):
                     shutil.copyfile(ROOT / relative, root / relative)
                 lock = json.loads((root / LOCK).read_text())
                 versions = json.loads((root / VERSIONS).read_text())
@@ -151,10 +182,90 @@ class BrowserToolchainTests(unittest.TestCase):
         ]:
             changed = copy.deepcopy(lock)
             changed["node"][field] = value
-            with self.subTest(field=field), self.assertRaises((ValueError, ToolchainError)):
+            with (
+                self.subTest(field=field),
+                self.assertRaises((ValueError, ToolchainError)),
+            ):
                 browser_toolchain.check(versions, changed, check_age)
         for value in ["latest", "1.2.3';exit", True]:
             changed = copy.deepcopy(versions)
             changed["browserAutomation"]["node"] = value
             with self.assertRaises(ValueError):
                 browser_toolchain.urls(changed)
+
+
+class ToolchainFetchFailureTests(unittest.TestCase):
+    def test_network_failure_names_only_the_public_source_host(self):
+        import urllib.error
+        from unittest.mock import patch
+        from tooling.qa.runtime import toolchain
+
+        with patch("urllib.request.build_opener") as build:
+            build.return_value.open.side_effect = urllib.error.URLError("unreachable")
+            with self.assertRaisesRegex(toolchain.ToolchainError, r"source unavailable: crates\.io$"):
+                toolchain.fetch("https://crates.io/api/v1/crates/tauri/2.12.5")
+
+
+class CargoMetadataRefreshTests(unittest.TestCase):
+    def test_refresh_preserves_other_sections_and_runs_complete_validation(self):
+        import json
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+        from unittest.mock import patch
+        from tooling.qa.runtime import toolchain
+
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            path = root / toolchain.LOCK
+            path.parent.mkdir(parents=True)
+            original = {
+                "cargo": [],
+                "rust": {"compiler": "unchanged"},
+                "actions": {"checkout": "unchanged"},
+            }
+            path.write_text(json.dumps(original))
+            updated = [{"name": "new-crate", "version": "1.0.0"}]
+            with (
+                patch.object(toolchain, "read_object", side_effect=[{}, original.copy()]),
+                patch.object(toolchain, "validate_versions"),
+                patch.object(toolchain, "resolve_cargo", return_value=updated),
+                patch.object(toolchain, "check") as validate,
+            ):
+                toolchain.sync_cargo(root)
+            candidate = json.loads(path.read_text())
+            self.assertEqual(candidate, {**original, "cargo": updated})
+            validate.assert_called_once_with(root, candidate=candidate)
+
+    def test_rejected_candidate_or_concurrent_edit_is_not_overwritten(self):
+        import json
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+        from unittest.mock import patch
+        from tooling.qa.runtime import toolchain
+
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            path = root / toolchain.LOCK
+            path.parent.mkdir(parents=True)
+            for edited in (False, True):
+                original = {"cargo": []}
+                path.write_text(json.dumps(original))
+
+                def validate(*_args, _edited=edited, **_kwargs):
+                    if _edited:
+                        path.write_text("concurrent edit")
+                    else:
+                        raise toolchain.ToolchainError("another tool is stale")
+
+                with (
+                    patch.object(toolchain, "read_object", side_effect=[{}, original.copy()]),
+                    patch.object(toolchain, "validate_versions"),
+                    patch.object(toolchain, "resolve_cargo", return_value=[{}]),
+                    patch.object(toolchain, "check", side_effect=validate),
+                    self.assertRaises(toolchain.ToolchainError),
+                ):
+                    toolchain.sync_cargo(root)
+                self.assertEqual(
+                    path.read_text(),
+                    "concurrent edit" if edited else json.dumps(original),
+                )

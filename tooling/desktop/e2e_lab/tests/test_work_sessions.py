@@ -304,6 +304,96 @@ class WorkSessionTests(unittest.TestCase):
             self.sessions.iterate("test")
         self.assertEqual(self.loaded_state()["health"], "ready")
 
+    def iteration_fixture(self, identity, *, result="pass"):
+        directory = self.paths.lab / "sessions" / self.state["id"] / "iterations" / identity
+        write_json(
+            directory / "development-receipt.json",
+            {
+                "schema_version": 1,
+                "mode": "development-session",
+                "release_admissible": False,
+                "session_id": self.state["id"],
+                "iteration": identity,
+                "operation": "build",
+                "result": result,
+            },
+        )
+        return directory
+
+    def test_retired_iteration_gc_preserves_active_build_and_newest_evidence(self):
+        old = self.iteration_fixture("20261030T140001Z")
+        newest = self.iteration_fixture("20261030T140002Z")
+        artifact = old / "artifacts/out/app.msi"
+        artifact.parent.mkdir(parents=True)
+        artifact.write_bytes(b"current build")
+        write_json(
+            state_path(self.paths), {**self.state, "last_artifact": artifact.relative_to(self.paths.lab).as_posix()}
+        )
+        with self.assertRaisesRegex(UsageError, "active build"):
+            self.sessions.purge_retired_iteration(self.state["id"], old.name)
+        with self.assertRaisesRegex(UsageError, "newest"):
+            self.sessions.purge_retired_iteration(self.state["id"], newest.name)
+        write_json(state_path(self.paths), self.state)
+        result = self.sessions.purge_retired_iteration(self.state["id"], old.name)
+        self.assertEqual(result["retired_iterations_removed"], 1)
+        self.assertGreater(result["bytes_reclaimed"], 0)
+        self.assertTrue(newest.is_dir())
+        self.assertFalse(old.exists())
+        self.assertEqual(
+            self.sessions.purge_retired_iteration(self.state["id"], old.name)["retired_iterations_removed"], 0
+        )
+        self.vms.reset.assert_not_called()
+
+    def test_retired_iteration_gc_rejects_incomplete_unowned_and_redirected_targets(self):
+        old = self.iteration_fixture("20261030T140001Z", result="running")
+        self.iteration_fixture("20261030T140002Z")
+        with self.assertRaisesRegex(IntegrityError, "ownership"):
+            self.sessions.purge_retired_iteration(self.state["id"], old.name)
+        for value in ["../outside", "invalid", "20261030T140000Z/../"]:
+            with self.subTest(value=value), self.assertRaises(UsageError):
+                self.sessions.purge_retired_iteration(value, old.name)
+        outside = self.paths.root / "outside"
+        outside.mkdir()
+        (outside / "keep").write_text("preserve")
+        redirected = old.parent / "20261030T140000Z"
+        redirected.symlink_to(outside, target_is_directory=True)
+        with self.assertRaisesRegex(IntegrityError, "redirected"):
+            self.sessions.purge_retired_iteration(self.state["id"], redirected.name)
+        self.assertEqual((outside / "keep").read_text(), "preserve")
+
+    def test_ui_preview_rejects_test_and_release_before_guest_mutation(self):
+        for operation, profile in [("test", "dev"), ("build", "release")]:
+            with self.subTest(operation=operation, profile=profile), self.assertRaisesRegex(UsageError, "UI preview"):
+                self.sessions.iterate(operation, profile, ui_preview=True)
+        self.assertEqual(self.loaded_state()["iterations"], 0)
+        self.assertEqual(self.loaded_state()["health"], "ready")
+        self.vms.start.assert_not_called()
+        self.vms.reset.assert_not_called()
+
+    def test_ui_preview_cannot_enter_clean_or_release_build_lane(self):
+        from runner import LaneRunner
+
+        runner = LaneRunner(self.paths, self.config)
+        runner.vms = self.vms
+        for work_session, profile in [(False, "dev"), (False, "release"), (True, "release")]:
+            runner.work_session = work_session
+            with (
+                self.subTest(work_session=work_session, profile=profile),
+                self.assertRaisesRegex(UsageError, "UI preview"),
+            ):
+                runner._build_windows("windows-11", profile, mock.Mock(), self.paths.lab, ui_preview=True)
+        self.vms.start.assert_not_called()
+        self.vms.reset.assert_not_called()
+
+    def test_ui_preview_cannot_skip_dependency_change_proof(self):
+        (self.paths.root / "Cargo.lock").write_text("changed dependencies")
+        self.sessions.validate_toolchain = mock.Mock()
+        with self.assertRaisesRegex(UsageError, "full build before UI preview"):
+            self.sessions.iterate("build", ui_preview=True)
+        self.assertEqual(self.loaded_state()["iterations"], 0)
+        self.assertEqual(self.loaded_state()["health"], "ready")
+        self.vms.start.assert_not_called()
+
     def test_interrupted_dependency_build_invalidates_vendor_before_guest_mutation(self):
         (self.paths.root / "Cargo.lock").write_text("changed dependency lock")
         self.sessions.validate_toolchain = mock.Mock()
@@ -343,3 +433,23 @@ class WorkSessionTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SessionHeadroomTests(unittest.TestCase):
+    def test_reserve_rejects_before_consuming_the_existing_budget(self):
+        from errors import ResourceError
+        from limits import require_session_headroom
+
+        from dataclasses import replace
+
+        limits = replace(LabConfig.load(Path(__file__).resolve().parents[4]).limits, max_temporary_gib=24)
+        gib = 1024**3
+        for operation, reserve in [("open", 4), ("build", 4), ("test", 1)]:
+            with self.subTest(operation=operation):
+                with mock.patch("limits.directory_allocated_bytes", return_value=(24 - reserve) * gib):
+                    require_session_headroom(Path("unused"), limits, operation)
+                with (
+                    mock.patch("limits.directory_allocated_bytes", return_value=(24 - reserve) * gib + 1),
+                    self.assertRaisesRegex(ResourceError, "headroom"),
+                ):
+                    require_session_headroom(Path("unused"), limits, operation)

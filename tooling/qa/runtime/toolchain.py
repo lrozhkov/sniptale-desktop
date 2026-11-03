@@ -11,6 +11,7 @@ import re
 import subprocess
 import sys
 import tomllib
+import urllib.error
 import urllib.parse
 import urllib.request
 import zipfile
@@ -100,16 +101,23 @@ def fetch(url, maximum=2 * 1024 * 1024):
         headers["Authorization"] = "Bearer " + token
     request = urllib.request.Request(url, headers=headers)
     opener = urllib.request.build_opener(ApprovedRedirects(url))
-    with opener.open(request, timeout=60) as response:
-        final_host = urllib.parse.urlparse(response.geturl()).hostname
-        asset_redirect = (
-            parsed.hostname == "github.com"
-            and "/releases/download/" in parsed.path
-            and final_host in {"release-assets.githubusercontent.com", "objects.githubusercontent.com"}
-        )
-        if final_host != parsed.hostname and not asset_redirect:
-            raise ToolchainError("toolchain metadata redirected to another host")
-        body = response.read(maximum + 1)
+    try:
+        with opener.open(request, timeout=60) as response:
+            final_host = urllib.parse.urlparse(response.geturl()).hostname
+            asset_redirect = (
+                parsed.hostname == "github.com"
+                and "/releases/download/" in parsed.path
+                and final_host
+                in {
+                    "release-assets.githubusercontent.com",
+                    "objects.githubusercontent.com",
+                }
+            )
+            if final_host != parsed.hostname and not asset_redirect:
+                raise ToolchainError("toolchain metadata redirected to another host")
+            body = response.read(maximum + 1)
+    except (urllib.error.URLError, TimeoutError) as error:
+        raise ToolchainError(f"toolchain metadata source unavailable: {parsed.hostname}") from error
     if len(body) > maximum:
         raise ToolchainError("toolchain metadata exceeds budget")
     return body
@@ -135,7 +143,10 @@ def cargo_packages(root):
     package = tomllib.loads((root / "Cargo.toml").read_text())["package"]
     selected = []
     for item in packages:
-        if item.get("source") is None and (item["name"], item["version"]) == (package["name"], package["version"]):
+        if item.get("source") is None and (item["name"], item["version"]) == (
+            package["name"],
+            package["version"],
+        ):
             continue
         if item.get("source") != "registry+https://github.com/rust-lang/crates.io-index":
             raise ToolchainError("release-age proof requires the approved crates.io registry source")
@@ -148,7 +159,11 @@ def resolve_cargo(root, versions):
     cache = {(item["name"], item["version"], item["checksum"]): item for item in previous.get("cargo", [])}
 
     def inspect(package):
-        name, version, checksum = package["name"], package["version"], package["checksum"]
+        name, version, checksum = (
+            package["name"],
+            package["version"],
+            package["checksum"],
+        )
         source = f"https://crates.io/api/v1/crates/{name}/{version}"
         item = cache.get((name, version, checksum))
         if item is None or item.get("source") != source:
@@ -165,7 +180,10 @@ def resolve_cargo(root, versions):
         exception = versions.get("securityExceptions", {}).get("crate:" + name + "@" + version)
         if exception is not None and exception.get("fixedVersion") != version:
             raise ToolchainError("crate security exception names another fixed version")
-        check_age(item["publishedAt"], versions["updatePolicy"], exception)
+        try:
+            check_age(item["publishedAt"], versions["updatePolicy"], exception)
+        except ToolchainError as error:
+            raise ToolchainError(f"crate {name}@{version}: {error}") from error
         return item
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
@@ -173,6 +191,8 @@ def resolve_cargo(root, versions):
 
 
 def validate_versions(versions):
+    if "uiAutomation" in versions["windows"]:
+        raise ToolchainError("retired native catalog tooling is not admitted")
     from tooling.qa.runtime import browser_toolchain
 
     browser_toolchain.urls(versions)
@@ -214,8 +234,16 @@ def resolve(root=ROOT):
     policy = versions["updatePolicy"]
     rust_release = github_release("rust-lang/rust", rust)
     wix_release = github_release("wixtoolset/wix", "v" + wix)
-    check_age(rust_release["publishedAt"], policy, versions.get("securityExceptions", {}).get("rust"))
-    check_age(wix_release["publishedAt"], policy, versions.get("securityExceptions", {}).get("wix"))
+    check_age(
+        rust_release["publishedAt"],
+        policy,
+        versions.get("securityExceptions", {}).get("rust"),
+    )
+    check_age(
+        wix_release["publishedAt"],
+        policy,
+        versions.get("securityExceptions", {}).get("wix"),
+    )
     manifest_url = f"https://static.rust-lang.org/dist/channel-rust-{rust}.toml"
     manifest = fetch(manifest_url)
     expected = fetch(manifest_url + ".sha256", 4096).decode().split()[0]
@@ -233,20 +261,32 @@ def resolve(root=ROOT):
     for name in ("wix", "wixtoolset.ui.wixext"):
         url = f"https://api.nuget.org/v3-flatcontainer/{name}/{wix}/{name}.{wix}.nupkg"
         body = fetch(url, 32 * 1024 * 1024)
-        entry = {"version": wix, "url": url, "sha256": hashlib.sha256(body).hexdigest(), **wix_release}
+        entry = {
+            "version": wix,
+            "url": url,
+            "sha256": hashlib.sha256(body).hexdigest(),
+            **wix_release,
+        }
         if name == "wixtoolset.ui.wixext":
             with zipfile.ZipFile(io.BytesIO(body)) as archive:
                 dll_path = f"wixext{wix.split('.')[0]}/WixToolset.UI.wixext.dll"
                 if archive.getinfo(dll_path).file_size > 8 * 1024 * 1024:
                     raise ToolchainError("installer extension exceeds extraction budget")
-                entry.update(dll_path=dll_path, dll_sha256=hashlib.sha256(archive.read(dll_path)).hexdigest())
+                entry.update(
+                    dll_path=dll_path,
+                    dll_sha256=hashlib.sha256(archive.read(dll_path)).hexdigest(),
+                )
         packages[name] = entry
     sdk_version = versions["windows"]["sdkPackage"]
     if not isinstance(sdk_version, str) or re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+", sdk_version) is None:
         raise ToolchainError("Windows SDK package requires an exact version")
     for name in ("microsoft.windows.sdk.cpp", "microsoft.windows.sdk.cpp.x64"):
         metadata = json.loads(fetch(f"https://api.nuget.org/v3/registration5-semver1/{name}/{sdk_version}.json"))
-        check_age(metadata["published"], policy, versions.get("securityExceptions", {}).get("windows-sdk"))
+        check_age(
+            metadata["published"],
+            policy,
+            versions.get("securityExceptions", {}).get("windows-sdk"),
+        )
         url = f"https://api.nuget.org/v3-flatcontainer/{name}/{sdk_version}/{name}.{sdk_version}.nupkg"
         body = fetch(url, 256 * 1024 * 1024)
         packages[name] = {
@@ -267,7 +307,11 @@ def resolve(root=ROOT):
     for name, version in versions["cargoSubcommands"].items():
         repo, prefix = tool_repos[name]
         release = github_release(repo, prefix + version)
-        check_age(release["publishedAt"], policy, versions.get("securityExceptions", {}).get(name))
+        check_age(
+            release["publishedAt"],
+            policy,
+            versions.get("securityExceptions", {}).get(name),
+        )
         tools[name] = {"version": version, **release}
     external_repos = {
         "gitleaks": ("gitleaks/gitleaks", "v"),
@@ -279,7 +323,11 @@ def resolve(root=ROOT):
     for name, item in versions["externalTools"].items():
         repo, prefix = external_repos[name]
         release = github_release(repo, prefix + item["version"])
-        check_age(release["publishedAt"], policy, versions.get("securityExceptions", {}).get(name))
+        check_age(
+            release["publishedAt"],
+            policy,
+            versions.get("securityExceptions", {}).get(name),
+        )
         tools[name] = {"version": item["version"], **release}
     actions = {}
     for repo, tag in versions["githubActions"].items():
@@ -328,17 +376,30 @@ def resolve(root=ROOT):
         "source": python_source,
         "windows": {"url": python_url, "sha256": python_hash},
     }
-    check_age(python["publishedAt"], policy, versions.get("securityExceptions", {}).get("python"))
+    check_age(
+        python["publishedAt"],
+        policy,
+        versions.get("securityExceptions", {}).get("python"),
+    )
     previous = read_object(root / LOCK) if (root / LOCK).exists() else {}
     from tooling.qa.runtime import browser_toolchain, script_toolchain, python_toolchain
 
     python["linuxX64"] = python_toolchain.resolve(python_version, previous.get("python", {}), fetch)
-    check_age(python["linuxX64"]["publishedAt"], policy, versions.get("securityExceptions", {}).get("python"))
+    check_age(
+        python["linuxX64"]["publishedAt"],
+        policy,
+        versions.get("securityExceptions", {}).get("python"),
+    )
     from tooling.qa.runtime import checking_dependency_ages
 
     script_tools = script_toolchain.resolve(versions, fetch, github_release, check_age, previous)
     checking_dependencies = checking_dependency_ages.resolve(
-        root, versions, script_tools, previous.get("checkingDependencies", []), fetch, check_age
+        root,
+        versions,
+        script_tools,
+        previous.get("checkingDependencies", []),
+        fetch,
+        check_age,
     )
     browser = browser_toolchain.resolve(versions, fetch, github_release, check_age)
     return {
@@ -363,10 +424,10 @@ def resolve(root=ROOT):
     }
 
 
-def check(root=ROOT):
+def check(root=ROOT, *, candidate=None):
     versions = read_object(root / VERSIONS)
     validate_versions(versions)
-    lock = read_object(root / LOCK)
+    lock = read_object(root / LOCK) if candidate is None else candidate
     if (
         lock.get("schema_version") != 1
         or lock.get("rust", {}).get("rust_version") != versions["rust"]["channel"]
@@ -397,7 +458,11 @@ def check(root=ROOT):
 
     try:
         checking_dependency_ages.check(
-            root, versions, lock["scriptTools"], lock.get("checkingDependencies", []), check_age
+            root,
+            versions,
+            lock["scriptTools"],
+            lock.get("checkingDependencies", []),
+            check_age,
         )
     except (OSError, ValueError) as exc:
         raise ToolchainError("locked checker dependency age evidence is missing or invalid") from exc
@@ -405,7 +470,12 @@ def check(root=ROOT):
     if (
         set(lock["tools"]) != expected_tools
         or set(lock["nuget"])
-        != {"wix", "wixtoolset.ui.wixext", "microsoft.windows.sdk.cpp", "microsoft.windows.sdk.cpp.x64"}
+        != {
+            "wix",
+            "wixtoolset.ui.wixext",
+            "microsoft.windows.sdk.cpp",
+            "microsoft.windows.sdk.cpp.x64",
+        }
         or set(lock["actions"]) != set(versions["githubActions"])
     ):
         raise ToolchainError("toolchain release inventory incomplete")
@@ -441,15 +511,16 @@ def check(root=ROOT):
         check_age(item.get("publishedAt"), versions["updatePolicy"], exception)
     for name, item in lock["nuget"].items():
         sdk = name.startswith("microsoft.windows.sdk.")
-        version = versions["windows"]["sdkPackage" if sdk else "wix"]
+        version_key = "sdkPackage" if sdk else "wix"
+        version = versions["windows"][version_key]
         if (
             item.get("url") != f"https://api.nuget.org/v3-flatcontainer/{name}/{version}/{name}.{version}.nupkg"
             or not isinstance(item.get("sha256"), str)
             or HASH.fullmatch(item["sha256"]) is None
         ):
             raise ToolchainError("invalid Windows package provenance")
-        if item["version"] != versions["windows"]["sdkPackage" if sdk else "wix"]:
-            raise ToolchainError("installer toolchain lock is stale")
+        if item["version"] != version:
+            raise ToolchainError("Windows package toolchain lock is stale")
         exception = versions.get("securityExceptions", {}).get("windows-sdk" if sdk else "wix")
         if exception is not None and exception.get("fixedVersion") != item["version"]:
             raise ToolchainError("security exception fixed version differs from selected package")
@@ -517,9 +588,25 @@ def sync_workflows(root, lock):
         path.write_text(json.dumps(workflow, indent=2) + "\n")
 
 
+def sync_cargo(root=ROOT):
+    """Refresh only Cargo releases, then validate the complete candidate before writing."""
+    path = root / LOCK
+    original = path.read_bytes()
+    versions = read_object(root / VERSIONS)
+    validate_versions(versions)
+    value = read_object(path)
+    value["cargo"] = resolve_cargo(root, versions)
+    check(root, candidate=value)
+    if path.read_bytes() != original:
+        raise ToolchainError("toolchain lock changed during Cargo metadata refresh")
+    path.write_text(json.dumps(value, indent=2) + "\n")
+
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--sync", action="store_true")
+    updates = parser.add_mutually_exclusive_group()
+    updates.add_argument("--sync", action="store_true")
+    updates.add_argument("--sync-cargo", action="store_true")
     parser.add_argument("--check", action="store_true")
     parser.add_argument("--install-rust", action="store_true")
     args = parser.parse_args()
@@ -529,6 +616,8 @@ def main():
             (ROOT / LOCK).write_text(json.dumps(value, indent=2) + "\n")
             (ROOT / "rust-toolchain.toml").write_text(rust_file(value["rust"]["rust_version"]))
             sync_workflows(ROOT, value)
+        if args.sync_cargo:
+            sync_cargo()
         versions = check()
         if args.install_rust:
             subprocess.run(
@@ -549,7 +638,14 @@ def main():
             )
         print("OK canonical toolchain versions, release age, and generated inputs")
         return 0
-    except (ToolchainError, OSError, ValueError, KeyError, TypeError, subprocess.CalledProcessError) as exc:
+    except (
+        ToolchainError,
+        OSError,
+        ValueError,
+        KeyError,
+        TypeError,
+        subprocess.CalledProcessError,
+    ) as exc:
         print(f"FAIL toolchain: {type(exc).__name__}: {exc}", file=sys.stderr)
         return 1
 

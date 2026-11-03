@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import importlib.util
+import json
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -42,6 +44,61 @@ class DocumentationPolicyTests(unittest.TestCase):
 
 
 class DependencyLicenseGeneratorTests(unittest.TestCase):
+    def test_canonical_apache_appendix_is_preserved_but_modified_placeholders_fail(self) -> None:
+        # Source: https://www.apache.org/licenses/LICENSE-2.0.txt, retrieved 2026-11-02.
+        text = (ROOT / "tooling/qa/fixtures/licenses/apache-2.0.txt").read_text()
+        package = {
+            "name": "dep",
+            "version": "1.0.0",
+            "id": "registry#dep@1.0.0",
+            "source": "registry",
+            "repository": None,
+        }
+        raw = {
+            "crates": [{"package": package, "license": "Apache-2.0"}],
+            "licenses": [{"id": "Apache-2.0", "text": text, "used_by": [{"crate": package}]}],
+        }
+        _, files = legal_generator.build_outputs(raw)
+        self.assertEqual(list(files.values()), [text.encode()])
+        self.assertFalse(legal_verifier.unresolved_license_placeholders(text, ["Apache-2.0"]))
+        for ids in [None, [], ["MIT"], ["Apache-2.0", "MIT"]]:
+            self.assertTrue(legal_verifier.unresolved_license_placeholders(text, ids))
+        for changed in [
+            "Copyright [yyyy] [name of copyright owner]",
+            text + "Copyright <year>\n",
+            text.replace("Version 2.0", "Version 9.9", 1),
+        ]:
+            with self.subTest(changed=changed[:40]), self.assertRaises(ValueError):
+                legal_generator.reject_placeholder_license(changed, "Apache-2.0")
+            self.assertTrue(legal_verifier.unresolved_license_placeholders(changed, ["Apache-2.0"]))
+        with self.assertRaises(ValueError):
+            legal_generator.reject_placeholder_license(text, "MIT")
+
+    def test_apache_standard_text_allows_upstream_whitespace_without_rewriting_bytes(self):
+        canonical = (ROOT / "tooling/qa/fixtures/licenses/apache-2.0.txt").read_text()
+        compact = "\n".join(line.strip() for line in canonical.splitlines()) + "\n"
+        legal_generator.reject_placeholder_license(compact, "Apache-2.0")
+        self.assertFalse(legal_verifier.unresolved_license_placeholders(compact, ["Apache-2.0"]))
+        raw = {
+            "crates": [
+                {
+                    "package": {
+                        "id": "registry#dunce@1.0.5",
+                        "name": "dunce",
+                        "version": "1.0.5",
+                        "license": "Apache-2.0",
+                    }
+                }
+            ],
+            "licenses": [{"id": "Apache-2.0", "text": compact, "used_by": [{"crate": {"id": "registry#dunce@1.0.5"}}]}],
+        }
+        _, files = legal_generator.build_outputs(raw)
+        self.assertEqual(list(files.values()), [compact.encode()])
+        with self.assertRaises(ValueError):
+            legal_generator.reject_placeholder_license(
+                compact.replace("Copyright", "DifferentCopyright", 1), "Apache-2.0"
+            )
+
     def test_generator_writes_readable_package_owned_files(self) -> None:
         first = {
             "name": "dep-a",
@@ -258,6 +315,111 @@ qa_fail_if_any() { if [[ ${#QA_FAILED_STEPS[@]} -gt 0 ]]; then exit 1; fi; }
         manifest = {
             "packages": [{"name": "missing", "version": "1.0.0", "source": "registry", "declaredLicense": "MIT"}]
         }
+        with self.assertRaises(ValueError):
+            sbom_generator.build_sbom(metadata, manifest, "digest", "revision", "2026-01-01T00:00:00Z")
+
+
+class WebLicenseTests(unittest.TestCase):
+    def fixture(self, root: Path) -> Path:
+        ui = root / "ui"
+        package = ui / "node_modules/probe"
+        package.mkdir(parents=True)
+        (ui / "package.json").write_text(json.dumps({"dependencies": {"probe": "1.0.0"}}))
+        lock = {
+            "lockfileVersion": 3,
+            "packages": {
+                "": {"dependencies": {"probe": "1.0.0"}},
+                "node_modules/probe": {
+                    "version": "1.0.0",
+                    "resolved": "https://registry.npmjs.org/probe/-/probe-1.0.0.tgz",
+                    "integrity": "sha512-fixture",
+                },
+                "node_modules/dev-only": {"dev": True},
+            },
+        }
+        (ui / "package-lock.json").write_text(json.dumps(lock))
+        (package / "package.json").write_text(json.dumps({"name": "probe", "version": "1.0.0", "license": "MIT"}))
+        (package / "LICENSE").write_bytes(b"Copyright (c) Probe\r\nPermission is granted\r\n")
+        font = ui / "src/styles/fonts/golos-ui"
+        font.mkdir(parents=True)
+        (font / "golos-ui-vf.woff2").write_bytes(b"font fixture")
+        (font / "LICENSE.txt").write_bytes(b"Font copyright\r\nSIL terms\r\n")
+        return package
+
+    def test_git_staging_preserves_the_upstream_font_license_bytes(self):
+        path = "ui/src/styles/fonts/golos-ui/LICENSE.txt"
+        filtered = subprocess.check_output(["git", "hash-object", "--path=" + path, path], cwd=ROOT)
+        original = subprocess.check_output(["git", "hash-object", "--no-filters", path], cwd=ROOT)
+        self.assertEqual(filtered, original, "Git text conversion would change the upstream font license")
+
+    def test_production_notices_preserve_exact_bytes_and_exclude_dev_packages(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            package = self.fixture(root)
+            web = legal_generator.web_license_inputs(root)
+            self.assertEqual([entry["package"]["name"] for entry in web["crates"]], ["probe", "golos-ui"])
+            _, files = legal_generator.build_outputs(web)
+            self.assertEqual(files["LICENSES/third-party/probe-1.0.0.txt"], (package / "LICENSE").read_bytes())
+            notices = legal_generator.render_notices(web)
+            self.assertIn((package / "LICENSE").read_bytes(), notices)
+            self.assertIn(b"Font copyright\r\nSIL terms\r\n", notices)
+            web["licenses"][0]["text"] = "Copyright (c) <year> <owner>"
+            with self.assertRaises(ValueError):
+                legal_generator.render_notices(web)
+
+    def test_changed_identity_missing_text_and_package_escape_fail_closed(self):
+        for defect in ("identity", "missing-license", "escaped-license", "manifest", "unsupported-license"):
+            with self.subTest(defect=defect), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                package = self.fixture(root)
+                metadata = json.loads((package / "package.json").read_text())
+                if defect == "identity":
+                    metadata["version"] = "2.0.0"
+                elif defect == "unsupported-license":
+                    metadata["license"] = "Unreviewed-License"
+                elif defect in ("missing-license", "escaped-license"):
+                    (package / "LICENSE").unlink()
+                    if defect == "escaped-license":
+                        (root / "outside.txt").write_text("outside license")
+                        (package / "LICENSE").symlink_to(root / "outside.txt")
+                else:
+                    (root / "ui/package.json").write_text(json.dumps({"dependencies": {"probe": "2.0.0"}}))
+                (package / "package.json").write_text(json.dumps(metadata))
+                with self.assertRaises(ValueError):
+                    legal_generator.web_license_inputs(root)
+
+    def test_sbom_includes_web_and_font_without_weakening_cargo_resolution(self):
+        root = {"id": "root", "name": "sniptale-native-agent", "version": "0.1.1", "source": None, "license": "MIT"}
+        metadata = {
+            "workspace_members": ["root"],
+            "packages": [root],
+            "resolve": {"nodes": [{"id": "root", "deps": []}]},
+        }
+        manifest = {
+            "packages": [
+                {
+                    "name": "react",
+                    "version": "19.3.1",
+                    "source": "https://registry.npmjs.org/react/-/react-19.3.1.tgz",
+                    "declaredLicense": "MIT",
+                },
+                {
+                    "name": "golos-ui",
+                    "version": "font-hash",
+                    "source": "bundled-font:font-hash",
+                    "declaredLicense": "OFL-1.1",
+                },
+            ]
+        }
+        sbom = sbom_generator.build_sbom(metadata, manifest, "digest", "revision", "2026-01-01T00:00:00Z")
+        self.assertEqual(
+            [package["name"] for package in sbom["packages"]], ["sniptale-native-agent", "react", "golos-ui"]
+        )
+        self.assertEqual(sbom["packages"][-1]["downloadLocation"], "NOASSERTION")
+        self.assertEqual(sum(item["relationshipType"] == "CONTAINS" for item in sbom["relationships"]), 2)
+        manifest["packages"].append(
+            {"name": "missing-rust", "version": "1.0.0", "source": "registry", "declaredLicense": "MIT"}
+        )
         with self.assertRaises(ValueError):
             sbom_generator.build_sbom(metadata, manifest, "digest", "revision", "2026-01-01T00:00:00Z")
 

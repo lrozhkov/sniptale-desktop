@@ -34,6 +34,7 @@
           "src/recording/temp_media/mod.rs",
           "src/telemetry/windows/mod.rs",
           "src/tray/consent/mod.rs",
+          "src/tray/desktop.rs",
           "src/tray/icon/mod.rs",
           "src/tray/menu/mod.rs",
           "src/tray/runtime/mod.rs",
@@ -149,6 +150,73 @@
         "docs/engineering/implementation-rules.md",
         "tooling/configs/qa/code-size-exceptions.json"
       ]
+    },
+    {
+      "id": "boundary.desktop-ui-negative-fixtures",
+      "ruleId": "security.boundary-test-fixture",
+      "classification": "architectural-boundary",
+      "owner": "tray",
+      "exactScope": {
+        "pathTerms": {
+          "src/app/resident/tray/dispatch/settings/tests.rs": [
+            "std::fs::read"
+          ],
+          "src/app/resident/desktop/backend/tests.rs": [
+            "std::fs::read"
+          ],
+          "src/tray/desktop/model/tests.rs": [
+            "serde_json::from_value"
+          ],
+          "src/tray/desktop/settings/tests.rs": [
+            "serde_json::from_value"
+          ],
+          "src/app/resident/tray/dispatch/settings.rs": [
+            "#[cfg(test)]\n#[path = \"settings/tests.rs\"]\nmod tests;"
+          ],
+          "src/app/resident/desktop/backend.rs": [
+            "#[cfg(test)]\nmod tests;"
+          ],
+          "src/tray/desktop/model.rs": [
+            "#[cfg(test)]\nmod tests;"
+          ],
+          "src/tray/desktop/settings.rs": [
+            "#[cfg(test)]\n#[path = \"settings/tests.rs\"]\nmod tests;"
+          ]
+        }
+      },
+      "rationale": "These exact cfg(test) fixtures parse hostile presentation payloads and verify unchanged persisted bytes. Only the listed read/parse operations are admitted. Exact parent declarations prove test-only compilation and make removed gates stale.",
+      "risk": "A broad exception could admit production parsing outside its owner. Production parent paths receive no parse/read permission.",
+      "proofReferences": [
+        "docs/engineering/testing-policy.md",
+        "src/tray/desktop/model/tests.rs",
+        "src/tray/desktop/settings/tests.rs",
+        "src/app/resident/desktop/backend/tests.rs",
+        "src/app/resident/tray/dispatch/settings/tests.rs"
+      ]
+    },
+    {
+      "id": "boundary.tauri-internal-runtime",
+      "ruleId": "architecture.tauri-internal-runtime",
+      "classification": "architectural-boundary",
+      "owner": "tray",
+      "exactScope": {
+        "pathTerms": {
+          "deny.toml": [
+            "  { crate = \"tokio\", wrappers = [\n    \"tauri\",\n  ], reason = \"Only Tauri may own this runtime under ADR 0008. Product owners must not add a general async runtime.\" },"
+          ],
+          "Cargo.toml": [
+            "tauri = { version = \"=2.12.5\""
+          ]
+        }
+      },
+      "rationale": "ADR 0008 permits the Tauri-owned runtime for system WebView presentation. The direct product dependency ban remains enforced.",
+      "risk": "An additional caller could create a parallel runtime or bypass resident shutdown ownership.",
+      "proofReferences": [
+        "docs/architecture/adr/0008-tauri-presentation-boundary.md",
+        "tooling/qa/rules/verify_dev_dependencies.py",
+        "tooling/qa/wrappers/supply-chain.sh"
+      ],
+      "removalCondition": "Remove this exception when Tauri no longer needs Tokio. Review it if the pinned Tauri version or the exact wrapper scope changes."
     }
   ],
   "technicalDebt": [
@@ -190,46 +258,6 @@
         "docs/architecture/adr/0002-dpapi-owner-local-adapters.md",
         "src/install/windows/dpapi.rs",
         "src/transfer/windows_dpapi.rs"
-      ]
-    },
-    {
-      "id": "debt.jscpd.worker-readiness",
-      "classification": "temporary-debt",
-      "owner": "app",
-      "rationale": "The readiness handshake repeats within the app owner. Correct consolidation needs lifecycle proof and is outside the analyzer integration.",
-      "risk": "Repeated readiness code can drift during lifecycle changes.",
-      "reviewBy": "2026-12-01",
-      "removalCondition": "Remove when this exact finding no longer exists or an accepted owner change replaces this rationale.",
-      "targetAction": "Consolidate the app-owned readiness handshake while preserving typed events, cancellation, and joining.",
-      "source": {
-        "tool": "jscpd",
-        "rule": "duplicate-code",
-        "fingerprint": "6ff3667c32a1cbe97c9483580e11abdb9e6ebf7fd1a00a48893ab96370caf0d4"
-      },
-      "exactScope": {
-        "exactPaths": [
-          "src/app/resident/audio_worker.rs",
-          "src/app/resident/worker_start/basic.rs"
-        ],
-        "locations": [
-          {
-            "path": "src/app/resident/audio_worker.rs",
-            "startLine": 7,
-            "endLine": 47,
-            "sourceSha256": "59cd23befe7fce555fa5737f6287c3bc765746644b7f5ce817d969b55581bab1"
-          },
-          {
-            "path": "src/app/resident/worker_start/basic.rs",
-            "startLine": 7,
-            "endLine": 47,
-            "sourceSha256": "38d9f3878752a656df1dca55c05478aaac015b70af996eeccc8c8372717f8d36"
-          }
-        ]
-      },
-      "proofReferences": [
-        "docs/architecture/adr/0001-resident-media-worker-ownership.md",
-        "src/app/resident/audio_worker.rs",
-        "src/app/resident/worker_start/basic.rs"
       ]
     },
     {
@@ -525,237 +553,6 @@
       },
       "proofReferences": [
         "src/tray/runtime/windows/message_window.rs",
-        "docs/engineering/testing-policy.md",
-        "tooling/qa/wrappers/checkpoint.sh"
-      ]
-    },
-    {
-      "id": "noise.codeql.unused-variable.31c1c54ea92d",
-      "classification": "tool-noise",
-      "owner": "tray",
-      "rationale": "This exact match arm uses imported Win32 constants, not variable bindings. Windows-target compilation and Clippy validate the pattern.",
-      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
-      "reviewBy": "2026-12-01",
-      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
-      "targetAction": "Recheck this constant pattern after a CodeQL Rust extractor update.",
-      "source": {
-        "tool": "codeql",
-        "rule": "rust/unused-variable",
-        "fingerprint": "31c1c54ea92d14574fd3f96e279131a2b16fa15190865c80ce22d402e8598c84"
-      },
-      "exactScope": {
-        "exactPaths": [
-          "src/tray/settings_window/windows/event_map.rs"
-        ],
-        "locations": [
-          {
-            "path": "src/tray/settings_window/windows/event_map.rs",
-            "startLine": 101,
-            "endLine": 101,
-            "sourceSha256": "b3f552a339393fac7f4a13135422d060e94063253eed05d9bf56e25fafcd40b2"
-          }
-        ]
-      },
-      "proofReferences": [
-        "src/tray/settings_window/windows/event_map.rs",
-        "docs/engineering/testing-policy.md",
-        "tooling/qa/wrappers/checkpoint.sh"
-      ]
-    },
-    {
-      "id": "noise.codeql.unused-variable.76173733bd53",
-      "classification": "tool-noise",
-      "owner": "tray",
-      "rationale": "This exact match arm uses imported Win32 constants, not variable bindings. Windows-target compilation and Clippy validate the pattern.",
-      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
-      "reviewBy": "2026-12-01",
-      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
-      "targetAction": "Recheck this constant pattern after a CodeQL Rust extractor update.",
-      "source": {
-        "tool": "codeql",
-        "rule": "rust/unused-variable",
-        "fingerprint": "76173733bd537e42e4dd0d9c94e2656beacedcb8fe568530586022cb533c280e"
-      },
-      "exactScope": {
-        "exactPaths": [
-          "src/tray/settings_window/windows/event_map.rs"
-        ],
-        "locations": [
-          {
-            "path": "src/tray/settings_window/windows/event_map.rs",
-            "startLine": 104,
-            "endLine": 104,
-            "sourceSha256": "fc25c0275f3f5bac27d37008601b7cfac93f71131e81818c1921aa2c0f69502b"
-          }
-        ]
-      },
-      "proofReferences": [
-        "src/tray/settings_window/windows/event_map.rs",
-        "docs/engineering/testing-policy.md",
-        "tooling/qa/wrappers/checkpoint.sh"
-      ]
-    },
-    {
-      "id": "noise.codeql.unused-variable.11e64fea2eee",
-      "classification": "tool-noise",
-      "owner": "tray",
-      "rationale": "This exact match arm uses imported Win32 constants, not variable bindings. Windows-target compilation and Clippy validate the pattern.",
-      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
-      "reviewBy": "2026-12-01",
-      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
-      "targetAction": "Recheck this constant pattern after a CodeQL Rust extractor update.",
-      "source": {
-        "tool": "codeql",
-        "rule": "rust/unused-variable",
-        "fingerprint": "11e64fea2eee4096654c32c3ae01a3cd325b4cae5aa997fca54406aa34365aa0"
-      },
-      "exactScope": {
-        "exactPaths": [
-          "src/tray/settings_window/windows/event_map.rs"
-        ],
-        "locations": [
-          {
-            "path": "src/tray/settings_window/windows/event_map.rs",
-            "startLine": 107,
-            "endLine": 107,
-            "sourceSha256": "ad008d372106f50bf0830581d3df39c0a4916e4f16c7d61d073d27633e008068"
-          }
-        ]
-      },
-      "proofReferences": [
-        "src/tray/settings_window/windows/event_map.rs",
-        "docs/engineering/testing-policy.md",
-        "tooling/qa/wrappers/checkpoint.sh"
-      ]
-    },
-    {
-      "id": "noise.codeql.unused-variable.10a1637b33a1",
-      "classification": "tool-noise",
-      "owner": "tray",
-      "rationale": "This exact match arm uses imported Win32 constants, not variable bindings. Windows-target compilation and Clippy validate the pattern.",
-      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
-      "reviewBy": "2026-12-01",
-      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
-      "targetAction": "Recheck this constant pattern after a CodeQL Rust extractor update.",
-      "source": {
-        "tool": "codeql",
-        "rule": "rust/unused-variable",
-        "fingerprint": "10a1637b33a149cc9fb6ff92b7b5e8d7bba6685a930d904b9819e801b70d2d52"
-      },
-      "exactScope": {
-        "exactPaths": [
-          "src/tray/settings_window/windows/event_map.rs"
-        ],
-        "locations": [
-          {
-            "path": "src/tray/settings_window/windows/event_map.rs",
-            "startLine": 110,
-            "endLine": 110,
-            "sourceSha256": "a21cec30ce1073dda44e8ad441db4c49a9a7dad2df456c4ef6b50f53d1217058"
-          }
-        ]
-      },
-      "proofReferences": [
-        "src/tray/settings_window/windows/event_map.rs",
-        "docs/engineering/testing-policy.md",
-        "tooling/qa/wrappers/checkpoint.sh"
-      ]
-    },
-    {
-      "id": "noise.codeql.unused-variable.70bde63bfa80",
-      "classification": "tool-noise",
-      "owner": "tray",
-      "rationale": "This exact match arm uses imported Win32 constants, not variable bindings. Windows-target compilation and Clippy validate the pattern.",
-      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
-      "reviewBy": "2026-12-01",
-      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
-      "targetAction": "Recheck this constant pattern after a CodeQL Rust extractor update.",
-      "source": {
-        "tool": "codeql",
-        "rule": "rust/unused-variable",
-        "fingerprint": "70bde63bfa80d6d5ec156a4d818c6cdf14a7bd5bdd8d301bca1b033f485c38a1"
-      },
-      "exactScope": {
-        "exactPaths": [
-          "src/tray/settings_window/windows.rs"
-        ],
-        "locations": [
-          {
-            "path": "src/tray/settings_window/windows.rs",
-            "startLine": 239,
-            "endLine": 239,
-            "sourceSha256": "9f90f370c82a032b47592ca67de4205040734e2b0181ed52130f66f4bd675d3e"
-          }
-        ]
-      },
-      "proofReferences": [
-        "src/tray/settings_window/windows.rs",
-        "docs/engineering/testing-policy.md",
-        "tooling/qa/wrappers/checkpoint.sh"
-      ]
-    },
-    {
-      "id": "noise.codeql.unused-variable.8f6205c4d71f",
-      "classification": "tool-noise",
-      "owner": "tray",
-      "rationale": "This exact match arm uses imported Win32 constants, not variable bindings. Windows-target compilation and Clippy validate the pattern.",
-      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
-      "reviewBy": "2026-12-01",
-      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
-      "targetAction": "Recheck this constant pattern after a CodeQL Rust extractor update.",
-      "source": {
-        "tool": "codeql",
-        "rule": "rust/unused-variable",
-        "fingerprint": "8f6205c4d71fa88e3129b5b56a29579038523ca54321b5b8c0d3381db6e35eca"
-      },
-      "exactScope": {
-        "exactPaths": [
-          "src/tray/settings_window/windows.rs"
-        ],
-        "locations": [
-          {
-            "path": "src/tray/settings_window/windows.rs",
-            "startLine": 248,
-            "endLine": 248,
-            "sourceSha256": "dece7329c0d48d44a439cd2cff1081146c571d949395d196b98df92b64f5b802"
-          }
-        ]
-      },
-      "proofReferences": [
-        "src/tray/settings_window/windows.rs",
-        "docs/engineering/testing-policy.md",
-        "tooling/qa/wrappers/checkpoint.sh"
-      ]
-    },
-    {
-      "id": "noise.codeql.unused-variable.bb5e5a0b0210",
-      "classification": "tool-noise",
-      "owner": "tray",
-      "rationale": "This exact match arm uses imported Win32 constants, not variable bindings. Windows-target compilation and Clippy validate the pattern.",
-      "risk": "A broader exception could hide a real security or correctness defect. Only this exact finding is accepted.",
-      "reviewBy": "2026-12-01",
-      "removalCondition": "Remove when this finding disappears, its source bounds change, or its rationale no longer applies.",
-      "targetAction": "Recheck this constant pattern after a CodeQL Rust extractor update.",
-      "source": {
-        "tool": "codeql",
-        "rule": "rust/unused-variable",
-        "fingerprint": "bb5e5a0b02102863a0315fccd433daf6db7690feb990cd8022b93a58f9f4d2ef"
-      },
-      "exactScope": {
-        "exactPaths": [
-          "src/tray/settings_window/windows.rs"
-        ],
-        "locations": [
-          {
-            "path": "src/tray/settings_window/windows.rs",
-            "startLine": 250,
-            "endLine": 250,
-            "sourceSha256": "680c2a5d3b61045358e374e8ff1395684ebb846d3df3e8869739ab3e9d08614e"
-          }
-        ]
-      },
-      "proofReferences": [
-        "src/tray/settings_window/windows.rs",
         "docs/engineering/testing-policy.md",
         "tooling/qa/wrappers/checkpoint.sh"
       ]

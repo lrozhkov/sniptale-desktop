@@ -106,7 +106,12 @@ function Add-Test([string] $Name, [scriptblock] $Body) {
     $tests.Add([ordered]@{ name = $Name; status = "pass"; duration_ms = [int]$watch.ElapsedMilliseconds; detail = "$detail" })
     Write-ProgressEvent $Name "pass"
   } catch {
-    $tests.Add([ordered]@{ name = $Name; status = "fail"; duration_ms = [int]$watch.ElapsedMilliseconds; detail = $_.Exception.Message })
+    $frame = ($_.ScriptStackTrace -split "`n")[0] -replace ',.*$', ''
+    $detail = "$($_.Exception.Message); sourceLine=$($_.InvocationInfo.ScriptLineNumber); frame=$frame"
+    if ($Name -eq "capture") {
+      try { Save-Desktop "capture-failure" } catch { Write-Output "capture failure screenshot unavailable" }
+    }
+    $tests.Add([ordered]@{ name = $Name; status = "fail"; duration_ms = [int]$watch.ElapsedMilliseconds; detail = $detail })
     Write-ProgressEvent $Name "fail"
   }
 }
@@ -556,6 +561,8 @@ public static class SniptaleTrayProbe {
   [DllImport("user32.dll")] static extern bool EnumWindows(EnumWindowsProc callback, IntPtr parameter);
   [DllImport("user32.dll", CharSet=CharSet.Unicode)] static extern int GetClassName(IntPtr window, System.Text.StringBuilder className, int capacity);
   [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr window, out Rect rect);
+  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window);
+  [DllImport("user32.dll")] public static extern bool IsWindow(IntPtr window);
   [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
   [DllImport("user32.dll")] public static extern void mouse_event(uint flags, uint x, uint y, uint data, UIntPtr extraInfo);
   [DllImport("user32.dll")] static extern void keybd_event(byte key, byte scan, uint flags, UIntPtr extra);
@@ -617,6 +624,7 @@ Add-Test "tray" {
   $null = Find-DesktopSettingsWindow 10
   "tray icon and context menu invoked"
 }
+
 Add-Test "settings" {
   $window = Find-DesktopSettingsWindow 20
   $transform = $window.GetCurrentPattern([System.Windows.Automation.TransformPattern]::Pattern)
@@ -711,27 +719,129 @@ Add-Test "native-messaging" {
     Restart-AgentWithMode "manual"
   }
 }
+function Measure-DesktopUiResource([string] $Phase) {
+  $resident = Get-Process -Id $script:agent.Id -ErrorAction Stop
+  $webviews = @(Get-CimInstance Win32_Process -Filter "Name='msedgewebview2.exe'")
+  $owned = [Collections.Generic.HashSet[uint32]]::new()
+  [void]$owned.Add([uint32]$resident.Id)
+  do {
+    $changed = $false
+    foreach ($process in $webviews) {
+      if ($owned.Contains([uint32]$process.ParentProcessId) -and $owned.Add([uint32]$process.ProcessId)) { $changed = $true }
+    }
+  } while ($changed)
+  $children = @($webviews | Where-Object { $owned.Contains([uint32]$_.ProcessId) })
+  $workingSet = ($children | Measure-Object -Property WorkingSetSize -Sum).Sum
+  $line = "phase=$Phase resident_working_set_bytes=$($resident.WorkingSet64) webview_count=$($children.Count) webview_working_set_bytes=$workingSet"
+  Add-Content -LiteralPath (Join-Path $outputPath "logs\ui-resources.log") -Value $line
+  return @($children | ForEach-Object { [int]$_.ProcessId })
+}
 Add-Test "capture" {
   Add-Type -AssemblyName System.Drawing
   Add-Type -AssemblyName System.Windows.Forms
-  Restart-AgentWithMode "manual"
+  . "$PSScriptRoot\browser-playwright.ps1"
+  Stop-ProbeBrowser
+  $oldArguments = $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS
+  $oldProfile = $env:WEBVIEW2_USER_DATA_FOLDER
+  try {
+    $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=9225 --remote-debugging-address=127.0.0.1"
+    $env:WEBVIEW2_USER_DATA_FOLDER = "C:\SniptaleLab\browser-profiles\desktop-capture"
+    Restart-AgentWithMode "manual"
+  } finally {
+    $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = $oldArguments
+    $env:WEBVIEW2_USER_DATA_FOLDER = $oldProfile
+  }
   Initialize-SniptaleTrayProbe
   Initialize-SniptaleHotkeyInput
-  Stop-ProbeBrowser
   $media = Join-Path $outputPath "product-media"
   $before = @(Get-ChildItem -LiteralPath $media -Filter *.png -ErrorAction SilentlyContinue).Count
-  $screen = @()
-  foreach ($attempt in 1..5) {
-    [System.Windows.Forms.SendKeys]::SendWait("{ESC}")
-    [SniptaleHotkeyInput]::Press(0x74)
-    Start-Sleep -Seconds 10
-    $screen = @(Get-ChildItem -LiteralPath $media -Filter *.png -ErrorAction SilentlyContinue | Sort-Object LastWriteTime)
-    if ($screen.Count -gt $before) { break }
-  }
-  if ($screen.Count -le $before) { throw "Sniptale screen capture produced no PNG" }
+  [void](Measure-DesktopUiResource "idle-before-panel")
+  [void](Show-ProductCapturePanel)
+  Wait-ProductCondition -Condition {
+    $client = [Net.Sockets.TcpClient]::new()
+    try { $connection = $client.ConnectAsync('127.0.0.1', 9225); $connection.Wait(200) -and $client.Connected }
+    catch { $false } finally { $client.Dispose() }
+  } -Failure "WebView CDP endpoint did not become ready"
+  $captured = Invoke-LabBrowserRequest -Port 9225 -Payload @{scenario="desktop-capture"; action="capture"}
+  if (-not $captured.passed -or -not $captured.saved -or -not $captured.closed) { throw "Tauri capture workflow failed" }
+  $screen = @(Get-ChildItem -LiteralPath $media -Filter *.png -ErrorAction SilentlyContinue | Sort-Object LastWriteTime)
+  if ($screen.Count -ne $before + 1) { throw "one Tauri capture action must publish exactly one PNG" }
+  if (-not (Get-Process -Id $script:agent.Id -ErrorAction SilentlyContinue)) { throw "closing the panel stopped the resident" }
+  [void](Show-ProductCapturePanel)
+  $reopened = Invoke-LabBrowserRequest -Port 9225 -Payload @{scenario="desktop-capture"; action="reopen"}
+  if (-not $reopened.passed -or -not $reopened.restored -or -not $reopened.closed) { throw "Tauri panel state was not restored" }
   $screenImage = [Drawing.Image]::FromFile($screen[-1].FullName)
   try { if ($screenImage.Width -lt 100 -or $screenImage.Height -lt 100) { throw "Sniptale screen PNG dimensions are invalid" } } finally { $screenImage.Dispose() }
   Copy-Item -LiteralPath $screen[-1].FullName -Destination (Join-Path $outputPath "screenshots\sniptale-screen.png")
+  [void](Show-ProductCapturePanel)
+  $edited = Invoke-LabBrowserRequest -Port 9225 -Payload @{scenario="desktop-capture"; action="settings-edit"}
+  if (-not $edited.passed -or $edited.previous -eq $edited.current) { throw "Tauri settings Apply failed" }
+  Close-DesktopSettingsFrame
+  [void](Show-ProductCapturePanel)
+  $restored = Invoke-LabBrowserRequest -Port 9225 -Payload @{scenario="desktop-capture"; action="settings-restore"}
+  if (-not $restored.passed -or $restored.previous -ne $edited.current -or $restored.current -ne $edited.previous) { throw "Tauri settings did not survive native close and reopen" }
+  Close-DesktopSettingsFrame
+  $renderers = @(Measure-DesktopUiResource "panel-open-after-settings-close")
+  $fixturePath = Join-Path $env:TEMP "sniptale-toolbar-target.ps1"
+  [IO.File]::WriteAllText($fixturePath, @'
+Add-Type -AssemblyName System.Windows.Forms
+$form = [System.Windows.Forms.Form]::new()
+$form.Text = "Sniptale synthetic capture target"
+$form.Width = 640
+$form.Height = 480
+$form.BackColor = [System.Drawing.Color]::CornflowerBlue
+[System.Windows.Forms.Application]::Run($form)
+'@, [Text.UTF8Encoding]::new($false))
+  $fixture = Start-Process powershell.exe -ArgumentList @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "`"$fixturePath`"") -PassThru
+  try {
+    $targetElement = Find-Ui "Sniptale synthetic capture target" 5
+    if ($targetElement.Current.ProcessId -ne $fixture.Id) { throw "synthetic window owner mismatch" }
+    $targetWindow = [IntPtr]$targetElement.Current.NativeWindowHandle
+    if ($targetWindow -eq [IntPtr]::Zero) { throw "synthetic window has no native handle" }
+    $targetBounds = $targetElement.Current.BoundingRectangle
+    if (-not [SniptaleTrayProbe]::SetForegroundWindow($targetWindow)) { throw "synthetic capture target could not be focused" }
+    [void](Show-ProductCapturePanel)
+    $windowCapture = Invoke-LabBrowserRequest -Port 9225 -Payload @{scenario="desktop-capture"; action="window"}
+    $windowFiles = @(Get-ChildItem -LiteralPath $media -Filter *.png | Sort-Object LastWriteTime)
+    if (-not $windowCapture.saved -or $windowFiles.Count -ne $screen.Count + 1) { throw "Tauri active-window capture did not publish one PNG" }
+    $windowImage = [Drawing.Bitmap]::new($windowFiles[-1].FullName)
+    try {
+      # UI Automation reports physical pixels at the guest's 125 percent DPI. WGC can omit
+      # invisible window borders. The rectangle is an upper bound, and the
+      # exact synthetic center color distinguishes the target from a screen or toolbar capture.
+      if ($windowImage.Width -gt $targetBounds.Width -or $windowImage.Height -gt $targetBounds.Height -or $windowImage.Width -lt 100 -or $windowImage.Height -lt 100) { throw "active-window capture did not use the synthetic window bounds" }
+      if ($windowImage.GetPixel([int]($windowImage.Width / 2), [int]($windowImage.Height / 2)).ToArgb() -ne [Drawing.Color]::CornflowerBlue.ToArgb()) { throw "active-window PNG does not contain the synthetic target" }
+    } finally { $windowImage.Dispose() }
+    Copy-Item -LiteralPath $windowFiles[-1].FullName -Destination (Join-Path $outputPath "screenshots\sniptale-window.png")
+    $screen = $windowFiles
+  } finally {
+    if ($fixture -and -not $fixture.HasExited) { Stop-Process -Id $fixture.Id -Force -ErrorAction SilentlyContinue }
+    Remove-Item -LiteralPath $fixturePath -Force -ErrorAction SilentlyContinue
+  }
+  [void](Show-ProductCapturePanel)
+  $renderers += @(Measure-DesktopUiResource "before-recording-panel-close")
+  $started = Invoke-LabBrowserRequest -Port 9225 -Payload @{scenario="desktop-capture"; action="record-start"}
+  if (-not $started.passed -or -not $started.recording -or -not $started.closed) { throw "Tauri recording did not start and survive panel close" }
+  if (-not (Get-Process -Id $script:agent.Id -ErrorAction SilentlyContinue)) { throw "panel close stopped recording owner" }
+  $renderers += @(Measure-DesktopUiResource "recording-panel-closed")
+  if ($renderers.Count) {
+    Wait-ProductCondition -Condition { @(Get-Process -Id $renderers -ErrorAction SilentlyContinue).Count -eq 0 } -Failure "closed Tauri UI retained WebView processes during recording" -Seconds 20
+  }
+  [void](Measure-DesktopUiResource "recording-after-webview-release")
+  [void](Show-ProductCapturePanel)
+  $videoBefore = @(Get-ChildItem -LiteralPath $media -Filter *.mp4 -ErrorAction SilentlyContinue).Count
+  $stopped = Invoke-LabBrowserRequest -Port 9225 -Payload @{scenario="desktop-capture"; action="record-stop"}
+  $videos = @(Get-ChildItem -LiteralPath $media -Filter *.mp4 -ErrorAction SilentlyContinue | Sort-Object LastWriteTime)
+  if (-not $stopped.passed -or -not $stopped.saved -or $videos.Count -ne $videoBefore + 1) { throw "Tauri pause/resume/stop did not publish one recording" }
+  if (-not (Test-BinaryMarker $videos[-1].FullName "vide")) { throw "Tauri recording has no video track" }
+  Copy-Item -LiteralPath $videos[-1].FullName -Destination (Join-Path $outputPath "recordings\sniptale-toolbar.mp4")
+  [void](Show-ProductCapturePanel)
+  $started = Invoke-LabBrowserRequest -Port 9225 -Payload @{scenario="desktop-capture"; action="record-start"}
+  if (-not $started.passed) { throw "second Tauri recording did not start" }
+  [void](Show-ProductCapturePanel)
+  $discarded = Invoke-LabBrowserRequest -Port 9225 -Payload @{scenario="desktop-capture"; action="record-discard"}
+  if (-not $discarded.passed -or -not $discarded.discarded) { throw "Tauri recording discard failed" }
+  if (@(Get-ChildItem -LiteralPath $media -Filter *.mp4 -ErrorAction SilentlyContinue).Count -ne $videos.Count) { throw "discarded recording was published" }
   Add-Type @'
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -989,7 +1099,7 @@ function Reset-RecordingFixtureState([string] $Media, [string] $TempMedia) {
     Remove-Item -Force -ErrorAction Stop
 }
 
-function Invoke-SyntheticRecording([ValidateSet("system", "microphone")][string] $SourceMode) {
+function Invoke-SyntheticRecording([ValidateSet("system", "microphone")][string] $SourceMode, [switch] $UseCapturePanel) {
   Add-Type -AssemblyName System.Windows.Forms
   Initialize-SniptaleHotkeyInput
   if ($SourceMode -eq "microphone") {
@@ -1080,7 +1190,8 @@ $player.PlaySync()
       # Capture/tray behavior is proved by their own cases. Use the configured Manual hotkey here
       # so the recording case has one deterministic admission path, then wait for the durable
       # writing record created only after the media runtime has started successfully.
-      [SniptaleHotkeyInput]::Press(0x76)
+      if ($UseCapturePanel) { Start-PanelRecording }
+      else { [SniptaleHotkeyInput]::Press(0x76) }
       $recordingReady = $false
       $startDeadline = [DateTime]::UtcNow.AddSeconds(30)
       while ([DateTime]::UtcNow -lt $startDeadline) {
@@ -1101,6 +1212,7 @@ $player.PlaySync()
         }
         continue
       }
+      if ($UseCapturePanel) { Test-PanelRecordingControl }
       # Keep the render endpoint producing samples after the worker has bound WASAPI loopback.
       if ($SourceMode -eq "system") {
         Start-Sleep -Seconds 20
@@ -1112,7 +1224,9 @@ $player.PlaySync()
       # and retry only the input gesture; once observed, never send a second stop command.
       $hotkeyEventsBeforeStop = Get-AgentHotkeyEventCount
       $stopObserved = $false
+      if ($UseCapturePanel) { Stop-PanelRecording; $stopObserved = $true }
       foreach ($stopAttempt in 1..3) {
+        if ($stopObserved) { break }
         Write-ProgressEvent -Scenario $scenario -Status "stop-delivery" -Attempt $stopAttempt -MaxAttempts 3 -DeadlineSeconds 3
         [SniptaleHotkeyInput]::Press(0x77)
         $stopDeliveryDeadline = [DateTime]::UtcNow.AddSeconds(3)
@@ -1295,7 +1409,7 @@ if ($RealExtensionSha256 -or $selectedTests.Contains("real-extension")) {
 }
 
 Add-Test "recording-system-audio" {
-  Invoke-SyntheticRecording "system"
+  Invoke-SyntheticRecording "system" -UseCapturePanel
 }
 Add-Test "recording-microphone" {
   Invoke-SyntheticRecording "microphone"

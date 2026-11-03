@@ -10,7 +10,6 @@ use crate::{
     assets::AssetFormat,
     capture::ScreenshotCaptureRequest,
     protocol::{RecordingControl, ScreenshotMode, VideoMode},
-    recording::RecordingControlRequest,
     settings::ActiveSettings,
     transfer::identity::derived_media_id,
 };
@@ -40,7 +39,7 @@ pub(crate) struct ManualActionDispatcher {
     recording: Option<SyncSender<WorkerCommand>>,
     assets: Option<SyncSender<WorkerCommand>>,
     sequence: u64,
-    active_recording_id: Option<String>,
+    projection: Option<crate::app::resident::desktop::projection::CaptureProjection>,
 }
 
 impl ManualActionDispatcher {
@@ -56,8 +55,15 @@ impl ManualActionDispatcher {
             recording,
             assets,
             sequence: 0,
-            active_recording_id: None,
+            projection: None,
         }
+    }
+
+    pub(crate) fn observe_with(
+        &mut self,
+        projection: crate::app::resident::desktop::projection::CaptureProjection,
+    ) {
+        self.projection = Some(projection);
     }
 
     pub(crate) fn enqueue_screenshot(
@@ -74,9 +80,27 @@ impl ManualActionDispatcher {
             .map_err(|_| ManualDispatchError::ModeUnavailable)?
             .manual_screenshot_include_cursor()
             .ok_or(ManualDispatchError::ModeUnavailable)?;
-        self.prepare_asset(binding.job.clone())?;
+        if let Some(projection) = &self.projection {
+            projection.begin(
+                &operation_id,
+                Some(binding.job.id().as_str()),
+                crate::tray::desktop::model::CaptureKind::Screenshot,
+                if mode == ScreenshotMode::Region {
+                    crate::tray::desktop::model::CapturePhase::Selecting
+                } else {
+                    crate::tray::desktop::model::CapturePhase::Starting
+                },
+                None,
+            );
+        }
+        if let Err(error) = self.prepare_asset(binding.job.clone()) {
+            if let Some(projection) = &self.projection {
+                projection.fail(&operation_id);
+            }
+            return Err(error);
+        }
         let request = ScreenshotCaptureRequest {
-            operation_id,
+            operation_id: operation_id.clone(),
             mode,
             authority: binding.authority,
             delivery_route: binding.delivery_route,
@@ -84,46 +108,87 @@ impl ManualActionDispatcher {
             open_editor: false,
             requested_at_epoch_ms: now_epoch_ms(),
         };
-        send_worker(
+        let result = send_worker(
             self.capture.as_ref(),
             WorkerCommand::CaptureScreenshot {
                 request: Box::new(request),
                 extension_controller_lease_id: None,
             },
-        )
+        );
+        if result.is_err()
+            && let Some(projection) = &self.projection
+        {
+            projection.fail(&operation_id);
+        }
+        result
     }
 
     pub(crate) fn enqueue_recording(&mut self, mode: VideoMode) -> Result<(), ManualDispatchError> {
+        self.enqueue_recording_with_quality(mode, None)
+    }
+
+    pub(crate) fn enqueue_recording_with_quality(
+        &mut self,
+        mode: VideoMode,
+        quality: Option<crate::protocol::recording::NativeVideoQuality>,
+    ) -> Result<(), ManualDispatchError> {
         let operation_id = self.next_operation_id("recording")?;
         let requested_at_epoch_ms = now_epoch_ms();
-        let (binding, request, policy) = manual_binding::bind_manual_recording(
+        let (binding, mut request, policy) = manual_binding::bind_manual_recording(
             &self.settings,
             &operation_id,
             mode,
             requested_at_epoch_ms,
         )
         .map_err(map_binding_error)?;
-        #[cfg(windows)]
-        let request = if request.source.mode == VideoMode::Region {
-            let mut request = request;
-            request.source.region = Some(
-                crate::capture::choose_recording_region()
-                    .map_err(|_| ManualDispatchError::RegionCancelled)?,
-            );
-            request
-        } else {
-            request
-        };
+        if let Some(quality) = quality {
+            request.requested_quality.quality = quality;
+        }
         let recording_id = derived_media_id("recording", &operation_id);
-        self.prepare_asset(binding.job.clone())?;
-        send_worker(
+        if let Some(projection) = &self.projection {
+            projection.begin(
+                &operation_id,
+                Some(binding.job.id().as_str()),
+                crate::tray::desktop::model::CaptureKind::Video,
+                if request.source.mode == VideoMode::Region {
+                    crate::tray::desktop::model::CapturePhase::Selecting
+                } else {
+                    crate::tray::desktop::model::CapturePhase::Starting
+                },
+                Some(&recording_id),
+            );
+        }
+        #[cfg(windows)]
+        if request.source.mode == VideoMode::Region {
+            request.source.region =
+                Some(crate::capture::choose_recording_region().map_err(|_| {
+                    if let Some(projection) = &self.projection {
+                        projection.cancel(&operation_id);
+                    }
+                    ManualDispatchError::RegionCancelled
+                })?);
+        }
+        if let Err(error) = self.prepare_asset(binding.job.clone()) {
+            if let Some(projection) = &self.projection {
+                projection.fail(&operation_id);
+            }
+            return Err(error);
+        }
+        // Source selection and asset preparation do not consume the recording's active duration.
+        request.requested_at_epoch_ms = now_epoch_ms();
+        let result = send_worker(
             self.recording.as_ref(),
             WorkerCommand::StartRecording {
                 request: Box::new(request),
                 policy,
             },
-        )?;
-        self.active_recording_id = Some(recording_id);
+        );
+        if result.is_err()
+            && let Some(projection) = &self.projection
+        {
+            projection.fail(&operation_id);
+        }
+        result?;
         Ok(())
     }
 
@@ -131,27 +196,27 @@ impl ManualActionDispatcher {
         &mut self,
         control: &RecordingControl,
     ) -> Result<(), ManualDispatchError> {
-        let recording_id = self
-            .active_recording_id
-            .clone()
-            .ok_or(ManualDispatchError::WorkerUnavailable)?;
-        let operation_id = self.next_operation_id("recording-control")?;
+        // The recording worker owns the active recording identity and admission state.
         send_worker(
             self.recording.as_ref(),
-            WorkerCommand::ControlRecording {
-                request: Box::new(RecordingControlRequest {
-                    operation_id,
-                    recording_id,
-                    control: control.clone(),
-                    requested_at_epoch_ms: now_epoch_ms(),
-                    delivery_session: crate::recording::RecordingDeliverySession::default(),
-                }),
+            WorkerCommand::ControlActiveRecording {
+                control: control.clone(),
             },
-        )?;
-        if matches!(control, RecordingControl::Stop | RecordingControl::Cancel) {
-            self.active_recording_id = None;
-        }
-        Ok(())
+        )
+    }
+
+    pub(crate) fn control_observed_recording(
+        &mut self,
+        control: &RecordingControl,
+        recording_id: String,
+    ) -> Result<(), ManualDispatchError> {
+        send_worker(
+            self.recording.as_ref(),
+            WorkerCommand::ControlObservedRecording {
+                control: control.clone(),
+                recording_id,
+            },
+        )
     }
 
     fn prepare_asset(&self, job: crate::assets::AssetJob) -> Result<(), ManualDispatchError> {

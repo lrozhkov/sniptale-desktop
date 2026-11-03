@@ -110,16 +110,49 @@ impl TrayWorker {
         shutdown_sender: &SyncSender<AgentShutdownSignal>,
         source: &mut impl TrayCommandSource,
     ) -> TrayWorkerControl {
-        #[cfg(not(test))]
-        let _ = (events, shutdown_sender);
         match command {
+            WorkerCommand::DesktopSettings {
+                request,
+                result_sender,
+            } => {
+                let applied = matches!(
+                    request,
+                    crate::tray::desktop::settings::SettingsRequest::Apply { .. }
+                );
+                let result = dispatch::dispatch_desktop_settings(
+                    request,
+                    &self.active_settings,
+                    &mut self.settings_window,
+                    &mut self.manual_dispatcher,
+                    &self.manual_senders,
+                    self.recording_state.status(),
+                    source,
+                );
+                if applied && result.is_ok() {
+                    self.render_current_menu(source);
+                }
+                let _ = result_sender.send(result);
+            }
+            WorkerCommand::DesktopCapture {
+                request,
+                result_sender,
+            } => {
+                let result = super::desktop::dispatch::dispatch_capture_request(
+                    request,
+                    self.manual_dispatcher.as_mut(),
+                    &events.desktop,
+                    self.recording_state.status(),
+                    source,
+                );
+                source.finish_capture_dispatch(result.is_ok());
+                let _ = result_sender.send(result);
+            }
             WorkerCommand::ApplyTrayRegistry {
                 registry,
                 result_sender,
             } => {
                 let result = self.apply_registry(registry, source);
                 let _ = result_sender.send(result);
-                TrayWorkerControl::Continue
             }
             WorkerCommand::ChooseMediaDestination {
                 request,
@@ -131,38 +164,32 @@ impl TrayWorker {
                     &self.active_settings,
                     source,
                 );
-                TrayWorkerControl::Continue
             }
             WorkerCommand::ShowTrayNotice { kind } => {
                 let _ = source.show_notice(kind);
-                TrayWorkerControl::Continue
             }
             WorkerCommand::FenceMode { result_sender } => {
                 let _ = result_sender.send(false);
-                TrayWorkerControl::Continue
             }
             WorkerCommand::UpdateTrayRecordingStatus { status } => {
                 self.apply_recording_status(status, shutdown_sender, source);
-                TrayWorkerControl::Continue
             }
             WorkerCommand::RefreshTrayConnectionStatus => {
                 self.sync_connection_status(source);
-                TrayWorkerControl::Continue
             }
             WorkerCommand::ManualHotkeyAction { action_id } => {
                 self.dispatch_manual_hotkey(&action_id, source);
-                TrayWorkerControl::Continue
             }
             #[cfg(test)]
             WorkerCommand::TrayMenuCommandSelected { command_id } => {
                 self.dispatch_command(command_id, events, shutdown_sender, source);
-                TrayWorkerControl::Continue
             }
             WorkerCommand::ApplyHotkeyPlan { .. }
             | WorkerCommand::RestoreHotkeys { .. }
             | WorkerCommand::CaptureScreenshot { .. }
             | WorkerCommand::StartRecording { .. }
             | WorkerCommand::ControlRecording { .. }
+            | WorkerCommand::ControlObservedRecording { .. }
             | WorkerCommand::ControlActiveRecording { .. }
             | WorkerCommand::StartRecordingTelemetry { .. }
             | WorkerCommand::PauseRecordingTelemetry { .. }
@@ -173,9 +200,10 @@ impl TrayWorker {
             | WorkerCommand::SnapshotRecordingTelemetry { .. }
             | WorkerCommand::PrepareManualAsset { .. }
             | WorkerCommand::PublishManualAsset { .. }
-            | WorkerCommand::RecoverPendingAssets => TrayWorkerControl::Continue,
-            WorkerCommand::Stop => TrayWorkerControl::Stop,
+            | WorkerCommand::RecoverPendingAssets => {}
+            WorkerCommand::Stop => return TrayWorkerControl::Stop,
         }
+        TrayWorkerControl::Continue
     }
 
     fn dispatch_manual_hotkey(&mut self, action_id: &str, source: &mut impl TrayCommandSource) {
@@ -267,23 +295,6 @@ impl TrayWorker {
                 match event {
                     TrayRuntimeEvent::MenuCommand { command_id } => {
                         self.dispatch_command(command_id, events, shutdown_sender, source);
-                    }
-                    #[cfg(any(windows, test))]
-                    TrayRuntimeEvent::SettingsWindow { event } => {
-                        if dispatch::dispatch_settings_event(
-                            event,
-                            &self.active_settings,
-                            &mut self.settings_window,
-                            &mut self.manual_dispatcher,
-                            &self.manual_senders,
-                            self.icon_state.recording,
-                            source,
-                        ) {
-                            self.icon_state.connection = TrayConnectionStatus::Disconnected;
-                            self.connection_state.clear();
-                            self.registry = None;
-                            self.render_current_menu(source);
-                        }
                     }
                 }
             }

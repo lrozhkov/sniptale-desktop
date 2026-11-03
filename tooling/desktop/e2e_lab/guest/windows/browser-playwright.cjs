@@ -103,10 +103,12 @@ async function inspectNativeEditor(context, settingsPage, port, request) {
 }
 (async () => {
   const [port, request] = process.argv.slice(2);
-  if (!['9223', '9224'].includes(port)) throw Error('invalid-input');
   const input = JSON.parse(readBoundedFile(request, 65536).toString('utf8').replace(/^\uFEFF/, ''));
   const editorScenario = input.scenario === 'native-video-editor';
-  if (Object.keys(input).length !== 1 || (!editorScenario && typeof input.expression !== 'string')) throw Error('invalid-input');
+  const desktopScenario = input.scenario === 'desktop-capture';
+  if (desktopScenario) {
+    if (port !== '9225' || Object.keys(input).length !== 2 || !require('./desktop-capture-playwright.cjs').desktopActions.includes(input.action)) throw Error('invalid-input');
+  } else if (!['9223', '9224'].includes(port) || Object.keys(input).length !== 1 || (!editorScenario && typeof input.expression !== 'string')) throw Error('invalid-input');
   const root = 'C:/SniptaleLab/browser-tools';
   const files = JSON.parse(readBoundedFile(root + '/runtime-integrity.json', 2 * 1024 * 1024).toString('utf8'));
   for (const [name, hash] of Object.entries(files)) {
@@ -119,14 +121,19 @@ async function inspectNativeEditor(context, settingsPage, port, request) {
   const browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`, {timeout:10000});
   const contexts = browser.contexts();
   if (contexts.length !== 1) throw Error('invalid-browser-context');
+  let value;
+  if (desktopScenario) {
+    value = await require('./desktop-capture-playwright.cjs').captureScenario(contexts[0], input.action, request);
+  } else {
   const target = 'chrome-extension://elhndangpenapadjimfoodlaenpcndpo/apps/extension/src/settings/index.html';
   const pages = contexts[0].pages().filter(page => page.url() === target || page.url().startsWith(target + '?') || page.url().startsWith(target + '#'));
   if (!pages.length) throw Error('extension-page-missing');
-  const value = editorScenario ? await inspectNativeEditor(contexts[0],pages[pages.length-1],port,request) : await pages[pages.length - 1].evaluate(input.expression);
+  value = editorScenario ? await inspectNativeEditor(contexts[0],pages[pages.length-1],port,request) : await pages[pages.length - 1].evaluate(input.expression);
+  }
   if (value && typeof value === 'object') value.automation = {node:process.versions.node, playwrightCore:require(root + '/package/package.json').version};
   const result = JSON.stringify(value);
   if (!result || Buffer.byteLength(result) > 1048576) throw Error('invalid-result');
   clearTimeout(timer);
   // Exit disconnects this client without closing the persistent browser or its profile.
   process.stdout.write(result + '\n', () => process.exit(0));
-})().catch(() => fail('browser-scenario-failed'));
+})().catch(error => fail(/^desktop-(ready|options|source|capture|saved|close|settings-open|settings-apply|record-start|record-stop|record-discard)-failed$/.test(error?.message) ? error.message : 'browser-scenario-failed'));

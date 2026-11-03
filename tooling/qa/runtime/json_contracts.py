@@ -38,6 +38,7 @@ def validate(value: Any, schema: dict[str, Any]) -> None:
 def self_test() -> None:
     history_record_shapes_self_test()
     keyboard_hold_schema_self_test()
+    desktop_capability_schema_self_test()
     schema = {
         "type": "object",
         "required": ["enabled"],
@@ -63,6 +64,49 @@ def self_test() -> None:
         print("OK JSON duplicate-key and schema rejection proof")
         return
     raise ValueError("JSON duplicate keys were accepted")
+
+
+def desktop_capability_schema_self_test() -> None:
+    contracts = decode(REGISTRY.read_bytes())["contracts"]
+    for name in ("capture-panel", "application-settings"):
+        path = f"capabilities/{name}.json"
+        value = decode((ROOT / path).read_bytes())
+        validate(value, contracts[path])
+        candidates = []
+        for key, replacement in (
+            ("local", False),
+            ("windows", ["*"]),
+            ("remote", {"urls": ["https://*"]}),
+            ("permissions", ["core:default"]),
+            (
+                "permissions",
+                ["allow-desktop-preferences-save"] if name == "capture-panel" else ["allow-desktop-capture-command"],
+            ),
+        ):
+            mutated = copy.deepcopy(value)
+            mutated[key] = replacement
+            candidates.append(mutated)
+        for mutated in candidates:
+            try:
+                validate(mutated, contracts[path])
+            except jsonschema.ValidationError:
+                continue
+            raise ValueError("desktop capability schema accepted expanded authority")
+    path = "tauri.conf.json"
+    value = decode((ROOT / path).read_bytes())
+    validate(value, contracts[path])
+    for section, key, replacement in (
+        ("build", "frontendDist", "https://example.invalid"),
+        ("app", "withGlobalTauri", True),
+        ("bundle", "active", True),
+    ):
+        mutated = copy.deepcopy(value)
+        mutated[section][key] = replacement
+        try:
+            validate(mutated, contracts[path])
+        except jsonschema.ValidationError:
+            continue
+        raise ValueError("desktop configuration schema accepted a forbidden integration mode")
 
 
 def history_record_shapes_self_test() -> None:

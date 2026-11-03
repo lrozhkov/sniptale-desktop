@@ -24,10 +24,7 @@ fn presentation_distinguishes_mode_switches_from_same_mode_edits()
     });
     assert!(model.presentation().switching_mode());
     assert_eq!(presentation_visibility(&model), (true, true, false));
-    assert_eq!(
-        model.presentation().apply_label(),
-        "Save and switch to Manual"
-    );
+    assert!(model.presentation().can_apply());
 
     let draft = model
         .apply_candidate()
@@ -36,12 +33,15 @@ fn presentation_distinguishes_mode_switches_from_same_mode_edits()
         .map_err(|error| std::io::Error::other(format!("{error:?}")))?;
     let _ = model.show(&active, crate::settings::UiPreferencesHealth::Missing);
     assert!(!model.presentation().switching_mode());
-    assert_eq!(model.presentation().apply_label(), "Save changes");
+    assert!(!model.presentation().can_apply());
 
     model.stage_extension_managed();
     assert!(model.presentation().switching_mode());
     assert_eq!(presentation_visibility(&model), (false, true, false));
-    assert_eq!(model.presentation().apply_label(), "Switch to extension");
+    assert_eq!(
+        model.presentation().view(),
+        SettingsWindowView::ExtensionManagedDraft
+    );
     model.discard_and_hide();
     assert!(!model.presentation().switching_mode());
     Ok(())
@@ -78,16 +78,8 @@ fn presentation_round_trips_custom_numeric_values_and_typed_audio_choices() {
     let bitrate = presentation.video_bitrate_options();
     let duration = presentation.video_duration_options();
 
-    assert!(
-        bitrate
-            .iter()
-            .any(|option| option.value() == Some(40) && option.label() == "40 Mbps")
-    );
-    assert!(
-        duration
-            .iter()
-            .any(|option| option.value() == 7_200 && option.label() == "2 hours")
-    );
+    assert!(bitrate.iter().any(|option| option.value() == Some(40)));
+    assert!(duration.iter().any(|option| option.value() == 7_200));
     assert_eq!(
         presentation.microphone_selection(1),
         Some(SettingsMicrophoneSelection::Device(
@@ -98,6 +90,9 @@ fn presentation_round_trips_custom_numeric_values_and_typed_audio_choices() {
         presentation.audio_source_selection(0),
         Some(crate::settings::ManualAudioSource::Microphone)
     );
-    assert_eq!(presentation.audio_sources()[0].label(), "Microphone");
+    assert_eq!(
+        presentation.audio_sources()[0].source(),
+        crate::settings::ManualAudioSource::Microphone
+    );
     assert!(presentation.audio_sources()[0].available());
 }

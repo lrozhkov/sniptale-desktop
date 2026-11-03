@@ -1,4 +1,12 @@
 # Shared isolated guest UI and explicit development authorization fixtures.
+function Wait-ProductCondition([Alias("Condition")][scriptblock] $Predicate, [string] $Failure, [int] $Seconds = 15) {
+  $deadline = [DateTime]::UtcNow.AddSeconds($Seconds)
+  while ([DateTime]::UtcNow -lt $deadline) {
+    if (& $Predicate) { return }
+    Start-Sleep -Milliseconds 100
+  }
+  throw $Failure
+}
 function ConvertTo-LowerHex([byte[]] $Bytes) {
   -join ($Bytes | ForEach-Object { $_.ToString("x2") })
 }
@@ -74,11 +82,19 @@ function Find-Ui([string] $Name, [int] $Seconds = 20) {
   throw "UI element not found: $Name"
 }
 
+function Close-DesktopSettingsFrame {
+  $frame = Find-DesktopSettingsWindow 5
+  $handle = [IntPtr]$frame.Current.NativeWindowHandle
+  if ($handle -eq [IntPtr]::Zero) { throw "settings frame has no native handle" }
+  if (-not [SniptaleTrayProbe]::PostMessage($handle, 0x0010, [UIntPtr]::Zero, [IntPtr]::Zero)) { throw "settings close request failed" }
+  Wait-ProductCondition -Condition { -not [SniptaleTrayProbe]::IsWindow($handle) } -Failure "settings frame did not close"
+}
+
 function Find-DesktopSettingsWindow([int] $Seconds = 20) {
   Add-Type -AssemblyName UIAutomationClient
-  $settingsTitle = "Sniptale $([char]0x2014) Settings"
+  $settingsTitle = "Sniptale Settings"
   $condition = [System.Windows.Automation.PropertyCondition]::new(
-    [System.Windows.Automation.AutomationElement]::ClassNameProperty, "SniptaleSettingsWindowV2"
+    [System.Windows.Automation.AutomationElement]::NameProperty, $settingsTitle
   )
   $deadline = [DateTime]::UtcNow.AddSeconds($Seconds)
   while ([DateTime]::UtcNow -lt $deadline) {
@@ -88,7 +104,7 @@ function Find-DesktopSettingsWindow([int] $Seconds = 20) {
     }
     Start-Sleep -Milliseconds 250
   }
-  throw "native Desktop settings window not found for the installed resident process"
+  throw "Desktop settings frame not found for the installed resident process"
 }
 
 
@@ -558,4 +574,57 @@ function Select-DesktopBrowserDestination([string] $BrowserFamily, [bool] $AskAf
   if ($saved.defaultTargetId -ne $registry.targets[$selectedIndex].id -or [bool]$saved.askAfterCapture -ne $AskAfterCapture) { throw "explicit Desktop destination selection was not persisted" }
   Save-UiWindow $window "desktop-destination-$BrowserFamily"
   $window.GetCurrentPattern([System.Windows.Automation.WindowPattern]::Pattern).Close()
+}
+
+function Show-ProductCapturePanel {
+  Initialize-SniptaleTrayProbe
+  $trayWindow = [SniptaleTrayProbe]::FindWindow("SniptaleTrayCommandSource", $null)
+  if ($trayWindow -eq [IntPtr]::Zero) { throw "capture panel tray owner is unavailable" }
+  $callback = [IntPtr]((1 -shl 16) -bor 0x0400)
+  if (-not [SniptaleTrayProbe]::PostMessage($trayWindow, 0x8001, [UIntPtr]::Zero, $callback)) { throw "capture panel activation failed" }
+  $condition = [System.Windows.Automation.PropertyCondition]::new(
+    [System.Windows.Automation.AutomationElement]::NameProperty, "Sniptale Capture"
+  )
+  $script:productCapturePanel = $null
+  Wait-ProductCondition -Condition {
+    $candidates = [System.Windows.Automation.AutomationElement]::RootElement.FindAll([System.Windows.Automation.TreeScope]::Children, $condition)
+    foreach ($candidate in $candidates) {
+      if ($candidate.Current.ProcessId -eq $script:agent.Id -and -not $candidate.Current.IsOffscreen) {
+        $script:productCapturePanel = $candidate
+        return $true
+      }
+    }
+    return $false
+  } -Failure "product capture panel did not open" -Seconds 15
+  return $script:productCapturePanel
+}
+
+function Start-PanelRecording {
+  $panel = Show-ProductCapturePanel
+  (Find-SandboxControl $panel "201").GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern).Select()
+  Select-SandboxCombo (Find-SandboxControl $panel "202") 1
+  (Find-SandboxControl $panel "203").GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+}
+
+function Test-PanelRecordingControl {
+  $panel = Show-ProductCapturePanel
+  $pause = Find-SandboxControl $panel "204"
+  Wait-ProductCondition -Condition { $pause.Current.IsEnabled } -Failure "recording did not enable Pause" -Seconds 30
+  $hint = Find-SandboxControl $panel "209"
+  Wait-ProductCondition -Condition { $hint.Current.Name -match '\d{2}:\d{2}' } -Failure "recording duration is unavailable"
+  $pause.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+  Wait-ProductCondition -Condition { $pause.Current.Name -eq "Resume" } -Failure "product recording did not pause"
+  $paused = $hint.Current.Name
+  Start-Sleep -Seconds 1
+  if ($hint.Current.Name -ne $paused) { throw "paused duration advanced" }
+  Save-UiWindow $panel "capture-panel-recording-paused"
+  $pause.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+  Wait-ProductCondition -Condition { $pause.Current.Name -eq "Pause" } -Failure "product recording did not resume"
+}
+
+function Stop-PanelRecording {
+  $panel = Show-ProductCapturePanel
+  $stop = Find-SandboxControl $panel "205"
+  Wait-ProductCondition -Condition { $stop.Current.IsEnabled } -Failure "recording did not enable Stop"
+  $stop.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
 }

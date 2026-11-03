@@ -12,8 +12,19 @@ from tooling.qa.runtime.advisories import AdvisoryError, decode
 class ScriptInventoryTests(unittest.TestCase):
     def test_every_script_language_has_a_lane(self):
         files = script_lints.inventory()
-        for language in ("python", "shell", "powershell", "javascript", "yaml", "toml", "json"):
+        for language in (
+            "python",
+            "shell",
+            "powershell",
+            "javascript",
+            "typescript",
+            "yaml",
+            "toml",
+            "json",
+        ):
             self.assertTrue(files[language], language)
+        self.assertIn("ui/src/client/validation.ts", files["typescript"])
+        self.assertIn("ui/src/components/capture-toolbar.tsx", files["typescript"])
         self.assertIn("tooling/desktop/e2e-lab", files["shell"])
         self.assertIn("tooling/qa/runtime/script-tools-env.sh", files["shell"])
 
@@ -23,7 +34,12 @@ class ScriptInventoryTests(unittest.TestCase):
 
     def test_history_fixture_record_variants_remain_closed(self):
         result = subprocess.run(
-            [str(script_lints.CACHE / "python/bin/python"), "-m", "tooling.qa.runtime.json_contracts", "--self-test"],
+            [
+                str(script_lints.CACHE / "python/bin/python"),
+                "-m",
+                "tooling.qa.runtime.json_contracts",
+                "--self-test",
+            ],
             cwd=script_lints.ROOT,
             capture_output=True,
             text=True,

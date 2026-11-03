@@ -1,4 +1,4 @@
-"""Audit tracked Python/npm checking closures without installing or executing them."""
+"""Audit locked tool and UI dependencies without installing or executing them."""
 
 from __future__ import annotations
 
@@ -50,6 +50,7 @@ def python_packages(source: str) -> list[tuple[str, str, str]]:
 def locked_packages(root: Path = ROOT) -> list[tuple[str, str, str]]:
     base = root / "tooling/configs/qa"
     packages = npm_packages(decode((base / "script-node/package-lock.json").read_bytes()))
+    packages.extend(npm_packages(decode((root / "ui/package-lock.json").read_bytes())))
     for name in ("script-python-requirements.txt", "script-python-build-requirements.txt"):
         packages.extend(python_packages((base / name).read_text()))
     return sorted(set(packages))

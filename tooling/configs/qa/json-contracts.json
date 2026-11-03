@@ -69,9 +69,14 @@
             "tooling/configs/qa/about.toml",
             "tooling/configs/qa/open-source.json",
             "tooling/configs/qa/tool-versions.json",
+            "tooling/qa/fixtures/licenses/apache-2.0.txt",
             "tooling/qa/wrappers/licenses.sh",
             "tooling/release/legal/generate_dependency_licenses.py",
-            "tooling/release/legal/third-party-notices.hbs"
+            "tooling/release/legal/third-party-notices.hbs",
+            "ui/package-lock.json",
+            "ui/package.json",
+            "ui/src/styles/fonts/golos-ui/LICENSE.txt",
+            "ui/src/styles/fonts/golos-ui/golos-ui-vf.woff2"
           ],
           "additionalProperties": false,
           "properties": {
@@ -100,6 +105,21 @@
               "type": "string"
             },
             "tooling/qa/wrappers/licenses.sh": {
+              "type": "string"
+            },
+            "ui/package.json": {
+              "type": "string"
+            },
+            "ui/package-lock.json": {
+              "type": "string"
+            },
+            "ui/src/styles/fonts/golos-ui/golos-ui-vf.woff2": {
+              "type": "string"
+            },
+            "ui/src/styles/fonts/golos-ui/LICENSE.txt": {
+              "type": "string"
+            },
+            "tooling/qa/fixtures/licenses/apache-2.0.txt": {
               "type": "string"
             }
           }
@@ -10886,7 +10906,8 @@
             "System.Windows.Automation.ValuePattern",
             "System.Windows.Automation.WindowPattern",
             "System.Windows.Forms.SendKeys",
-            "System.Windows.Forms.SystemInformation"
+            "System.Windows.Forms.SystemInformation",
+            "System.Windows.Automation.SelectionItemPattern"
           ],
           "additionalProperties": false,
           "properties": {
@@ -10927,6 +10948,9 @@
               "type": "object"
             },
             "System.Windows.Forms.SystemInformation": {
+              "type": "object"
+            },
+            "System.Windows.Automation.SelectionItemPattern": {
               "type": "object"
             }
           }
@@ -18308,6 +18332,608 @@
           "items": {
             "type": "string"
           }
+        }
+      }
+    },
+    "ui/package.json": {
+      "type": "object",
+      "required": [
+        "name",
+        "version",
+        "private",
+        "type",
+        "license",
+        "scripts",
+        "dependencies",
+        "devDependencies",
+        "overrides"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "private": {
+          "type": "boolean"
+        },
+        "type": {
+          "type": "string"
+        },
+        "license": {
+          "type": "string"
+        },
+        "scripts": {
+          "type": "object",
+          "required": [
+            "sandbox",
+            "build",
+            "preview",
+            "test",
+            "typecheck",
+            "test:browser"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "sandbox": {
+              "type": "string"
+            },
+            "build": {
+              "type": "string"
+            },
+            "preview": {
+              "type": "string"
+            },
+            "test": {
+              "type": "string"
+            },
+            "typecheck": {
+              "type": "string"
+            },
+            "test:browser": {
+              "type": "string"
+            }
+          }
+        },
+        "dependencies": {
+          "type": "object",
+          "required": [
+            "react",
+            "react-dom",
+            "lucide-react",
+            "@fluent/bundle",
+            "@fluent/langneg",
+            "@tauri-apps/api",
+            "@fluent/syntax",
+            "@floating-ui/react-dom"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "react": {
+              "type": "string",
+              "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+            },
+            "react-dom": {
+              "type": "string",
+              "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+            },
+            "lucide-react": {
+              "type": "string",
+              "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+            },
+            "@fluent/bundle": {
+              "type": "string",
+              "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+            },
+            "@fluent/langneg": {
+              "type": "string",
+              "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+            },
+            "@tauri-apps/api": {
+              "type": "string",
+              "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+            },
+            "@fluent/syntax": {
+              "type": "string",
+              "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+            },
+            "@floating-ui/react-dom": {
+              "type": "string",
+              "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+            }
+          }
+        },
+        "devDependencies": {
+          "type": "object",
+          "required": [
+            "vite",
+            "typescript",
+            "@types/react",
+            "@types/react-dom",
+            "@vitejs/plugin-react",
+            "playwright-core",
+            "@types/node"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "vite": {
+              "type": "string",
+              "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+            },
+            "typescript": {
+              "type": "string",
+              "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+            },
+            "@types/react": {
+              "type": "string",
+              "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+            },
+            "@types/react-dom": {
+              "type": "string",
+              "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+            },
+            "@vitejs/plugin-react": {
+              "type": "string",
+              "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+            },
+            "playwright-core": {
+              "type": "string",
+              "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+            },
+            "@types/node": {
+              "type": "string",
+              "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+            }
+          }
+        },
+        "overrides": {
+          "type": "object",
+          "required": [
+            "rolldown"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "rolldown": {
+              "const": "1.2.15"
+            }
+          }
+        }
+      }
+    },
+    "ui/tsconfig.json": {
+      "type": "object",
+      "required": [
+        "compilerOptions",
+        "include"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "compilerOptions": {
+          "type": "object",
+          "required": [
+            "target",
+            "lib",
+            "module",
+            "moduleResolution",
+            "jsx",
+            "strict",
+            "noEmit",
+            "noUnusedLocals",
+            "noUnusedParameters",
+            "allowImportingTsExtensions",
+            "resolveJsonModule",
+            "types",
+            "allowJs"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "target": {
+              "type": "string"
+            },
+            "lib": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "module": {
+              "type": "string"
+            },
+            "moduleResolution": {
+              "type": "string"
+            },
+            "jsx": {
+              "type": "string"
+            },
+            "strict": {
+              "const": true
+            },
+            "noEmit": {
+              "const": true
+            },
+            "noUnusedLocals": {
+              "const": true
+            },
+            "noUnusedParameters": {
+              "const": true
+            },
+            "allowImportingTsExtensions": {
+              "type": "boolean"
+            },
+            "resolveJsonModule": {
+              "type": "boolean"
+            },
+            "types": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "allowJs": {
+              "type": "boolean"
+            }
+          }
+        },
+        "include": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "ui/package-lock.json": {
+      "type": "object",
+      "required": [
+        "name",
+        "version",
+        "lockfileVersion",
+        "requires",
+        "packages"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "const": "@sniptale/desktop-ui"
+        },
+        "version": {
+          "type": "string"
+        },
+        "lockfileVersion": {
+          "const": 3
+        },
+        "requires": {
+          "const": true
+        },
+        "packages": {
+          "type": "object",
+          "required": [
+            ""
+          ],
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "version": {
+                "type": "string"
+              },
+              "license": {
+                "type": "string"
+              },
+              "resolved": {
+                "type": "string",
+                "pattern": "^https://registry\\.npmjs\\.org/"
+              },
+              "integrity": {
+                "type": "string",
+                "pattern": "^sha(256|384|512)-[A-Za-z0-9+/]+=*$"
+              },
+              "dev": {
+                "type": "boolean"
+              },
+              "optional": {
+                "type": "boolean"
+              },
+              "devOptional": {
+                "type": "boolean"
+              },
+              "hasInstallScript": {
+                "type": "boolean"
+              },
+              "inBundle": {
+                "type": "boolean"
+              },
+              "dependencies": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "devDependencies": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "optionalDependencies": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "peerDependencies": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "engines": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "os": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "cpu": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "libc": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "peerDependenciesMeta": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "optional": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              },
+              "funding": {
+                "type": [
+                  "string",
+                  "object",
+                  "array"
+                ]
+              },
+              "bin": {
+                "type": [
+                  "string",
+                  "object"
+                ]
+              },
+              "deprecated": {
+                "type": "string"
+              }
+            }
+          },
+          "patternProperties": {
+            "^node_modules/": {
+              "required": [
+                "version",
+                "resolved",
+                "integrity"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "tauri.conf.json": {
+      "type": "object",
+      "required": [
+        "$schema",
+        "productName",
+        "identifier",
+        "build",
+        "app",
+        "bundle"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "$schema": {
+          "const": "https://schema.tauri.app/config/2"
+        },
+        "productName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "identifier": {
+          "const": "com.sniptale.desktop"
+        },
+        "build": {
+          "type": "object",
+          "required": [
+            "frontendDist",
+            "beforeBuildCommand",
+            "windows"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "frontendDist": {
+              "const": "ui/dist"
+            },
+            "beforeBuildCommand": {
+              "const": "npm --prefix ui run build"
+            },
+            "windows": {
+              "const": {
+                "staticVCRuntime": true
+              }
+            }
+          }
+        },
+        "app": {
+          "type": "object",
+          "required": [
+            "windows",
+            "withGlobalTauri",
+            "security"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "windows": {
+              "const": []
+            },
+            "withGlobalTauri": {
+              "const": false
+            },
+            "security": {
+              "type": "object",
+              "required": [
+                "csp",
+                "capabilities"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "csp": {
+                  "const": "default-src 'self'; connect-src ipc: http://ipc.localhost; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'"
+                },
+                "capabilities": {
+                  "const": [
+                    "capture-panel",
+                    "application-settings"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "bundle": {
+          "type": "object",
+          "required": [
+            "active",
+            "icon",
+            "windows"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "active": {
+              "const": false
+            },
+            "icon": {
+              "const": [
+                "resources/windows/icons/sniptale.ico"
+              ]
+            },
+            "windows": {
+              "const": {
+                "webviewInstallMode": {
+                  "type": "skip"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "capabilities/capture-panel.json": {
+      "type": "object",
+      "required": [
+        "identifier",
+        "description",
+        "local",
+        "windows",
+        "permissions"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "identifier": {
+          "const": "capture-panel"
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "local": {
+          "const": true
+        },
+        "windows": {
+          "const": [
+            "capture-panel"
+          ]
+        },
+        "permissions": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "core:event:allow-listen",
+              "core:event:allow-unlisten",
+              "allow-desktop-capture-snapshot",
+              "allow-desktop-capture-command",
+              "allow-desktop-preferences-snapshot",
+              "allow-desktop-close-panel",
+              "allow-desktop-drag-panel",
+              "allow-desktop-open-settings",
+              "allow-desktop-panel-frame"
+            ]
+          },
+          "minItems": 9,
+          "maxItems": 9
+        }
+      }
+    },
+    "capabilities/application-settings.json": {
+      "type": "object",
+      "required": [
+        "identifier",
+        "description",
+        "local",
+        "windows",
+        "permissions"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "identifier": {
+          "const": "application-settings"
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "local": {
+          "const": true
+        },
+        "windows": {
+          "const": [
+            "application-settings"
+          ]
+        },
+        "permissions": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "core:event:allow-listen",
+              "core:event:allow-unlisten",
+              "allow-desktop-preferences-snapshot",
+              "allow-desktop-preferences-save",
+              "allow-desktop-settings-command",
+              "allow-desktop-close-settings"
+            ]
+          },
+          "minItems": 6,
+          "maxItems": 6
         }
       }
     }
