@@ -68,7 +68,7 @@ def self_test() -> None:
 
 def desktop_capability_schema_self_test() -> None:
     contracts = decode(REGISTRY.read_bytes())["contracts"]
-    for name in ("capture-panel", "application-settings"):
+    for name in ("capture-panel", "application-settings", "application-dialog"):
         path = f"capabilities/{name}.json"
         value = decode((ROOT / path).read_bytes())
         validate(value, contracts[path])

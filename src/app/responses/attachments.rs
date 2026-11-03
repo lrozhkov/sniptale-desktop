@@ -74,15 +74,7 @@ pub(super) fn responses(
             .map(|value| vec![value]),
         WireMessage::ExtensionRecordingAttachmentAck(ack) => {
             match effects.ack_recording_attachment(ack) {
-                Ok(true) => Ok(Vec::new()),
-                Ok(false) => {
-                    return Some(vec![failure(
-                        session,
-                        lease,
-                        recording,
-                        OperationalErrorKind::TransferNotPending,
-                    )]);
-                }
+                Ok(_) => Ok(Vec::new()),
                 Err(error) => Err(error),
             }
         }

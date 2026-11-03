@@ -996,3 +996,36 @@ fn native_host_rejects_settings_sync_with_invalid_hotkey_label() -> Result<(), B
     assert_eq!(values[2]["error"]["code"], "incompatible-settings");
     Ok(())
 }
+
+#[test]
+fn a_durable_recording_ack_for_an_absent_source_is_a_noop_but_a_stale_lease_is_rejected()
+-> Result<(), Box<dyn Error>> {
+    struct AbsentRecording;
+    impl NativeHostSideEffects for AbsentRecording {
+        fn apply_hotkey_plan(
+            &mut self,
+            _: crate::hotkeys::HotkeyRegistrationPlan,
+        ) -> Result<(), NativeHostSideEffectError> {
+            Ok(())
+        }
+    }
+    let mut session = connected_native_host_session()?;
+    let mut value = serde_json::json!({
+        "type":"extension.recording.ack", "protocolVersion":2,
+        "controllerLeaseId":"lease:connection-1", "recordingId":"already-delivered",
+        "receipt":{"durable":true, "sha256":"a".repeat(64), "totalBytes":524_289}
+    });
+    let mut effects = AbsentRecording;
+    for _ in 0..3 {
+        let message = parse_wire_message(&serde_json::to_vec(&value)?)?;
+        assert_eq!(
+            responses_for_message_with_effects(&mut session, &message, &value, &mut effects),
+            Vec::<Value>::new()
+        );
+    }
+    value["controllerLeaseId"] = serde_json::json!("stale-lease");
+    let message = parse_wire_message(&serde_json::to_vec(&value)?)?;
+    let rejected = responses_for_message_with_effects(&mut session, &message, &value, &mut effects);
+    assert_eq!(rejected[0]["error"]["code"], "stale-controller-lease");
+    Ok(())
+}

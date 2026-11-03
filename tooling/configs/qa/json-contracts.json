@@ -18811,7 +18811,8 @@
                 "capabilities": {
                   "const": [
                     "capture-panel",
-                    "application-settings"
+                    "application-settings",
+                    "application-dialog"
                   ]
                 }
               }
@@ -18930,6 +18931,50 @@
               "allow-desktop-preferences-save",
               "allow-desktop-settings-command",
               "allow-desktop-close-settings"
+            ]
+          },
+          "minItems": 6,
+          "maxItems": 6
+        }
+      }
+    },
+    "capabilities/application-dialog.json": {
+      "type": "object",
+      "required": [
+        "identifier",
+        "description",
+        "local",
+        "windows",
+        "permissions"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "identifier": {
+          "const": "application-dialog"
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "local": {
+          "const": true
+        },
+        "windows": {
+          "const": [
+            "application-dialog"
+          ]
+        },
+        "permissions": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "core:event:allow-listen",
+              "core:event:allow-unlisten",
+              "allow-desktop-preferences-snapshot",
+              "allow-desktop-prompt-snapshot",
+              "allow-desktop-prompt-reply",
+              "allow-desktop-prompt-dismiss"
             ]
           },
           "minItems": 6,

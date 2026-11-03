@@ -94,8 +94,28 @@
 .popover-trigger--field:hover:not(:disabled) { border-color: var(--hover-border); }
 .popover-trigger--field[aria-expanded="true"] { border-color: var(--line); }
 
-button:not(.capture-mode-switch) > :is(span, svg), .capture-mode-switch > span > svg { transition: transform 110ms var(--ease); pointer-events: none; }
-button[data-down='true']:not(.capture-mode-switch) > :is(span, svg), .capture-mode-switch[data-down='true'] > span > svg { transform: translateY(1px); transition-duration: 55ms; }
+button > :is(span, svg) { pointer-events: none; }
 .source-option, .quality-option, .settings-theme-choice { user-select: none; }
 
+}
+
+@layer components {
+body:has(.application-dialog-host) { background: transparent; }
+.application-dialog-host { min-block-size: 100dvh; display: grid; place-items: center; padding: 12px; background: transparent; }
+.application-dialog { inline-size: 100%; max-inline-size: 440px; max-block-size: calc(100dvh - 24px); overflow: auto; padding: 24px; background: var(--panel); border-radius: 12px; box-shadow: var(--menu-shadow); }
+.dialog-preview-label { position: fixed; inset-block-start: 2px; inset-inline-start: 12px; color: var(--muted); font-size: 11px; }
+.application-dialog-header { display: flex; justify-content: space-between; align-items: center; margin-block-end: 18px; }
+.dialog-symbol { display: inline-flex; align-items: center; justify-content: center; inline-size: 36px; block-size: 36px; border-radius: 8px; background: var(--input); color: var(--muted); }
+.dialog-symbol svg { inline-size: 20px; block-size: 20px; }
+.application-dialog h1 { font-size: 18px; line-height: 24px; font-weight: 500; margin-block-end: 10px; }
+.application-dialog p { color: var(--muted); line-height: 20px; }
+.application-dialog .error { color: var(--danger); margin-block-start: 12px; }
+.dialog-connection-details { display: grid; gap: 10px; margin: 18px 0 0; padding: 12px; background: var(--input); border-radius: var(--radius); }
+.dialog-connection-details div { display: grid; grid-template-columns: 90px minmax(0, 1fr); gap: 8px; }
+.dialog-connection-details dt { color: var(--muted); }
+.dialog-connection-details dd { margin: 0; overflow-wrap: anywhere; }
+.dialog-connection-details small { display: block; margin-block-start: 3px; color: var(--muted); font-size: 11px; line-height: 16px; }
+.dialog-destinations { display: flex; flex-direction: column; gap: 4px; max-block-size: 180px; overflow: auto; margin-block-start: 18px; }
+.dialog-destinations .tool-button { justify-content: start; white-space: normal; text-align: start; }
+.dialog-destinations span { overflow-wrap: anywhere; }
 }

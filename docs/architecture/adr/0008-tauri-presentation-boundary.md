@@ -41,3 +41,7 @@ Use the system WebView. Do not bundle a complete WebView runtime without an expl
 Measure installer bytes, installed application bytes, additional runtime bytes, and idle RAM as separate values. Record the OS, runtime version, measurement method, and cold or warm conditions. Do not report only the Rust executable size as the application footprint.
 
 Measure the resident agent before opening the panel, with the panel open, and after closing it. Verify release of the UI renderer and its resources while the Rust agent and any active recording continue. Hiding a live WebView is not evidence of resource release. The intended close behavior destroys the presentation window and WebView, preserves backend state, and recreates presentation from the current snapshot when reopened.
+
+## Application prompts
+
+Connection consent, capture destination choice, and recording-exit confirmation use the shared web components. Rust owns each pending prompt and its deadline. Only the local `application-dialog` window can submit a reply. Rust rejects expired, duplicate, stale, and invalid choices. Closing the window denies consent or retains the capture. The prompt window has no capture, settings-write, file, or shell permissions. Windows still owns folder selection and operating-system permission dialogs.

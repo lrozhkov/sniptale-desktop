@@ -1,3 +1,6 @@
+import { DialogPreview } from './sandbox/dialog-preview';
+import { ApplicationDialog } from './components/application-dialog';
+import { tauriPromptClient } from './client/tauri';
 import { useEffect } from 'react';
 import { localeDescriptor } from './localization/formatter';
 import { Localization } from './localization';
@@ -25,7 +28,9 @@ export function App() {
     return () => media.removeEventListener('change', apply);
   }, [theme]);
   useEffect(() => { document.documentElement.lang = locale; document.documentElement.dir = localeDescriptor(locale).direction; }, [locale]);
-  return <Localization locale={locale}>{location.pathname === '/settings'
+  return <Localization locale={locale}>{location.pathname === '/dialog'
+    ? desktop ? <ApplicationDialog client={tauriPromptClient} /> : <DialogPreview />
+    : location.pathname === '/settings'
     ? desktop ? <DesktopSettings value={value} save={save} failed={failed} client={tauriSettingsClient} /> : <SettingsPreview value={value} save={save} failed={failed} />
     : location.pathname === '/sandbox'
       ? <Sandbox theme={theme} setTheme={(theme) => save({ theme })} setLocale={(locale) => save({ locale })} />

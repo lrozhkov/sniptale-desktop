@@ -43,3 +43,9 @@ export const tauriPanelFrameClient: PanelFrameClient = {
   layout: async (request) => parsePanelInsets(await invoke<unknown>('desktop_panel_frame', {request})),
   drag: dragDesktopPanel,
 };
+
+export const tauriPromptClient: import('./prompts').PromptClient = {
+  snapshot: async () => (await import('./prompts')).parsePromptView(await invoke<unknown>('desktop_prompt_snapshot')),
+  reply: (generation, choice) => invoke<void>('desktop_prompt_reply', {reply:{generation, choice}}),
+  dismiss: () => invoke<void>('desktop_prompt_dismiss'),
+};

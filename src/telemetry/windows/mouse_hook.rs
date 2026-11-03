@@ -14,8 +14,7 @@ use windows::Win32::{
     Foundation::{LPARAM, LRESULT, WPARAM},
     System::SystemInformation::GetTickCount64,
     UI::WindowsAndMessaging::{
-        CURSOR_SHOWING, CURSORINFO, CallNextHookEx, GetCursorInfo, HHOOK, LLMHF_INJECTED, MSG,
-        MSLLHOOKSTRUCT, PM_NOREMOVE, PeekMessageW, SetWindowsHookExW, UnhookWindowsHookEx,
+        CURSOR_SHOWING, CURSORINFO, CallNextHookEx, GetCursorInfo, LLMHF_INJECTED, MSLLHOOKSTRUCT,
         WH_MOUSE_LL, WM_LBUTTONDOWN, WM_LBUTTONUP, WM_MBUTTONDOWN, WM_MBUTTONUP, WM_MOUSEMOVE,
         WM_RBUTTONDOWN, WM_RBUTTONUP, WM_XBUTTONDOWN, WM_XBUTTONUP, XBUTTON1, XBUTTON2,
     },
@@ -31,14 +30,6 @@ const MOUSE_HOOK_QUEUE_CAPACITY: usize = 1024;
 pub(crate) fn current_boot_ms() -> u64 {
     // SAFETY: GetTickCount64 has no pointer or resource arguments and returns a scalar boot clock.
     unsafe { GetTickCount64() }
-}
-
-pub(crate) fn pump_current_thread_hook_messages() {
-    let mut message = MSG::default();
-    // SAFETY: called on the hook-installing telemetry thread before taking queue locks.
-    // PeekMessage dispatches pending nonqueued sent messages, including low-level hook callbacks;
-    // stack output remains live for the call and PM_NOREMOVE preserves unrelated posted messages.
-    let _ = unsafe { PeekMessageW(&raw mut message, None, 0, 0, PM_NOREMOVE) };
 }
 
 static MOUSE_HOOK_STATE: OnceLock<Mutex<MouseHookState>> = OnceLock::new();
@@ -68,7 +59,7 @@ pub(crate) enum WindowsMouseTelemetryHookError {
 
 #[derive(Debug)]
 pub(crate) struct WindowsMouseTelemetryHook {
-    handle: HHOOK,
+    thread: super::hook_thread::HookThread,
 }
 
 impl WindowsMouseTelemetryHook {
@@ -86,22 +77,20 @@ impl WindowsMouseTelemetryHook {
             state.hook_installed = true;
         }
 
-        // SAFETY: installs a low-level mouse hook for this process callback. The callback copies
-        // scalar pointer data immediately, does not block, and stores bounded sanitized events.
-        let Ok(handle) =
-            (unsafe { SetWindowsHookExW(WH_MOUSE_LL, Some(mouse_hook_proc), None, 0) })
+        let Ok(thread) =
+            super::hook_thread::HookThread::install(WH_MOUSE_LL, Some(mouse_hook_proc))
         else {
             clear_installed_flag();
             return Err(WindowsMouseTelemetryHookError::InstallFailed);
         };
-        Ok(Self { handle })
+        Ok(Self { thread })
     }
 
     pub(crate) fn drain_events(
         &mut self,
         source_cutoff_ms: Option<u64>,
     ) -> io::Result<WindowsMouseSnapshot> {
-        if self.handle.0.is_null() {
+        if self.thread.is_finished() {
             return Err(io::Error::other("telemetry hook is unavailable"));
         }
         mouse_hook_state()
@@ -132,8 +121,8 @@ impl WindowsMouseTelemetryHook {
 
 impl Drop for WindowsMouseTelemetryHook {
     fn drop(&mut self) {
-        // SAFETY: RAII owner unhooks the HHOOK returned by SetWindowsHookExW exactly once.
-        let _ = unsafe { UnhookWindowsHookEx(self.handle) };
+        // Stop dispatch before clearing global state or allowing a replacement hook.
+        self.thread.stop();
         clear_installed_flag();
     }
 }

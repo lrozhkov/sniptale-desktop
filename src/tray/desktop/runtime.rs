@@ -1,6 +1,8 @@
 //! System-WebView lifecycle. Application state remains behind `DesktopBackend`.
 
 mod commands;
+mod prompts;
+pub(crate) use prompts::show as show_prompt;
 mod windows;
 
 use std::sync::{
@@ -48,7 +50,16 @@ impl DesktopRuntime {
         let window_restore = restore.clone();
         tauri::Builder::default()
             .manage(commands::Backend(backend))
+            .manage(super::prompts::PromptState::default())
             .on_window_event(move |window, event| {
+                if window.label() == "application-dialog"
+                    && matches!(event, tauri::WindowEvent::Destroyed)
+                {
+                    window
+                        .app_handle()
+                        .state::<super::prompts::PromptState>()
+                        .dismiss();
+                }
                 if matches!(event, tauri::WindowEvent::Destroyed)
                     || (window.label() == "capture-panel"
                         && matches!(event, tauri::WindowEvent::CloseRequested { .. }))
@@ -68,6 +79,9 @@ impl DesktopRuntime {
                 commands::desktop_panel_frame,
                 commands::desktop_close_panel,
                 commands::desktop_drag_panel,
+                prompts::desktop_prompt_snapshot,
+                prompts::desktop_prompt_reply,
+                prompts::desktop_prompt_dismiss,
             ])
             .build(context)
             .map(|app| Self(app, restore))
@@ -75,11 +89,24 @@ impl DesktopRuntime {
     }
 
     pub(crate) fn handle(&self) -> DesktopHandle {
-        DesktopHandle(self.0.handle().clone(), self.1.clone())
+        let handle = DesktopHandle(self.0.handle().clone(), self.1.clone());
+        prompts::register(handle.clone());
+        handle
     }
 
     pub(crate) fn run(self) -> Result<(), DesktopRuntimeError> {
-        let code = self.0.run_return(|_, event| {
+        let code = self.0.run_return(|app, event| {
+            if let tauri::RunEvent::WindowEvent {
+                label,
+                event: tauri::WindowEvent::Destroyed,
+                ..
+            } = &event
+                && label == "application-dialog"
+            {
+                // Tauri removes the old window from its manager before this callback.
+                // The per-window listener runs earlier and only supplies safe cancellation.
+                app.state::<super::prompts::PromptState>().end();
+            }
             if let tauri::RunEvent::ExitRequested {
                 code: None, api, ..
             } = event
@@ -180,7 +207,11 @@ impl DesktopHandle {
         preferences: super::model::UiPreferences,
     ) -> Result<(), super::model::DesktopError> {
         use tauri::Emitter;
-        for label in ["capture-panel", "application-settings"] {
+        for label in [
+            "capture-panel",
+            "application-settings",
+            "application-dialog",
+        ] {
             if let Some(window) = self.0.get_webview_window(label) {
                 windows::apply_preferences(&window, preferences)?;
                 self.0

@@ -281,8 +281,8 @@
         "locations": [
           {
             "path": "src/telemetry/windows/mouse_hook.rs",
-            "startLine": 165,
-            "endLine": 165,
+            "startLine": 154,
+            "endLine": 154,
             "sourceSha256": "d2a7a13833cf8ee941dc3970ee666780e69c9f11aaeb20a2d066f40f76339fd5"
           }
         ]
@@ -314,8 +314,8 @@
         "locations": [
           {
             "path": "src/telemetry/windows/mouse_hook.rs",
-            "startLine": 166,
-            "endLine": 166,
+            "startLine": 155,
+            "endLine": 155,
             "sourceSha256": "ffc9eaf6db26155de54d7ff14736c567a45a477a12fc93e2f9597f9164749b91"
           }
         ]
@@ -347,8 +347,8 @@
         "locations": [
           {
             "path": "src/telemetry/windows/mouse_hook.rs",
-            "startLine": 167,
-            "endLine": 167,
+            "startLine": 156,
+            "endLine": 156,
             "sourceSha256": "66f40cfa2b2efa2b8b852638055c876bbd8564df967d5dddf053cfa239dd0603"
           }
         ]
@@ -380,8 +380,8 @@
         "locations": [
           {
             "path": "src/telemetry/windows/mouse_hook.rs",
-            "startLine": 168,
-            "endLine": 168,
+            "startLine": 157,
+            "endLine": 157,
             "sourceSha256": "ec037886facb00cd48ea0881fc9ca60a54d4fb7b321de14ba2bd96162edc1612"
           }
         ]
@@ -413,8 +413,8 @@
         "locations": [
           {
             "path": "src/telemetry/windows/mouse_hook.rs",
-            "startLine": 169,
-            "endLine": 169,
+            "startLine": 158,
+            "endLine": 158,
             "sourceSha256": "8a5c9fdd3817343015aa0af0a49266bd1cdea0fd2036ec06378a6960c4ed17ed"
           }
         ]
@@ -446,8 +446,8 @@
         "locations": [
           {
             "path": "src/telemetry/windows/mouse_hook.rs",
-            "startLine": 170,
-            "endLine": 170,
+            "startLine": 159,
+            "endLine": 159,
             "sourceSha256": "b228e9da539ed7e566f28561e161bc417d6d97b37827cd0d51e179d255994ce3"
           }
         ]
@@ -479,8 +479,8 @@
         "locations": [
           {
             "path": "src/telemetry/windows/mouse_hook.rs",
-            "startLine": 171,
-            "endLine": 171,
+            "startLine": 160,
+            "endLine": 160,
             "sourceSha256": "72d6671ac0e8970f3ac7a809f3439ec29a4f1c383584edfb19fd1da325021885"
           }
         ]
@@ -512,8 +512,8 @@
         "locations": [
           {
             "path": "src/telemetry/windows/mouse_hook.rs",
-            "startLine": 172,
-            "endLine": 172,
+            "startLine": 161,
+            "endLine": 161,
             "sourceSha256": "9ade7288efcfe89f75d715745ceaddea6425e17d269678cd3ab9f9ea19d49495"
           }
         ]

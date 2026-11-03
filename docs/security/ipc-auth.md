@@ -18,6 +18,8 @@ A trusted observer may register a browser/profile target but cannot select it, m
 
 Pending announcements are batched and forget acknowledged IDs. A new lease resets the announcement projection.
 
+A durable recording or history ACK for an absent pending transfer causes no change. It does not recreate media or claim new publication. Pending sources still require matching receipts and the selected target. Stale leases and storage failures remain errors.
+
 Hello, trust, and heartbeat waits are bounded independently. A heartbeat does not extend the trust-consent deadline. Explicit Quit persists a startup guard before notifying live browser connections, and automatic reconnect cannot bypass it. User-requested reconnect and manual resident launch remain explicit startup actions.
 
 Corrupt, oversized, wrong-user, wrong-install, unsupported-algorithm, or unprotectable credentials fail closed and are never silently replaced by startup. Explicit uninstall and clean reinstall remove authorization state and permit a fresh credential. Previous sessions cannot authenticate against it.

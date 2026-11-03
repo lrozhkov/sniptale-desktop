@@ -12,7 +12,7 @@ use tauri::{Manager, State, WebviewWindow};
 pub(super) struct Backend(pub(super) Arc<dyn DesktopBackend>);
 
 #[cfg(not(test))]
-fn authorize(window: &WebviewWindow, labels: &[&str]) -> Result<(), DesktopError> {
+pub(super) fn authorize(window: &WebviewWindow, labels: &[&str]) -> Result<(), DesktopError> {
     let url = window.url().map_err(|_| DesktopError::UntrustedWindow)?;
     if !labels.contains(&window.label()) || !super::windows::trusted_location(&url) {
         return Err(DesktopError::UntrustedWindow);
@@ -55,7 +55,14 @@ pub(super) async fn desktop_preferences_snapshot(
     window: WebviewWindow,
     backend: State<'_, Backend>,
 ) -> Result<UiPreferences, DesktopError> {
-    authorize(&window, &["capture-panel", "application-settings"])?;
+    authorize(
+        &window,
+        &[
+            "capture-panel",
+            "application-settings",
+            "application-dialog",
+        ],
+    )?;
     drop(window);
     let backend = backend.0.clone();
     tauri::async_runtime::spawn_blocking(move || backend.preferences())

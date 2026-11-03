@@ -55,6 +55,9 @@ export function Sandbox({ theme, setTheme, setLocale }: {
       <nav className="sandbox-navigation" aria-label={t('web-sandbox')}>
         <a href="#capture" aria-current="page"><Camera /><span>{t('web-capture-toolbar')}</span></a>
         <a href="/settings?preview=1" target="sniptale-app-settings"><Settings2 /><span>{t('web-app-settings')}</span></a>
+        <a href="/dialog?preview=1" target="sniptale-dialog-preview">{t('web-dialog-connection-title')}</a>
+        <a href="/dialog?preview=1&kind=destination" target="sniptale-dialog-preview">{t('web-dialog-destination-title')}</a>
+        <a href="/dialog?preview=1&kind=quit-recording" target="sniptale-dialog-preview">{t('web-dialog-quit-recording-title')}</a>
         <p>{t('web-sandbox-note')}</p>
       </nav>
       <section className="sandbox-content" id="capture">

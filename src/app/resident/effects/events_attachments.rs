@@ -91,6 +91,9 @@ impl AgentSideEffects {
         &self,
         ack: &ExtensionRecordingEventsAckMessage,
     ) -> Result<bool, NativeHostSideEffectError> {
+        if !self.recording_receipt_assignment_exists(&ack.recording_id)? {
+            return Ok(false);
+        }
         let mut archive = self.events_archive(&ack.recording_id, &ack.event_stream_id, true)?;
         archive
             .accept_event_receipt(&ack.receipt)

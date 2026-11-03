@@ -7,9 +7,6 @@ use crate::telemetry::windows::{WindowsKeyObservation, WindowsMouseEvent};
 #[cfg(windows)]
 impl RuntimeRecordingTelemetrySource {
     pub(super) fn drain_runtime_events(&mut self, monotonic_ns: u64, record: bool) {
-        if self.keyboard_hook.is_some() || self.mouse_hook.is_some() {
-            crate::telemetry::windows::pump_current_thread_hook_messages();
-        }
         let Some(recording_id) = self.recording_id.clone() else {
             return;
         };

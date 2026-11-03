@@ -304,3 +304,20 @@ web-scenario-window-lost = Окно стало недоступно
 
 native-settings-title = Настройки Sniptale
 native-capture-title = Захват Sniptale
+
+web-dialog-connection-title = Разрешить подключение браузера?
+web-dialog-connection-body = Разрешить этому расширению и приложению запускать соединение с установленным Sniptale
+web-dialog-extension = Расширение
+web-dialog-launcher = Приложение
+web-dialog-launcher-diagnostic = Сведения о приложении служат для диагностики и не подтверждают подлинность браузера
+web-dialog-allow = Разрешить
+web-dialog-deny = Отклонить
+web-dialog-destination-title = Куда сохранить захват?
+web-dialog-destination-body = Локальная копия сохранена в выбранной папке. Можно также отправить её в браузер
+web-dialog-destination-retained = Сохранить в папку не удалось. Захват сохранён для восстановления. Отправьте его в браузер или оставьте на потом
+web-dialog-local-folder = Локальная папка
+web-dialog-later = Оставить на потом
+web-dialog-quit-recording-title = Остановить запись и выйти?
+web-dialog-quit-recording-body = Sniptale остановит и сохранит текущую запись перед выходом
+web-dialog-stop-exit = Сохранить и выйти
+web-dialog-unavailable = Диалог больше недоступен. Закройте его и повторите действие

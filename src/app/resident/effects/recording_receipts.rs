@@ -11,6 +11,25 @@ use crate::{
 };
 
 impl AgentSideEffects {
+    pub(super) fn recording_receipt_assignment_exists(
+        &self,
+        recording: &str,
+    ) -> Result<bool, NativeHostSideEffectError> {
+        let target = self
+            .browser_target_id
+            .as_deref()
+            .ok_or(NativeHostSideEffectError::RecordingTransferState)?;
+        match self
+            .assignment_store()?
+            .target(recording, BrowserMediaKind::Recording)
+            .map_err(|_| NativeHostSideEffectError::RecordingTransferState)?
+        {
+            None => Ok(false),
+            Some(assigned) if assigned == target => Ok(true),
+            Some(_) => Err(NativeHostSideEffectError::RecordingTransferState),
+        }
+    }
+
     pub(super) fn accept_video_attachment_receipt(
         &mut self,
         recording: &str,
