@@ -30,10 +30,14 @@ class WindowsDependencyTests(unittest.TestCase):
     def test_system_imports_pass_but_runtime_and_other_external_dlls_fail(self):
         for name, accepted in (
             (b"KERNEL32.dll", True),
+            (b"IMM32.dll", True),
+            (b"Shlwapi.dll", True),
             (b"api-ms-win-crt-heap-l1-1-0.dll", True),
             (b"VCRUNTIME140.dll", False),
             (b"MSVCP140.dll", False),
             (b"thirdparty.dll", False),
+            (b"imm32-custom.dll", False),
+            (b"ShlwapiPlugin.dll", False),
         ):
             with self.subTest(name=name), tempfile.TemporaryDirectory() as directory:
                 path = Path(directory) / "agent.exe"

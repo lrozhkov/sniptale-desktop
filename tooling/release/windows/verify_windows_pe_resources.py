@@ -6,10 +6,12 @@ from __future__ import annotations
 import struct
 import sys
 import re
+from collections.abc import Iterator
 from pathlib import Path
 
 
 RT_GROUP_ICON = 14
+RT_VERSION = 16
 RT_MANIFEST = 24
 WINDOWS_GUI_SUBSYSTEM = 2
 
@@ -53,23 +55,31 @@ def checked_slice(payload: bytes, offset: int, size: int) -> bytes:
     return payload[offset : offset + size]
 
 
-def rva_to_file_offset(sections: list[tuple[int, int, int, int]], rva: int) -> int:
+def rva_to_file_offset(sections: list[tuple[int, int, int, int]], rva: int, size: int = 1) -> int:
     for virtual_address, virtual_size, raw_offset, raw_size in sections:
         span = max(virtual_size, raw_size)
         if virtual_address <= rva < virtual_address + span:
+            if rva - virtual_address + size > raw_size:
+                raise PeResourceError("resource RVA has no complete file data")
             return raw_offset + (rva - virtual_address)
     raise PeResourceError("resource RVA is outside PE sections")
 
 
-def directory_entry(payload: bytes, base: int, directory_offset: int, resource_id: int) -> int:
+def directory_entries(payload: bytes, base: int, directory_offset: int) -> Iterator[tuple[int, int]]:
     offset = base + directory_offset
     checked_slice(payload, offset, 16)
     count = read_u16(payload, offset + 12) + read_u16(payload, offset + 14)
+    checked_slice(payload, offset + 16, count * 8)
     for index in range(count):
         entry = offset + 16 + (index * 8)
         checked_slice(payload, entry, 8)
         name = read_u32(payload, entry)
         value = read_u32(payload, entry + 4)
+        yield name, value
+
+
+def directory_entry(payload: bytes, base: int, directory_offset: int, resource_id: int) -> int:
+    for name, value in directory_entries(payload, base, directory_offset):
         if name == resource_id:
             return value
     raise PeResourceError(f"missing resource id {resource_id}")
@@ -99,10 +109,59 @@ def resource_data_size(payload: bytes, base: int, type_id: int, name_id: int) ->
     return size
 
 
+def verify_identity_resources(
+    payload: bytes, sections: list[tuple[int, int, int, int]], base: int, resource_size: int
+) -> None:
+    # Each real directory entry occupies eight bytes. Reused/cyclic tables cannot
+    # multiply traversal beyond the declared resource bytes.
+    remaining = resource_size // 8
+
+    def entries(offset: int) -> Iterator[tuple[int, int]]:
+        nonlocal remaining
+        if not 0 <= offset <= resource_size - 16:
+            raise PeResourceError("metadata directory is outside resource bounds")
+        count = read_u16(payload, base + offset + 12) + read_u16(payload, base + offset + 14)
+        if offset + 16 + count * 8 > resource_size:
+            raise PeResourceError("metadata directory entries exceed resource bounds")
+        for entry in directory_entries(payload, base, offset):
+            remaining -= 1
+            if remaining < 0:
+                raise PeResourceError("metadata directory traversal exceeds resource bounds")
+            yield entry
+
+    for kind, type_entry in entries(0):
+        if kind not in (RT_VERSION, RT_MANIFEST):
+            continue
+        if not type_entry & 0x80000000:
+            raise PeResourceError("metadata resource type is not a directory")
+        names = 0
+        for _name, name_entry in entries(type_entry & 0x7FFFFFFF):
+            names += 1
+            if not name_entry & 0x80000000:
+                raise PeResourceError("metadata resource has no language directory")
+            languages = 0
+            for _language, data_entry in entries(name_entry & 0x7FFFFFFF):
+                languages += 1
+                if data_entry & 0x80000000 or data_entry > resource_size - 16:
+                    raise PeResourceError("invalid metadata resource data entry")
+                rva = read_u32(payload, base + data_entry)
+                size = read_u32(payload, base + data_entry + 4)
+                if size == 0:
+                    raise PeResourceError("empty metadata resource")
+                data = checked_slice(payload, rva_to_file_offset(sections, rva, size), size)
+                if retired_identity_strings(Path("Sniptale.exe"), data):
+                    label = "VERSIONINFO" if kind == RT_VERSION else "manifest"
+                    raise PeResourceError(f"{label} metadata contains a retired product root")
+            if not languages:
+                raise PeResourceError("metadata resource has no languages")
+        if not names:
+            raise PeResourceError("metadata resource has no names")
+
+
 def verify(path: Path) -> None:
     payload = path.read_bytes()
-    if retired_identity_strings(path, payload):
-        raise PeResourceError("built executable filename or metadata contains a retired product root")
+    if retired_identity_strings(path, b""):
+        raise PeResourceError("built executable filename contains a retired product root")
     if checked_slice(payload, 0, 2) != b"MZ":
         raise PeResourceError("missing DOS signature")
     pe_offset = read_u32(payload, 0x3C)
@@ -135,8 +194,9 @@ def verify(path: Path) -> None:
                 read_u32(payload, offset + 16),
             )
         )
-    resource_base = rva_to_file_offset(sections, resource_rva)
+    resource_base = rva_to_file_offset(sections, resource_rva, resource_size)
     checked_slice(payload, resource_base, resource_size)
+    verify_identity_resources(payload, sections, resource_base, resource_size)
     for icon_id in (101, 102, 103):
         resource_data_size(payload, resource_base, RT_GROUP_ICON, icon_id)
     resource_data_size(payload, resource_base, RT_MANIFEST, 1)
