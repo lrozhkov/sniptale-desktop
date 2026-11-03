@@ -21,6 +21,8 @@ SYSTEM_DLLS = {
     "dwmapi.dll",
     "dwrite.dll",
     "gdi32.dll",
+    # Tauri IME support: learn.microsoft.com/windows/win32/api/imm/nf-imm-immgetcontext
+    "imm32.dll",
     "kernel32.dll",
     "mfplat.dll",
     "mfreadwrite.dll",
@@ -32,6 +34,8 @@ SYSTEM_DLLS = {
     "rpcrt4.dll",
     "secur32.dll",
     "shell32.dll",
+    # Windows shell utilities: learn.microsoft.com/windows/win32/api/shlwapi/nf-shlwapi-pathfileexistsw
+    "shlwapi.dll",
     "ucrtbase.dll",
     "user32.dll",
     "userenv.dll",
