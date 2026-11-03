@@ -11,10 +11,16 @@ param(
   [int] $TimeoutMs = 30000,
   [switch] $SkipCheckpoint,
   [switch] $DevLocalTrust,
+  [switch] $UnsignedDev,
+  [ValidateSet("release", "dev")][string] $BuildProfile = "release",
   [switch] $KeepLogs
 )
 
 $ErrorActionPreference = "Stop"
+if (($UnsignedDev -and (-not $DevLocalTrust -or $Channel -ne "dev")) -or
+    ($BuildProfile -eq "dev" -and -not $UnsignedDev)) {
+  throw "Unsigned dev builds require dev channel and explicit dev-local trust"
+}
 Set-StrictMode -Version Latest
 if ([string]::IsNullOrWhiteSpace($env:CARGO_INCREMENTAL)) {
   $env:CARGO_INCREMENTAL = "0"
@@ -930,7 +936,11 @@ try {
   }
   Invoke-Step "build windows-msvc release executable" {
     $env:SNIPTALE_WINDOWS_RESOURCES = "require"
-    cargo build --release --target x86_64-pc-windows-msvc --bin sniptale-native-agent --all-features
+    if ($BuildProfile -eq "release") {
+      cargo build --release --target x86_64-pc-windows-msvc --bin sniptale-native-agent --all-features
+    } else {
+      cargo build --target x86_64-pc-windows-msvc --bin sniptale-native-agent --all-features
+    }
   }
 
   $outDir = ".tmp\release\windows-$Channel"
@@ -950,7 +960,8 @@ try {
   )
 
   $targetRoot = if ($env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR } else { "target" }
-  $exePath = Join-Path $targetRoot "x86_64-pc-windows-msvc\release\sniptale-native-agent.exe"
+  $profileDirectory = if ($BuildProfile -eq "release") { "release" } else { "debug" }
+  $exePath = Join-Path $targetRoot "x86_64-pc-windows-msvc\$profileDirectory\sniptale-native-agent.exe"
   Invoke-Step "verify Windows executable resources" {
     python tooling/release/windows/verify_windows_pe_resources.py $exePath
   }
@@ -972,8 +983,11 @@ try {
   Copy-Item "NOTICE" $stageNotice -Force
   Copy-Item "THIRD_PARTY_NOTICES.md" $stageThirdPartyNotices -Force
   Copy-Item "THIRD_PARTY_DEPENDENCIES.json" $stageThirdPartyDependencies -Force
-  if ($DevLocalTrust) {
+  if ($DevLocalTrust -and -not $UnsignedDev) {
     Sign-DevExecutable $stageExe
+  }
+  if ($UnsignedDev -and (Get-AuthenticodeSignature -LiteralPath $stageExe).Status -ne "NotSigned") {
+    throw "Unsigned dev smoke requires an unsigned executable"
   }
 
   Invoke-Step "build windows msi" {

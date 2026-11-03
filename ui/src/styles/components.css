@@ -38,7 +38,7 @@
   background: var(--panel); border-radius: var(--toolbar-radius); box-shadow: var(--toolbar-shadow);
   max-inline-size: 100%; min-block-size: 50px; flex-wrap: wrap; justify-content: center;
 }
-.drag-handle { padding-inline: 0; color: var(--subtle); cursor: grab; touch-action: none; }
+.drag-handle { flex: 0 0 24px; inline-size: 24px; padding-inline: 0; color: var(--muted); cursor: grab; touch-action: none; }
 .drag-handle:active { cursor: grabbing; }
 .drag-handle svg { inline-size: 14px; }
 .toolbar-divider { inline-size: 1px; block-size: 20px; background: var(--line); margin-inline: 3px; flex-shrink: 0; }
@@ -63,7 +63,6 @@
 @media (max-width: 600px) {
   .capture-toolbar { gap: 3px; flex-wrap: wrap; justify-content: center; }
   .capture-toolbar .primary-button { padding-inline: 9px; }
-  .drag-handle { display: none; }
 }
 /* Compact two-mode control follows the Crop Selection toolbar. */
 .capture-mode-switch { display: inline-flex; align-items: center; gap: 0; padding: 0; border: 0; border-radius: var(--radius); background: var(--input); flex-shrink: 0; }
