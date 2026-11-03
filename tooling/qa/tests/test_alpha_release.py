@@ -264,6 +264,65 @@ class AlphaArtifactTests(unittest.TestCase):
             with self.subTest(mutation=mutation), self.assertRaises(ValueError):
                 acceptance.verified_tests(value, self.commit)
 
+        generated = copy.deepcopy(receipt)
+        generated["dirty_state_sha256"] = "b" * 64
+        acceptance.verified_tests(generated, self.commit, source_fingerprint="b" * 64)
+        with self.assertRaises(ValueError):
+            acceptance.verified_tests(generated, self.commit, source_fingerprint="c" * 64)
+
+    def test_generated_frontend_requires_clean_source_and_verified_candidate_bytes(self):
+        import hashlib
+
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name) / "source"
+            root.mkdir()
+            (root / "ui/src").mkdir(parents=True)
+            (root / "ui/src/app.ts").write_text("export {};\n")
+            (root / "tauri.conf.json").write_text("{}\n")
+            (root / ".gitignore").write_text("ui/dist/\n")
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            subprocess.run(["git", "-C", str(root), "add", "."], check=True)
+            subprocess.run(
+                [
+                    "git",
+                    "-C",
+                    str(root),
+                    "-c",
+                    "user.name=Unit",
+                    "-c",
+                    "user.email=unit@example.invalid",
+                    "commit",
+                    "-qm",
+                    "fixture",
+                ],
+                check=True,
+            )
+            commit = subprocess.check_output(["git", "-C", str(root), "rev-parse", "HEAD"], text=True).strip()
+            bundle = Path(name) / "bundle"
+            self.frontend(root / "ui/dist")
+            self.frontend(bundle / "qa/frontend")
+            with mock.patch.object(acceptance, "ROOT", root), mock.patch.object(artifacts, "ROOT", root):
+                fingerprint = acceptance.candidate_source_fingerprint(bundle, commit)
+                self.assertNotEqual(fingerprint, hashlib.sha256(b"").hexdigest())
+                (root / "ui/src/app.ts").write_text("unreviewed source\n")
+                with self.assertRaisesRegex(ValueError, "clean source checkout"):
+                    acceptance.candidate_source_fingerprint(bundle, commit)
+                (root / "ui/src/app.ts").write_text("export {};\n")
+                untracked = root / "ui/src/extra.ts"
+                untracked.write_text("unreviewed source\n")
+                with self.assertRaisesRegex(ValueError, "clean source checkout"):
+                    acceptance.candidate_source_fingerprint(bundle, commit)
+                untracked.unlink()
+                (root / "ui/dist/assets/app-123.css").write_text(
+                    "@font-face{src:url(/assets/font-123.woff2)}body{color:red}"
+                )
+                with self.assertRaisesRegex(ValueError, "frontend differs"):
+                    acceptance.candidate_source_fingerprint(bundle, commit)
+                shutil.copyfile(bundle / "qa/frontend/assets/app-123.css", root / "ui/dist/assets/app-123.css")
+                self.assertEqual(acceptance.candidate_source_fingerprint(bundle, commit), fingerprint)
+                with self.assertRaisesRegex(ValueError, "commit mismatch"):
+                    acceptance.candidate_source_fingerprint(bundle, "f" * 40)
+
     def test_publication_cannot_use_an_environment_audit_for_another_commit(self):
         environment = {
             "GITHUB_REF": "refs/heads/main",
