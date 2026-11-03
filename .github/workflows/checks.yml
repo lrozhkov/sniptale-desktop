@@ -2,8 +2,29 @@
   "name": "Canonical checks",
   "on": {
     "pull_request": {},
-    "workflow_dispatch": {},
-    "workflow_call": {}
+    "workflow_dispatch": {
+      "inputs": {
+        "release": {
+          "description": "Run complete release proof",
+          "type": "boolean",
+          "default": false
+        }
+      }
+    },
+    "workflow_call": {
+      "inputs": {
+        "release": {
+          "description": "Run complete release proof",
+          "type": "boolean",
+          "default": false
+        }
+      }
+    },
+    "schedule": [
+      {
+        "cron": "17 2 * * *"
+      }
+    ]
   },
   "permissions": {
     "contents": "read"
@@ -91,6 +112,11 @@
           }
         },
         {
+          "name": "Select canonical proof scope",
+          "id": "scope",
+          "run": "python3 -m tooling.qa.runtime.cli plan --github-output"
+        },
+        {
           "name": "Restore pinned script tools",
           "uses": "actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9",
           "with": {
@@ -104,7 +130,8 @@
         },
         {
           "name": "Install pinned UI browser and system dependencies",
-          "run": "source tooling/qa/runtime/script-tools-env.sh\nscript_tools_env \"$PWD\" --require-node\nnode ui/node_modules/playwright-core/cli.js install --with-deps chromium"
+          "run": "source tooling/qa/runtime/script-tools-env.sh\nscript_tools_env \"$PWD\" --require-node\nnode ui/node_modules/playwright-core/cli.js install --with-deps chromium",
+          "if": "steps.scope.outputs.ui == 'true'"
         },
         {
           "name": "Download same-run lint proof",
@@ -116,7 +143,8 @@
         },
         {
           "name": "Install pinned Rust",
-          "run": "python3 tooling/qa/runtime/toolchain.py --install-rust"
+          "run": "python3 tooling/qa/runtime/toolchain.py --install-rust",
+          "if": "steps.scope.outputs.rust == 'true' || steps.scope.outputs.scripts == 'true'"
         },
         {
           "uses": "actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9",
@@ -124,15 +152,22 @@
             "path": "~/.cargo/registry\n~/.cargo/git\n~/.cargo/bin/cargo-audit\n~/.cargo/bin/cargo-deny\n~/.cargo/bin/cargo-about\n~/.cargo/bin/cargo-nextest\n~/.cargo/bin/cargo-llvm-cov\n.tmp/qa-tools",
             "key": "release-tools-ubuntu24-${{ hashFiles('tooling/configs/qa/tool-versions.json', 'Cargo.lock') }}"
           },
-          "id": "release-tools"
+          "id": "release-tools",
+          "if": "steps.scope.outputs.rust == 'true'"
+        },
+        {
+          "name": "Install pinned test runner",
+          "if": "steps.scope.outputs.rust == 'true' && !(inputs.release == true || github.event_name == 'schedule')",
+          "run": "tooling/qa/installers/install-release-tools.sh --nextest-only"
         },
         {
           "name": "Install release tools",
-          "run": "tooling/qa/installers/install-release-tools.sh"
+          "run": "tooling/qa/installers/install-release-tools.sh",
+          "if": "inputs.release == true || github.event_name == 'schedule'"
         },
         {
           "name": "Save prepared tools before QA",
-          "if": "steps.release-tools.outputs.cache-hit != 'true'",
+          "if": "(inputs.release == true || github.event_name == 'schedule') && steps.release-tools.outputs.cache-hit != 'true'",
           "uses": "actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9",
           "with": {
             "path": "~/.cargo/registry\n~/.cargo/git\n~/.cargo/bin/cargo-audit\n~/.cargo/bin/cargo-deny\n~/.cargo/bin/cargo-about\n~/.cargo/bin/cargo-nextest\n~/.cargo/bin/cargo-llvm-cov\n.tmp/qa-tools",
@@ -142,7 +177,8 @@
         {
           "name": "Identify Linux build image",
           "id": "build-image",
-          "run": "test -n \"$ImageVersion\" && echo \"version=$ImageVersion\" >> \"$GITHUB_OUTPUT\""
+          "run": "test -n \"$ImageVersion\" && echo \"version=$ImageVersion\" >> \"$GITHUB_OUTPUT\"",
+          "if": "steps.scope.outputs.rust == 'true'"
         },
         {
           "name": "Cache compiled Linux dependencies",
@@ -150,19 +186,28 @@
           "with": {
             "path": "target",
             "key": "linux-ubuntu24-cargo-v1-${{ runner.arch }}-${{ steps.build-image.outputs.version }}-${{ hashFiles('Cargo.lock', 'Cargo.toml', 'build.rs', 'rust-toolchain.toml', '.cargo/**', 'resources/**', 'tooling/configs/qa/tool-versions.json', 'tooling/configs/qa/toolchain-lock.json', 'tooling/qa/runtime/compilation_cache.py', 'tooling/qa/runtime/lib.sh', 'tooling/qa/wrappers/coverage.sh', '.github/workflows/checks.yml') }}"
-          }
+          },
+          "if": "steps.scope.outputs.rust == 'true'"
         },
         {
           "name": "Invalidate cached application outputs",
-          "run": "python3 -m tooling.qa.runtime.compilation_cache"
+          "run": "python3 -m tooling.qa.runtime.compilation_cache",
+          "if": "steps.scope.outputs.rust == 'true'"
+        },
+        {
+          "name": "Scoped development checkpoint",
+          "if": "!(inputs.release == true || github.event_name == 'schedule')",
+          "run": "tooling/qa/wrappers/checkpoint.sh"
         },
         {
           "name": "Canonical release proof",
-          "run": "tooling/qa/wrappers/alpha-proof.sh"
+          "run": "tooling/qa/wrappers/alpha-proof.sh",
+          "if": "inputs.release == true || github.event_name == 'schedule'"
         },
         {
           "name": "Trim application outputs from dependency cache",
-          "run": "python3 -m tooling.qa.runtime.compilation_cache"
+          "run": "python3 -m tooling.qa.runtime.compilation_cache",
+          "if": "steps.scope.outputs.rust == 'true'"
         },
         {
           "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
@@ -172,11 +217,12 @@
             "include-hidden-files": true,
             "if-no-files-found": "error",
             "retention-days": 14
-          }
+          },
+          "if": "inputs.release == true || github.event_name == 'schedule'"
         },
         {
           "name": "Upload static analysis reports",
-          "if": "always()",
+          "if": "always() && (inputs.release == true || github.event_name == 'schedule')",
           "uses": "actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9",
           "with": {
             "name": "static-analysis-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}",
@@ -225,5 +271,8 @@
         }
       ]
     }
+  },
+  "env": {
+    "SNIPTALE_QA_BASE": "${{ github.event.pull_request.base.sha || '' }}"
   }
 }

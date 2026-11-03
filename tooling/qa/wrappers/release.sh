@@ -27,12 +27,14 @@ qa_require_harness
 qa_step "static analysis" tooling/qa/wrappers/static-analysis.sh
 qa_fail_if_any "release static analysis"
 qa_step "secret audit" tooling/qa/wrappers/audit.sh
-qa_step "checkpoint" tooling/qa/wrappers/checkpoint.sh
+qa_step "checkpoint" tooling/qa/wrappers/checkpoint.sh --full
+qa_fail_if_any "release checkpoint admission"
 qa_step "coverage" tooling/qa/wrappers/coverage.sh
 qa_step "supply chain" tooling/qa/wrappers/supply-chain.sh
 qa_step "SBOM" python3 tooling/release/windows/generate-sbom.py --out .tmp/release/sbom.spdx.json
 dependency_fingerprint >.tmp/release/sbom.dependency.stamp
-qa_step "final checkpoint" tooling/qa/wrappers/checkpoint.sh
+qa_step "verify unchanged checkpoint inputs" qa_assert_state checkpoint-full
+qa_fail_if_any "release input stability"
 qa_step "release build" tooling/qa/wrappers/build.sh --profile release
 qa_fail_if_any "release summary"
 

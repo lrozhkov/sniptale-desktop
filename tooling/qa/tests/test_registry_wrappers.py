@@ -30,7 +30,21 @@ class RegistryTests(unittest.TestCase):
         dependency: bool = False,
         drift: bool = False,
         staged_status: str = "",
+        target: str = "",
     ) -> tuple[dict[str, str], Path]:
+        proofs = [ROOT / f".tmp/qa/state/{name}.json" for name in ("checkpoint", "release-harness")]
+        previous = [(p, p.read_bytes() if p.exists() else None) for p in proofs]
+
+        def restore_state():
+            for path, contents in previous:
+                if contents is None:
+                    path.unlink(missing_ok=True)
+                else:
+                    path.write_bytes(contents)
+
+        self.addCleanup(restore_state)
+        for path in proofs:
+            path.unlink(missing_ok=True)
         trace = directory / "trace.log"
         marker = directory / "drift.marker"
         git = self._executable(
@@ -47,6 +61,7 @@ case "${1:-}" in
     fi
     ;;
   diff)
+    if [[ "$*" == *"--name-only"* && -n "${FAKE_TARGET:-}" ]]; then printf '%s\0' "$FAKE_TARGET"; fi
     if [[ "$*" == *"--cached --name-status"* && -n "${FAKE_STAGED_STATUS:-}" ]]; then
       printf '%b' "$FAKE_STAGED_STATUS"
     fi
@@ -72,6 +87,10 @@ esac
             f"""
 printf 'checkpoint\n' >> "$TRACE_FILE"
 if [[ "${{FAKE_DRIFT:-0}}" == 1 ]]; then touch "$DRIFT_MARKER"; fi
+if [[ {checkpoint_exit} == 0 ]]; then
+  python3 -m tooling.qa.runtime.cli state write release-harness --run-id fake-harness-passed
+  python3 -m tooling.qa.runtime.cli state write checkpoint --run-id fake-passed
+fi
 exit {checkpoint_exit}
 """,
         )
@@ -84,6 +103,8 @@ exit {checkpoint_exit}
                 "PATH": f"{directory}:{environment['PATH']}",
                 "TRACE_FILE": str(trace),
                 "DRIFT_MARKER": str(marker),
+                "SNIPTALE_QA_BASE": "",
+                "FAKE_TARGET": target,
                 "FAKE_HIGH_RISK": "1" if high_risk else "0",
                 "FAKE_DEPENDENCY": "1" if dependency else "0",
                 "FAKE_DRIFT": "1" if drift else "0",
@@ -362,7 +383,7 @@ exit {checkpoint_exit}
             self.assertEqual(completed.returncode, 0, completed.stderr)
             self.assertEqual(
                 trace.read_text(encoding="utf-8").splitlines(),
-                ["checkpoint", "coverage", "checkpoint", "build"],
+                ["checkpoint", "coverage", "build"],
             )
 
     def test_closeout_fake_commands_run_conditional_supply_chain(self) -> None:
@@ -378,8 +399,55 @@ exit {checkpoint_exit}
             self.assertEqual(completed.returncode, 0, completed.stderr)
             self.assertEqual(
                 trace.read_text(encoding="utf-8").splitlines(),
-                ["checkpoint", "supply-chain", "checkpoint", "build"],
+                ["checkpoint", "supply-chain", "build"],
             )
+
+    def test_script_closeout_reuses_proof_without_cargo_or_repeated_checkpoint(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            environment, trace = self._fake_closeout_environment(
+                Path(directory), target="tooling/release/windows/alpha_publish.py"
+            )
+            for attempt in range(2):
+                completed = subprocess.run(
+                    ["tooling/qa/wrappers/closeout.sh", "--no-commit"],
+                    cwd=ROOT,
+                    env=environment,
+                    text=True,
+                    capture_output=True,
+                )
+                self.assertEqual(completed.returncode, 0, completed.stderr)
+                if attempt == 1:
+                    self.assertIn("Reusing matching successful checkpoint", completed.stdout)
+            self.assertEqual(trace.read_text().splitlines(), ["checkpoint"])
+
+    def test_cached_checkpoint_cannot_bypass_a_later_failed_harness(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            environment, trace = self._fake_closeout_environment(
+                Path(directory), target="tooling/release/windows/alpha_publish.py"
+            )
+            accepted = subprocess.run(
+                ["tooling/qa/wrappers/closeout.sh", "--no-commit"],
+                cwd=ROOT,
+                env=environment,
+                text=True,
+                capture_output=True,
+            )
+            self.assertEqual(accepted.returncode, 0, accepted.stderr)
+            failed_harness = self._executable(
+                Path(directory) / "failed-harness",
+                "python3 -m tooling.qa.runtime.cli state clear release-harness\nexit 9\n",
+            )
+            self.assertEqual(subprocess.run([str(failed_harness)], cwd=ROOT, env=environment).returncode, 9)
+            refused = subprocess.run(
+                ["tooling/qa/wrappers/closeout.sh", "-m", "must refuse failed harness"],
+                cwd=ROOT,
+                env=environment,
+                text=True,
+                capture_output=True,
+            )
+            self.assertNotEqual(refused.returncode, 0, refused.stdout)
+            self.assertIn("release-harness", refused.stderr)
+            self.assertEqual(trace.read_text().splitlines(), ["checkpoint"])
 
     def test_closeout_propagates_failure_and_never_commits_after_error(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

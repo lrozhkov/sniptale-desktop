@@ -115,6 +115,8 @@ def make_proof(output: Path) -> None:
         if (
             owner in GATES
             and (owner != "qa:static-analysis" or record.get("mode") == "default")
+            and (owner != "qa:checkpoint" or record.get("mode") == "full")
+            and (owner != "qa:fast" or record.get("mode") == "release")
             and record.get("status") == "all-passed"
             and record.get("exitCode") == 0
             and source.get("revision") == commit

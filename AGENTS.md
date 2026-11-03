@@ -14,7 +14,7 @@ Use the actual execution context for the first targeted behavioral proof. Intern
 
 Preserve valid data and completed work when operations fail. Define failure behavior before implementation. Restrict only operations affected by the failure. Increase scope only for acceptance, an established defect, an existing invariant, a supported flow, or a material risk. Material risks concern security, privacy, authorization, trust boundaries, or permanent data loss.
 
-Divide implementation into separately verifiable steps. Complete each step's proof before starting an independent step. Combine steps when a dependency requires it. Do not expand a bounded correction into unrelated hardening.
+Keep implementation steps coherent and reviewable. Use targeted checks during edits. Run the applicable checkpoint after completing the candidate. Do not expand a bounded correction into unrelated hardening.
 
 Analysis without tracked changes requires no implementation QA or closeout. Check changes to ignored local instructions directly. Do not run wrappers for unrelated tracked changes. For tracked changes, use the QA sequence below. An explicit no-commit request still requires applicable proof and review. Stop before closeout and report it as not run.
 
@@ -108,14 +108,20 @@ These are agent workflow stages. Shell wrappers do not perform semantic review o
 Use wrappers instead of substitute ad hoc commands. Complete these stages in order for tracked changes:
 
 1. Complete the coherent candidate and deterministic proof for required success and failure paths.
-2. Run `tooling/qa/wrappers/release-harness.sh` when tooling, CI, docs policy, or repository skills changed.
-3. Run `tooling/qa/wrappers/checkpoint.sh`.
+2. Run `tooling/qa/wrappers/release-harness.sh` when executable tooling, CI, docs policy, or skill behavior changed. Ordinary prose-only documentation requires no harness. Agent instructions and skill files require harness.
+3. Run `tooling/qa/wrappers/checkpoint.sh`. It selects proof from changed paths. Review the printed scope before acceptance.
 4. Complete applicable independent reviews using the supplied green proof.
 5. Collect all review findings before corrections. Check each finding against acceptance, evidence, and existing invariants.
 6. Apply one correction batch. Repeat only proof and review invalidated by those corrections. Resolve blockers before closeout.
 7. Run `tooling/qa/wrappers/closeout.sh -m "message"` unless the user requested no commit.
 
-Closeout owns its required checkpoint runs, scoped coverage, supply-chain checks, build, diff validation, staging, and commit. Do not skip its internal stages. Use `--no-commit` only for diagnostics. An explicit no-commit request uses the proof and review flow described above.
+Closeout reuses a matching successful checkpoint. It runs checkpoint when that proof is missing or stale. It retains applicable coverage, supply-chain checks, Rust builds, diff validation, staging, and commit. Do not skip its internal stages. Use `--no-commit` only for diagnostics. An explicit no-commit request uses the proof and review flow described above.
+
+Use the same scoped checkpoint locally and in PR CI. Use `checkpoint.sh --full` for complete checkpoint proof. Release and nightly CI run the complete release wrapper. A scoped checkpoint cannot admit release packaging. [QA tooling](docs/tooling/qa.md) owns scope selection and proof reuse.
+
+Do not run full release proof for an ordinary edit unless its boundary requires that proof. Do not rebuild EXE/MSI or start a VM for web styling. Use browser proof for UI changes. Use OS proof for changed native behavior. Preserve all existing Windows acceptance requirements.
+
+After a failure, rerun the failed stage first. Repeat broader proof only when the correction invalidates it. Record that reason before rerunning. Do not change test infrastructure to bypass a product defect. Do not add worktrees or unrelated automation without explicit authorization.
 
 The main agent must run blocking wrappers sequentially. Do not stage manually, amend a commit, stage task artifacts, or replace closeout unless the user requests an exception. Separate user-requested commits require separate closeout runs.
 

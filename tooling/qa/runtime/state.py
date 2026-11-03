@@ -1,12 +1,45 @@
 from __future__ import annotations
 
+import os
+import platform
+import shutil
 from pathlib import Path
 
-from .repository import current_targets, fingerprint, harness_targets, revision
+from .repository import check_plan, current_targets, fingerprint, harness_targets, revision
 from .storage import atomic_write_json, iso_now, read_json
 
 
-STATE_VERSION = "sniptale-qa-state-v1"
+STATE_VERSION = "sniptale-qa-state-v2"
+
+
+def proof_context(root: Path, name: str) -> dict:
+    plan = check_plan(full=name == "checkpoint-full")
+    tools = ["python3"]
+    flags = {"NODE_OPTIONS": os.environ.get("NODE_OPTIONS", "")}
+    if "ui" in plan or "scripts" in plan:
+        tools.append("node")
+    if "rust" in plan:
+        tools.extend(["cargo", "rustc"])
+        flags.update(
+            {
+                k: v
+                for k, v in os.environ.items()
+                if k.startswith(("RUST", "CARGO_PROFILE_"))
+                or k in {"CARGO_BUILD_TARGET", "CARGO_ENCODED_RUSTFLAGS", "CARGO_TARGET_DIR"}
+            }
+        )
+    result = {
+        "plan": plan,
+        "platform": platform.platform(),
+        "tools": {t: shutil.which(t) for t in tools},
+        "flags": flags,
+    }
+    if name.startswith(("checkpoint", "build")) and "ui" in plan:
+        outputs = sorted(
+            p.relative_to(root).as_posix() for p in (root / "ui/dist").rglob("*") if p.is_file() or p.is_symlink()
+        )
+        result["frontend"] = fingerprint(outputs)
+    return result
 
 
 def _targets(name: str) -> list[str]:
@@ -32,6 +65,7 @@ def write_state(root: Path, name: str, run_id: str) -> None:
             "targetFiles": targets,
             "fingerprint": fingerprint(targets),
             "createdAt": iso_now(),
+            "context": proof_context(root, name),
         },
     )
 
@@ -49,6 +83,7 @@ def assert_state(root: Path, name: str) -> None:
         "revision": revision(),
         "targetFiles": targets,
         "fingerprint": fingerprint(targets),
+        "context": proof_context(root, name),
     }
     mismatches = [key for key, value in expected.items() if state.get(key) != value]
     if not isinstance(state.get("producerRunId"), str) or not state.get("producerRunId"):

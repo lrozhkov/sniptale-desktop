@@ -30,16 +30,16 @@ Windows smoke uses the cataloged Python version from a checksum-verified embedda
 
 - `preflight.sh` reports repository/toolchain context and runs read-only architecture checks.
 - `environment-audit.sh` checks exact cataloged build and QA tool versions against fresh OSV, upstream CPython release commits, and NVD results, and verifies advisory-bound release-age exceptions. It does not build the application or start a VM. Unsupported coverage and platform inputs appear explicitly in its report. Empty advisory results are not a claim of complete bundled-dependency coverage.
-- `fast.sh` runs the fresh environment audit and script checks concurrently before compilation and desktop-lab start/build/test operations. `script-lints.sh` inventories supported sources and uses at most four workers. Checks include Ruff errors/formatting, Pyright, ShellCheck, shfmt, and PowerShell parsing/PSScriptAnalyzer. They also include typed ESLint Promise/safety rules, actionlint, zizmor, yamllint, Taplo, and JSON duplicate-key/schema validation. The wrapper also exercises real negative fixtures. The harness includes a known-vulnerable Python rejection test.
+- `fast.sh` runs source checks without network advisory queries. `fast.sh --release` also runs the fresh environment audit. `script-lints.sh` inventories supported sources and uses at most four workers. Checks include Ruff errors/formatting, Pyright, ShellCheck, shfmt, and PowerShell parsing/PSScriptAnalyzer. They also include typed ESLint Promise/safety rules, actionlint, zizmor, yamllint, Taplo, and JSON duplicate-key/schema validation. The wrapper also exercises real negative fixtures. The harness includes a known-vulnerable Python rejection test.
 - `audit.sh` runs pinned Gitleaks against the current tree and complete Git history. A shallow checkout, unavailable or wrong tool version, finding, malformed baseline, or incomplete report fails the audit.
 - `release-harness.sh` validates tooling topology, registries, docs policy, hosted-workflow policy, Python tests, desktop-lab controller tests, and guardrail self-tests. Tooling, hosted-workflow policy, docs-policy, or repo-skill changes require fresh harness state.
-- `checkpoint.sh` is the in-progress product gate: format, docs/legal policy, static guardrails, Windows-target compilation, clippy, owner tests, and QA runtime tests.
+- `checkpoint.sh` selects development proof from changed paths. `checkpoint.sh --full` runs all checkpoint families. Both retain mandatory static guardrails.
 - `coverage.sh` requires a fresh checkpoint before instrumented compilation and writes aggregate and owner coverage evidence.
 - `licenses.sh --check` validates root legal policy and the tracked dependency notice bundle. `licenses.sh --write` is the explicit regeneration path after reviewed dependency changes.
 - `supply-chain.sh` runs cargo advisory, source, ban, license-expression, and dependency-license collection checks.
-- `closeout.sh -m "message"` runs scoped proof, the dev build, stages the verified tree, and commits. `--no-commit` is diagnostic only.
+- `closeout.sh -m "message"` reuses matching checkpoint proof, runs applicable coverage, supply-chain checks and Rust builds, then commits. `--no-commit` is diagnostic only.
 - `alpha-proof.sh` runs the release harness and canonical release gate, then exports commit-bound QA evidence for the Windows packaging job.
-- `release.sh` always runs checkpoint, coverage, supply-chain/license proof, SPDX SBOM generation, a final checkpoint, and the release build.
+- `release.sh` runs full checkpoint once, coverage, supply-chain/license proof, SPDX SBOM generation, input verification, and the release build.
 - `package-windows.sh` builds the Windows EXE/MSI and always binds manifests, legal payload, provenance, and hashes. Stable production also binds signatures, SBOM, supply-chain reports, and manual evidence.
 - `windows-smoke.sh`, `windows-smoke-from-wsl.sh`, and `desktop-e2e-lab.sh` own Windows compile/runtime, installed-package, and isolated guest evidence.
 
@@ -73,13 +73,31 @@ Local validation reads only the checksum-verified official Renovate configuratio
 
 Hosted updates require the Renovate GitHub App to be enabled for this repository and the configuration to reach the default branch. A local daily audit is scheduled for 10:00 Europe/Moscow. It runs only `environment-audit.sh` and reports actionable changes or source failures.
 
+## Development and release scopes
+
+`tooling/qa/runtime/repository.py` owns path selection. `python3 -m tooling.qa.runtime.cli plan` prints the selected families without running checks. PR CI supplies its exact base commit through `SNIPTALE_QA_BASE`. The selector includes committed PR changes and local changes. Missing or malformed bases fail closed. Empty scopes and unknown paths select all families.
+
+- Ordinary Markdown changes require documentation and mandatory static guardrails. Agent instructions and skill files also require harness and source checks.
+- Web changes add the shared UI build, contracts, and browser tests. They require no Rust build or VM.
+- Executable tooling changes add source linting and harness proof. Release-script changes require no application compilation.
+- Rust changes add formatting, Windows-target compilation, Clippy, and owner tests.
+- Dependency, QA-policy, workflow, and unknown changes select all families. Dependency changes also require a fresh environment audit.
+
+Every scope retains owner, dependency-direction, facade, security, contract, legal, resource, and tooling checks. The harness owns guardrail self-tests and Python/controller suites. Checkpoint does not execute those suites a second time. Fresh harness proof remains mandatory for executable tooling changes.
+
+The Nextest development profile excludes two complete-hour integration scenarios. Sensitive owners and full checkpoints use the complete default profile. The selector and `.config/nextest.toml` own those exact scopes. The Cargo fallback executes all tests when Nextest is unavailable. Nightly and release CI retain complete tests, coverage, CodeQL, jscpd, secret audit, supply-chain checks, legal checks, and SBOM generation.
+
+PR CI runs the scoped checkpoint. The existing checks workflow runs complete release proof nightly. Alpha packaging explicitly requests complete release proof through the same workflow. A manual checks dispatch can select release proof. Required check names remain unchanged. PR checks produce no distributable release artifact.
+
+Closeout accepts successful checkpoint state only when revision, changed files, contents, modes, scope, tool paths, relevant flags, and frontend output match. Failed checkpoint reruns clear prior success state. Closeout also requires applicable harness success, including after checkpoint reuse. Source or configuration changes invalidate reuse. `CARGO_INCREMENTAL` selects compiler cache behavior and does not invalidate proof. Coverage can change that cache mode without repeating checkpoint. Coverage and supply-chain reports do not require another checkpoint when its inputs remain unchanged. Release admission separately requires full checkpoint and fresh advisory-audit modes. Local state never substitutes for hosted release evidence.
+
 ## Feedback time
 
-Measure the local feedback loop as `checkpoint.sh` followed by `build.sh --profile dev`. Measure `closeout.sh` separately because its scoped coverage and supply-chain work depends on the changed owners. Report wall time, individual check time, failure stage, source revision, and cache condition. Distinguish an empty compilation cache, a warm unchanged checkout, and a warm checkout after a source edit. Do not combine these into one percentile. Use at least three comparable warm samples for a median. Label single samples explicitly.
+Measure the local feedback loop with the selected `checkpoint.sh` scope. Add `build.sh --profile dev` when evaluating Rust build time. Measure `closeout.sh` separately because its scoped coverage and supply-chain work depends on the changed owners. Report wall time, individual check time, failure stage, source revision, and cache condition. Distinguish an empty compilation cache, a warm unchanged checkout, and a warm checkout after a source edit. Do not combine these into one percentile. Use at least three comparable warm samples for a median. Label single samples explicitly.
 
 For a stable workload, initial optimization targets require at least 25% less warm checkpoint wall time. They require at least 35% less static-proof wall time. The warm dev-build median must not regress by more than 1 second. These are investigation targets, not permission to skip QA or release gates.
 
-`checkpoint.sh` runs the independent command catalog in `tooling/qa/runtime/checkpoint_checks.py` with at most four workers. Every independent command runs, including after another check fails. Each check retains its result and sanitized output. A failed static proof stops the checkpoint before compilation and cannot write passed checkpoint state.
+`checkpoint.sh` runs the independent command catalog in `tooling/qa/runtime/checkpoint_checks.py` with at most four workers. Every selected independent command runs, including after another check fails. Each check retains its result and sanitized output. A failed static proof stops the checkpoint before compilation and cannot write passed checkpoint state.
 
 Cargo compilation, clippy, and Rust tests remain sequential. Set `SNIPTALE_QA_STATIC_JOBS=1` for a comparable sequential measurement or a constrained machine. Accepted values are 1 through 4. The default is four. Compilation caches do not contain accepted QA state.
 
