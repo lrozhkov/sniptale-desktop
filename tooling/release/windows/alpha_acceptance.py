@@ -7,19 +7,30 @@ import base64
 import hashlib
 import json
 import subprocess
+import sys
 from pathlib import Path
 
-from alpha_artifacts import ROOT, assert_source, digest, read_json, verify_bundle, write_json
+from alpha_artifacts import ROOT, assert_source, digest, frontend_files, read_json, verify_bundle, write_json
 from alpha_publish import RELEASE_CASES, admit, api
 
+sys.path.insert(0, str(ROOT / "tooling/desktop/e2e_lab"))
+from artifacts import dirty_fingerprint
 
-def verified_tests(receipt: dict, commit: str) -> dict:
+
+def candidate_source_fingerprint(bundle: Path, commit: str) -> str:
+    assert_source(commit)
+    if frontend_files(ROOT / "ui/dist") != frontend_files(bundle / "qa/frontend"):
+        raise ValueError("local generated frontend differs from verified candidate")
+    return dirty_fingerprint(ROOT)
+
+
+def verified_tests(receipt: dict, commit: str, *, source_fingerprint: str = hashlib.sha256(b"").hexdigest()) -> dict:
     matrix = receipt.get("test_matrix", [])
     if (
         receipt.get("result") != "pass"
         or receipt.get("run_mode") != "alpha-release-acceptance"
         or receipt.get("commit_sha") != commit
-        or receipt.get("dirty_state_sha256") != hashlib.sha256(b"").hexdigest()
+        or receipt.get("dirty_state_sha256") != source_fingerprint
         or receipt.get("lanes") != ["windows-11"]
         or len(matrix) != 1
         or matrix[0].get("lane") != "windows-11"
@@ -44,7 +55,7 @@ def export(bundle: Path, run_directory: Path, artifact_id: int, output: Path) ->
     commit, tag = provenance["commit"], provenance["tag"]
     assert_source(commit)
     verify_bundle(bundle, commit, tag)
-    tests = verified_tests(receipt, commit)
+    tests = verified_tests(receipt, commit, source_fingerprint=candidate_source_fingerprint(bundle, commit))
     recorded = {item["name"]: item["sha256"] for item in receipt["artifacts"]}
     for path in bundle.rglob("*"):
         if path.is_file() and recorded.get(path.name) != digest(path):
